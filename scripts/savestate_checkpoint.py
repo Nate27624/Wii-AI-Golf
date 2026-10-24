@@ -9,7 +9,7 @@ from pathlib import Path
 from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.integration.savestates import SavestateManager, read_registry, register, resolve
 
-DEFAULT_REGISTRY = Path("research/local-savestates.json")
+DEFAULT_REGISTRY = Path("research/savestates.local.json")
 
 
 def main() -> None:
