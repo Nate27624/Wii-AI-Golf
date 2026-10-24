@@ -160,10 +160,10 @@ def main() -> None:
             caps = rpc.call("trace.swing_capabilities", [])
         except Exception as exc:
             raise RuntimeError(
-                "Swing bridge V2 is required. Close Dolphin and regenerate "
-                "tools/mcp_bridge_swing.py with 'py scripts/golf.py bridge patch "
-                "--source <tools/mcp_bridge.py> --output "
-                "<tools/mcp_bridge_swing.py> --enable-swing', then relaunch."
+                "Swing bridge V2 is required. Close Dolphin and run "
+                "'py scripts/golf.py bridge upgrade-swing' to regenerate "
+                "the version-pinned local bridge (previous bridge is backed up), "
+                "then retry the full swing command."
             ) from exc
         if not isinstance(caps, dict) or caps.get("swing_protocol") != 2 or caps.get("neutral_button_only") is not True:
             raise RuntimeError("Swing bridge V2 capability mismatch: refusing to send swing.")
