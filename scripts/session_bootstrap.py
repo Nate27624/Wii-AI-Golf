@@ -7,6 +7,7 @@ Never synthesize menu timings or send an automatic golf swing here.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -103,6 +104,31 @@ def dolphin_process_running() -> bool:
         return False
 
 
+def prepare_emulated_remote(canonical: Path, dolphin: Path) -> dict:
+    """Reuse Worker 1's fail-closed Dolphin controller preparation, not a copy."""
+    module_path = canonical / "src" / "wii_ai_golf" / "integration" / "dolphin_controller_config.py"
+    if not module_path.is_file():
+        raise FileNotFoundError("Canonical emulated-controller helper is missing: " + str(module_path))
+    spec = importlib.util.spec_from_file_location("_wii_golf_canonical_remote", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Could not load canonical Wii Remote configuration module")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    local = canonical / "research" / "launch.local.json"
+    user_dir = None
+    if local.is_file():
+        try:
+            config = json.loads(local.read_text(encoding="utf-8"))
+            path = config.get("dolphin_user") if isinstance(config, dict) else None
+            if isinstance(path, str) and path.strip():
+                user_dir = Path(path)
+        except (OSError, ValueError):
+            pass
+    state = module.ensure_emulated_controller(dolphin, user_dir=user_dir)
+    print("Controller prepared:", state["source"], "| Extension:", state["extension"])
+    return state
+
+
 def ensure_intro(args: argparse.Namespace) -> str:
     """Perform exactly one canonical savestate restore and menu navigation.
 
@@ -138,6 +164,9 @@ def ensure_intro(args: argparse.Namespace) -> str:
         canonical=canonical, profile=profile, port=port, attach=attach,
         dolphin=args.dolphin, bridge=args.bridge, game=game,
     )
+    if not attach:
+        # Same existing safety logic as canonical launch_golf.py, before boot.
+        prepare_emulated_remote(canonical, args.dolphin)
     print("STANDARD GOLF INTRO:", "attach" if attach else "fresh Felk Dolphin")
     print("Restore named pre-start state -> A -> wait -> A+B -> release -> A -> settle")
     print("Using integrator-owned timing; NO second restore and NO automatic swing.")
