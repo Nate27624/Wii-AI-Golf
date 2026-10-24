@@ -1,7 +1,8 @@
 """One-command local Wii Sports training launcher (Worker 1 S001).
 
-Starts the existing savestate_session.py workflow (Dolphin --script/--exec
-and an existing named checkpoint); optionally runs ONE guarded swing probe.
+Delegates to launch_hitting_green.py, which launches Dolphin, loads the
+existing green-pre-start state, then executes the user-verified A -> A+B -> A
+intro sequence. Optionally runs ONE human-confirmed swing probe.
 Game paths are prompted once and stored only in a gitignored local file.
 Never captures or overwrites Dolphin savestates.
 """
@@ -103,7 +104,7 @@ def resolve_profile(profile_arg: str | None, slot_arg: int | None,
     elif profile_arg:
         selected = profile_arg
     else:
-        selected = read_config(config).get("profile") or "green-first-shot"
+        selected = read_config(config).get("profile") or "green-pre-start"
 
     profile = catalog.get(selected)
     # Only the operator's explicit --slot/--profile overrides the saved choice.
@@ -149,16 +150,19 @@ def make_start_command(*, game: Path, dolphin: Path, bridge: Path,
                        profile: str, catalog: Path, port: int) -> list[str]:
     if not 1 <= port <= 65535:
         raise ValueError("port must be in 1..65535")
-    if not profile:
-        raise ValueError("profile cannot be empty")
+    if profile != "green-pre-start":
+        raise ValueError("Standard gameplay intro requires green-pre-start; "
+                         "use --profile green-pre-start (or --slot for its registered slot). "
+                         "For advanced at-ball checkpoints, use savestate_session.py directly.")
     for label, p in (("Dolphin", dolphin), ("swing bridge", bridge), ("state catalog", catalog)):
         if not p.is_file():
             raise ValueError(f"{label} not found: {p}")
     return [
-        sys.executable, str(ROOT / "scripts" / "savestate_session.py"),
+        sys.executable, str(ROOT / "scripts" / "launch_hitting_green.py"),
         "--catalog", str(catalog), "--port", str(port),
-        "start", profile, "--dolphin", str(dolphin),
+        "--profile", profile, "--dolphin", str(dolphin),
         "--bridge", str(bridge), "--game", str(game),
+        "--send-live",
     ]
 
 
@@ -170,7 +174,7 @@ def make_swing_command(*, preset: str, port: int) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="One command: launch Dolphin + attach bridge + restore checkpoint")
+    parser = argparse.ArgumentParser(description="One command: launch Dolphin, restore green-pre-start, navigate verified A -> A+B -> A intro")
     parser.add_argument("--game", help="First-run Wii Sports RVZ/ISO path; saved in ignored local config")
     parser.add_argument("--config", type=Path, default=CONFIG)
     parser.add_argument("--catalog", type=Path, default=CATALOG)
@@ -183,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     checkpoint.add_argument("--slot", type=int, help="Select and remember a REGISTERED savestate slot, e.g. 2")
     parser.add_argument("--port", type=int, default=55355)
     parser.add_argument("--swing", action="store_true",
-                        help="After startup, invoke ONE human-confirmed swing experiment")
+                        help="After validated intro dispatch, prompt for ONE human-confirmed swing experiment")
     parser.add_argument("--preset", choices=("forward", "reverse", "sideways"), default="forward")
     args = parser.parse_args(argv)
     try:
@@ -212,19 +216,20 @@ def main(argv: list[str] | None = None) -> int:
             print("Original controller backup:", controller["backup"])
         if args.dolphin_user:
             remember_dolphin_user(args.config, controller["user_dir"])
-        print("Starting Felk Dolphin with the swing bridge and requesting named savestate restoration...")
+        print("Starting Felk Dolphin, restoring green-pre-start, and dispatching calibrated A / A+B / A intro...")
         print("Keep Wii Remote 1: Emulated Wii Remote; Extension: None.")
         print("Close any existing Dolphin instance before launching. This never overwrites a savestate.")
         result = subprocess.run(launch, check=False)
         if result.returncode:
             print("Launch/reset did not complete. Inspect Dolphin's Scripting log.", file=sys.stderr)
             return result.returncode
-        print("Savestate load was requested; visually confirm the expected golf screen.")
+        print("Calibrated intro dispatched; visually confirm the golfer reached the ready-to-swing screen.")
         if args.swing:
             print("Starting guarded single-shot test. It waits for YOUR Enter before dispatch.")
             result = subprocess.run(make_swing_command(preset=args.preset, port=args.port), check=False)
             return result.returncode
-        print("Ready. To perform one guarded swing, run: py scripts/probe_swing.py --preset forward --send-live-swing")
+        print("Intro complete (screen not machine-verified). To attempt one guarded swing: "
+              "py scripts/probe_swing.py --preset forward --send-live-swing")
         return 0
     except (OSError, ValueError, ControllerConfigError, json.JSONDecodeError) as exc:
         print(f"Golf launcher error: {exc}", file=sys.stderr)
