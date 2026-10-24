@@ -46,7 +46,7 @@ def _launch(args, profile):
         try:
             with FelkRPC(port=args.port, timeout_s=1.0) as rpc:
                 outcome = StateManager(rpc).request_load(profile)
-            return {"action": "launched_and_load_requested", "pid": process.pid, **outcome}
+            return {"action": "launched_and_load_requested", "pid": process.pid, "state_load": outcome}
         except (OSError, TimeoutError):
             time.sleep(0.25)
     raise TimeoutError("Dolphin launched but bridge did not respond within timeout; inspect Scripting log")
