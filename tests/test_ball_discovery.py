@@ -65,6 +65,18 @@ class DiscoveryTests(unittest.TestCase):
         self.assertTrue(any(x["offset_hex"] == "+0x8" for x in result["candidates"]))
         self.assertIn("Do not treat", result["warning"])
 
+    def test_small_changing_integers_ranked_but_not_named_scores(self):
+        def sample(i):
+            raw = b"\0" * 8 + struct.pack(">I", i) + b"\0" * 16
+            return {"game_id": "RSPE01", "disc_revision": 1, "windows": {
+                "golf_config": {"address": "0x91BF16B0", "bytes_hex": raw.hex()}}}
+        result = analyze_samples([sample(i) for i in range(7)], min_changed=3)
+        self.assertGreater(result["scalar_candidate_count"], 0)
+        self.assertTrue(any(x["offset_hex"] == "+0x8"
+                            for x in result["scalar_candidates"]))
+        self.assertTrue(all("NOT_score" in x["status"]
+                            for x in result["scalar_candidates"]))
+
     def test_constant_vectors_not_moving_candidates(self):
         fixed = {"game_id": "RSPE01", "disc_revision": 1, "windows": {
             "golf_field": {"address": "0x91BF4210", "bytes_hex": "00" * 48}}}
