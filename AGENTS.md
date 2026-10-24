@@ -6,6 +6,16 @@ Coordinate separate AI coding/research sessions to develop a scientifically repr
 
 Every session MUST read README, this document, research/ledger.md, research/queue.jsonl, open GitHub Issues/PRs and relevant tests before changing code.
 
+## One public CLI (2026-10-24)
+
+The project now has one **user/operator-facing entrypoint**: `py scripts/golf.py`. Use [docs/cli.md](docs/cli.md) for command reference, [research/README.md](research/README.md) for the S001–S005 research program and [docs/milestones.md](docs/milestones.md) for gates.
+
+- **Normal game actions:** `golf play --slot 2` and `golf swing --slot 2` delegate to the existing, tested `launch_golf.py → launch_hitting_green.py → menu_sequence.py` sequence. They do not introduce independent A / A+B / A timings, new savestate writes, or concurrent Dolphin processes. When proposing commands to the user, use the unified CLI rather than separate manual script attach/reset instructions.
+- **Advanced and agent code:** older `scripts/*.py` remain valid internally. If a worker adds useful operator functionality, add one narrow CLI adapter with a mocked single-launch regression; do not rename, fork or silently overwrite another worker's implementation.
+- **Source portability:** direct `py scripts/golf.py` must work after `git pull` without requiring pip editable reinstall or falling back to a stale installed `wii_ai_golf` from another worktree.
+- **Evidence hierarchy:** Felk RPC completion, user-observed ball contact, verified game distance/score, reproducible repeats and learned improvement are *distinct* gates. The first 89-frame forward swing had human-observed ball movement and not-on-green; don't call it a scored or optimized result. Static queue status does not represent live worker execution.
+- **Compatibility boundary:** evaluation S002, modeling S003 and learning S004/S005 own their pending feature PRs. Coordinator CLI delegates to their stabilized entrypoints after those features land; do not import unmerged dependencies or claim their results verified.
+
 ## Roles and ownership
 
 | Agent role | Scope | Primary ownership |
