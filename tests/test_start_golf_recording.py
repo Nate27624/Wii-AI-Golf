@@ -35,6 +35,14 @@ class SharedStartupTests(unittest.TestCase):
         self.game = self.root / "WiiSports.wbfs"
         for file in (self.exe, self.bridge, self.game):
             file.touch()
+        # Hardware settings come from canonical integration code; unit tests
+        # must never mutate a real Dolphin user config.
+        self.controller_guard = patch.object(
+            boot, "prepare_emulated_remote",
+            return_value={"source": "Emulated Wii Remote (1)", "extension": "None"},
+        )
+        self.prepare_remote = self.controller_guard.start()
+        self.addCleanup(self.controller_guard.stop)
 
     def args(self, startup="auto", game=None):
         parser = argparse.ArgumentParser()
@@ -82,6 +90,14 @@ class SharedStartupTests(unittest.TestCase):
         self.assertIn("--send-live", cmd)
         self.assertNotIn("--attach-running", cmd)
         self.assertEqual(run.call_args.kwargs["env"]["PYTHONPATH"], str(self.root / "src"))
+
+    def test_fresh_always_configures_emulated_wiimote_before_launch(self):
+        with patch.object(boot, "bridge_open", return_value=False), patch.object(
+            boot, "dolphin_process_running", return_value=False
+        ), patch.object(boot.subprocess, "run",
+                         return_value=subprocess.CompletedProcess([], 0)):
+            boot.ensure_intro(self.args(game=self.game))
+        self.prepare_remote.assert_called_once_with(self.root, self.exe)
 
     def test_bridge_existing_auto_uses_same_prestart_intro(self):
         with patch.object(boot, "bridge_open", return_value=True), patch.object(
