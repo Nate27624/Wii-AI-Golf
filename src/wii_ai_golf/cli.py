@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import json
+import math
 import os
 import socket
 from pathlib import Path
@@ -89,6 +90,28 @@ def build_parser() -> argparse.ArgumentParser:
                       help="Separate A-button-only RPC presses before ANY swing API call (default 60)")
     shot.add_argument("--report", help="Override local swing observation JSONL path")
 
+    outcome = sub.add_parser(
+        "outcome",
+        help="S002 human-observed shot outcome collection via canonical full startup"
+    )
+    outcome_actions = outcome.add_subparsers(dest="outcome_action", required=True)
+    record = outcome_actions.add_parser(
+        "record",
+        help="One full-start guarded shot, read-only RAM snapshots, and human landing label"
+    )
+    record.add_argument("--send-live", action="store_true",
+                        help="Opt in to ONE real shot; default is coordinator dry-run")
+    record.add_argument("--game", help="Optional game path, else local remembered game")
+    record.add_argument("--pre-samples", type=int, default=3,
+                        help="Read-only game snapshots BEFORE swing (2..10; default 3)")
+    record.add_argument("--post-samples", type=int, default=8,
+                        help="Read-only game snapshots after swing (2..40; default 8)")
+    record.add_argument("--settled-samples", type=int, default=3,
+                        help="Read-only snapshots after human confirms result (2..10)")
+    record.add_argument("--interval", type=float, default=0.4,
+                        help="Delay between RAM captures in seconds (0..5)")
+    record.add_argument("--data-dir", help="Override local PRIVATE output folder, never Git")
+    
     experiment = sub.add_parser("experiment", help="Fresh intro then an approved action script")
     experiment.add_argument("--script", required=True, help="Existing scripts/*.py action name")
     experiment.add_argument("--game", help="Game image path if not saved")
@@ -222,6 +245,33 @@ def execute(args: argparse.Namespace) -> int:
             if args.report is not None:
                 argv += ["--report", str(args.report)]
         return _run(_script_command("launch_golf.py", *argv), dry_run=args.dry_run)
+    if args.group == "outcome":
+        if not (2 <= args.pre_samples <= 10
+                and 2 <= args.post_samples <= 40
+                and 2 <= args.settled_samples <= 10):
+            raise ValueError("outcome record: pre=2..10, post=2..40, settled=2..10")
+        if not math.isfinite(args.interval) or not 0 <= args.interval <= 5:
+            raise ValueError("outcome record: --interval must be finite, 0..5 seconds")
+        action = [
+            "--send-live-swing",
+            "--pre-samples", str(args.pre_samples),
+            "--post-samples", str(args.post_samples),
+            "--settled-samples", str(args.settled_samples),
+            "--interval", str(args.interval),
+        ]
+        if args.data_dir:
+            action += ["--data-dir", args.data_dir]
+        command = ["--script", "collect_outcome_transition.py"]
+        if args.game:
+            command += ["--game", args.game]
+        if args.send_live:
+            command.append("--send-live")
+        # Exactly one canonical boot and one S002 shot collector. The
+        # coordinator wraps the already-ready game; do not pass attach flags.
+        print("S002 outcome collector: pre-shot RAM reads and human landing "
+              "labels, NOT a verified automatic score.", flush=True)
+        return _run(_script_command("run_golf_experiment.py",
+                                   *command, "--", *action))
     if args.group == "experiment":
         action_args = list(args.action_args)
         if action_args and action_args[0] == "--":
