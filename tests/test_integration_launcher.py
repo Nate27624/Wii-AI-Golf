@@ -141,13 +141,16 @@ class OneCommandLauncherTests(unittest.TestCase):
             self.assertIn("reverse", run.call_args_list[1].args[0])
             self.assertEqual(run.call_args_list[1].args[0][
                 run.call_args_list[1].args[0].index("--follow-through-frames")+1], "30")
+            self.assertEqual(run.call_args_list[1].args[0][
+                run.call_args_list[1].args[0].index("--a-setup-frames")+1], "45")
 
     def test_launch_forwards_extended_followthrough_to_child_after_verified_intro(self):
         argv = [
             "--game", str(self.game), "--config", str(self.config),
             "--bridge", str(self.bridge), "--dolphin", str(self.exe),
             "--catalog", str(self.catalog), "--slot", "2", "--swing",
-            "--follow-through-frames", "45", "--preset", "sideways"
+            "--follow-through-frames", "45", "--a-setup-frames", "60",
+            "--preset", "sideways"
         ]
         with patch.object(launch_golf.subprocess, "run",
                           return_value=subprocess.CompletedProcess([], 0)) as run:
@@ -162,6 +165,8 @@ class OneCommandLauncherTests(unittest.TestCase):
             self.assertIn("--attach-running", swing_child)
             self.assertEqual(swing_child[swing_child.index("--follow-through-frames")+1],
                              "45")
+            self.assertEqual(swing_child[swing_child.index("--a-setup-frames")+1],
+                             "60")
             self.assertIn("sideways", swing_child)
 
     def test_bad_followthrough_never_spawns_emulator(self):
@@ -170,6 +175,18 @@ class OneCommandLauncherTests(unittest.TestCase):
             "--bridge", str(self.bridge), "--dolphin", str(self.exe),
             "--catalog", str(self.catalog), "--slot", "2", "--swing",
             "--follow-through-frames", "181"
+        ]
+        with patch.object(launch_golf.subprocess, "run") as run:
+            with self.assertRaises(SystemExit):
+                launch_golf.main(argv)
+            run.assert_not_called()
+
+    def test_bad_a_setup_never_spawns_emulator(self):
+        argv = [
+            "--game", str(self.game), "--config", str(self.config),
+            "--bridge", str(self.bridge), "--dolphin", str(self.exe),
+            "--catalog", str(self.catalog), "--slot", "2", "--swing",
+            "--a-setup-frames", "0"
         ]
         with patch.object(launch_golf.subprocess, "run") as run:
             with self.assertRaises(SystemExit):
