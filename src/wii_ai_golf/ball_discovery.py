@@ -160,6 +160,8 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
     ] = defaultdict(list)
     scalar_samples: dict[int, list[tuple[int, int, tuple[int, int] | None]]] = defaultdict(list)
     vector_provenance: dict[int, set[str]] = defaultdict(set)
+    vector_origin: dict[int, tuple[str, int, str]] = {}
+    scalar_origin: dict[int, tuple[str, int, str]] = {}
     scalar_provenance: dict[int, set[str]] = defaultdict(set)
     for idx, sample in enumerate(samples):
         seen_vectors: set[int] = set()
@@ -189,6 +191,7 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
             for offset in range(0, len(blob) - 3, 4):
                 absolute = base_address + offset
                 scalar_provenance[absolute].add(name)
+                scalar_origin.setdefault(absolute, (name, offset, address))
                 if absolute in seen_scalars:
                     continue
                 seen_scalars.add(absolute)
@@ -198,6 +201,7 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
             for offset in range(0, len(blob) - 11, 4):
                 absolute = base_address + offset
                 vector_provenance[absolute].add(name)
+                vector_origin.setdefault(absolute, (name, offset, address))
                 if absolute in seen_vectors:
                     continue
                 seen_vectors.add(absolute)
@@ -229,6 +233,9 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
             continue
         ranked.append({
             "source_windows": sorted(vector_provenance[absolute]),
+            "window": vector_origin[absolute][0],
+            "offset_hex": f"+0x{vector_origin[absolute][1]:X}",
+            "window_address": vector_origin[absolute][2],
             "candidate_address": f"0x{absolute:08X}",
             "observed_samples": len(entries), "changed_steps": changes,
             "within_same_scene_changed_steps": within_scene_steps,
@@ -249,7 +256,7 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
         candidate["likely_orientation_or_normal"] = bool(unitish and neighbors >= 2)
         candidate["status"] = ("likely_orientation_not_ball_xyz" if candidate["likely_orientation_or_normal"]
                                else "unverified_numeric_vec3_candidate")
-    ranked.sort(key=lambda x: (x["likely_orientation_or_normal"], (-x["within_same_scene_changed_steps"],
+    ranked.sort(key=lambda x: (x["likely_orientation_or_normal"], -x["within_same_scene_changed_steps"],
                                -x["changed_steps"],
                                -x["total_displacement_game_units_unverified"],
                                x["candidate_address"]))
@@ -265,6 +272,8 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
             continue
         scalar_ranked.append({
             "source_windows": sorted(scalar_provenance[absolute]),
+            "window": scalar_origin[absolute][0],
+            "offset_hex": f"+0x{scalar_origin[absolute][1]:X}",
             "candidate_address": f"0x{absolute:08X}", "changed_steps": steps,
             "within_same_scene_changed_steps": within,
             "first_u32": entries[0][1], "last_u32": entries[-1][1],
