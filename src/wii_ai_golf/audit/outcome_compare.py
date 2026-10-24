@@ -81,6 +81,13 @@ def _run(doc: dict[str, Any], index: int) -> tuple[dict[str, Any], dict[str, Any
     if trace_hash is not None and (not isinstance(trace_hash, str) or len(trace_hash) != 64
                                    or any(c not in "0123456789abcdef" for c in trace_hash)):
         raise ValueError("trace_sha256 must be lowercase 64-character hex")
+    prime_requests = requested.get("a_button_only_prime_requests")
+    prime_applied = requested.get("a_button_prime_applied")
+    if prime_requests is not None and (type(prime_requests) is not int
+                                       or not 0 <= prime_requests <= 180):
+        raise ValueError("A-button prime count must be 0..180 or null")
+    if prime_applied is not None and type(prime_applied) is not bool:
+        raise ValueError("a_button_prime_applied must be boolean or null")
     overview = {
         "run_number": index,
         "displayed_distance_human": value,
@@ -90,6 +97,8 @@ def _run(doc: dict[str, Any], index: int) -> tuple[dict[str, Any], dict[str, Any
         "applied_frames": applied,
         "generated_trace_frames": generated,
         "trace_sha256": trace_hash,
+        "a_button_only_prime_requests": prime_requests,
+        "a_button_prime_applied": prime_applied,
         "candidate_count_in_summary": len(candidates),
         "candidate_list_truncated": bool(ranking.get("candidates_truncated", False)),
         "literal_memory_matches_to_displayed_number": sum(
@@ -145,6 +154,15 @@ def compare_outcome_runs(reports: list[dict[str, Any]]) -> dict[str, Any]:
     else:
         trace_comparable = False
         trace_reason = "equal frame counts alone do not establish waveform identity"
+    # Matching swing sample hashes do not prove matching controller inputs:
+    # the standalone probe also primes A with BUTTON-ONLY requests before the
+    # waveform. Require that separately captured priming program to match.
+    complete_prime = all(s["a_button_prime_applied"] is not None
+                         and s["a_button_only_prime_requests"] is not None
+                         for s in sessions)
+    priming_same = complete_prime and len({
+        (s["a_button_prime_applied"], s["a_button_only_prime_requests"])
+        for s in sessions}) == 1
     different_labels = len({(str(s["displayed_distance_human"]),
                              s["displayed_unit_human"], s["finished_on_green_human"])
                             for s in sessions}) > 1
@@ -163,6 +181,8 @@ def compare_outcome_runs(reports: list[dict[str, Any]]) -> dict[str, Any]:
         "human_labels_differ": different_labels,
         "waveforms_proven_identical": trace_comparable,
         "waveform_comparison": trace_reason,
+        "button_prime_program_comparable": priming_same,
+        "full_controller_program_comparable": trace_comparable and priming_same,
         "ball_position_verified": False, "game_score_verified": False,
         "warning": ("This compares published, possibly truncated candidate lists only. "
                     "Two labelled shots cannot distinguish swing/setup/run effects from "
