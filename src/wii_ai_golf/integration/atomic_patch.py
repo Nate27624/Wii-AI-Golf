@@ -11,6 +11,7 @@ import hashlib
 # mcp-dolphin main/bridge/mcp_bridge.py inspected 2026-10-24, v0.3.0.
 UPSTREAM_GIT_BLOB_SHA = "8e70624680a365707f844b322f5b093746a1c022"
 PATCH_MARKER = "# WII_AI_GOLF_ATOMIC_TRACE_V1"
+BOOT_MARKER = "# WII_AI_GOLF_STARTUP_STATE_V1"
 
 # Executed inside the embedded Felk coroutine. No threads and no new socket.
 # Trace data: [[hold_A_boolean, accel_x, accel_y, accel_z], ...]
@@ -91,6 +92,27 @@ def _wii_ai_tick():
 '''
 
 
+# Optional startup savestate. The operator selects an EXISTING compatible slot.
+# The single attempt runs after an emulated frame; never retries on every frame.
+_BOOT_SNIPPET = '''# WII_AI_GOLF_STARTUP_STATE_V1
+_wii_ai_boot_slot = {slot}
+_wii_ai_boot_attempted = False
+
+
+def _wii_ai_boot_tick():
+    global _wii_ai_boot_attempted
+    if _wii_ai_boot_attempted:
+        return
+    _wii_ai_boot_attempted = True
+    try:
+        savestate.load_from_slot(_wii_ai_boot_slot)
+        print(f"[wii-ai-boot] requested savestate load from slot {{_wii_ai_boot_slot}}")
+    except Exception as exc:
+        print(f"[wii-ai-boot] FAILED slot {{_wii_ai_boot_slot}}: {{type(exc).__name__}}: {{exc}}")
+
+'''
+
+
 class UnsupportedBridgeVersion(RuntimeError):
     pass
 
@@ -100,21 +122,26 @@ def git_blob_sha(text: str) -> str:
     return hashlib.sha1(b"blob " + str(len(contents)).encode() + b"\x00" + contents).hexdigest()
 
 
-def patch_bridge(source: str, *, expected_sha: str = UPSTREAM_GIT_BLOB_SHA) -> str:
+def patch_bridge(source: str, *, expected_sha: str = UPSTREAM_GIT_BLOB_SHA,
+                 startup_slot: int | None = None) -> str:
     """Fail closed on source mismatch; never mutate the original input."""
     if git_blob_sha(source) != expected_sha:
         raise UnsupportedBridgeVersion("Bridge source SHA mismatch: pin and inspect upstream before patching")
     if PATCH_MARKER in source:
         raise UnsupportedBridgeVersion("Already patched")
+    if startup_slot is not None and (type(startup_slot) is not int or not 0 <= startup_slot <= 99):
+        raise ValueError("startup_slot must be 0..99 (Felk preview4 documented range)")
+    boot_source = _BOOT_SNIPPET.format(slot=startup_slot) if startup_slot is not None else ""
+    boot_tick = "    _wii_ai_boot_tick()\n" if startup_slot is not None else ""
     targets = (
-        ("HANDLERS = {", _ATOMIC_SNIPPET + "HANDLERS = {"),
+        ("HANDLERS = {", _ATOMIC_SNIPPET + boot_source + "HANDLERS = {"),
         ('    "frame.get_count":                _frame_get_count,',
          '    "frame.get_count":                _frame_get_count,\n'
          '    "trace.submit": _wii_ai_submit,\n'
          '    "trace.status": _wii_ai_status,\n'
          '    "trace.abort": _wii_ai_abort,'),
         ("    _frame_count += 1\n    _poll_sockets()",
-         "    _frame_count += 1\n    _wii_ai_tick()\n    _poll_sockets()"),
+         "    _frame_count += 1\n" + boot_tick + "    _wii_ai_tick()\n    _poll_sockets()"),
     )
     for old, new in targets:
         if source.count(old) != 1:
