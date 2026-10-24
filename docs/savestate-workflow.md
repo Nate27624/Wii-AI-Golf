@@ -40,14 +40,14 @@ The reusable Python integration API is StateManager.request_load(profile); model
 
 ## Option A: loading a patched bridge also requests one savestate
 
-Generate a new source-pinned bridge (change 20 to your actual registered slot):
+Generate a new source-pinned bridge by the registered **profile name**, not a hard-coded slot:
 
 ~~~powershell
 $tools = "D:\Projects\Wii Golf AI\tools"
-py scripts/patch_felk_bridge.py --source "$tools\mcp_bridge.py" --output "$tools\mcp_bridge_first_shot.py" --startup-slot 20
+py scripts/patch_felk_bridge.py --source "$tools\mcp_bridge.py" --output "$tools\mcp_bridge_first_shot.py" --startup-profile green-first-shot
 ~~~
 
-Close existing Dolphin processes. Launch your game, then load only mcp_bridge_first_shot.py in Dolphin's Scripting panel. After the first emulated frame it requests loading slot 20 ONCE. The Scripting log will show [wii-ai-boot] requested savestate load or [wii-ai-boot] FAILED. A log line is not proof the state actually restored. This startup path is experimental and has not been user-validated.
+Close existing Dolphin processes. Launch your game, then load only mcp_bridge_first_shot.py in Dolphin's Scripting panel. After the first emulated frame it requests loading the registered slot ONCE. For advanced use you may alternatively specify --startup-slot 20 directly. The Scripting log will show [wii-ai-boot] requested savestate load or [wii-ai-boot] FAILED. A log line is not proof the state actually restored. This startup path is experimental and has not been user-validated.
 
 For another profile/slot, generate a different boot bridge or call the named reset command. The base mcp_bridge_atomic.py remains available unchanged.
 
