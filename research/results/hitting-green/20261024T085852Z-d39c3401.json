@@ -1,0 +1,882 @@
+{
+  "captured_utc": "2026-10-24T08:59:22.793048+00:00",
+  "documented_golf_field_transitions": {
+    "fields": {
+      "golf_config.current_course_hole_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          1
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 1,
+        "last_raw": 1,
+        "observed_samples": 50
+      },
+      "golf_config.golf_mode_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          4
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 4,
+        "last_raw": 4,
+        "observed_samples": 50
+      },
+      "golf_config.standard_player_hole_scores_raw": {
+        "changed_steps": 0,
+        "is_raw_standard_golf_score_array": true,
+        "observed_samples": 50
+      },
+      "golf_field.pin_object_count_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          6
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 6,
+        "last_raw": 6,
+        "observed_samples": 50
+      },
+      "golf_field.start_object_count_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          31
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 31,
+        "last_raw": 31,
+        "observed_samples": 50
+      },
+      "golf_field.target_object_count_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          0
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 0,
+        "last_raw": 0,
+        "observed_samples": 50
+      },
+      "sports_sequence.golf_mode_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          0
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 0,
+        "last_raw": 0,
+        "observed_samples": 50
+      },
+      "sports_sequence.sequence_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          0
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 0,
+        "last_raw": 0,
+        "observed_samples": 50
+      },
+      "sports_sequence.sport_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          2
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 2,
+        "last_raw": 2,
+        "observed_samples": 50
+      },
+      "sports_sequence.standard_golf_hole_scores_raw": {
+        "changed_steps": 0,
+        "is_raw_standard_golf_score_array": true,
+        "observed_samples": 50
+      },
+      "sports_sequence.training_game_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          1
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 1,
+        "last_raw": 1,
+        "observed_samples": 50
+      }
+    },
+    "interpretation": "published US Rev1 field offsets only; training metric semantics unverified"
+  },
+  "frame_span_stats": {
+    "maximum": 28,
+    "minimum": 28
+  },
+  "position_candidates": {
+    "candidate_count": 111,
+    "candidates": [
+      {
+        "candidate_address": "0x91BF4AA8",
+        "changed_steps": 18,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "last_xyz": [
+          -0.5937,
+          0.3446,
+          -0.7271
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x1EC",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 20.417,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 18
+      },
+      {
+        "candidate_address": "0x91BF4AB0",
+        "changed_steps": 18,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "last_xyz": [
+          -0.7271,
+          -0.2511,
+          -0.9379
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x1F4",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 20.3266,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 18
+      },
+      {
+        "candidate_address": "0x91BF4AA4",
+        "changed_steps": 18,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "last_xyz": [
+          0.0,
+          -0.5937,
+          0.3446
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x1E8",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 17.3682,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 18
+      },
+      {
+        "candidate_address": "0x91BF4AAC",
+        "changed_steps": 18,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "last_xyz": [
+          0.3446,
+          -0.7271,
+          -0.2511
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x1F0",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 16.065,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 18
+      },
+      {
+        "candidate_address": "0x91BF4AA0",
+        "changed_steps": 17,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          -0.0,
+          0.0,
+          1.0
+        ],
+        "last_xyz": [
+          -0.0,
+          0.0,
+          -0.5937
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x1E4",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 12.6738,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 17
+      },
+      {
+        "candidate_address": "0x91BF47E8",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.2001,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          0.4731,
+          147.8
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x4C",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF47EC",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.2001,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          0.4731,
+          147.8,
+          0.0
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x50",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4878",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.2001,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          0.4731,
+          147.8
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0xDC",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4878",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.2001,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          0.4731,
+          147.8
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x4C",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_shot_line_effect",
+        "window_address": "0x91BF482C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF487C",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.2001,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          0.4731,
+          147.8,
+          0.0
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0xE0",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF487C",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.2001,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          0.4731,
+          147.8,
+          0.0
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x50",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_shot_line_effect",
+        "window_address": "0x91BF482C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4908",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.2001,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          0.4731,
+          147.8
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x4C",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4908",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.2001,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          0.4731,
+          147.8
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x16C",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4908",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.2001,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          0.4731,
+          147.8
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0xDC",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_shot_line_effect",
+        "window_address": "0x91BF482C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF490C",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.2001,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          0.4731,
+          147.8,
+          0.0
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x50",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF490C",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.2001,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          0.4731,
+          147.8,
+          0.0
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x170",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF490C",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.2001,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          0.4731,
+          147.8,
+          0.0
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0xE0",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_shot_line_effect",
+        "window_address": "0x91BF482C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4998",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.2001,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          0.4731,
+          147.8
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0xDC",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4998",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.2001,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          0.4731,
+          147.8
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x16C",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_shot_line_effect",
+        "window_address": "0x91BF482C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF499C",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.2001,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          0.4731,
+          147.8,
+          0.0
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0xE0",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF499C",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.2001,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          0.4731,
+          147.8,
+          0.0
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x170",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 913.165,
+        "window": "minimap_shot_line_effect",
+        "window_address": "0x91BF482C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4808",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          -0.1522,
+          -318.0
+        ],
+        "last_xyz": [
+          0.0,
+          -0.99,
+          -219.1
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x6C",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 554.0636,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF480C",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          -0.1522,
+          -318.0,
+          0.0
+        ],
+        "last_xyz": [
+          -0.99,
+          -219.1,
+          0.0
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x70",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 554.0636,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4898",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          -0.1522,
+          -318.0
+        ],
+        "last_xyz": [
+          0.0,
+          -0.99,
+          -219.1
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0xFC",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 554.0636,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4898",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          -0.1522,
+          -318.0
+        ],
+        "last_xyz": [
+          0.0,
+          -0.99,
+          -219.1
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x6C",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 554.0636,
+        "window": "minimap_shot_line_effect",
+        "window_address": "0x91BF482C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF489C",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          -0.1522,
+          -318.0,
+          0.0
+        ],
+        "last_xyz": [
+          -0.99,
+          -219.1,
+          0.0
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x100",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 554.0636,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF489C",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          -0.1522,
+          -318.0,
+          0.0
+        ],
+        "last_xyz": [
+          -0.99,
+          -219.1,
+          0.0
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x70",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 554.0636,
+        "window": "minimap_shot_line_effect",
+        "window_address": "0x91BF482C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4928",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          -0.1522,
+          -318.0
+        ],
+        "last_xyz": [
+          0.0,
+          -0.99,
+          -219.1
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x6C",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 554.0636,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4928",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          -0.1522,
+          -318.0
+        ],
+        "last_xyz": [
+          0.0,
+          -0.99,
+          -219.1
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0x18C",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 554.0636,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4928",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          -0.1522,
+          -318.0
+        ],
+        "last_xyz": [
+          0.0,
+          -0.99,
+          -219.1
+        ],
+        "observed_samples": 50,
+        "offset_hex": "+0xFC",
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 554.0636,
+        "window": "minimap_shot_line_effect",
+        "window_address": "0x91BF482C",
+        "within_same_scene_changed_steps": 4
+      }
+    ],
+    "candidates_truncated": true,
+    "samples": 50,
+    "scalar_candidate_count": 9,
+    "scalar_candidates": [
+      {
+        "candidate_address": "0x91BF4814",
+        "changed_steps": 7,
+        "first_u32": 65607,
+        "last_u32": 0,
+        "offset_hex": "+0x78",
+        "status": "unverified_integer_state_candidate_NOT_score",
+        "window": "minimap_player_effect",
+        "within_same_scene_changed_steps": 7
+      },
+      {
+        "candidate_address": "0x91BF48A4",
+        "changed_steps": 7,
+        "first_u32": 65603,
+        "last_u32": 0,
+        "offset_hex": "+0x108",
+        "status": "unverified_integer_state_candidate_NOT_score",
+        "window": "minimap_player_effect",
+        "within_same_scene_changed_steps": 7
+      },
+      {
+        "candidate_address": "0x91BF48A4",
+        "changed_steps": 7,
+        "first_u32": 65603,
+        "last_u32": 0,
+        "offset_hex": "+0x78",
+        "status": "unverified_integer_state_candidate_NOT_score",
+        "window": "minimap_shot_line_effect",
+        "within_same_scene_changed_steps": 7
+      },
+      {
+        "candidate_address": "0x91BF4934",
+        "changed_steps": 7,
+        "first_u32": 65605,
+        "last_u32": 0,
+        "offset_hex": "+0x78",
+        "status": "unverified_integer_state_candidate_NOT_score",
+        "window": "minimap_ball_effect",
+        "within_same_scene_changed_steps": 7
+      },
+      {
+        "candidate_address": "0x91BF4934",
+        "changed_steps": 7,
+        "first_u32": 65605,
+        "last_u32": 0,
+        "offset_hex": "+0x198",
+        "status": "unverified_integer_state_candidate_NOT_score",
+        "window": "minimap_player_effect",
+        "within_same_scene_changed_steps": 7
+      },
+      {
+        "candidate_address": "0x91BF4934",
+        "changed_steps": 7,
+        "first_u32": 65605,
+        "last_u32": 0,
+        "offset_hex": "+0x108",
+        "status": "unverified_integer_state_candidate_NOT_score",
+        "window": "minimap_shot_line_effect",
+        "within_same_scene_changed_steps": 7
+      },
+      {
+        "candidate_address": "0x91BF49C4",
+        "changed_steps": 7,
+        "first_u32": 65606,
+        "last_u32": 0,
+        "offset_hex": "+0x108",
+        "status": "unverified_integer_state_candidate_NOT_score",
+        "window": "minimap_ball_effect",
+        "within_same_scene_changed_steps": 7
+      },
+      {
+        "candidate_address": "0x91BF49C4",
+        "changed_steps": 7,
+        "first_u32": 65606,
+        "last_u32": 0,
+        "offset_hex": "+0x198",
+        "status": "unverified_integer_state_candidate_NOT_score",
+        "window": "minimap_shot_line_effect",
+        "within_same_scene_changed_steps": 7
+      },
+      {
+        "candidate_address": "0x91BF176C",
+        "changed_steps": 3,
+        "first_u32": 3,
+        "last_u32": 3,
+        "offset_hex": "+0xBC",
+        "status": "unverified_integer_state_candidate_NOT_score",
+        "window": "golf_config",
+        "within_same_scene_changed_steps": 1
+      }
+    ],
+    "scalar_candidates_truncated": false,
+    "warning": "Do not treat candidate as moving golf ball without visual/temporal validation. Within-scene changes improve attribution but no score field identified."
+  },
+  "profile": "fast",
+  "read_errors": [],
+  "run_id": "20261024T085852Z-d39c3401",
+  "samples": 50,
+  "schema_version": 1,
+  "source": "live-bounded-golf-memory-heuristic-not-verified",
+  "study_id": "S002-HG-MOTION-DISCOVERY",
+  "warning": "Not a decoded ball, score, wind or shot counter. Raw memory local only."
+}
