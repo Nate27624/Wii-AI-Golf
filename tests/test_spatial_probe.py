@@ -43,7 +43,8 @@ class SpatialProbeTests(unittest.TestCase):
         self.assertEqual(data["mode_label"], "GAMEMODE_TR_NEARPIN")
         self.assertEqual(data["map_objects"]["current_pin_obj_ptr"]["inline_translation_offset_0x30"]["xyz_raw"], [1.25, 42.0, -10.5])
         self.assertIn(("memory.read_bytes", [0x924B8214 + 0x30, 12]), rpc.calls)
-        self.assertIn(("memory.read_u32", [0x924B8214 + 0x44]), rpc.calls)
+        self.assertIn(("memory.read_bytes", [0x924B8214 + 0x3C, 12]), rpc.calls)
+        self.assertFalse(any(method == "memory.read_u32" for method, _ in rpc.calls))
         self.assertEqual(data["map_objects"]["course_obj_ptr"]["status"], "null_or_invalid_map_object_pointer")
         self.assertTrue(all(x[0].startswith("memory.read_") for x in rpc.calls))
 
@@ -72,7 +73,7 @@ class SpatialProbeTests(unittest.TestCase):
         with patch("wii_ai_golf.spatial_probe.probe_rev1", return_value=baseline()):
             data = capture_spatial_rev1(rpc)
         self.assertIsNone(data["map_objects"]["cup_obj_ptr"]["inline_translation_offset_0x30"]["xyz_raw"])
-        self.assertEqual(data["map_objects"]["cup_obj_ptr"]["pointed_translation"]["status"], "null_or_invalid_pointer")
+        self.assertIsNone(data["relative_geometry_unverified"]["cup_to_pin"])
 
     def test_invalid_byte_response_rejected(self):
         rpc = FakeRPC()
@@ -81,6 +82,35 @@ class SpatialProbeTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 capture_spatial_rev1(rpc)
 
+
+    def test_live_sourced_coordinate_pattern_relative_geometry(self):
+        """Synthetic fixture from user-reported live values; not a calibrated game score."""
+        rpc = FakeRPC()
+        values = {
+            "current_pin_obj_ptr": (210.10000610351562, -7.0, -350.5),
+            "current_start_obj_ptr": (2.200000047683716, -5.5, -318.0),
+            "cup_obj_ptr": (210.10000610351562, -7.0466413497924805, -350.5),
+        }
+        offset_to_role = {
+            0x924B8214 + 0x30: "current_pin_obj_ptr",
+            0x924B7C80 + 0x30: "current_start_obj_ptr",
+            0x91BF45C8 + 0x30: "cup_obj_ptr",
+        }
+        def respond(method, params):
+            self.assertEqual(method, "memory.read_bytes")
+            addr = params[0]
+            if addr in offset_to_role:
+                return struct.pack(">fff", *values[offset_to_role[addr]]).hex()
+            return struct.pack(">fff", 1.0, 1.0, 1.0).hex()
+        rpc.call = respond
+        with patch("wii_ai_golf.spatial_probe.probe_rev1", return_value=baseline()):
+            data = capture_spatial_rev1(rpc)
+        start = data["relative_geometry_unverified"]["start_to_pin"]
+        cup = data["relative_geometry_unverified"]["cup_to_pin"]
+        self.assertAlmostEqual(start["horizontal_xz_distance"], 210.425, delta=0.01)
+        self.assertEqual(cup["horizontal_xz_distance"], 0.0)
+        self.assertAlmostEqual(cup["delta_xyz"][1], 0.04664134979, places=5)
+        self.assertEqual(data["map_objects"]["current_pin_obj_ptr"]["inline_scale_offset_0x3c"]["xyz_raw"], [1., 1., 1.])
 
 if __name__ == "__main__":
     unittest.main()

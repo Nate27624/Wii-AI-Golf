@@ -9,3 +9,9 @@ First user action: run capture WITHOUT --range at game first-shot screen to conf
 No live Dolphin process in this session. Mock tests: seven passed in isolated local harness. Full repository tests still required before merging. Any game memory offset, shot value or unit is unknown.
 
 Dependencies: Issue #2 visible Plus-button and named savestate verification; Issue #4 calibration; Issue #3 score double annotation. Do not count memory matches as valid ShotResult rewards.
+
+## 2026-10-24: successful live US Rev1 spatial probe
+
+User-reported source: Windows Felk Dolphin `RSPE01` Rev1, Hitting the Green mode raw 4. `probe_golf_spatial.py` read plausible translations pin (210.100006,-7,-350.5), cup (210.100006,-7.04664135,-350.5), and start (2.20000005,-5.5,-318), exact pin/cup X/Z overlap. 56 repository tests passed before subsequent probe correction. Distances remain unknown coordinate units; visual/temporal correlation required before converting this into a game-state feature.
+
+Important bug: the reverse-engineered `mpTrans at +0x44` annotation overlaps `mScale +0x3C..+0x47`; actual read `0x3F800000` is float 1.0, not pointer. Updated branch reads scale directly and computes relative game-coordinate distances without any pointer dereference. Six local focused tests pass after fix. Remaining S002 live score/ball position capture still blocked; next host run should verify scale and compare distinct targets.

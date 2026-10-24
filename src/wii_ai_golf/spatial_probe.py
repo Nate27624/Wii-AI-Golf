@@ -1,8 +1,11 @@
 """Experimental, version-gated read-only golf map-object translations.
 
-Source: kiwi515/ogws_info RPGolMapObjBase.h (mTrans at +0x30,
-mpTrans at +0x44), RPGolFieldManager.h. Neither translation has been
-verified in the live user's Wii Sports session. No writes or input calls.
+Source: kiwi515/ogws_info RPGolMapObjBase.h (mTrans at +0x30 and
+mScale at +0x3C), RPGolFieldManager.h. User evidence supports inline
+translation as plausible, but coordinates and units still need independent
+visual validation. Published pointer offsets overlap the scale vector,
+so this probe deliberately does NOT dereference translation pointers.
+No writes or input calls.
 """
 from __future__ import annotations
 
@@ -42,7 +45,7 @@ def _read_vec3(rpc: Any, address: int) -> dict[str, Any]:
 
 
 def capture_spatial_rev1(rpc: Any) -> dict[str, Any]:
-    """Read candidate +0x30 vec3 and +0x44 translation pointer for map objects.
+    """Read candidate +0x30 translation and +0x3C scale of map objects.
 
     Calls probe_rev1 first, which *refuses further reads* for game region /
     revision other than RSPE01 disc revision 1.
@@ -81,17 +84,35 @@ def capture_spatial_rev1(rpc: Any) -> dict[str, Any]:
             output["map_objects"][key] = item
             continue
         item["inline_translation_offset_0x30"] = _read_vec3(rpc, obj + 0x30)
-        trans_ptr = rpc.call("memory.read_u32", [obj + 0x44])
-        if type(trans_ptr) is not int or not 0 <= trans_ptr <= 0xFFFFFFFF:
-            raise ValueError("invalid translation-pointer response")
-        item["translation_pointer_at_0x44"] = f"0x{trans_ptr:08X}"
-        if _valid_ptr(trans_ptr, 12):
-            item["pointed_translation"] = _read_vec3(rpc, trans_ptr)
-        else:
-            item["pointed_translation"] = {"status": "null_or_invalid_pointer"}
+        # +0x3C..+0x47 contains all three float components of mScale.
+        # The published +0x40/+0x44 pointer annotations overlap those
+        # scale components, so do NOT interpret the last 1.0 float as a ptr.
+        item["inline_scale_offset_0x3c"] = _read_vec3(rpc, obj + 0x3C)
         output["map_objects"][key] = item
+    def relative(a: str, b: str) -> dict[str, Any] | None:
+        """Hypothesis-only vector from object a toward object b in game units."""
+        left = output["map_objects"].get(a, {}).get("inline_translation_offset_0x30", {}).get("xyz_raw")
+        right = output["map_objects"].get(b, {}).get("inline_translation_offset_0x30", {}).get("xyz_raw")
+        if left is None or right is None:
+            return None
+        delta = [float(v - u) for u, v in zip(left, right)]
+        if not all(math.isfinite(v) for v in delta):
+            return None
+        return {
+            "delta_xyz": delta,
+            "horizontal_xz_distance": math.hypot(delta[0], delta[2]),
+            "distance_3d": math.sqrt(sum(v * v for v in delta)),
+            "units": "unverified_game_coordinates",
+        }
+
+    output["relative_geometry_unverified"] = {
+        "start_to_pin": relative("current_start_obj_ptr", "current_pin_obj_ptr"),
+        "cup_to_pin": relative("cup_obj_ptr", "current_pin_obj_ptr"),
+    }
     output["warning"] = (
-        "Vectors reflect hypothesized RPGolMapObjBase translations; verify against "
-        "independent visible movements. Game-space axes/scale and true ball coordinates unknown."
+        "Likely inline object translations and scale, NOT calibrated meters. "
+        "Published pointer annotations overlap scale (+0x3C..+0x47), so no "
+        "translation-pointer dereferences are attempted. Verify geometry "
+        "over repeated state changes and with visible game observations."
     )
     return output
