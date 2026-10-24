@@ -139,8 +139,10 @@ def main() -> None:
             print("Experimental forward swing dispatch:", json.dumps(result, indent=2))
             print("Dispatch is not proof of ball contact or a game score.")
         else:
-            print("Ready for an independently verified swing. "
-                  "To attempt a shot, run scripts/probe_swing.py --preset forward --send-live-swing.")
+            print("Ready for a separate guarded swing in THIS running Dolphin: "
+                  "py scripts/probe_swing.py --attach-running --preset forward --send-live-swing. "
+                  "Normal probe_swing.py without --attach-running now starts a NEW full "
+                  "Dolphin session with the canonical A / A+B / A intro.")
 
 
 if __name__ == "__main__":
