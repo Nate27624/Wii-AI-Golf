@@ -71,3 +71,41 @@ It looks up Slot 2 in the existing gitignored `research/savestates.local.json` c
 
 **Important:** In earlier user setup Slot 2 was `green-pre-start`, at the **instructions screen**, whereas Slot 1 `green-first-shot` was for the ball. The local catalog is private, so verify with `list` before assuming this has not changed. A successful Slot 2 restore may still require manually pressing Start before sending a swing; `--swing` prompts for human confirmation, and you must not press Enter until standing at the first ball. For experiments we ultimately want a newly verified `green-first-shot` profile saved at the ball, not a menu checkpoint.
 
+
+## New: enforce Emulated Wii Remote 1 on every launch
+
+A real Windows run exposed an additional launcher bug: Dolphin started with **Real Wii Remote** selected after the Python bridge was attached, silently blocking scripted A and motion inputs.
+
+The launcher now requires the **existing Dolphin user configuration** `Config/WiimoteNew.ini` before starting a new game. It carefully changes only `[Wiimote1] Source = 1` (Emulated Wii Remote) and `Extension = None`, preserving all other keyboard mappings, Wii Remote ports, comments and unrelated Dolphin preferences. A first-change snapshot `WiimoteNew.ini.wii-ai-golf.original.bak` is kept beside the original file and not overwritten on subsequent launches. Controller preflight refuses to run when a previous bridge is still listening on port 55355.
+
+From your canonical runtime checkout, close Dolphin completely, then:
+
+~~~powershell
+cd "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
+git pull --ff-only
+py -m unittest discover -s tests -p "test_integration_controller_config.py" -v
+py -m unittest discover -s tests -p "test_integration_launcher.py" -v
+py scripts/launch_golf.py --slot 2
+~~~
+
+The CLI prints:
+
+- `Selected checkpoint: NAME (Dolphin slot 2)`
+- `Controller ready BEFORE boot: Emulated Wii Remote (1) | Extension: None`
+- Actual on-disk `WiimoteNew.ini` path, whether it was changed and the original backup path.
+
+It then launches Dolphin, attaches `tools/mcp_bridge_swing.py` and requests a named state restore. On later starts, `py scripts/launch_golf.py --swing` uses the remembered profile and config. **Do not press Enter for the swing while on a pre-Start instructions menu.**
+
+Dolphin can use a portable `User` directory beside the executable, Windows `%APPDATA%/Dolphin Emulator`, a legacy Documents user directory or an override. The launcher picks an existing, unambiguous settings file; it never invents or creates a new user directory (which could make checkpoints appear to vanish).
+
+If it fails with "Could not locate" or "Multiple Dolphin user configurations":
+
+1. Open the specific Felk Dolphin you use, click **File > Open User Folder**, note the absolute folder path, then close Dolphin.
+2. Run `py scripts/launch_golf.py --dolphin-user "C:\\PATH\\TO\\YOUR\\DOLPHIN\\USER" --slot 2`.
+3. It remembers that directory in ignored `research/launch.local.json`. Future runs require no path argument.
+
+If you want Dolphin to use real controllers again outside the research project, restore the backed up `WiimoteNew.ini` **while Dolphin is closed** or switch back through the GUI; the launcher will switch to Emulated Wii Remote again on the next AI session.
+
+### Verification limits
+
+The source setting is supported by Dolphin's `WiimoteSettings.cpp`, `Wiimote.h` and `CommonPaths.h`. This implementation has focused offline tests but **needs a user-observed restart** to establish that the Felk fork uses the selected config and the game does not override it with a per-game INI. If the Dolphin Controllers UI still says Real Wii Remote after launch, send the printed selected config path and we will investigate game-specific settings / user-folder discrepancy; do not collect swings. The launcher does not delete game data, savestates, or any files unrelated to the controller INI.

@@ -10,11 +10,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
 from pathlib import Path
 import subprocess
 import sys
 
 from wii_ai_golf.integration.savestates import MAX_SLOT, StateCatalog
+from wii_ai_golf.integration.dolphin_controller_config import (
+    ControllerConfigError, ensure_emulated_controller,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT.parent / "tools"
@@ -53,8 +57,9 @@ def save_game(path: Path, game: Path) -> None:
         # Preserve an operator-selected checkpoint when --game replaces the image path.
         old = read_config(path)
         updated = {"schema_version": 1, "game": str(game)}
-        if isinstance(old.get("profile"), str):
-            updated["profile"] = old["profile"]
+        for key in ("profile", "dolphin_user"):
+            if isinstance(old.get(key), str):
+                updated[key] = old[key]
         tmp.write_text(json.dumps(updated, indent=2) + "\n", encoding="utf-8")
         os.replace(tmp, path)
     finally:
@@ -117,6 +122,29 @@ def resolve_profile(profile_arg: str | None, slot_arg: int | None,
     return profile
 
 
+def remember_dolphin_user(config: Path, selected: str) -> None:
+    """Persist an explicit user folder without erasing game/profile settings."""
+    value = read_config(config)
+    if not value.get("game"):
+        raise ValueError("save the game path before choosing a Dolphin user folder")
+    value["dolphin_user"] = selected
+    temp = config.with_name(config.name + ".tmp")
+    try:
+        temp.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+        os.replace(temp, config)
+    finally:
+        if temp.exists():
+            temp.unlink()
+
+
+def is_bridge_port_open(port: int) -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.4):
+            return True
+    except OSError:
+        return False
+
+
 def make_start_command(*, game: Path, dolphin: Path, bridge: Path,
                        profile: str, catalog: Path, port: int) -> list[str]:
     if not 1 <= port <= 65535:
@@ -148,6 +176,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--catalog", type=Path, default=CATALOG)
     parser.add_argument("--dolphin", type=Path, default=DEFAULT_DOLPHIN)
     parser.add_argument("--bridge", type=Path, default=DEFAULT_BRIDGE)
+    parser.add_argument("--dolphin-user", type=Path,
+                        help="One-time Dolphin user folder override; remembered locally")
     checkpoint = parser.add_mutually_exclusive_group()
     checkpoint.add_argument("--profile", help="Select and remember registered checkpoint by name")
     checkpoint.add_argument("--slot", type=int, help="Select and remember a REGISTERED savestate slot, e.g. 2")
@@ -166,6 +196,22 @@ def main(argv: list[str] | None = None) -> int:
             game=game, dolphin=args.dolphin, bridge=args.bridge,
             profile=profile.name, catalog=args.catalog, port=args.port,
         )
+        if is_bridge_port_open(args.port):
+            raise ValueError(
+                "Felk bridge port is already occupied. Close Dolphin before "
+                "updating the controller configuration or starting a new game."
+            )
+        remembered = read_config(args.config).get("dolphin_user")
+        selected_user = args.dolphin_user or (Path(remembered) if remembered else None)
+        controller = ensure_emulated_controller(args.dolphin, user_dir=selected_user)
+        print("Controller ready BEFORE boot:", controller["source"],
+              "| Extension:", controller["extension"])
+        print("Dolphin user config:", controller["ini"])
+        print("Controller config updated:", controller["changed"])
+        if controller["backup"]:
+            print("Original controller backup:", controller["backup"])
+        if args.dolphin_user:
+            remember_dolphin_user(args.config, controller["user_dir"])
         print("Starting Felk Dolphin with the swing bridge and requesting named savestate restoration...")
         print("Keep Wii Remote 1: Emulated Wii Remote; Extension: None.")
         print("Close any existing Dolphin instance before launching. This never overwrites a savestate.")
@@ -180,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
             return result.returncode
         print("Ready. To perform one guarded swing, run: py scripts/probe_swing.py --preset forward --send-live-swing")
         return 0
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, ControllerConfigError, json.JSONDecodeError) as exc:
         print(f"Golf launcher error: {exc}", file=sys.stderr)
         return 1
 

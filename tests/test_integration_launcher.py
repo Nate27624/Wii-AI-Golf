@@ -21,6 +21,15 @@ class OneCommandLauncherTests(unittest.TestCase):
         self.config = self.root / "research" / "launch.local.json"
         self.exe = self.root / "Dolphin.exe"
         self.exe.write_bytes(b"")
+        # Build a portable Dolphin fixture with a real-input controller profile.
+        (self.root / "portable.txt").touch()
+        self.user = self.root / "User"
+        self.ini = self.user / "Config" / "WiimoteNew.ini"
+        self.ini.parent.mkdir(parents=True)
+        self.ini.write_text("[Wiimote1]\nSource = 2\nExtension = Nunchuk\nButtons/A = F\n")
+        port_probe = patch.object(launch_golf, "is_bridge_port_open", return_value=False)
+        port_probe.start()
+        self.addCleanup(port_probe.stop)
         self.bridge = self.root / "mcp_bridge_swing.py"
         self.bridge.write_text("# stub\n")
         self.catalog = self.root / "savestates.local.json"
@@ -134,6 +143,68 @@ class OneCommandLauncherTests(unittest.TestCase):
             cmd = run.call_args.args[0]
             self.assertEqual(cmd[cmd.index("start")+1], "green-pre-start")
             self.assertNotIn("--send-live-swing", cmd)
+
+    def test_launch_updates_source_and_keeps_existing_mapping(self):
+        argv = [
+            "--game", str(self.game), "--config", str(self.config),
+            "--bridge", str(self.bridge), "--dolphin", str(self.exe),
+            "--catalog", str(self.catalog)
+        ]
+        with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(launch_golf.main(argv), 0)
+            run.assert_called_once()
+        ini = self.ini.read_text()
+        self.assertIn("Source = 1", ini)
+        self.assertIn("Extension = None", ini)
+        self.assertIn("Buttons/A = F", ini)
+        backup = self.ini.with_name(self.ini.name + ".wii-ai-golf.original.bak")
+        self.assertIn("Source = 2", backup.read_text())
+        self.assertIn("Extension = Nunchuk", backup.read_text())
+
+    def test_missing_controller_ini_fails_before_dolphin_spawn(self):
+        self.ini.unlink()
+        argv = [
+            "--game", str(self.game), "--config", str(self.config),
+            "--bridge", str(self.bridge), "--dolphin", str(self.exe),
+            "--catalog", str(self.catalog)
+        ]
+        with patch.object(launch_golf.subprocess, "run") as run:
+            self.assertEqual(launch_golf.main(argv), 1)
+            run.assert_not_called()
+
+    def test_existing_bridge_prevents_mutating_controller_ini(self):
+        argv = [
+            "--game", str(self.game), "--config", str(self.config),
+            "--bridge", str(self.bridge), "--dolphin", str(self.exe),
+            "--catalog", str(self.catalog)
+        ]
+        with patch.object(launch_golf, "is_bridge_port_open", return_value=True), patch.object(
+            launch_golf.subprocess, "run"
+        ) as run:
+            self.assertEqual(launch_golf.main(argv), 1)
+            run.assert_not_called()
+        self.assertIn("Source = 2", self.ini.read_text())
+
+    def test_explicit_dolphin_user_dir_remembered_for_future_runs(self):
+        custom = self.root / "custom-user"
+        ini = custom / "Config" / "WiimoteNew.ini"
+        ini.parent.mkdir(parents=True)
+        ini.write_text("[Wiimote1]\nSource = 2\nExtension = Nunchuk\n")
+        argv = [
+            "--game", str(self.game), "--config", str(self.config),
+            "--bridge", str(self.bridge), "--dolphin", str(self.exe),
+            "--catalog", str(self.catalog),
+            "--dolphin-user", str(custom)
+        ]
+        with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+            self.assertEqual(launch_golf.main(argv), 0)
+        self.assertEqual(launch_golf.read_config(self.config)["dolphin_user"], str(custom))
+        self.assertIn("Source = 1", ini.read_text())
+        self.assertIn("Source = 2", self.ini.read_text())
+        with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+            self.assertEqual(launch_golf.main(argv[:-2]), 0)
+        self.assertIn("Source = 2", self.ini.read_text())
+        self.assertIn("Source = 1", ini.read_text())
 
     def test_launch_error_never_sends_swing(self):
         argv = [
