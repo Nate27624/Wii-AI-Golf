@@ -53,3 +53,10 @@ The second branch provides a version-pinned *patch generator*, a client, 9 addit
 - Integration-owned optional `trace.submit_swing` based on Felk's documented Preview4 swing primitive, generated with `--enable-swing` and tested by `scripts/probe_swing.py` (one human-authorized shot, optional named reset).
 - `docs/first-swing-experiment.md` explains local setup, expected dispatcher ACK vs game-visible hit, bounded motion parameters, and local recording. **No live swing trial run or user observation exists for this new experiment yet.**
 - Continue to coordinate physical calibration with Issue #4 and automatic scoring/collection with Issue #3.
+
+## 2026-10-24 one-command training session launcher
+
+- User requested eliminating manual Felk Dolphin startup, Scripting attachment and separate named savestate load before every live AI trial. New `scripts/launch_golf.py` invokes existing `savestate_session.py start`, defaulting to already-generated `tools/mcp_bridge_swing.py` and local named `green-first-shot` profile.
+- Wii Sports game path unknown: on first execution prompts for actual RVZ/ISO path and writes only `research/launch.local.json` (gitignored); later runs need only `py scripts/launch_golf.py`. Optional `--swing` runs one explicitly user-confirmed trial after launch/reset. Does NOT save/overwrite states or repeat experiments unattended.
+- Tests: offline mocks added to `tests/test_integration_launcher.py`, **not executed in current GitHub connector environment**. The single-command startup restore is an experiment to validate on Windows; don't claim success just because request ACKs.
+- Full instructions: `docs/one-command-launch.md`. Next user action: pull main, run focused tests and one launcher start; report whether Wii Sports comes up on correct saved screen.
