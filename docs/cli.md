@@ -141,3 +141,22 @@ py scripts/golf.py swing --slot 2 --a-prime-frames 60 --a-setup-frames 12 --foll
 This experiment extends **only the A-held neutral follow-through from 30 to 90** frames (new V2 bridge ignores zero-motion swing inputs); the **35 active swing samples** remain the same. Expected trace length: `12 + 15 + 20 + 90 + 12 = 149`. A is held for 137 trace samples, first released on sample 138 (1-based). The original first-hit 89-frame waveform remains available with `--follow-through-frames 30` on V2, but *bridge execution semantics differ*, so never claim a byte-identical game outcome from an identical input hash alone.
 
 The operator confirms the golfer is **at the first ball** before pressing Enter; after the trace, record actual hit/no-hit, A release timing impression, and game distance if visible. V2 test mocks prove button/motion call order but cannot prove Wii Sports consumes them in that order. If the ball still isn't struck, investigate controller input readback, frame sampling and dynamics rather than extending the follow-through indefinitely.
+
+## 2026-10-24: Windows bridge upgrade port probe fix
+
+A user confirmed `Get-NetTCPConnection -LocalPort 55355 -State Listen` found **no listener**, but an earlier `golf bridge upgrade-swing` still failed with **"Cannot verify bridge is stopped"**. The old implementation attempted an outbound TCP connection to 127.0.0.1 and accepted **only** `ConnectionRefusedError` as proof of a free port. Certain Windows networking/firewall behavior may yield a connection timeout or another `OSError` instead, despite no bridge listening.
+
+The revised upgrade command **does not try to connect**. Instead it attempts to **exclusively bind a temporary IPv4 wildcard socket to local port 55355** (using `SO_EXCLUSIVEADDRUSE` where supported) and keeps the reservation open until the SHA-pinned local swing bridge generator finishes. If port binding fails, the upgrade refuses to overwrite the bridge. This tests actual port availability and prevents a competing bridge from starting during file replacement.
+
+With Dolphin closed:
+
+~~~powershell
+cd "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
+git pull --ff-only
+py scripts/golf.py test --pattern "test_unified_cli.py"
+py scripts/golf.py bridge upgrade-swing
+~~~
+
+If upgrade fails with a **port unavailable/occupied** message, inspect the listener and owning process using `Get-NetTCPConnection -LocalPort 55355 -State Listen -ErrorAction SilentlyContinue`; do **not** disable safety checks. If instead the pinned bridge source is missing or has a SHA mismatch, check `../tools/mcp_bridge.py` rather than providing a regenerated bridge as source. The generator backs up the existing output before replacing it.
+
+This correction ONLY concerns the local bridge-upgrade preflight; it does not verify a golf swing or change swing physics.
