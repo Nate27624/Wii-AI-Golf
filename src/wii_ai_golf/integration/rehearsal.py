@@ -21,7 +21,7 @@ class TraceEvent:
     """Schedule one one-frame action relative to the first frame observation.
 
     Trace events must have strictly increasing offsets. Units of acceleration
-    are those expected by the Felk bridge (approximately g); NOT calibrated.
+    are those expected by the Felk bridge (m/s^2 (Felk API)); NOT calibrated.
     """
     frame_offset: int
     acceleration: tuple[float, float, float]
@@ -31,7 +31,7 @@ class TraceEvent:
         if type(self.frame_offset) is not int or not 0 <= self.frame_offset <= 3600:
             raise ValueError("frame_offset must be integer 0..3600")
         if len(self.acceleration) != 3 or not all(math.isfinite(v) and abs(v) <= 16.0 for v in self.acceleration):
-            raise ValueError("acceleration must be three finite values within +-16 approximate g")
+            raise ValueError("acceleration must be three finite values within +-16 m/s^2 (Felk API)")
         if type(self.hold_a) is not bool:
             raise ValueError("hold_a must be boolean")
 
