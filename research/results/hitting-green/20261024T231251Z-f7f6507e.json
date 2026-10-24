@@ -1,0 +1,859 @@
+{
+  "captured_utc": "2026-10-24T23:13:21.165464+00:00",
+  "documented_golf_field_transitions": {
+    "fields": {
+      "golf_config.current_course_hole_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          1
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 1,
+        "last_raw": 1,
+        "observed_samples": 50
+      },
+      "golf_config.golf_mode_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          4
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 4,
+        "last_raw": 4,
+        "observed_samples": 50
+      },
+      "golf_config.standard_player_hole_scores_raw": {
+        "changed_steps": 0,
+        "is_raw_standard_golf_score_array": true,
+        "observed_samples": 50
+      },
+      "golf_field.pin_object_count_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          6
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 6,
+        "last_raw": 6,
+        "observed_samples": 50
+      },
+      "golf_field.start_object_count_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          31
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 31,
+        "last_raw": 31,
+        "observed_samples": 50
+      },
+      "golf_field.target_object_count_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          0
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 0,
+        "last_raw": 0,
+        "observed_samples": 50
+      },
+      "sports_sequence.golf_mode_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          0
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 0,
+        "last_raw": 0,
+        "observed_samples": 50
+      },
+      "sports_sequence.sequence_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          0
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 0,
+        "last_raw": 0,
+        "observed_samples": 50
+      },
+      "sports_sequence.sport_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          2
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 2,
+        "last_raw": 2,
+        "observed_samples": 50
+      },
+      "sports_sequence.standard_golf_hole_scores_raw": {
+        "changed_steps": 0,
+        "is_raw_standard_golf_score_array": true,
+        "observed_samples": 50
+      },
+      "sports_sequence.training_game_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          1
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 1,
+        "last_raw": 1,
+        "observed_samples": 50
+      }
+    },
+    "interpretation": "published US Rev1 field offsets only; training metric semantics unverified"
+  },
+  "frame_span_stats": {
+    "maximum": 28,
+    "minimum": 28
+  },
+  "position_candidates": {
+    "candidate_count": 25,
+    "candidates": [
+      {
+        "candidate_address": "0x91BF47E8",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.2485,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          -0.7817,
+          383.6
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0x4C",
+        "source_windows": [
+          "minimap_player_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 678.0192,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF47EC",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.2485,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          -0.7817,
+          383.6,
+          0.0
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0x50",
+        "source_windows": [
+          "minimap_player_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 678.0192,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4878",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.2485,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          -0.7817,
+          383.6
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0xDC",
+        "source_windows": [
+          "minimap_player_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 678.0192,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF487C",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.2485,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          -0.7817,
+          383.6,
+          0.0
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0xE0",
+        "source_windows": [
+          "minimap_player_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 678.0192,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4908",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.2485,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          -0.7817,
+          383.6
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0x4C",
+        "source_windows": [
+          "minimap_ball_effect",
+          "minimap_player_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 678.0192,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF490C",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.2485,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          -0.7817,
+          383.6,
+          0.0
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0x50",
+        "source_windows": [
+          "minimap_ball_effect",
+          "minimap_player_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 678.0192,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4998",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.2485,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          -0.7817,
+          383.6
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0xDC",
+        "source_windows": [
+          "minimap_ball_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 678.0192,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF499C",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.2485,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          -0.7817,
+          383.6,
+          0.0
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0xE0",
+        "source_windows": [
+          "minimap_ball_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 678.0192,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4808",
+        "changed_steps": 3,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          -0.0382,
+          -318.0
+        ],
+        "last_xyz": [
+          0.0,
+          0.77,
+          -545.2
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0x6C",
+        "source_windows": [
+          "minimap_player_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 227.7937,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 3
+      },
+      {
+        "candidate_address": "0x91BF480C",
+        "changed_steps": 3,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          -0.0382,
+          -318.0,
+          0.0
+        ],
+        "last_xyz": [
+          0.77,
+          -545.2,
+          0.0
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0x70",
+        "source_windows": [
+          "minimap_player_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 227.7937,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 3
+      },
+      {
+        "candidate_address": "0x91BF4898",
+        "changed_steps": 3,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          -0.0382,
+          -318.0
+        ],
+        "last_xyz": [
+          0.0,
+          0.77,
+          -545.2
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0xFC",
+        "source_windows": [
+          "minimap_player_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 227.7937,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 3
+      },
+      {
+        "candidate_address": "0x91BF489C",
+        "changed_steps": 3,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          -0.0382,
+          -318.0,
+          0.0
+        ],
+        "last_xyz": [
+          0.77,
+          -545.2,
+          0.0
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0x100",
+        "source_windows": [
+          "minimap_player_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 227.7937,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 3
+      },
+      {
+        "candidate_address": "0x91BF4928",
+        "changed_steps": 3,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          -0.0382,
+          -318.0
+        ],
+        "last_xyz": [
+          0.0,
+          0.77,
+          -545.2
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0x6C",
+        "source_windows": [
+          "minimap_ball_effect",
+          "minimap_player_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 227.7937,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 3
+      },
+      {
+        "candidate_address": "0x91BF492C",
+        "changed_steps": 3,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          -0.0382,
+          -318.0,
+          0.0
+        ],
+        "last_xyz": [
+          0.77,
+          -545.2,
+          0.0
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0x70",
+        "source_windows": [
+          "minimap_ball_effect",
+          "minimap_player_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 227.7937,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 3
+      },
+      {
+        "candidate_address": "0x91BF49B8",
+        "changed_steps": 3,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          -0.0382,
+          -318.0
+        ],
+        "last_xyz": [
+          0.0,
+          0.77,
+          -545.2
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0xFC",
+        "source_windows": [
+          "minimap_ball_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 227.7937,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 3
+      },
+      {
+        "candidate_address": "0x91BF49BC",
+        "changed_steps": 3,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          -0.0382,
+          -318.0,
+          0.0
+        ],
+        "last_xyz": [
+          0.77,
+          -545.2,
+          0.0
+        ],
+        "likely_orientation_or_normal": false,
+        "observed_samples": 50,
+        "offset_hex": "+0x100",
+        "source_windows": [
+          "minimap_ball_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_numeric_vec3_candidate",
+        "total_displacement_game_units_unverified": 227.7937,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 3
+      },
+      {
+        "candidate_address": "0x91BF4AA8",
+        "changed_steps": 25,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "last_xyz": [
+          0.3388,
+          0.8876,
+          -0.3121
+        ],
+        "likely_orientation_or_normal": true,
+        "observed_samples": 50,
+        "offset_hex": "+0x1EC",
+        "source_windows": [
+          "minimap_ball_effect"
+        ],
+        "status": "likely_orientation_not_ball_xyz",
+        "total_displacement_game_units_unverified": 32.0599,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 25
+      },
+      {
+        "candidate_address": "0x91BF4AB0",
+        "changed_steps": 25,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "last_xyz": [
+          -0.3121,
+          -0.601,
+          0.4594
+        ],
+        "likely_orientation_or_normal": true,
+        "observed_samples": 50,
+        "offset_hex": "+0x1F4",
+        "source_windows": [
+          "minimap_ball_effect"
+        ],
+        "status": "likely_orientation_not_ball_xyz",
+        "total_displacement_game_units_unverified": 31.4432,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 25
+      },
+      {
+        "candidate_address": "0x91BF4AA4",
+        "changed_steps": 25,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "last_xyz": [
+          0.0,
+          0.3388,
+          0.8876
+        ],
+        "likely_orientation_or_normal": true,
+        "observed_samples": 50,
+        "offset_hex": "+0x1E8",
+        "source_windows": [
+          "minimap_ball_effect"
+        ],
+        "status": "likely_orientation_not_ball_xyz",
+        "total_displacement_game_units_unverified": 31.3623,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 25
+      },
+      {
+        "candidate_address": "0x91BF4AAC",
+        "changed_steps": 25,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "last_xyz": [
+          0.8876,
+          -0.3121,
+          -0.601
+        ],
+        "likely_orientation_or_normal": true,
+        "observed_samples": 50,
+        "offset_hex": "+0x1F0",
+        "source_windows": [
+          "minimap_ball_effect"
+        ],
+        "status": "likely_orientation_not_ball_xyz",
+        "total_displacement_game_units_unverified": 30.9592,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 25
+      },
+      {
+        "candidate_address": "0x91BF4AA0",
+        "changed_steps": 24,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          -0.0,
+          0.0,
+          1.0
+        ],
+        "last_xyz": [
+          -0.0,
+          0.0,
+          0.3388
+        ],
+        "likely_orientation_or_normal": true,
+        "observed_samples": 50,
+        "offset_hex": "+0x1E4",
+        "source_windows": [
+          "minimap_ball_effect"
+        ],
+        "status": "likely_orientation_not_ball_xyz",
+        "total_displacement_game_units_unverified": 18.693,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 24
+      },
+      {
+        "candidate_address": "0x91BF4904",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          -0.152,
+          0.0,
+          0.2485
+        ],
+        "last_xyz": [
+          0.7017,
+          0.0,
+          -0.7817
+        ],
+        "likely_orientation_or_normal": true,
+        "observed_samples": 50,
+        "offset_hex": "+0x48",
+        "source_windows": [
+          "minimap_ball_effect",
+          "minimap_player_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "likely_orientation_not_ball_xyz",
+        "total_displacement_game_units_unverified": 2.2723,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4994",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          -0.152,
+          0.0,
+          0.2485
+        ],
+        "last_xyz": [
+          0.7017,
+          0.0,
+          -0.7817
+        ],
+        "likely_orientation_or_normal": true,
+        "observed_samples": 50,
+        "offset_hex": "+0xD8",
+        "source_windows": [
+          "minimap_ball_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "likely_orientation_not_ball_xyz",
+        "total_displacement_game_units_unverified": 2.2723,
+        "window": "minimap_ball_effect",
+        "window_address": "0x91BF48BC",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF47E4",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          -0.152,
+          0.0,
+          0.2485
+        ],
+        "last_xyz": [
+          0.7017,
+          0.0,
+          -0.7817
+        ],
+        "likely_orientation_or_normal": true,
+        "observed_samples": 50,
+        "offset_hex": "+0x48",
+        "source_windows": [
+          "minimap_player_effect"
+        ],
+        "status": "likely_orientation_not_ball_xyz",
+        "total_displacement_game_units_unverified": 2.2626,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      },
+      {
+        "candidate_address": "0x91BF4874",
+        "changed_steps": 4,
+        "cross_scene_changed_steps": 0,
+        "first_xyz": [
+          -0.152,
+          0.0,
+          0.2485
+        ],
+        "last_xyz": [
+          0.7017,
+          0.0,
+          -0.7817
+        ],
+        "likely_orientation_or_normal": true,
+        "observed_samples": 50,
+        "offset_hex": "+0xD8",
+        "source_windows": [
+          "minimap_player_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "likely_orientation_not_ball_xyz",
+        "total_displacement_game_units_unverified": 2.2626,
+        "window": "minimap_player_effect",
+        "window_address": "0x91BF479C",
+        "within_same_scene_changed_steps": 4
+      }
+    ],
+    "candidates_truncated": false,
+    "samples": 50,
+    "scalar_candidate_count": 4,
+    "scalar_candidates": [
+      {
+        "candidate_address": "0x91BF4814",
+        "changed_steps": 5,
+        "first_u32": 65600,
+        "last_u32": 0,
+        "offset_hex": "+0x78",
+        "source_windows": [
+          "minimap_player_effect"
+        ],
+        "status": "unverified_integer_state_candidate_NOT_score",
+        "window": "minimap_player_effect",
+        "within_same_scene_changed_steps": 5
+      },
+      {
+        "candidate_address": "0x91BF48A4",
+        "changed_steps": 5,
+        "first_u32": 65596,
+        "last_u32": 0,
+        "offset_hex": "+0x108",
+        "source_windows": [
+          "minimap_player_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_integer_state_candidate_NOT_score",
+        "window": "minimap_player_effect",
+        "within_same_scene_changed_steps": 5
+      },
+      {
+        "candidate_address": "0x91BF4934",
+        "changed_steps": 5,
+        "first_u32": 65598,
+        "last_u32": 0,
+        "offset_hex": "+0x78",
+        "source_windows": [
+          "minimap_ball_effect",
+          "minimap_player_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_integer_state_candidate_NOT_score",
+        "window": "minimap_ball_effect",
+        "within_same_scene_changed_steps": 5
+      },
+      {
+        "candidate_address": "0x91BF49C4",
+        "changed_steps": 5,
+        "first_u32": 65599,
+        "last_u32": 0,
+        "offset_hex": "+0x108",
+        "source_windows": [
+          "minimap_ball_effect",
+          "minimap_shot_line_effect"
+        ],
+        "status": "unverified_integer_state_candidate_NOT_score",
+        "window": "minimap_ball_effect",
+        "within_same_scene_changed_steps": 5
+      }
+    ],
+    "scalar_candidates_truncated": false,
+    "unique_absolute_addresses": true,
+    "warning": "Do not treat candidate as moving golf ball without visual/temporal validation. Within-scene changes improve attribution but no score field identified."
+  },
+  "profile": "fast",
+  "read_errors": [],
+  "run_id": "20261024T231251Z-f7f6507e",
+  "samples": 50,
+  "schema_version": 1,
+  "source": "live-bounded-golf-memory-heuristic-not-verified",
+  "study_id": "S002-HG-MOTION-DISCOVERY",
+  "warning": "Not a decoded ball, score, wind or shot counter. Raw memory local only."
+}
