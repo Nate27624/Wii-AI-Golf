@@ -2,10 +2,10 @@
   "worker_id": "worker-1",
   "role": "integrator",
   "issue": 2,
-  "branch": "agent/integrator/trace-harness-s001",
+  "branch": "agent/integrator/boot-savestate-controller-preflight",
   "claim_comment": "https://github.com/Nate27624/Wii-AI-Golf/issues/2#issuecomment-6380103711",
   "date_claimed": "2026-10-24",
-  "status": "live-trace-dispatched-not-game-recognized; reusable-saves-staged-offline-tests",
+  "status": "live-atomic-dispatch-confirmed-no-visible-gameplay;reusable-savestate-restore-pending-local-verification",
   "owned_paths": [
     "src/wii_ai_golf/integration/**",
     "tests/test_integration_*.py",
@@ -18,14 +18,18 @@
     "src/wii_ai_golf/integration/savestates.py",
     "scripts/savestate_session.py",
     "scripts/probe_wiimote.py",
-    "docs/savestate-workflow.md"
+    "docs/savestate-workflow.md",
+    "scripts/savestate_checkpoint.py",
+    "tests/test_integration_savestates.py",
+    "docs/savestate-checkpoints.md"
   ],
   "collaborator_boundaries": {
     "evaluation": "Only evaluation agent should own production score extraction and unit verification.",
     "modeling": "Only modeling agent should calibrate ShotAction or surrogate physics.",
     "learning": "Only learning agent should build or benchmark training policies."
   },
-  "verified_level": "user-reported-live-RPC-and-atomic-trace-dispatch",
+  "verified_level": "user-operated-emulator-RPC-and-15-frame-atomic-ACK;gameplay-input-not-recognized",
   "real_dolphin_tested": true,
-  "gameplay_tested": false
+  "gameplay_tested": true,
+  "gameplay_input_recognized": false
 }
