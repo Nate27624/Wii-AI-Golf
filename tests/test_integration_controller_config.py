@@ -4,6 +4,14 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
+# Make unittest discovery use this source checkout, not a stale pip editable install.
+import sys
+_TEST_REPO_ROOT = Path(__file__).resolve().parents[1]
+for _path in (str(_TEST_REPO_ROOT), str(_TEST_REPO_ROOT / "src")):
+    if _path in sys.path:
+        sys.path.remove(_path)
+    sys.path.insert(0, _path)
+
 from wii_ai_golf.integration.dolphin_controller_config import (
     ControllerConfigError, _replace_controller_section,
     ensure_emulated_controller, locate_controller_ini,
