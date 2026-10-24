@@ -8,6 +8,14 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
+# Make unittest discovery use this source checkout, not a stale pip editable install.
+import sys
+_TEST_REPO_ROOT = Path(__file__).resolve().parents[1]
+for _path in (str(_TEST_REPO_ROOT), str(_TEST_REPO_ROOT / "src")):
+    if _path in sys.path:
+        sys.path.remove(_path)
+    sys.path.insert(0, _path)
+
 from scripts import launch_golf
 
 

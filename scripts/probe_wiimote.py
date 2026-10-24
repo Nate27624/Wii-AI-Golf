@@ -5,6 +5,16 @@ consumed buttons. Use Plus because many Wii Sports screens visibly pause.
 """
 import argparse
 import json
+import sys
+from pathlib import Path
+
+# Select the source tree of THIS checkout instead of an older editable install.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_LOCAL_SRC = str(_REPO_ROOT / "src")
+if _LOCAL_SRC in sys.path:
+    sys.path.remove(_LOCAL_SRC)
+sys.path.insert(0, _LOCAL_SRC)
+
 from wii_ai_golf.integration.rpc import FelkRPC
 
 
