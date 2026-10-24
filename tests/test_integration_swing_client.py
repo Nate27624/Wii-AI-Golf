@@ -99,6 +99,16 @@ class SwingClientTests(unittest.TestCase):
         self.assertTrue(all(s.hold_a and s.speed_m_s == 0 for s in new[:60]))
         self.assertEqual(len(new), 137)
 
+    def test_ninety_frame_followthrough_keeps_A_through_motion_settle(self):
+        ss = build_probe("forward", a_setup_frames=12, follow_through_frames=90)
+        self.assertEqual(len(ss), 149)
+        self.assertEqual(sum(s.hold_a for s in ss), 137)
+        self.assertTrue(all(s.hold_a for s in ss[:137]))
+        self.assertTrue(all(not s.hold_a for s in ss[137:]))
+        self.assertEqual(len([s for s in ss if s.speed_m_s != 0]), 35)
+        self.assertTrue(all(s.direction == (0, 0, 0) and s.speed_m_s == 0
+                            for s in ss[47:137]))
+
     def test_bad_followthrough_rejected(self):
         for val in (-1, 181, 3.5, None, True, "45"):
             with self.subTest(val=val), self.assertRaises(ValueError):

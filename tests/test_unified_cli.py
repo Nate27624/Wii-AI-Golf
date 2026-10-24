@@ -117,6 +117,32 @@ class UnifiedGolfCliTests(unittest.TestCase):
         audit, _ = self.run_mock(["research", "audit-motion", "--input", "report.json"])
         self.assertEqual(Path(audit[1]).name, "audit_motion_candidates.py")
 
+    def test_bridge_upgrade_swing_uses_local_original_and_generates_v2(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "Wii-AI-Golf"
+            tools = root.parent / "tools"
+            tools.mkdir(parents=True)
+            (tools / "mcp_bridge.py").write_text("old pinned source placeholder")
+            with patch.object(cli, "ROOT", root), \
+                 patch.object(cli.socket, "create_connection",
+                              side_effect=ConnectionRefusedError(10061, "refused")), \
+                 patch.object(cli, "_run", return_value=0) as run:
+                self.assertEqual(cli.main(["bridge", "upgrade-swing"]), 0)
+                cmd = run.call_args.args[0]
+                self.assertEqual(Path(cmd[1]).name, "patch_felk_bridge.py")
+                self.assertEqual(cmd[cmd.index("--source") + 1],
+                                 str(tools / "mcp_bridge.py"))
+                self.assertEqual(cmd[cmd.index("--output") + 1],
+                                 str(tools / "mcp_bridge_swing.py"))
+                self.assertIn("--enable-swing", cmd)
+
+    def test_bridge_upgrade_refuses_to_rewrite_live_dolphin_bridge(self):
+        with patch.object(cli.socket, "create_connection") as connect, \
+             patch.object(cli, "_run") as run:
+            connect.return_value.__enter__.return_value = object()
+            self.assertEqual(cli.main(["bridge", "upgrade-swing"]), 2)
+            run.assert_not_called()
+
     def test_test_and_synthetic_stay_local(self):
         command, _ = self.run_mock(["test", "--pattern", "test_integration_*.py"])
         self.assertEqual(command[1:4], ["-m", "unittest", "discover"])

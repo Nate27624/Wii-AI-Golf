@@ -1,5 +1,7 @@
 """Local-only generator for an experimental atomic-input Felk bridge patch."""
 import argparse
+import os
+import shutil
 from pathlib import Path
 
 import sys
@@ -41,11 +43,25 @@ def main() -> None:
     new = patch_bridge(source, startup_slot=selected_slot)
     if args.enable_swing:
         new = extend_atomic_bridge_with_swing(new)
-    args.output.write_text(new, encoding="utf-8")
+    # Source is SHA pinned; output is a disposable generated script. Preserve
+    # the FIRST previously deployed bridge when upgrading from V1 to V2.
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    backup = args.output.with_name(args.output.name + ".before-neutral-v2.bak")
+    if args.enable_swing and args.output.is_file() and not backup.exists():
+        shutil.copy2(args.output, backup)
+        print(f"Saved first existing generated bridge backup: {backup}")
+    temp = args.output.with_name(args.output.name + ".tmp")
+    try:
+        temp.write_text(new, encoding="utf-8")
+        os.replace(temp, args.output)
+    finally:
+        if temp.exists():
+            temp.unlink()
     print(f"Wrote EXPERIMENTAL bridge at {args.output}; original blob SHA {git_blob_sha(source)}")
     print("This patch requires validation in Felk Dolphin; NO gameplay success is implied.")
     if args.enable_swing:
-        print("Preview 4 A+swing scheduling ENABLED; still requires Wii Sports recognition test.")
+        print("Preview 4 swing protocol V2 ENABLED: neutral swing samples dispatch buttons only.")
+        print("Game recognition and contact still require human verification.")
     if selected_slot is not None:
         print(f"Startup AUTO-LOAD REQUEST configured for slot {selected_slot}; requires existing compatible state.")
 

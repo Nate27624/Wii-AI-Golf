@@ -155,3 +155,11 @@ py scripts/golf.py swing --slot 2 --a-prime-frames 60 --a-setup-frames 12 --foll
 ~~~
 
 A successful command-level priming/trace log does **not** prove game recognition. Check whether A activates before club motion AND whether the ball visibly moves, then label honestly. If it still appears out of order, stop changing only frame counts; examine the bridge's `set_wiimote_swing` event generation and introduce a bridge-side A-first barrier or input-state readback before any motion dispatch. Do **not** increase power or count a green landing without evidence.
+
+## S001 swing bridge V2 test following repeated early A release
+
+The user reports another **miss** despite separate A-only priming: 60 requested button-only A press RPCs, followed by complete 89/89 swing dispatches (start 1646, completion 1735). A appeared to release too early. This conclusively establishes **RPC completion without observed ball contact**. It does not show A's exact in-game recognition frame.
+
+The older source-pinned swing bridge V1 invoked `set_wiimote_swing` on neutral frames. Bridge V2 replaces those neutral swing calls with per-frame button-only updates while continuing the same A state; the CLI and live probe now require V2 and refuse an older generated script. The new V2 is **not** human-tested yet. Upgrade once from the SHA-pinned upstream original using `py scripts/golf.py bridge upgrade-swing` (Dolphin closed; backed-up previous output), then run `py scripts/golf.py swing --slot 2 --a-prime-frames 60 --a-setup-frames 12 --follow-through-frames 90` from a fresh closed-Dolphin start. Frame dispatch counts and input hashes cannot establish ball contact.
+
+**Compare one variable at a time after V2 is validated:** fixed physical backswing 15/forward 20, neutral A-held follow-through 30 vs 90; all other swing settings and full A / A+B / A intro identical. Log observed A/motion/ball sequence; count failures and no-score outcomes explicitly.
