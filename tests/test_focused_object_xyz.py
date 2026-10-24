@@ -39,6 +39,7 @@ class FocusedTests(unittest.TestCase):
         self.assertEqual(rpc.calls[2],("memory.read_u32",[0x91BF4594]))
         self.assertEqual(rpc.asserted,[0x925834D8,12])
         self.assertEqual(row["xyz"],[5.,10.,15.])
+        self.assertEqual(row["state"],"present")
         self.assertEqual(row["frame_span"],1)
         self.assertTrue(all(n in ("frame.get_count","memory.read_u32","memory.read_bytes") for n,_ in rpc.calls))
     def test_invalid_pointer_never_dereferenced(self):
@@ -67,5 +68,7 @@ class FocusedTests(unittest.TestCase):
         result=summarize(samples)
         self.assertEqual(len(result["object_instances"]),2)
         self.assertEqual(result["object_instances"][0]["moving_steps"],3)
+        self.assertEqual(result["pointer_present_samples"],5)
+        self.assertEqual(result["pointer_absent_samples"],0)
 
 if __name__=="__main__":unittest.main()
