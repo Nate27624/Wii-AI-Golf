@@ -94,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Fresh Dolphin + named pre-start savestate + A/A+B/A intro, THEN one experiment",
         epilog=("Example: py scripts/run_golf_experiment.py --send-live "
-                '--game "G:\\Applications\\Dolphin\\Wii Games\\Wii Sports (USA) (Rev 1).wbfs" '
+                '--game "PATH_TO_YOUR_WII_SPORTS.wbfs" '
                 "--script probe_swing.py -- --preset forward --send-live-swing"),
     )
     parser.add_argument("--send-live", action="store_true",
