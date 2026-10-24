@@ -50,8 +50,10 @@ def build_parser() -> argparse.ArgumentParser:
     live_options(shot)
     shot.add_argument("--preset", choices=("forward", "reverse", "sideways"), default="forward")
     shot.add_argument("--follow-through-frames", type=int, default=30)
-    shot.add_argument("--a-setup-frames", type=int, default=45,
-                      help="Neutral A-held frames before backswing (default 45; old baseline 12)")
+    shot.add_argument("--a-setup-frames", type=int, default=12,
+                      help="Neutral A-held samples INSIDE swing trace (known-good default 12)")
+    shot.add_argument("--a-prime-frames", type=int, default=60,
+                      help="Separate A-button-only RPC presses before ANY swing API call (default 60)")
     shot.add_argument("--report", help="Override local swing observation JSONL path")
 
     experiment = sub.add_parser("experiment", help="Fresh intro then an approved action script")
@@ -178,9 +180,12 @@ def execute(args: argparse.Namespace) -> int:
                 raise ValueError("--follow-through-frames must be 0..180")
             if not 1 <= args.a_setup_frames <= 180:
                 raise ValueError("--a-setup-frames must be 1..180")
+            if not 0 <= args.a_prime_frames <= 180:
+                raise ValueError("--a-prime-frames must be 0..180")
             argv += ["--swing", "--preset", args.preset,
                      "--follow-through-frames", str(args.follow_through_frames),
-                     "--a-setup-frames", str(args.a_setup_frames)]
+                     "--a-setup-frames", str(args.a_setup_frames),
+                     "--a-prime-frames", str(args.a_prime_frames)]
             if args.report is not None:
                 argv += ["--report", str(args.report)]
         return _run(_script_command("launch_golf.py", *argv), dry_run=args.dry_run)
