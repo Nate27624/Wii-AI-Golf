@@ -75,6 +75,32 @@ class SharedStartupTests(unittest.TestCase):
             emulated.assert_not_called()
             launch.assert_not_called()
 
+    def test_physical_skip_requires_live_bridge_before_capture(self):
+        args = self.args(startup="skip")
+        args.controller_mode = "physical"
+        with patch.object(boot, "bridge_open", return_value=False), patch.object(
+            boot.subprocess, "Popen"
+        ) as spawn:
+            with self.assertRaisesRegex(ConnectionError, "needs the Felk bridge"):
+                boot.ensure_intro(args)
+            spawn.assert_not_called()
+
+    def test_physical_fresh_spawns_bridge_without_touching_controller_or_menu(self):
+        args = self.args(startup="fresh", game=self.game)
+        args.controller_mode = "physical"
+        fake_proc = type("Proc", (), {"poll": lambda self: None})()
+        with patch.object(boot, "bridge_open", side_effect=[False, True]), patch.object(
+            boot, "dolphin_process_running", return_value=False
+        ), patch.object(boot, "prepare_emulated_remote") as conf, patch.object(
+            boot.subprocess, "Popen", return_value=fake_proc
+        ) as launch:
+            self.assertEqual(boot.ensure_intro(args), "physical_launched")
+            launch.assert_called_once()
+            argv = launch.call_args.args[0]
+            self.assertEqual(argv, [str(self.exe), "--script", str(self.bridge),
+                                    "--exec", str(self.game)])
+            conf.assert_not_called()
+
     def test_canonical_menu_only_one_load_no_second_swing(self):
         cmd = boot.boot_command(canonical=self.root, profile="green-pre-start",
                                 port=55355, attach=True)
