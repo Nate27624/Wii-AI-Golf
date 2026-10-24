@@ -31,6 +31,7 @@ from wii_ai_golf.integration.swing_client import SwingTraceClient
 from wii_ai_golf.integration.button_prime import prime_a_button, release_buttons
 from wii_ai_golf.audit.outcome_transition import (
     capture_outcome_windows, rank_outcome_candidates)
+from wii_ai_golf.audit.outcome_recovery import parse_displayed_distance
 from probe_swing import build_probe
 
 DATA_DIR = ROOT.parent / "Wii-AI-Golf-Data" / "captures"
@@ -50,19 +51,18 @@ def _visual_label(input_fn: Callable[[str], str]) -> dict[str, Any]:
                       allowed={"yes", "no", "unknown"}, input_fn=input_fn)
     green = _answer("Did the ball finish on the green? [yes/no/unknown]: ",
                     allowed={"yes", "no", "unknown"}, input_fn=input_fn)
-    distance = None
-    raw = input_fn("Exact DISPLAYED distance number (blank if not shown): ").strip()
-    if raw:
+    # Do not discard a successful 14-sample capture because a user enters
+    # the game's natural "100.0ft" rather than a bare "100.0".
+    while True:
+        raw = input_fn("Displayed distance (e.g. 2.1ft, 100.0ft; blank if none): ")
         try:
-            distance = float(raw)
+            distance, suffix_unit = parse_displayed_distance(raw)
+            break
         except ValueError as exc:
-            raise ValueError("Displayed distance must be a number; leave blank if unknown") from exc
-        if not math.isfinite(distance) or distance < 0:
-            raise ValueError("Displayed distance must be a nonnegative finite number")
-    unit = "not-visible"
-    if distance is not None:
-        unit = _answer("Displayed unit [yd/ft/m/unknown]: ",
-                       allowed={"yd", "ft", "m", "unknown"}, input_fn=input_fn)
+            print(f"Invalid distance: {exc}. Please try again; no RAM was lost.")
+    unit = "not-visible" if distance is None else (suffix_unit or _answer(
+        "Displayed unit [yd/ft/m/unknown]: ",
+        allowed={"yd", "ft", "m", "unknown"}, input_fn=input_fn))
     return {"contact_human": contact, "finished_on_green_human": green,
             "displayed_distance_human": distance, "displayed_unit_human": unit,
             "game_distance_verified_by_memory": False}
@@ -124,11 +124,20 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         if not isinstance(stroke, dict):
             raise RuntimeError("Swing scheduler did not return a status dict")
         print("Swing dispatch finished; this does NOT establish ball contact.", flush=True)
+        print("WATCH THE BALL: only brief post-shot snapshots precede the landing prompt. "
+              "Do not wait for the game's automatic next-screen transition.", flush=True)
         capture_stage("post", post_samples)
-        label = input_fn("Wait until ball stops/result is visible, then ENTER (q if uncertain): ")
-        if label.strip():
+        while True:
+            label = input_fn(
+                "As soon as the ball stops (BEFORE next screen), press ENTER. "
+                "If already transitioned, type t; q cancels: ").strip().lower()
+            if label in ("", "t", "q"):
+                break
+            print("Please use ENTER, t (already transitioned), or q.")
+        if label == "q":
             return {"cancelled": True, "raw_data_created": True,
                     "partial_samples": len(rows), "swing_dispatch": stroke}
+        stage_valid = label == ""
         capture_stage("settled", settled_samples)
     annotation = _visual_label(input_fn)
     ranked = rank_outcome_candidates(rows, human_distance=annotation["displayed_distance_human"])
@@ -144,7 +153,11 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 "a_button_only_prime_requests": 60 if canonical_swing else None,
                 "a_button_prime_applied": canonical_swing,
             },
-            "human_observation": annotation, "candidate_ranking": ranked,
+            "human_observation": annotation,
+            "settled_screen_observation": (
+                "operator_confirmed_before_transition" if stage_valid
+                else "screen_had_already_transitioned_before_settled_samples"),
+            "candidate_ranking": ranked,
             "warning": "Candidate RAM and labels unverified; no automatic game score or ball XYZ."}
 
 
@@ -156,9 +169,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--data-dir", type=Path, default=DATA_DIR,
                    help="PRIVATE local directory; never automatically uploaded")
     p.add_argument("--pre-samples", type=int, default=3)
-    p.add_argument("--post-samples", type=int, default=8)
+    p.add_argument("--post-samples", type=int, default=2)
     p.add_argument("--settled-samples", type=int, default=3)
-    p.add_argument("--interval", type=float, default=0.4)
+    p.add_argument("--interval", type=float, default=0.0)
     args = p.parse_args(argv)
     if not args.send_live_swing:
         p.error("Requires --send-live-swing and the canonical fresh-launch wrapper")
