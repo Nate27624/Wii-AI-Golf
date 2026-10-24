@@ -9,5 +9,8 @@ description = "Multi-agent research framework for Wii Sports Golf: Hitting the G
 requires-python = ">=3.10"
 dependencies = []
 
+[project.optional-dependencies]
+bayes = ["numpy>=1.24"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
