@@ -6,7 +6,7 @@ This script produces reviewable evidence for S002 but does not prove calibrated 
 
 ## Run from the canonical code repository
 
-Worker 1's workflow uses ONLY \`D:\Projects\Wii Golf AI\Wii-AI-Golf\` for scripts and the local savestate/scenario catalogs. The sibling \`Wii-AI-Golf-Data\` folder is for private capture evidence, not a second code checkout.
+Worker 1's workflow uses ONLY `D:\Projects\Wii Golf AI\Wii-AI-Golf` for scripts and the local savestate/scenario catalogs. The sibling `Wii-AI-Golf-Data` folder is for private capture evidence, not a second code checkout.
 
 First ensure the collector branch is present or merged into the canonical code checkout; with the changes present, while Dolphin is unpaused and one Felk RPC bridge is running:
 
@@ -33,24 +33,24 @@ py scripts/collect_hitting_green.py --start-shot 1 --shots 1 --no-upload
 
 ## Optional reproducible scenario plans
 
-You can supply a registered observed scenario schedule emitted by Worker 1's \`scripts/plan_scenarios.py\`:
+You can supply a registered observed scenario schedule emitted by Worker 1's `scripts/plan_scenarios.py`:
 
 ~~~powershell
 py scripts/collect_hitting_green.py --plan "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\plans\example.json" --shots 10
 ~~~
 
-The script displays planned \`scenario\`, \`checkpoint\`, \`shot_index\` and \`variant\`. It does not automatically request a savestate load; run the existing \`savestate_session.py reset PROFILE\` or manually navigate before pressing Enter. A plan is metadata about observed states, not synthetic new shots. Recording \`shot_index\` is a human-validated label until checked against the game state; the game's \`current_hole_raw\` may not equal 1–10 shot number.
+The script displays planned `scenario`, `checkpoint`, `shot_index` and `variant`. It does not automatically request a savestate load; run the existing `savestate_session.py reset PROFILE` or manually navigate before pressing Enter. A plan is metadata about observed states, not synthetic new shots. Recording `shot_index` is a human-validated label until checked against the game state; the game's `current_hole_raw` may not equal 1–10 shot number.
 
 ## Upload mechanism and privacy
 
 By default, the script:
-- Creates a per-run report in the **local, ignored** sibling \`Wii-AI-Golf-Data\captures\`.
-- Uses existing \`git\` authentication, temporarily checks out \`origin/main\` in a separate temporary Git worktree, adds ONLY one JSON report at \`research/results/hitting-green/RUNID.json\`, commits and pushes to an isolated \`data/hitting-green-RUNID\` branch. This never changes the current code checkout or pushes to \`main\`.
-- Prints a permanent GitHub link to the uploaded JSON; share that link in the chat. If the GitHub CLI (\`gh\`) is installed and authenticated, it ALSO posts a link-only comment to evaluation Issue #3 for other agents.
-- Does **not** upload raw memory bytes, external screenshots, savestates, disc images, trace files, file paths or private OS info. **The compact numerical observations and annotations themselves will be publicly visible if your repository is public.** Pass \`--no-upload\` to retain data locally only.
-- If \`git push\` fails, preserves the local report and prints an error. It does not claim upload success.
+- Creates a per-run report in the **local, ignored** sibling `Wii-AI-Golf-Data\captures`.
+- Uses existing `git` authentication, temporarily checks out `origin/main` in a separate temporary Git worktree, adds ONLY one JSON report at `research/results/hitting-green/RUNID.json`, commits and pushes to an isolated `data/hitting-green-RUNID` branch. This never changes the current code checkout or pushes to `main`.
+- Prints a permanent GitHub link to the uploaded JSON; share that link in the chat. If the GitHub CLI (`gh`) is installed and authenticated, it ALSO posts a link-only comment to evaluation Issue #3 for other agents.
+- Does **not** upload raw memory bytes, external screenshots, savestates, disc images, trace files, file paths or private OS info. **The compact numerical observations and annotations themselves will be publicly visible if your repository is public.** Pass `--no-upload` to retain data locally only.
+- If `git push` fails, preserves the local report and prints an error. It does not claim upload success.
 
-Make sure \`git remote get-url origin\` refers to \`Nate27624/Wii-AI-Golf\`, and \`git\` push authentication/identity are configured. Never paste Git credentials into this chat. No additional GitHub personal-access token or remote URL change is needed.
+Make sure `git remote get-url origin` refers to `Nate27624/Wii-AI-Golf`, and `git` push authentication/identity are configured. Never paste Git credentials into this chat. No additional GitHub personal-access token or remote URL change is needed.
 
 ## Scientific boundaries
 
