@@ -24,6 +24,8 @@ def main() -> None:
     parser.add_argument("--seconds", type=float, default=45, help="5..180; Ctrl+C stops early")
     parser.add_argument("--interval", type=float, default=0.6, help="0.2..10 seconds; RPC may be slower")
     parser.add_argument("--port", type=int, default=55355)
+    parser.add_argument("--profile", choices=("fast", "broad"), default="fast",
+                        help="fast=small motion windows; broad=full golf config to hunt scores/counters")
     parser.add_argument("--data-dir", type=Path,
                         default=ROOT.parent / "Wii-AI-Golf-Data" / "captures")
     parser.add_argument("--no-upload", action="store_true", help="local only; no GitHub publication")
@@ -40,6 +42,7 @@ def main() -> None:
     print("Read-only candidate motion scan — Wii Sports Hitting the Green (US Rev1).")
     print("Swing/play manually. No Enter. Ctrl+C stops early and preserves data.")
     print("No verified ball position, shot counter, result or wind field yet.")
+    print(f"Profile: {args.profile}; snapshots span multiple emulator frames (NOT atomic).")
     print("Raw game memory stays LOCAL; only candidate numbers can be uploaded.")
     print(f"Private output: {local}")
     with local.open("x", encoding="utf-8") as out:
@@ -48,14 +51,18 @@ def main() -> None:
                 tick = time.monotonic()
                 try:
                     with FelkRPC(port=args.port, timeout_s=15) as rpc:
-                        snapshot = snapshot_windows(rpc)
+                        snapshot = snapshot_windows(rpc, profile=args.profile,
+                                                    capture_geometry=True, record_frames=True)
                     if not snapshot["windows"]:
                         raise RuntimeError("no valid golf windows (verify mode/bridge)")
                     row = {"elapsed_s": round(tick - start, 3), **snapshot}
                     out.write(json.dumps(row, sort_keys=True) + "\n")
                     out.flush()
                     captured.append(row)
-                    print(f"  {len(captured)} samples | {snapshot['read_bytes']} bytes/sample | "
+                    scene = snapshot.get("scene") or {}
+                    print(f"  {len(captured)} samples | {snapshot['read_bytes']} bytes | "
+                          f"tee={scene.get('tee_index_observed')} pin={scene.get('pin_variant_observed')} "
+                          f"frame-span={snapshot.get('frame_span')} | "
                           f"{time.monotonic()-start:.1f}s", end="\r", flush=True)
                 except (OSError, RuntimeError, ValueError, KeyError) as exc:
                     errors.append({"elapsed_s": round(tick - start, 3),
@@ -74,7 +81,14 @@ def main() -> None:
               "study_id": "S002-HG-MOTION-DISCOVERY",
               "source": "live-bounded-golf-memory-heuristic-not-verified",
               "captured_utc": datetime.now(timezone.utc).isoformat(),
-              "samples": len(captured), "read_errors": errors[-10:],
+              "samples": len(captured), "profile": args.profile,
+              "frame_span_stats": {
+                  "minimum": min((x["frame_span"] for x in captured
+                                  if x.get("frame_span") is not None), default=None),
+                  "maximum": max((x["frame_span"] for x in captured
+                                  if x.get("frame_span") is not None), default=None),
+              },
+              "read_errors": errors[-10:],
               "position_candidates": summary,
               "warning": "Not a decoded ball, score, wind or shot counter. Raw memory local only."}
     summary_file = args.data_dir / f"golf-motion-{run}-summary.json"
