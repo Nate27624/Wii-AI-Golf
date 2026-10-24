@@ -39,7 +39,7 @@ class OneCommandLauncherTests(unittest.TestCase):
         port_probe.start()
         self.addCleanup(port_probe.stop)
         self.bridge = self.root / "mcp_bridge_swing.py"
-        self.bridge.write_text("# stub\n")
+        self.bridge.write_text("# WII_AI_GOLF_SWING_NEUTRAL_BUTTON_ONLY_V2\n")
         self.catalog = self.root / "savestates.local.json"
         self.catalog.write_text(json.dumps({"schema_version": 1, "profiles": [
             {"name": "green-first-shot", "slot": 1, "description": "At the ball"},
@@ -111,6 +111,18 @@ class OneCommandLauncherTests(unittest.TestCase):
         with patch.object(launch_golf.subprocess, "run") as run:
             self.assertEqual(launch_golf.main(argv), 1)
             run.assert_not_called()
+
+    def test_stale_swing_bridge_refused_before_dolphin_start(self):
+        self.bridge.write_text("# WII_AI_GOLF_SWING_TRACE_V1 only\\n")
+        argv = [
+            "--game", str(self.game), "--config", str(self.config),
+            "--bridge", str(self.bridge), "--dolphin", str(self.exe),
+            "--catalog", str(self.catalog), "--slot", "2", "--swing",
+        ]
+        with patch.object(launch_golf.subprocess, "run") as run:
+            self.assertEqual(launch_golf.main(argv), 1)
+            run.assert_not_called()
+        self.assertIn("Source = 2", self.ini.read_text())
 
     def test_missing_bridge_fails_before_any_subprocess(self):
         with self.assertRaisesRegex(ValueError, "bridge"):
