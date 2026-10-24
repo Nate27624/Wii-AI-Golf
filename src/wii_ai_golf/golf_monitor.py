@@ -93,9 +93,11 @@ def run_monitor(
     if not math.isfinite(heartbeat_s) or heartbeat_s <= 0:
         raise ValueError("heartbeat_s must be positive and finite")
     if sample_reader is None:
-        sample_reader = lambda _i: read_stage(
-            __import__("wii_ai_golf.integration.rpc", fromlist=["FelkRPC"]).FelkRPC,
-            port, "continuous-read", allow_result_transition=True)
+        from .integration.rpc import FelkRPC
+
+        def sample_reader(_i: int) -> dict[str, Any]:
+            return read_stage(FelkRPC, port, "continuous-read",
+                              allow_result_transition=True)
     run_id = make_run_id()
     now = datetime.now(timezone.utc).isoformat()
     local_dir = Path(local_dir)
