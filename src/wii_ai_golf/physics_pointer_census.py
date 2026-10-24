@@ -40,7 +40,8 @@ def discover_roots(rpc: Any) -> dict[str, int]:
     info = probe_rev1(rpc)
     if not info.get("supported"):
         raise RuntimeError("pointer census requires verified RSPE01 revision 1 header")
-    mode = info["fields"]["golf_config"]["raw_fields"]["game_mode_raw"]["value_hex"]
+    mode = (info.get("fields", {}).get("golf_config", {})
+            .get("raw_fields", {}).get("game_mode_raw", {}).get("value_hex"))
     if mode != "0x00000004":
         raise RuntimeError("pointer census requires Hitting the Green mode 4")
     roots = {}
