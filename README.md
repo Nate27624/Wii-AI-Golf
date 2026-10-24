@@ -30,6 +30,20 @@ In offline environments with setuptools already installed: `python -m pip instal
 - [docs/milestones.md](docs/milestones.md): work phases and acceptance gates.
 - [docs/hardware.md](docs/hardware.md): local emulator setup checklist.
 
+## Real Wii Sports launch: standardized first-shot intro
+
+A user-tested A → wait → A+B → A sequence from the existing `green-pre-start` savestate is now the **standard startup for real Hitting the Green experiments**, not a substitute for actual swing recognition. Both `scripts/launch_golf.py` and `scripts/launch_hitting_green.py` execute the same canonical menu routine. Future training/shot scripts must reuse this intro; see [AGENTS.md](AGENTS.md#required-startup-for-real-hitting-the-green-runs-2026-10-24).
+
+After `py -m pip install -e .`, and with Dolphin closed, run:
+
+~~~powershell
+py scripts/launch_golf.py --game "PATH_TO_YOUR_WII_SPORTS.wbfs" --profile green-pre-start
+~~~
+
+The first command stores the image path and selected **named savestate profile** in a gitignored local config. On later launches just run `py scripts/launch_golf.py`. For an opt-in, human-confirmed swing after automatically reaching the first ball, append `--swing`. To reuse an already-running Dolphin session instead of launching a second instance, run `py scripts/launch_hitting_green.py --attach-running --send-live --swing --confirm-before-swing`.
+
+Prerequisites: single swing-enabled Felk bridge, Wii Remote 1 **Emulated** with **Extension None**, and an existing named `green-pre-start` savestate (do not recapture or overwrite it). Additional [launch instructions](docs/one-command-launch.md) and [calibrated button schedule](docs/launch-hitting-green.md). RPC dispatch counts are not verified contact or score evidence.
+
 ## First real milestone
 
 Demonstrate **100 unattended, measured Dolphin shots** with controller input traces, successful resets, verified distance units, and failures logged. This comes **before** expensive neural network training.

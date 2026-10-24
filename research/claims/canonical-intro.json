@@ -1,0 +1,29 @@
+{
+  "worker_id": "canonical-intro",
+  "issue": 2,
+  "claim_comment": "https://github.com/Nate27624/Wii-AI-Golf/issues/2#issuecomment-6381974863",
+  "branch": "agent/integrator/standardize-intro-rebased",
+  "date": "2026-10-24",
+  "role": "integrator",
+  "status": "pr_pending",
+  "paths": [
+    "scripts/launch_golf.py",
+    "tests/test_integration_launcher.py",
+    "AGENTS.md",
+    "README.md",
+    "docs/one-command-launch.md",
+    "research/claims/canonical-intro.json",
+    "research/canonical-intro/README.md",
+    "research/ledger.md"
+  ],
+  "goal": "Route the standard gameplay launcher through the verified green-pre-start intro and require subsequent Hitting the Green workflows to reuse that canonical sequence.",
+  "observations": [
+    "User confirmed the slower A -> wait -> A+B -> A screen transitions successfully on Dolphin (human observation).",
+    "PR #22 committed default timings with extra 15 requested-frame pause margin; margin not separately live validated."
+  ],
+  "limitations": [
+    "No frame-perfect timing guarantee from Felk RPC.",
+    "No automated screen-state, ball-hit or score validation.",
+    "Unit tests require checkout execution; repository tool cannot run them on user's host."
+  ]
+}

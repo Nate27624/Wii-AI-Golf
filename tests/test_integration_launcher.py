@@ -72,13 +72,15 @@ class OneCommandLauncherTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             launch_golf.game_path(str(bad))
 
-    def test_command_includes_existing_start_workflow_and_all_paths(self):
+    def test_command_uses_verified_intro_and_all_paths(self):
         cmd = launch_golf.make_start_command(
             game=self.game, dolphin=self.exe, bridge=self.bridge,
-            profile="green-first-shot", catalog=self.catalog, port=55355
+            profile="green-pre-start", catalog=self.catalog, port=55355
         )
-        self.assertIn("savestate_session.py", cmd[1])
-        self.assertEqual(cmd[cmd.index("start") + 1], "green-first-shot")
+        self.assertIn("launch_hitting_green.py", cmd[1])
+        self.assertEqual(cmd[cmd.index("--profile") + 1], "green-pre-start")
+        self.assertIn("--send-live", cmd)
+        self.assertNotIn("start", cmd)
         self.assertEqual(cmd[cmd.index("--dolphin") + 1], str(self.exe))
         self.assertEqual(cmd[cmd.index("--bridge") + 1], str(self.bridge))
         self.assertEqual(cmd[cmd.index("--game") + 1], str(self.game))
@@ -86,11 +88,35 @@ class OneCommandLauncherTests(unittest.TestCase):
         self.assertNotIn("capture", cmd)
         self.assertNotIn("--overwrite-slot", cmd)
 
+    def test_standard_launcher_rejects_another_checkpoint_before_game_input(self):
+        with self.assertRaisesRegex(ValueError, "green-pre-start"):
+            launch_golf.make_start_command(
+                game=self.game, dolphin=self.exe, bridge=self.bridge,
+                profile="green-first-shot", catalog=self.catalog, port=55355
+            )
+
+    def test_default_profile_is_verified_pre_start_checkpoint(self):
+        launch_golf.resolve_game(str(self.game), self.config)
+        picked = launch_golf.resolve_profile(None, None, self.config, self.catalog)
+        self.assertEqual((picked.name, picked.slot), ("green-pre-start", 2))
+
+    def test_saved_legacy_at_ball_profile_does_not_bypass_intro(self):
+        launch_golf.resolve_game(str(self.game), self.config)
+        launch_golf.resolve_profile("green-first-shot", None, self.config, self.catalog)
+        argv = [
+            "--game", str(self.game), "--config", str(self.config),
+            "--bridge", str(self.bridge), "--dolphin", str(self.exe),
+            "--catalog", str(self.catalog),
+        ]
+        with patch.object(launch_golf.subprocess, "run") as run:
+            self.assertEqual(launch_golf.main(argv), 1)
+            run.assert_not_called()
+
     def test_missing_bridge_fails_before_any_subprocess(self):
         with self.assertRaisesRegex(ValueError, "bridge"):
             launch_golf.make_start_command(
                 game=self.game, dolphin=self.exe, bridge=self.root / "missing.py",
-                profile="green-first-shot", catalog=self.catalog, port=55355
+                profile="green-pre-start", catalog=self.catalog, port=55355
             )
 
     def test_default_launch_only_then_optional_single_swing(self):
@@ -102,12 +128,14 @@ class OneCommandLauncherTests(unittest.TestCase):
         with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
             self.assertEqual(launch_golf.main(argv), 0)
             self.assertEqual(run.call_count, 1)
-            self.assertIn("start", run.call_args.args[0])
+            self.assertIn("launch_hitting_green.py", run.call_args.args[0][1])
+            self.assertIn("--send-live", run.call_args.args[0])
 
         with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
             self.assertEqual(launch_golf.main(argv + ["--swing", "--preset", "reverse"]), 0)
             self.assertEqual(run.call_count, 2)
-            self.assertIn("start", run.call_args_list[0].args[0])
+            self.assertIn("launch_hitting_green.py", run.call_args_list[0].args[0][1])
+            self.assertIn("--send-live", run.call_args_list[0].args[0])
             self.assertIn("--send-live-swing", run.call_args_list[1].args[0])
             self.assertIn("reverse", run.call_args_list[1].args[0])
 
@@ -149,7 +177,8 @@ class OneCommandLauncherTests(unittest.TestCase):
             self.assertEqual(launch_golf.main(argv), 0)
             self.assertEqual(run.call_count, 1)
             cmd = run.call_args.args[0]
-            self.assertEqual(cmd[cmd.index("start")+1], "green-pre-start")
+            self.assertEqual(cmd[cmd.index("--profile")+1], "green-pre-start")
+            self.assertIn("launch_hitting_green.py", cmd[1])
             self.assertNotIn("--send-live-swing", cmd)
 
     def test_launch_updates_source_and_keeps_existing_mapping(self):

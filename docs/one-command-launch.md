@@ -140,3 +140,32 @@ py scripts/launch_golf.py --slot 2
 ~~~
 
 Observe the controller source and checkpoint as usual. **These source changes must still be verified on the operator's Windows host before declaring the regression fixed in the actual Dolphin run.**
+
+## Current standard: automatically run calibrated A → A+B → A intro (user-verified 2026-10-24)
+
+**IMPORTANT: this section supersedes the older bare-savestate-start instructions above.** The previous `launch_golf.py` only loaded `green-first-shot` and returned, which meant an AI script could begin from the wrong screen. The user subsequently tested the following preparation with `green-pre-start` and reported that it successfully entered the swing screen:
+
+- A user-observed successful sequence used requested-frame durations `120 / 30 / 300 / 60 / 120 / 45 / 300` (wait / A / wait / A+B / gap / A / settle).
+- PR #22 added an approximately quarter-second request margin to each inter-button pause; the **current defaults** are `120 / 30 / 315 / 60 / 135 / 45 / 300`. The extra padding is *not separately live verified*.
+- Standard `scripts/launch_golf.py` now delegates to `scripts/launch_hitting_green.py --send-live` and loads the registered **`green-pre-start`** profile, then dispatches the centralized button schedule *before* optional `probe_swing.py`. No slot ID is hardcoded.
+- If local `research/launch.local.json` still remembers an old `green-first-shot` profile, select `--profile green-pre-start` **once**. The standard full-intro launcher intentionally refuses to fire its menu presses from a saved-at-ball checkpoint.
+
+**On an already-running Dolphin with swing bridge:**
+
+~~~powershell
+py scripts/launch_hitting_green.py --attach-running --send-live --swing --confirm-before-swing
+~~~
+
+**For a fresh start, close Dolphin and configure game/profile (once):**
+
+~~~powershell
+py scripts/launch_golf.py --game "PATH_TO_YOUR_WII_SPORTS.wbfs" --profile green-pre-start
+~~~
+
+After that, `py scripts/launch_golf.py` starts and navigates automatically. Use `py scripts/launch_golf.py --swing --preset forward` for **one guarded swing** after navigation; the probe still asks for manual confirmation and observation.
+
+The new intro CLI now prepends its own checkout's `src` directory before importing `wii_ai_golf`, to avoid the stale-editable-package error described above. `tests/test_integration_source_bootstrap.py` includes `launch_hitting_green.py` and checks Python `-I` as well as a hostile package environment.
+
+For all subsequent real-game golf/training scripts, **reuse the canonical intro** from `wii_ai_golf.menu_sequence.planned_menu_phases` and `execute_menu_phases`, rather than duplicating numeric delays or interpreting a bare savestate load as ready-to-swing. See [AGENTS.md](../AGENTS.md#required-startup-for-real-hitting-the-green-runs-2026-10-24). Explicit low-level savestate probing is still permitted when capturing/evaluating *different* already-at-ball scenarios, but that is not the default S001 launch workflow.
+
+Verification limits: frame-request counts are not exact timing, no code has yet verified the ready screen automatically, and a dispatched swing does not prove ball contact or a score. Run `py -m unittest discover -s tests -v` in the user checkout and visually verify a game start.
