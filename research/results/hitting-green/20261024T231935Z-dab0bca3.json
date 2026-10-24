@@ -1,0 +1,154 @@
+{
+  "captured_utc": "2026-10-24T23:20:00.602515+00:00",
+  "errors": [],
+  "frame_span_max": 4,
+  "frame_span_min": 4,
+  "numeric_hypotheses": {
+    "candidate_count": 9,
+    "candidates": [
+      {
+        "address": "0x91BF47E4",
+        "changed_steps": 2,
+        "first_xyz": [
+          -0.3777,
+          0.0,
+          0.2328
+        ],
+        "last_xyz": [
+          -0.1059,
+          0.0,
+          0.6637
+        ],
+        "samples": 124
+      },
+      {
+        "address": "0x91BF47E8",
+        "changed_steps": 2,
+        "first_xyz": [
+          0.0,
+          0.2328,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          0.6637,
+          -145.6
+        ],
+        "samples": 124
+      },
+      {
+        "address": "0x91BF47EC",
+        "changed_steps": 2,
+        "first_xyz": [
+          0.2328,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          0.6637,
+          -145.6,
+          0.0
+        ],
+        "samples": 124
+      },
+      {
+        "address": "0x91BF4874",
+        "changed_steps": 2,
+        "first_xyz": [
+          -0.3777,
+          0.0,
+          0.2328
+        ],
+        "last_xyz": [
+          -0.1059,
+          0.0,
+          0.6637
+        ],
+        "samples": 124
+      },
+      {
+        "address": "0x91BF4878",
+        "changed_steps": 2,
+        "first_xyz": [
+          0.0,
+          0.2328,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          0.6637,
+          -145.6
+        ],
+        "samples": 124
+      },
+      {
+        "address": "0x91BF487C",
+        "changed_steps": 2,
+        "first_xyz": [
+          0.2328,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          0.6637,
+          -145.6,
+          0.0
+        ],
+        "samples": 124
+      },
+      {
+        "address": "0x91BF4904",
+        "changed_steps": 2,
+        "first_xyz": [
+          -0.3777,
+          0.0,
+          0.2328
+        ],
+        "last_xyz": [
+          -0.1059,
+          0.0,
+          0.6637
+        ],
+        "samples": 124
+      },
+      {
+        "address": "0x91BF4908",
+        "changed_steps": 2,
+        "first_xyz": [
+          0.0,
+          0.2328,
+          2.2
+        ],
+        "last_xyz": [
+          0.0,
+          0.6637,
+          -145.6
+        ],
+        "samples": 124
+      },
+      {
+        "address": "0x91BF490C",
+        "changed_steps": 2,
+        "first_xyz": [
+          0.2328,
+          2.2,
+          0.0
+        ],
+        "last_xyz": [
+          0.6637,
+          -145.6,
+          0.0
+        ],
+        "samples": 124
+      }
+    ],
+    "sample_count": 124,
+    "status": "unverified_render_effect_hypotheses_not_ball_position"
+  },
+  "read_length": 64,
+  "read_offset": 48,
+  "run_id": "20261024T231935Z-dab0bca3",
+  "samples": 124,
+  "study_id": "S002-HG-TARGETED-MOTION",
+  "warning": "Source-gated minimap render effects only, not validated ball physics or score; raw RAM local"
+}
