@@ -42,7 +42,7 @@ def observe(rpc: Any, root: int) -> dict[str, Any]:
         value = (f"0x{ptr:08X}" if type(ptr) is int and 0 <= ptr <= 0xFFFFFFFF
                  else repr(ptr))
         end = rpc.call("frame.get_count")
-        return {"state": "present", "golf_field_root": f"0x{live_root:08X}", "object_base": None,
+        return {"golf_field_root": f"0x{live_root:08X}", "object_base": None,
                 "vec_address": None, "xyz": None, "pointer_raw": value,
                 "state": "absent_or_invalid", "frame_start": start,
                 "frame_end": end, "frame_span": end-start}
@@ -53,7 +53,7 @@ def observe(rpc: Any, root: int) -> dict[str, Any]:
     end = rpc.call("frame.get_count")
     if type(end) is not int or end < start:
         raise ValueError("invalid frame end")
-    return {"golf_field_root": f"0x{live_root:08X}", "object_base": f"0x{ptr:08X}", "vec_address": f"0x{ptr+VEC_OFFSET:08X}",
+    return {"state": "present", "golf_field_root": f"0x{live_root:08X}", "object_base": f"0x{ptr:08X}", "vec_address": f"0x{ptr+VEC_OFFSET:08X}",
             "xyz": [round(x, 6) for x in xyz], "frame_start": start,
             "frame_end": end, "frame_span": end-start}
 
@@ -74,7 +74,7 @@ def summarize(samples: list[dict[str, Any]]) -> dict[str, Any]:
                         "max_step_displacement_unverified":round(max(changes,default=0),4),
                         "first_xyz":rows[0]["xyz"],"last_xyz":rows[-1]["xyz"]})
     return {"sample_count":len(samples),
-            "pointer_present_samples":sum(x.get("state")=="present" for x in samples),
-            "pointer_absent_samples":sum(x.get("state")=="absent_or_invalid" for x in samples),
+            "pointer_present_samples":sum(x.get("xyz") is not None and bool(x.get("object_base")) for x in samples),
+            "pointer_absent_samples":sum(x.get("xyz") is None for x in samples),
             "object_instances":results,
             "status":"UNVERIFIED_object_movement_NOT_confirmed_ball_physics"}
