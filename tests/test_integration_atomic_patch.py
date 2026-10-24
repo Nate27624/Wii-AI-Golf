@@ -60,6 +60,17 @@ class AtomicPatchTests(unittest.TestCase):
                 self.ns["_wii_ai_submit"]([0, bad])
         self.assertEqual(self.ns["_wii_ai_status"]([])["state"], "idle")
 
+    def test_optional_startup_state_hook(self):
+        fixture = ('HANDLERS = {\n    "frame.get_count":                _frame_get_count,\n}\n'
+                   'while True:\n    await event.frameadvance()\n    _frame_count += 1\n    _poll_sockets()\n')
+        patched = patch_bridge(fixture, expected_sha=git_blob_sha(fixture), startup_slot=7)
+        self.assertIn('savestate.load_from_slot(7)', patched)
+        self.assertIn('if _frame_count == 1:', patched)
+        self.assertEqual(patched.count('savestate.load_from_slot(7)'), 1)
+        compile(patched, "patched_bridge.py", "exec", flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)
+        with self.assertRaises(ValueError):
+            patch_bridge(fixture, expected_sha=git_blob_sha(fixture), startup_slot=256)
+
     def test_fail_closed_for_other_upstream(self):
         with self.assertRaisesRegex(UnsupportedBridgeVersion, "SHA mismatch"):
             patch_bridge("HANDLERS = {}")
