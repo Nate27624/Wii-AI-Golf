@@ -104,6 +104,22 @@ class MonitorTests(unittest.TestCase):
             self.assertIsNone(url)
             self.assertEqual(len([json.loads(x) for x in p.read_text().splitlines()]), 5)
 
+    def test_empirical_label_requires_three_samples(self):
+        states = [state(), state(), state()]
+        with tempfile.TemporaryDirectory() as t, patch(
+            "wii_ai_golf.golf_monitor.make_run_id", return_value="20261024T140000Z-aabbccdd"
+        ), patch("builtins.print"):
+            output, url = run_monitor(
+                code_root=Path(t), local_dir=Path(t), max_samples=3,
+                interval_s=0.2, upload=False, sample_reader=lambda n: states[n],
+                sleep_fn=lambda _s: None)
+            rows = [json.loads(x) for x in output.read_text().splitlines()]
+            self.assertFalse(rows[0]["state"]["scene_inference"]["stable"])
+            self.assertTrue(rows[2]["state"]["scene_inference"]["stable"])
+            self.assertIn("stable_empirical_tee_pin_configuration", rows[2]["changes"])
+            self.assertEqual(rows[2]["state"]["scene_inference"]["tee_index_observed"], 1)
+            self.assertIsNone(url)
+
     def test_public_report_truncation(self):
         report = build_public_report("run", started_utc="t", samples=502,
                                      events=[{"sample_index": i} for i in range(502)],

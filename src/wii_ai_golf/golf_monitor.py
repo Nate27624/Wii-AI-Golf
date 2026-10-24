@@ -14,6 +14,7 @@ import time
 from typing import Any, Callable
 
 from .golf_collection import make_run_id, publish_sanitized, read_stage
+from .scenario_inference import StableSceneTracker
 
 TRACKED = ("current_pin_obj_ptr", "current_start_obj_ptr", "cup_obj_ptr")
 
@@ -71,6 +72,8 @@ def build_public_report(run_id: str, *, started_utc: str,
             "Coordinates are unverified game units, NOT meters.",
             "Felk RPC samples span many game frames and cannot reconstruct frame-perfect ball trajectory.",
             "No Wii Remote commands, savestate resets or memory writes were executed by this monitor.",
+            "Shot labels are empirical tee-position matches from one observed RSPE01 Rev1 dataset; NOT the authoritative game shot counter.",
+            "Pin and cup must agree and a scene repeat for 3 samples; staggered tee/pin transitions can still produce tentative pairs.",
         ],
     }
 
@@ -106,6 +109,7 @@ def run_monitor(
     events: list[dict[str, Any]] = []
     heartbeat: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
+    tracker = StableSceneTracker(required_samples=3)
     previous: dict[str, Any] | None = None
     samples = 0
     consecutive_errors = 0
@@ -126,7 +130,13 @@ def run_monitor(
                     sample = sample_reader(samples)
                     if sample.get("game_id") != "RSPE01" or sample.get("disc_revision") != 1:
                         raise RuntimeError("Wii Sports RSPE01 disc revision 1 required")
+                    sample["scene_inference"] = tracker.feed(sample)
                     triggers = changed_fields(previous, sample)
+                    if sample["scene_inference"]["new_configuration"]:
+                        triggers.append("stable_empirical_tee_pin_configuration")
+                        print("  candidate shot position:", sample["scene_inference"]["tee_index_observed"],
+                              "| pin variant:", sample["scene_inference"]["pin_variant_observed"],
+                              "(empirical coordinates, NOT actual game shot counter)")
                     envelope = {"sample_index": samples + 1,
                                 "seconds_from_start": round(tick - start, 3),
                                 "changes": triggers, "state": sample}
