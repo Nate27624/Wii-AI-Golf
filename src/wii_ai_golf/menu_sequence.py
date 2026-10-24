@@ -34,7 +34,9 @@ def planned_menu_phases(*, startup: int = 120, a_press: int = 30,
                         settle: int = 300) -> tuple[MenuPhase, ...]:
     """Load pre-start checkpoint, then A, release/wait, A+B, release, A.
 
-    Defaults reflect one user-confirmed successful navigation, with ~15 requested\n    frames of extra padding before A+B and the final A press. RPC request\n    counts are not guaranteed exact real or emulation time.
+    Defaults reflect one user-confirmed successful navigation, with ~15 requested
+    frames of extra padding before A+B and the final A press. RPC request
+    counts are not guaranteed exact real or emulation time.
     Explicit release between A+B and final A creates a new press edge.
     """
     return (
