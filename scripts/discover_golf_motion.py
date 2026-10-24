@@ -74,8 +74,8 @@ def main() -> None:
                 except (OSError, RuntimeError, ValueError, KeyError) as exc:
                     errors.append({"elapsed_s": round(tick - start, 3),
                                    "error_type": type(exc).__name__})
-                    print(f"\nRead-only error: {type(exc).__name__}")
-                    if len(errors) >= 5 and not captured:
+                    print(f"\nRead-only error: {type(exc).__name__}: {exc}")
+                    if len(errors) >= 3 and not captured:
                         break
                 pause = max(0.0, args.interval - (time.monotonic() - tick))
                 if pause:
