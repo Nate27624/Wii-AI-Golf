@@ -41,6 +41,16 @@ Every session MUST read README, this document, research/ledger.md, research/queu
 
 Relevant docs: [launch-hitting-green.md](docs/launch-hitting-green.md), [one-command-launch.md](docs/one-command-launch.md), [workspace-coordination.md](docs/workspace-coordination.md). Observed menu success was **human reported**, not frame-count/video verified by an automated detector.
 
+## Mandatory fresh-boot command contract (user directive 2026-10-24)
+
+**Every user-facing command that interacts with LIVE Wii Sports must independently start Felk Dolphin, launch the game, restore the appropriate existing named checkpoint, and complete the integrated startup/navigation before any new probe, swing, capture or training action.** Do NOT give users bare `py scripts/probe_swing.py`, `py scripts/start_golf_recording.py --attach-running`, `py scripts/discover_golf_motion.py`, `py scripts/probe_dolphin_bridge.py --read-only-live`, or similar commands that assume a manually running Dolphin bridge.
+
+**Canonical standard first-shot dispatcher:** `py scripts/run_golf_experiment.py --send-live --script ACTION.py -- [action arguments]`. It first invokes `scripts/launch_golf.py` (emulated controller, fresh Felk Dolphin + legal Wii Sports image, named savestate `green-pre-start`, user-confirmed A → wait → A+B → release → A intro via `launch_hitting_green.py`), then executes ACTION.py **only if startup returned successfully**. A user-given game path is saved only in the ignored local launch config. Every future real-game action must either be runnable through this dispatcher or supply an equivalently self-contained fresh boot command *delegating* to the canonical launcher; no duplicate startup code or menu timing constants.
+
+If the requested scenario is already saved at the ball or is a later shot, it requires an **explicit scenario-specific named savestate and skip-menu safety contract**. Never run A/A+B/A from an arbitrary at-ball state. The current first-shot dispatcher intentionally rejects those alternate checkpoints until properly integrated. Low-level attach/reset commands are internal diagnostics, **not full user-facing run instructions**. Existing Dolphin must be closed for fresh boot; do not start duplicate bridges. Offline tests, source analysis, patch generation and scenario planning do not require Dolphin; this directive applies to commands touching the live game.
+
+See [fresh-boot-experiments.md](docs/fresh-boot-experiments.md) for exact commands and mock regression tests. Controller RPC acknowledgements, savestate load requests and successful menu dispatch are not automatic confirmation of visual readiness, ball contact or score.
+
 ## Scientific integrity gates
 
 - Every experiment gets a unique study ID, baseline, hypothesis, seeds, train/evaluation partitions, attempt/time budget, success criterion and stop rule BEFORE training.
