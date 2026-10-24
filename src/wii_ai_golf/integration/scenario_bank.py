@@ -70,7 +70,7 @@ class ScenarioBank:
         if scene.name in self.scenarios:
             raise ValueError(f"scenario already registered: {scene.name}")
         key = (scene.challenge, scene.shot_index, scene.variant)
-        if any((s.challenge, s.shot_index, s.variant) == key for s in self.scenarios.values()):
+        if scene.shot_index is not None and any((s.challenge, s.shot_index, s.variant) == key for s in self.scenarios.values()):
             raise ValueError("duplicate challenge/shot_index/variant; capture a distinct configuration first")
         self.scenarios[scene.name] = scene
 
