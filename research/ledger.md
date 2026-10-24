@@ -43,3 +43,11 @@ New evidence records: date, study_id, source (synthetic/emulator/human), agent v
 - Adds `trace.submit`, `trace.status`, `trace.abort`; patch installs same-frame button+accelerometer calls in Felk's emulation coroutine. Supports 1–600 sample sequences with strict inputs, completion counts, explicit abort and A release.
 - New offline tests for atomic sequencing and client control pass. Full suite now **30/30 passing**, 0 live emulator attempts, 0 Wii Sports swings measured. This is an unvalidated integration hypothesis, not working gameplay.
 - See `docs/felk-atomic-scheduler.md` for install steps, source pin, experiments and limitations.
+
+## 2026-10-24 — Worker 1 S001: first successful user-operated live Dolphin bridge preflight
+
+- **Evidence/source:** user-provided PowerShell output from Windows host (`D:\Projects\Wii Golf AI\Wii-AI-Golf`), running Felk Dolphin with Wii Sports loaded. `Test-NetConnection 127.0.0.1 -Port 55355` returned `TcpTestSucceeded : True`.
+- **Observed probe:** `py scripts/probe_dolphin_bridge.py --read-only-live` returned `source=live-bridge-read-only`, `bridge_version=0.3.0`, `initial_frame=2354`, `second_frame=2355`, and `frame_progressed=true`. This was executed by the user, not the Worker 1 sandbox; raw CLI output provided in conversation.
+- **Validated claim:** the local Python script can communicate with the Felk bridge over loopback while the emulator advances frames. Earlier bridge-connection failure (`WinError 10061`) is resolved for the read-only probe.
+- **Not validated:** controller injection, patched atomic trace, game recognition of a swing, real scoring/extraction, deterministic resets, or unattended trials. **0 demonstrated AI golf shots** so far.
+- **Next experiment:** generate separately named pinned atomic bridge via `scripts/patch_felk_bridge.py`, restart Dolphin with only that bridge loaded, run read-only preflight and then explicitly authorized `scripts/probe_atomic_trace.py --send-live-trace`. Do not mark S001 complete until game sees an actual shot; preserve both success/failure evidence.
