@@ -15,6 +15,9 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from wii_ai_golf.ball_discovery import snapshot_windows, analyze_samples  # noqa: E402
+from wii_ai_golf.decoded_golf_fields import (  # noqa: E402
+    decode_documented_fields, summarize_documented_transitions,
+)
 from wii_ai_golf.golf_collection import make_run_id, publish_sanitized  # noqa: E402
 from wii_ai_golf.integration.rpc import FelkRPC  # noqa: E402
 
@@ -55,6 +58,7 @@ def main() -> None:
                                                     capture_geometry=True, record_frames=True)
                     if not snapshot["windows"]:
                         raise RuntimeError("no valid golf windows (verify mode/bridge)")
+                    snapshot["decoded_fields"] = decode_documented_fields(snapshot)
                     row = {"elapsed_s": round(tick - start, 3), **snapshot}
                     out.write(json.dumps(row, sort_keys=True) + "\n")
                     out.flush()
@@ -90,6 +94,7 @@ def main() -> None:
               },
               "read_errors": errors[-10:],
               "position_candidates": summary,
+              "documented_golf_field_transitions": summarize_documented_transitions(captured),
               "warning": "Not a decoded ball, score, wind or shot counter. Raw memory local only."}
     summary_file = args.data_dir / f"golf-motion-{run}-summary.json"
     with summary_file.open("x", encoding="utf-8") as handle:
