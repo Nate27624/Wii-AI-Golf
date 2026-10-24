@@ -43,13 +43,22 @@ class FocusedTests(unittest.TestCase):
         self.assertTrue(all(n in ("frame.get_count","memory.read_u32","memory.read_bytes") for n,_ in rpc.calls))
     def test_invalid_pointer_never_dereferenced(self):
         rpc=Bridge(ptr=0)
-        with self.assertRaises(RuntimeError):observe(rpc,0x91BF4590)
+        row=observe(rpc,0x91BF4590)
+        self.assertEqual(row["state"],"absent_or_invalid")
+        self.assertIsNone(row["xyz"])
         self.assertNotIn("memory.read_bytes",[n for n,_ in rpc.calls])
     def test_invalid_candidate_pointer_message_includes_raw_value(self):
         rpc=Bridge(ptr=0)
-        with self.assertRaisesRegex(RuntimeError, "is 0x00000000"):
-            observe(rpc,0x91BF4590)
+        row=observe(rpc,0x91BF4590)
+        self.assertEqual(row["pointer_raw"],"0x00000000")
         self.assertNotIn("memory.read_bytes",[n for n,_ in rpc.calls])
+
+    def test_null_samples_are_counted_as_absent(self):
+        missing={"state":"absent_or_invalid","object_base":None,"xyz":None}
+        report=summarize([missing,missing])
+        self.assertEqual(report["pointer_absent_samples"],2)
+        self.assertEqual(report["pointer_present_samples"],0)
+        self.assertEqual(report["object_instances"],[])
 
     def test_summary_keeps_different_pointer_instances_separate(self):
         samples=[{"object_base":"0x92583488","frame_start":i*4,"frame_end":i*4+2,
