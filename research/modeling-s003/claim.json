@@ -1,0 +1,12 @@
+{
+  "worker_id": "modeling-s003-swing-design-20261024",
+  "role": "modeling",
+  "issue": 4,
+  "branch": "agent/modeling/swing-design-s003",
+  "claim_comment": "https://github.com/Nate27624/Wii-AI-Golf/issues/4#issuecomment-6381482979",
+  "status": "offline-swing-design-awaiting-integrator-live-contact",
+  "owned_paths": ["src/wii_ai_golf/modeling/**", "scripts/design_swing_sweep.py", "tests/test_modeling*.py", "docs/swing-calibration-design.md", "research/modeling-s003/**"],
+  "real_game_swings_measured": 0,
+  "integrator_pr_dependency": 16,
+  "evaluation_pr_dependency": 14
+}
