@@ -1,74 +1,97 @@
-# Wii AI Golf — Hitting the Green
+# Wii AI Golf
 
-Collaborative, reproducible machine-learning research for **Wii Sports Golf: Hitting the Green**. The long-term goal is to train an agent that plays the real challenge through the Dolphin emulator.
+**Reproducible AI control and learning for Wii Sports Golf — Hitting the Green.**
 
-> **Status: research scaffold, not a working Wii Sports AI.** The demo uses an invented synthetic objective. The Wii Remote input bridge, game-state reader, and actual scoring calibration are NOT yet implemented. Synthetic results are not evidence of real-game performance.
+One research pipeline: **emulator control → observed outcomes → swing calibration → optimization → held-out evaluation**. Different agents own different modules, but they share one study plan, one controller protocol, one local evidence directory and one public CLI.
 
-## Objectives
+## Current evidence (2026-10-24)
 
-Build an experimentally verified loop: observe a shot → propose an action → execute a reproducible Wii Remote swing → measure the final distance → learn → evaluate on untouched shot configurations. Compare random choice, per-scenario search, system identification, model-based control, and reinforcement learning where warranted.
+**Working:** Python starts Felk Dolphin with Emulated Wii Remote 1, no Nunchuk, a registered pre-start checkpoint, and the verified A → wait → A+B → wait → A intro. One human-observed forward swing is logged with **89/89 dispatched frames**, **ball visibly moved = yes**, **on green = no**, and a visual meter estimate of **about 75%**.
 
-## Quick start (Python 3.10+)
+**Not yet established:** calibrated game power percentage, automatic landing-distance/score extraction, repeated-shot precision, 100 unattended scored trials, or a trained policy that improves Wii Sports performance. The 75% is a visual gauge estimate, *not a machine-verified power measurement*. Synthetic examples never count as Wii Sports outcomes.
 
-```bash
-python -m pip install -e .
-python -m unittest discover -s tests -v
-python -m wii_ai_golf.demo
-```
+## One interface
 
-In offline environments with setuptools already installed: `python -m pip install --no-build-isolation -e .`.
-
-## Project map
-
-- [AGENTS.md](AGENTS.md): role definitions, issue ownership, experiment validity, PR workflow.
-- [CONTRIBUTING.md](CONTRIBUTING.md): review/checklist.
-- [src/wii_ai_golf](src/wii_ai_golf): shared protocol; synthetic simulator; random and elite-search baselines; Dolphin adapter interface.
-- [tests](tests): unit and learning smoke tests.
-- [research/queue.jsonl](research/queue.jsonl): proposed experiments (no running job worker).
-- [research/ledger.md](research/ledger.md): verified findings, unknowns and handoffs.
-- [docs/architecture.md](docs/architecture.md): system boundaries and measurement contract.
-- [docs/milestones.md](docs/milestones.md): work phases and acceptance gates.
-- [docs/hardware.md](docs/hardware.md): local emulator setup checklist.
-
-## Real Wii Sports launch: standardized first-shot intro
-
-A user-tested A → wait → A+B → A sequence from the existing `green-pre-start` savestate is now the **standard startup for real Hitting the Green experiments**, not a substitute for actual swing recognition. Both `scripts/launch_golf.py` and `scripts/launch_hitting_green.py` execute the same canonical menu routine. Future training/shot scripts must reuse this intro; see [AGENTS.md](AGENTS.md#required-startup-for-real-hitting-the-green-runs-2026-10-24).
-
-After `py -m pip install -e .`, and with Dolphin closed, run:
+From the canonical Windows checkout, use Python 3.10+. **No editable install is required** for the source-local CLI.
 
 ~~~powershell
-py scripts/launch_golf.py --game "PATH_TO_YOUR_WII_SPORTS.wbfs" --profile green-pre-start
+cd "D:\Projects\Wii Golf AI\Wii-AI-Golf"
+git pull --ff-only
+py scripts/golf.py --help
+py scripts/golf.py doctor
 ~~~
 
-The first command stores the image path and selected **named savestate profile** in a gitignored local config. On later launches just run `py scripts/launch_golf.py`. For an opt-in, human-confirmed swing after automatically reaching the first ball, append `--swing`. To reuse an already-running Dolphin session instead of launching a second instance, run `py scripts/launch_hitting_green.py --attach-running --send-live --swing --confirm-before-swing`.
+### Everyday commands
 
-Prerequisites: single swing-enabled Felk bridge, Wii Remote 1 **Emulated** with **Extension None**, and an existing named `green-pre-start` savestate (do not recapture or overwrite it). Additional [launch instructions](docs/one-command-launch.md) and [calibrated button schedule](docs/launch-hitting-green.md). RPC dispatch counts are not verified contact or score evidence.
+| Goal | Command | Dolphin effect |
+| --- | --- | --- |
+| Check local setup | `py scripts/golf.py doctor` | Read-only |
+| Boot to first ball | `py scripts/golf.py play --slot 2` | **Fresh full intro** |
+| One guarded known-good swing | `py scripts/golf.py swing --slot 2` | **Fresh intro + human confirmation** |
+| Test A release timing | `py scripts/golf.py swing --slot 2 --follow-through-frames 45` | Fresh intro + one guarded shot |
+| List named checkpoints | `py scripts/golf.py state list` | Read-only |
+| View study plan | `py scripts/golf.py research studies` | Read-only |
+| Summarize local swing logs | `py scripts/golf.py research evidence` | Read-only |
+| Run unit tests | `py scripts/golf.py test` | Offline |
+| Try synthetic demo | `py scripts/golf.py demo` | Offline, **not Wii Sports** |
 
-## Mandatory one-command **fresh launch** for every live golf experiment
+**Close Dolphin before `play` or `swing`.** Both use `launch_golf.py → launch_hitting_green.py → menu_sequence.py`, not copied or guessed intro delays. The game image and local controller preferences are remembered from your verified setup. Slot 2 must map to `green-pre-start` in the ignored local savestate catalog; no commands create or overwrite state bytes. The actual swing requires visual confirmation and post-shot human labeling.
 
-Do not run live probes, recording scripts or training actions against an assumed already-running Dolphin process. Close Dolphin first; use the coordinator wrapper, which **starts Felk Dolphin, loads the existing named `green-pre-start` checkpoint, runs the user-confirmed A/A+B/A intro, then dispatches the selected action**:
+Advanced experiments: `py scripts/golf.py experiment --script probe_swing.py --send-live -- --preset forward --send-live-swing`. The existing coordinator wrapper launches just one session and attaches its approved child without booting a second Dolphin.
+
+See **[the CLI guide](docs/cli.md)** for command reference, flags and safety.
+
+## Repository map
+
+~~~text
+Wii-AI-Golf/
+├── scripts/
+│   ├── golf.py                    # Public source-local CLI
+│   ├── launch_golf.py             # Canonical Dolphin/controller/state startup
+│   ├── launch_hitting_green.py    # Canonical A / A+B / A intro
+│   ├── probe_swing.py             # One guarded shot and human observations
+│   └── ...                        # Advanced adapters and diagnostics
+├── src/wii_ai_golf/
+│   ├── cli.py                     # One CLI, delegates to existing scripts
+│   ├── integration/               # Felk RPC, savestates, swing/bridge
+│   ├── audit/                     # Read-only RAM candidate audit
+│   ├── research_catalog.py        # Read-only research/evidence summaries
+│   ├── protocol.py                # Future ShotEnvironment contracts
+│   ├── agents.py, evaluation.py   # Synthetic baseline code
+│   └── toy_env.py                 # Synthetic physics only
+├── research/
+│   ├── README.md                  # Study lifecycle and evidence rules
+│   ├── queue.jsonl                # S001–S005 proposals, not live jobs
+│   ├── ledger.md                  # Historical evidence and limitations
+│   ├── claims/                    # Agent ownership
+│   └── worker*/                   # Role-specific notes
+├── tests/                         # Unit/integration/CLI regression checks
+├── docs/                          # Detailed workflows, design and measurements
+└── AGENTS.md                      # Ownership/startup/evidence contract
+~~~
+
+The sibling `Wii-AI-Golf-Data/` holds local shot JSONL, screenshots and other artifacts. ROMs, emulator executables, savestates and personal configurations do **not** go into Git. Worktrees are for coding; the canonical runtime checkout contains the live state mappings.
+
+## A shared research program
+
+| Study | Role | Current gate |
+| --- | --- | --- |
+| **S001** | Integration/control | **First user-confirmed ball contact; next three-shot repeatability** |
+| **S002** | Evaluation | Validate distance, landing and score against real game evidence |
+| **S003** | Modeling | One-factor motion/power calibration after outcomes are measurable |
+| **S004** | Learning | Fair, equal-attempt search; synthetic results stay synthetic |
+| **S005** | Generalization | Test unseen shot layouts after S002–S004 |
+
+`research/queue.jsonl` holds **proposals**, not a live scheduler. Actual agent work is tracked in GitHub issues and PRs, with S002/S003/S004 still owned separately. See [research workflow](research/README.md), [AGENTS.md](AGENTS.md), [architecture](docs/architecture.md) and [milestones](docs/milestones.md).
+
+## Contribute and test
 
 ~~~powershell
-py scripts/run_golf_experiment.py --send-live --game "G:\Applications\Dolphin\Wii Games\Wii Sports (USA) (Rev 1).wbfs" --script probe_swing.py -- --preset forward --send-live-swing
+py scripts/golf.py test
+py scripts/golf.py test --pattern "test_unified_cli.py"
+py scripts/golf.py demo
 ~~~
 
-After the first launch remembers the game image path locally, the `--game` argument is optional. The actual swing script asks for a human confirmation. This is intentionally a **fresh boot**, not `--attach-running`. For data capture and other action scripts, replace `probe_swing.py` and its arguments, but retain the wrapper. Offline analysis and tests do not start Dolphin.
+Optional installation: `py -m pip install -e .` then `wii-golf --help` or `py -m wii_ai_golf --help`. Prefer `py scripts/golf.py` across multiple worktrees; it loads that checkout's source rather than a stale editable package.
 
-See [fresh-boot command policy and examples](docs/fresh-boot-experiments.md) and [AGENTS.md](AGENTS.md#mandatory-fresh-boot-command-contract-user-directive-2026-10-24). Different already-at-ball checkpoints require their own explicit safe runner; do not blindly replay menu A presses there.
-
-## First real milestone
-
-Demonstrate **100 unattended, measured Dolphin shots** with controller input traces, successful resets, verified distance units, and failures logged. This comes **before** expensive neural network training.
-
-Only synthetic code has been exercised here. The repository intentionally excludes ROMs, BIOS, Nintendo assets, savestates and emulator binaries. Default to local experimentation, not GPU training in GitHub Actions.
-
-
-## Worker 1 integration research (safe mock first)
-
-```bash
-PYTHONPATH=src python scripts/probe_dolphin_bridge.py
-# On a PC with Felk's Dolphin scripting bridge v0.2 already running:
-PYTHONPATH=src python scripts/probe_dolphin_bridge.py --read-only-live
-```
-
-Read [coordination and claims](research/coordination.md) before another AI session starts work. Worker 1's [findings](docs/integrator-research.md) show why the bridge currently cannot guarantee simultaneous button and motion input; no real swing or scored run has yet been demonstrated.
+The historical `scripts/*.py` commands remain functional for advanced users and the other agents. This is an **additive** consolidation, not a breaking rename. See [CONTRIBUTING.md](CONTRIBUTING.md).
