@@ -1,6 +1,5 @@
-"""Use the integrator's exact pre-start sequence, never a duplicated copy."""
-from __future__ import annotations
-
+"""All live evaluators must use Worker 1's ONE canonical intro sequence."""
+import argparse
 import importlib.util
 import json
 from pathlib import Path
@@ -14,129 +13,179 @@ spec = importlib.util.spec_from_file_location("golf_recording_launcher_under_tes
 start = importlib.util.module_from_spec(spec)
 assert spec and spec.loader
 spec.loader.exec_module(start)
+import session_bootstrap as boot
 
 
-class BootAndCaptureTests(unittest.TestCase):
+class SharedStartupTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        (self.root / "scripts").mkdir()
-        (self.root / "research").mkdir()
-        (self.root / "src").mkdir()
-        (self.root / "scripts" / "launch_hitting_green.py").write_text("# existing integrator")
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        for d in ("scripts", "research", "src"):
+            (self.root / d).mkdir()
+        (self.root / "scripts" / "launch_hitting_green.py").write_text("# canonical launcher")
         self.catalog = self.root / "research" / "savestates.local.json"
         self.catalog.write_text(json.dumps({
             "schema_version": 1,
             "profiles": [{"name": "green-pre-start", "slot": 2,
-                          "description": "pre-start checkpoint", "game_id": "RSPE01"}],
+                          "description": "known pre-menu checkpoint", "game_id": "RSPE01"}],
         }))
+        self.exe = self.root / "Dolphin.exe"
+        self.bridge = self.root / "mcp_bridge_swing.py"
+        self.game = self.root / "WiiSports.wbfs"
+        for file in (self.exe, self.bridge, self.game):
+            file.touch()
 
-    def test_attach_uses_integrators_menu_not_our_own(self):
-        cmd = start.boot_command(
-            canonical=self.root, profile="green-pre-start",
-            port=55355, attach_running=True)
+    def args(self, startup="auto", game=None):
+        parser = argparse.ArgumentParser()
+        boot.add_boot_options(parser)
+        parser.add_argument("--port", type=int, default=55355)
+        argv = ["--canonical", str(self.root), "--startup", startup,
+                "--dolphin", str(self.exe), "--bridge", str(self.bridge)]
+        if game is not None:
+            argv.extend(["--game", str(game)])
+        return parser.parse_args(argv)
+
+    def test_canonical_menu_only_one_load_no_second_swing(self):
+        cmd = boot.boot_command(canonical=self.root, profile="green-pre-start",
+                                port=55355, attach=True)
         self.assertEqual(Path(cmd[1]).name, "launch_hitting_green.py")
         self.assertIn("--send-live", cmd)
         self.assertIn("--attach-running", cmd)
         self.assertNotIn("--swing", cmd)
-        self.assertEqual(cmd[cmd.index("--profile") + 1], "green-pre-start")
-        self.assertEqual(cmd[cmd.index("--catalog") + 1], str(self.catalog))
-        self.assertNotIn("menu_sequence.py", " ".join(cmd))
+        self.assertNotIn("--startup-slot", cmd)
+        self.assertEqual(cmd[cmd.index("--profile")+1], "green-pre-start")
+        self.assertEqual(cmd[cmd.index("--catalog")+1], str(self.catalog))
 
-    def test_fresh_uses_exact_selected_paths_and_does_not_swing(self):
-        files = [self.root / n for n in ("Dolphin.exe", "mcp_bridge_swing.py", "WiiSports.wbfs")]
-        for f in files:
-            f.touch()
-        cmd = start.boot_command(
-            canonical=self.root, profile="green-pre-start",
-            port=55355, attach_running=False,
-            dolphin=files[0], bridge=files[1], game=files[2])
+    def test_fresh_mode_passes_all_required_files(self):
+        cmd = boot.boot_command(canonical=self.root, profile="green-pre-start",
+                                port=55355, attach=False, dolphin=self.exe,
+                                bridge=self.bridge, game=self.game)
+        for flag, path in (("--dolphin", self.exe), ("--bridge", self.bridge),
+                           ("--game", self.game)):
+            self.assertEqual(cmd[cmd.index(flag)+1], str(path))
         self.assertNotIn("--attach-running", cmd)
         self.assertNotIn("--swing", cmd)
-        for flag, path in zip(("--dolphin", "--bridge", "--game"), files):
-            self.assertEqual(cmd[cmd.index(flag) + 1], str(path))
 
-    def test_invalid_or_missing_boot_resources_fail_closed(self):
-        with self.assertRaisesRegex(ValueError, "fresh launch requires"):
-            start.boot_command(canonical=self.root, profile="green-pre-start",
-                               port=55355, attach_running=False)
-        with self.assertRaises(FileNotFoundError):
-            start.boot_command(canonical=self.root, profile="green-pre-start",
-                               port=55355, attach_running=False,
-                               dolphin=self.root / "missing.exe",
-                               bridge=self.root / "missing.py",
-                               game=self.root / "missing.wbfs")
-        (self.root / "scripts" / "launch_hitting_green.py").unlink()
-        with self.assertRaises(FileNotFoundError):
-            start.boot_command(canonical=self.root, profile="green-pre-start",
-                               port=55355, attach_running=True)
+    def test_no_bridge_automatically_launches_fresh(self):
+        args = self.args(game=self.game)
+        with patch.object(boot, "bridge_open", return_value=False), patch.object(
+            boot, "dolphin_process_running", return_value=False
+        ), patch.object(boot.subprocess, "run",
+                         return_value=subprocess.CompletedProcess([], 0)) as run:
+            result = boot.ensure_intro(args)
+        self.assertEqual(result, "launched")
+        run.assert_called_once()
+        cmd = run.call_args.args[0]
+        self.assertIn("launch_hitting_green.py", cmd[1])
+        self.assertIn("--game", cmd)
+        self.assertIn("--send-live", cmd)
+        self.assertNotIn("--attach-running", cmd)
+        self.assertEqual(run.call_args.kwargs["env"]["PYTHONPATH"], str(self.root / "src"))
 
-    def test_scan_command_is_read_only_and_does_not_duplicate_reset(self):
-        cmd = start.scan_command(
-            seconds=25, interval=0.6, profile="broad", port=55355,
-            no_upload=True)
-        self.assertIn("discover_golf_motion.py", cmd[1])
-        self.assertEqual(cmd[cmd.index("--profile") + 1], "broad")
-        self.assertIn("--no-upload", cmd)
-        for forbidden in ("--send-live", "--swing", "--startup-profile",
-                          "--savestate-profile", "--attach-running"):
-            self.assertNotIn(forbidden, cmd)
+    def test_bridge_existing_auto_uses_same_prestart_intro(self):
+        with patch.object(boot, "bridge_open", return_value=True), patch.object(
+            boot.subprocess, "run",
+            return_value=subprocess.CompletedProcess([], 0)) as run:
+            result = boot.ensure_intro(self.args())
+        self.assertEqual(result, "attached")
+        cmd = run.call_args.args[0]
+        self.assertIn("--attach-running", cmd)
+        self.assertNotIn("--dolphin", cmd)
+        self.assertNotIn("--swing", cmd)
 
-    def test_boot_must_succeed_before_scanner_starts(self):
-        with patch.object(start, "bridge_open", return_value=True), patch.object(
-            start.subprocess, "run",
-            return_value=subprocess.CompletedProcess([], 1)
-        ) as run:
-            self.assertEqual(start.main(["--canonical", str(self.root), "--attach-running"]), 1)
-            run.assert_called_once()
+    def test_local_game_config_resolves_game_without_arg(self):
+        config = self.root / "research" / "launch.local.json"
+        config.write_text(json.dumps({"schema_version": 1, "game": str(self.game)}))
+        with patch.object(boot, "bridge_open", return_value=False), patch.object(
+            boot, "dolphin_process_running", return_value=False
+        ), patch.object(boot.subprocess, "run",
+                         return_value=subprocess.CompletedProcess([], 0)) as run:
+            boot.ensure_intro(self.args())
+        cmd = run.call_args.args[0]
+        self.assertEqual(cmd[cmd.index("--game") + 1], str(self.game))
 
-    def test_attached_flow_runs_integrator_then_scan_with_isolated_paths(self):
-        def side_effect(*args, **kwargs):
-            calls.append((args[0], kwargs))
-            return subprocess.CompletedProcess(args[0], 0)
-        calls = []
-        with patch.object(start, "bridge_open", return_value=True), patch.object(
-            start.subprocess, "run", side_effect=side_effect
-        ):
-            result = start.main(["--canonical", str(self.root),
-                                 "--attach-running", "--seconds", "12",
-                                 "--scan-profile", "fast", "--no-upload"])
-        self.assertEqual(result, 0)
-        self.assertEqual(len(calls), 2)
-        boot, boot_opts = calls[0]
-        scan, scan_opts = calls[1]
-        self.assertIn("launch_hitting_green.py", boot[1])
-        self.assertIn("discover_golf_motion.py", scan[1])
-        self.assertIn("--send-live", boot)
-        self.assertNotIn("--send-live", scan)
-        self.assertEqual(boot_opts["env"]["PYTHONPATH"], str(self.root / "src"))
-        self.assertEqual(scan_opts["env"]["PYTHONPATH"], str(start.EVALUATION_ROOT / "src"))
-
-    def test_unavailable_bridge_never_loads_savestate(self):
-        with patch.object(start, "bridge_open", return_value=False), patch.object(
-            start.subprocess, "run"
-        ) as run:
-            with self.assertRaisesRegex(ConnectionError, "No bridge listening"):
-                start.main(["--canonical", str(self.root), "--attach-running"])
+    def test_missing_game_never_launches_second_dolphin(self):
+        with patch.object(boot, "bridge_open", return_value=False), patch.object(
+            boot, "dolphin_process_running", return_value=False
+        ), patch.object(boot.subprocess, "run") as run:
+            with self.assertRaisesRegex(FileNotFoundError, "Wii Sports game image missing"):
+                boot.ensure_intro(self.args())
             run.assert_not_called()
 
-    def test_missing_profile_never_sends_menu_buttons(self):
-        with patch.object(start, "bridge_open", return_value=True), patch.object(
-            start.subprocess, "run"
-        ) as run:
+    def test_dolphin_process_without_bridge_rejected(self):
+        with patch.object(boot, "bridge_open", return_value=False), patch.object(
+            boot, "dolphin_process_running", return_value=True
+        ), patch.object(boot.subprocess, "run") as run:
+            with self.assertRaisesRegex(RuntimeError, "already running"):
+                boot.ensure_intro(self.args(game=self.game))
+            run.assert_not_called()
+
+    def test_forced_mode_mismatch_never_loads_state(self):
+        with patch.object(boot, "bridge_open", return_value=False), patch.object(
+            boot.subprocess, "run") as run:
+            with self.assertRaises(ConnectionError):
+                boot.ensure_intro(self.args(startup="attach"))
+            run.assert_not_called()
+        with patch.object(boot, "bridge_open", return_value=True), patch.object(
+            boot.subprocess, "run") as run:
+            with self.assertRaises(RuntimeError):
+                boot.ensure_intro(self.args(startup="fresh", game=self.game))
+            run.assert_not_called()
+
+    def test_skip_is_explicit_and_has_no_game_side_effects(self):
+        with patch.object(boot, "bridge_open") as live, patch.object(
+            boot.subprocess, "run") as run:
+            self.assertEqual(boot.ensure_intro(self.args(startup="skip")), "skipped")
+            live.assert_not_called()
+            run.assert_not_called()
+
+    def test_missing_registered_profile_fails_closed(self):
+        args = self.args(game=self.game)
+        args.prestart_profile = "not-registered"
+        with patch.object(boot.subprocess, "run") as run:
             with self.assertRaisesRegex(ValueError, "unknown savestate"):
-                start.main(["--canonical", str(self.root),
-                            "--savestate-profile", "not-registered"])
+                boot.ensure_intro(args)
             run.assert_not_called()
 
-    def test_fresh_rejects_already_running_bridge(self):
-        with patch.object(start, "bridge_open", return_value=True), patch.object(
-            start.subprocess, "run"
-        ) as run:
-            with self.assertRaisesRegex(RuntimeError, "already listening"):
-                start.main(["--canonical", str(self.root), "--fresh"])
-            run.assert_not_called()
+    def test_canonical_boot_error_stops_recording(self):
+        with patch.object(boot, "bridge_open", return_value=True), patch.object(
+            boot.subprocess, "run", return_value=subprocess.CompletedProcess([], 1)
+        ):
+            with self.assertRaisesRegex(RuntimeError, "Canonical intro launcher failed"):
+                boot.ensure_intro(self.args())
+
+    def test_wrapper_invokes_boot_once_and_child_explicitly_skips(self):
+        args = ["--canonical", str(self.root), "--startup", "auto",
+                "--seconds", "12", "--no-upload"]
+        calls = []
+        def run(*a, **kw):
+            calls.append((a, kw))
+            return subprocess.CompletedProcess(a[0], 0)
+        with patch.object(start, "ensure_intro", return_value="launched") as intro, patch.object(
+            start.subprocess, "run", side_effect=run
+        ):
+            self.assertEqual(start.main(args), 0)
+        intro.assert_called_once()
+        self.assertEqual(len(calls), 1)
+        command = calls[0][0][0]
+        self.assertIn("discover_golf_motion.py", command[1])
+        self.assertEqual(command[command.index("--startup")+1], "skip")
+        self.assertIn("--no-upload", command)
+
+    def test_all_live_entrypoints_share_bootstrap(self):
+        paths = [
+            "discover_golf_motion.py", "monitor_hitting_green.py",
+            "collect_hitting_green.py", "probe_golf_spatial.py",
+            "probe_golf_symbols.py", "capture_golf_data.py",
+        ]
+        root = SCRIPT.parent
+        for path in paths:
+            text = (root / path).read_text()
+            with self.subTest(script=path):
+                self.assertIn("add_boot_options", text)
+                self.assertIn("ensure_intro(args)", text)
+                self.assertNotIn("execute_menu_phases(", text)
 
 
 if __name__ == "__main__":
