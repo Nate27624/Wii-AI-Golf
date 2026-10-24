@@ -35,6 +35,10 @@ def add_boot_options(parser: argparse.ArgumentParser) -> None:
         "--startup", choices=("auto", "fresh", "attach", "skip"), default="auto",
         help="DEFAULT auto: attach if bridge exists, otherwise launch Dolphin; skip is explicit",
     )
+    parser.add_argument(
+        "--controller-mode", choices=("emulated", "physical"), default="emulated",
+        help="emulated: bridge-controlled intro; physical: preserve real Wii Remote and navigate manually",
+    )
     parser.add_argument("--canonical", type=Path, default=CANONICAL)
     parser.add_argument("--prestart-profile", default="green-pre-start")
     parser.add_argument("--game", type=Path,
@@ -136,6 +140,24 @@ def ensure_intro(args: argparse.Namespace) -> str:
     when no bridge exists. Does not start data capture until boot succeeds.
     """
     startup = getattr(args, "startup", "auto")
+    controller_mode = getattr(args, "controller_mode", "emulated")
+    if controller_mode not in ("emulated", "physical"):
+        raise ValueError("controller mode must be emulated or physical")
+    if controller_mode == "physical":
+        if startup == "skip":
+            print("Physical Wii Remote: existing Dolphin settings preserved; no menu inputs sent.")
+            return "physical_existing"
+        if not bridge_open(args.port):
+            raise ConnectionError(
+                "Physical mode cannot automatically start with the emulated-only "
+                "integrator launcher. Start Dolphin with Wii Remote 1 set to Real, "
+                "connect the controller and enable the Felk read-only bridge; "
+                "then rerun --controller-mode physical."
+            )
+        print("Physical Wii Remote: preserving settings and game progress.")
+        print("Navigate the Hitting the Green intro and swing with the physical remote.")
+        print("No automated state restore or A/A+B/A presses are sent in physical mode.")
+        return "physical_existing"
     if startup == "skip":
         print("Explicit --startup skip: game must ALREADY be ready to swing.")
         return "skipped"
