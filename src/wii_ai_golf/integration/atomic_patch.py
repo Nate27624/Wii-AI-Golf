@@ -39,7 +39,7 @@ def _wii_ai_submit(p):
             raise ValueError("sample must be [bool_hold_A, x, y, z]")
         xyz = s[1:]
         if any(type(x) not in (int, float) or not _wii_ai_math.isfinite(x) or abs(x) > 16.0 for x in xyz):
-            raise ValueError("acceleration must be finite within +-16 approximate g")
+            raise ValueError("acceleration must be finite within +-16 m/s^2 (Felk API)")
         clean.append((s[0], *[float(x) for x in xyz]))
     _wii_ai_trace_next_id += 1
     start = _frame_count + 1
