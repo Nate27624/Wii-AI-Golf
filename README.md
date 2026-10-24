@@ -27,7 +27,7 @@ py scripts/golf.py doctor
 | --- | --- | --- |
 | Check local setup | `py scripts/golf.py doctor` | Read-only |
 | Boot to first ball | `py scripts/golf.py play --slot 2` | **Fresh full intro** |
-| One guarded known-good swing | `py scripts/golf.py swing --slot 2` | **Fresh intro + human confirmation** |
+| Guarded swing (longer A pre-hold, experimental) | `py scripts/golf.py swing --slot 2` | **Fresh intro + human confirmation** |
 | Test A release timing | `py scripts/golf.py swing --slot 2 --follow-through-frames 45` | Fresh intro + one guarded shot |
 | List named checkpoints | `py scripts/golf.py state list` | Read-only |
 | View study plan | `py scripts/golf.py research studies` | Read-only |
@@ -95,3 +95,17 @@ py scripts/golf.py demo
 Optional installation: `py -m pip install -e .` then `wii-golf --help` or `py -m wii_ai_golf --help`. Prefer `py scripts/golf.py` across multiple worktrees; it loads that checkout's source rather than a stale editable package.
 
 The historical `scripts/*.py` commands remain functional for advanced users and the other agents. This is an **additive** consolidation, not a breaking rename. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Current swing timing experiment
+
+The first human-observed ball strike used an **89-frame** trace with `--a-setup-frames 12` and `--follow-through-frames 30`. Later the operator observed motion before A appeared registered on a repeat. Normal `golf swing` now defaults to a **45-frame A-held neutral pre-motion setup** (122 frames total) to test whether more time lets Wii Sports recognize the A press before motion. This newer default is **not yet a confirmed successful shot**; physical swing power/axis/distance and the canonical A/A+B/A intro are unchanged.
+
+~~~powershell
+# Try longer A preparation from a CLOSED Dolphin session:
+py scripts/golf.py swing --slot 2 --a-setup-frames 45
+
+# Reproduce the first recorded successful 89-frame timing:
+py scripts/golf.py swing --slot 2 --a-setup-frames 12
+~~~
+
+See [controlled timing experiment](docs/first-swing-experiment.md) and [CLI guide](docs/cli.md); report actual motion-vs-A ordering and whether the ball visibly moves. Neither RPC completion nor gauge appearance alone certifies a hit.

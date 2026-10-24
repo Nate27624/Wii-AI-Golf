@@ -34,14 +34,19 @@ REPORT = ROOT.parent / "Wii-AI-Golf-Data" / "integration" / "swing-probes.jsonl"
 OBSERVATIONS = {"hit", "club-only", "menu", "none", "other"}
 
 
-def build_probe(preset: str, *, follow_through_frames: int = 30) -> list[SwingSample]:
-    """Bounded swing probe. Keep A held through a tunable follow-through.
+def build_probe(preset: str, *, follow_through_frames: int = 30,
+                a_setup_frames: int = 45) -> list[SwingSample]:
+    """Press A for a configurable neutral setup BEFORE any backswing motion.
 
-    Before this change A was released after 47 samples (12+15+20);
-    user observed premature release in Wii Sports on a live trial.
+    A previously had only 12 neutral frames before swing motion. A real user
+    subsequently observed motion appearing before the A interaction registered.
+    Longer pre-hold tests the game-input latency hypothesis; frame dispatch
+    alone does NOT prove the in-game A press has been registered.
     """
     if type(follow_through_frames) is not int or not 0 <= follow_through_frames <= 180:
         raise ValueError("follow_through_frames must be an integer 0..180")
+    if type(a_setup_frames) is not int or not 1 <= a_setup_frames <= 180:
+        raise ValueError("a_setup_frames must be an integer 1..180")
     if preset not in ("forward", "reverse", "sideways"):
         raise ValueError("unknown preset")
     axis = {
@@ -53,7 +58,8 @@ def build_probe(preset: str, *, follow_through_frames: int = 30) -> list[SwingSa
     def frame(hold, direction, distance, speed, return_speed):
         return SwingSample(hold, direction, distance, speed, return_speed, 0.0)
     return (
-        [frame(True, (0.0, 0.0, 0.0), 0, 0, 0) for _ in range(12)]
+        # Button precharge is neutral: no translation, speed, or angle.
+        [frame(True, (0.0, 0.0, 0.0), 0, 0, 0) for _ in range(a_setup_frames)]
         + [frame(True, neg, 0.25, 1.2, 1.2) for _ in range(15)]
         + [frame(True, axis, 0.6, 3.5, 2.0) for _ in range(20)]
         # Do not release A immediately after forward motion: the club needs
@@ -68,6 +74,8 @@ def main() -> None:
     parser.add_argument("--preset", choices=("forward", "reverse", "sideways"), default="forward")
     parser.add_argument("--follow-through-frames", type=int, default=30,
                         help="Extra frames holding A after the forward stroke, before release (0..180; default 30)")
+    parser.add_argument("--a-setup-frames", type=int, default=45,
+                        help="Neutral frames pressing A BEFORE any motion (1..180; default 45; old trace used 12)")
     parser.add_argument("--send-live-swing", action="store_true", help="Required to change game controller state")
     parser.add_argument("--attach-running", action="store_true",
                         help="ADVANCED: bypass canonical Dolphin launch/savestate/A-A+B-A intro; "
@@ -84,9 +92,16 @@ def main() -> None:
 
     if not 0 <= args.follow_through_frames <= 180:
         parser.error("--follow-through-frames must be between 0 and 180")
-    samples = build_probe(args.preset, follow_through_frames=args.follow_through_frames)
+    if not 1 <= args.a_setup_frames <= 180:
+        parser.error("--a-setup-frames must be between 1 and 180")
+    samples = build_probe(args.preset,
+                          follow_through_frames=args.follow_through_frames,
+                          a_setup_frames=args.a_setup_frames)
     a_held_frames = sum(sample.hold_a for sample in samples)
+    first_motion_sample = args.a_setup_frames + 1
     print(f"Single trial: preset={args.preset}, frames={len(samples)}, remote={args.remote}")
+    print(f"A pre-held with ZERO swing motion for {args.a_setup_frames} frames; "
+          f"first backswing on sample {first_motion_sample} (1-based).")
     print(f"A held for {a_held_frames} frames; first released on sample {a_held_frames + 1} "
           f"(1-based). Extra follow-through: {args.follow_through_frames} frames.")
     print("Requires Emulated Wii Remote 1 / Extension None and patched --enable-swing bridge.")
@@ -109,6 +124,7 @@ def main() -> None:
             sys.executable, str(ROOT / "scripts" / "launch_golf.py"),
             "--swing", "--preset", args.preset,
             "--follow-through-frames", str(args.follow_through_frames),
+            "--a-setup-frames", str(args.a_setup_frames),
             "--port", str(args.port), "--remote", str(args.remote),
             "--catalog", str(args.catalog), "--report", str(args.report),
         ]
@@ -184,6 +200,8 @@ def main() -> None:
         "bridge_version": info["bridge_version"],
         "preset": args.preset,
         "follow_through_frames": args.follow_through_frames,
+        "a_setup_frames": args.a_setup_frames,
+        "first_motion_sample_1_based": first_motion_sample,
         "a_held_frames": a_held_frames,
         "first_a_release_sample_1_based": a_held_frames + 1,
         "remote": args.remote,

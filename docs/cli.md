@@ -87,3 +87,17 @@ Store raw evidence in the sibling `Wii-AI-Golf-Data` folder. Source control cont
 ## Compatibility and agent guidance
 
 Existing `scripts/*.py` commands remain intact. They are **implementation adapters and advanced diagnostics**, not competing product entrypoints. S001 owns live startup/bridge, S002 score extraction, S003 motion modeling, S004 search and S005 generalization. New functionality should implement a well-scoped module and expose it through this CLI, with a fake-subprocess test proving the expected delegation. Avoid importing Dolphin at CLI import time. No GPU training or GitHub Actions are triggered by the CLI.
+
+## Swing button-order timing (2026-10-24)
+
+The old 89-frame motion trace pre-held A neutrally for **12 frames** before the first backswing. A later user observation suggested motion sometimes appeared **before** the A press was registered. The unified CLI now has `--a-setup-frames N` (default **45**, range **1..180**) to place extra A-held/zero-motion frames **before** any backswing, without modifying physical swing power/speed/distance or the menu intro.
+
+~~~powershell
+# From closed Dolphin; automatically runs full named-state/intro/single shot.
+py scripts/golf.py swing --slot 2 --a-setup-frames 45 --follow-through-frames 30
+
+# Exact prior successful 89-frame baseline, for comparison:
+py scripts/golf.py swing --slot 2 --a-setup-frames 12 --follow-through-frames 30
+~~~
+
+Default 45 setup + 15 backswing + 20 forward + 30 A-held follow-through + 12 A-off = **122** trace samples; A turns on at sample 1, first motion sample 46, A released at sample 111. Original 12 setup = **89** total and first motion sample 13. Both sequences run the *same* canonical Felk startup/Emulated Wii Remote/Slot2/A→A+B→A intro and wait for a human ready-screen confirmation. This is an exploratory timing fix; in-game A press recognition is not measured automatically. The CLI prints and the local JSONL logs which trial was run.
