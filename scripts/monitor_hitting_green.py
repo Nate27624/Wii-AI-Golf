@@ -12,6 +12,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from wii_ai_golf.golf_monitor import run_monitor  # noqa: E402
+from session_bootstrap import add_boot_options, ensure_intro  # noqa: E402
 
 
 def main():
@@ -23,11 +24,13 @@ def main():
     parser.add_argument("--samples", type=int, default=0,
                         help="stop after N successful samples, 0 means no sample limit")
     parser.add_argument("--port", type=int, default=55355)
+    add_boot_options(parser)
     parser.add_argument("--data-dir", type=Path,
                         default=ROOT.parent / "Wii-AI-Golf-Data" / "captures")
     parser.add_argument("--no-upload", action="store_true",
                         help="never publish results; record to local data folder only")
     args = parser.parse_args()
+    ensure_intro(args)
     print("AUTOMATIC SCENE MONITOR (no per-shot Enter keys)")
     print("Tracks pin/start/cup positions, golf-mode/raw-hole changes and controller snapshots.")
     print("It does NOT know shot-contact, moving ball position, score or physical coordinate units.")
