@@ -4,6 +4,11 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+from session_bootstrap import add_boot_options, ensure_intro
 
 from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.observation_capture import capture, compare, parse_range, write_snapshot
@@ -20,6 +25,7 @@ def main() -> None:
                       help="bounded window 0x80000000:4096, repeatable")
     take.add_argument("--out", type=Path, help="JSON path, must not already exist")
     take.add_argument("--port", type=int, default=55355)
+    add_boot_options(take)
     take.add_argument("--wiimote", type=int, default=0)
     take.add_argument("--screenshot-file", type=Path,
                       help="existing manually captured frame; hash only")
@@ -39,6 +45,7 @@ def main() -> None:
     diff.add_argument("--max-results", type=int, default=40)
     args = parser.parse_args()
     if args.operation == "capture":
+        # Offline compare mode must never start or reset Dolphin.
         annotations = {k: v for k, v in {
             "on_screen_distance": args.on_screen_distance,
             "on_screen_unit": args.on_screen_unit,
@@ -49,6 +56,7 @@ def main() -> None:
         target = args.out or DEFAULT_DIR / f"{args.label}.json"
         if target.exists():
             parser.error(f"refusing to overwrite evidence: {target}")
+        ensure_intro(args)
         with FelkRPC(port=args.port) as rpc:
             snapshot = capture(rpc, args.label, [parse_range(r) for r in args.ranges],
                                wiimote_port=args.wiimote, annotations=annotations,
