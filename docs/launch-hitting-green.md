@@ -1,6 +1,6 @@
 # Launch Wii Sports and automatically navigate the Hitting the Green pre-start menu
 
-**Status:** Mock-tested menu schedule; real Dolphin/Wii Sports navigation must be visually verified. This is an opt-in integration experiment, not an automatic score reader or calibrated golfer.
+**Status:** The user confirmed the earlier slower A → A+B → A timing reached the ready-to-swing screen. Defaults now reproduce that successful schedule with approximately 15 extra RPC frame requests (~0.25 seconds at 60 FPS, not guaranteed wall time) on each of the two between-button waits. Full launch behavior, automatic screen detection and actual ball contact remain unverified by code. This is an opt-in integration experiment, not an automatic score reader or calibrated golfer.
 
 ## Existing checkpoints only
 
@@ -54,15 +54,15 @@ That still **resets** the existing named state before sending A / A+B / A.
 
 | Phase | A | B | Requests |
 | --- | --- | --- | ---: |
-| Allow restored game to settle | Off | Off | 90 |
-| First A press | On | Off | 12 |
-| Release and wait | Off | Off | 75 |
-| A+B simultaneously | On | On | 15 |
-| Release for a fresh A edge | Off | Off | 8 |
-| Final A press | On | Off | 12 |
-| Wait for game transition | Off | Off | 120 |
+| Allow restored game to settle | Off | Off | 120 |
+| First A press | On | Off | 30 |
+| Release and wait | Off | Off | 315 |
+| A+B simultaneously | On | On | 60 |
+| Release for a fresh A edge | Off | Off | 135 |
+| Final A press | On | Off | 45 |
+| Wait for game transition | Off | Off | 300 |
 
-These counts are **RPC input requests**, not guaranteed exact video frames. Felk processes one-frame button overrides on its emulation coroutine. Holding a button is approximated by repeating the same RPC and waiting for each acknowledgement. Network/host jitter can leave gaps. The sequence cannot prove which menu screen the game reached; watch Dolphin and adjust values based on observation.
+The user confirmed the earlier **120 / 30 / 300 / 60 / 120 / 45 / 300** request schedule successfully navigated the game. We added 15 requests before A+B and 15 before final A, while preserving the known working hold lengths. These counts are **RPC input requests**, not guaranteed exact video frames. Felk processes one-frame button overrides on its emulation coroutine. Holding a button is approximated by repeating the same RPC and waiting for each acknowledgement. Network/host jitter can leave gaps. The sequence cannot prove which menu screen the game reached; watch Dolphin and adjust values based on observation.
 
 To change durations, use `--startup-frames`, `--first-a-frames`, `--wait-frames`, `--ab-frames`, `--gap-frames`, `--last-a-frames`, `--settle-frames` (each 1..600). `--remote` selects 0..3.
 
