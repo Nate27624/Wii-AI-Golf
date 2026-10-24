@@ -19,12 +19,14 @@ def main():
     p.add_argument("--seconds",type=float,default=25)
     p.add_argument("--interval",type=float,default=0.05,
                    help="target delay; actual RPC frame time can exceed it")
+    p.add_argument("--ready-timeout",type=float,default=180,
+                   help="seconds for manual navigation before recording")
     p.add_argument("--phase",choices=("idle","swing","landing","unknown"),
                    default="unknown",help="user-observed phase label, never inferred")
     p.add_argument("--data-dir",type=Path,default=ROOT.parent/"Wii-AI-Golf-Data"/"captures")
     p.add_argument("--no-upload",action="store_true")
     args=p.parse_args()
-    if not 5 <= args.seconds <= 180 or not .02 <= args.interval <= 10:
+    if not 5 <= args.seconds <= 180 or not .02 <= args.interval <= 10 or not 0 <= args.ready_timeout <= 600:
         p.error("--seconds 5..180 and --interval .02..10 required")
     ensure_intro(args)
     args.data_dir.mkdir(parents=True,exist_ok=True)
@@ -34,7 +36,18 @@ def main():
     errors=[]
     try:
         with FelkRPC(port=args.port,timeout_s=15) as rpc:
-            root=preflight(rpc)
+            deadline=time.monotonic()+args.ready_timeout
+            print("Waiting for Hitting the Green. Navigate with the physical Wii Remote.")
+            print("Capture timer starts only AFTER the game is ready.")
+            while True:
+                try:
+                    root=preflight(rpc)
+                    break
+                except (RuntimeError,KeyError,ValueError) as exc:
+                    if time.monotonic() >= deadline:
+                        raise RuntimeError("Golf mode not ready: "+str(exc)) from exc
+                    time.sleep(1)
+            print("Training golf mode verified; starting capture.")
             print("Source-gated Hitting the Green. Unverified dynamic object XYZ.")
             print("Raw local:",rawfile)
             start=time.monotonic()
