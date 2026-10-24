@@ -19,7 +19,7 @@ class AtomicSample:
         if type(self.a) is not bool or len(self.accel) != 3:
             raise ValueError("a must be bool and accel a 3-tuple")
         if not all(type(v) in (float, int) and math.isfinite(v) and abs(v) <= 16 for v in self.accel):
-            raise ValueError("accel must be finite within +-16 approx g")
+            raise ValueError("accel must be finite within +-16 m/s^2 (Felk API)")
 
 
 class AtomicTraceClient:

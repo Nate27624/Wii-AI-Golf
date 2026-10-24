@@ -36,3 +36,13 @@ The live probe **alters the running emulator** and is best effort; do not use it
 ## Additional research: emulator-side atomic trace scheduler
 
 The second branch provides a version-pinned *patch generator*, a client, 9 additional offline tests and [setup/testing notes](../../docs/felk-atomic-scheduler.md). This is a candidate response to the separate-RPC timing limitation: two input writes happen inside one emulator coroutine tick rather than two client requests. It is **not yet hardware validated**. Do not merge downstream real-game claims without proof of actual input recognition.
+
+## 2026-10-24 live update: controller test negative; generic savestate feature
+
+- User-provided live atomic bridge response was `state=complete`, `total_frames=15`, `applied_frames=15` (bridge frames 3455–3470), but **no visible game response**. Do not count this as a swing.
+- Felk's scripting-preview4 official Python stubs document acceleration in **m/s²**, correcting earlier approximate-g wording. Small 1–2 m/s² trace may be insufficient; do not infer a motion threshold from one negative test.
+- New generic named profiles and `StateManager` allow slot 0..99 capture (explicit overwrite) and reload by name; registry remains local and untracked.
+- `scripts/savestate_session.py` provides register/list/capture/reset/start; script generator accepts `--startup-profile` or `--startup-slot` for optional one-shot state restoration after script starts.
+- New `scripts/probe_wiimote.py --send-live-button --button Plus` is an explicit visually audited Wii Remote connection check. Controller input must be observed in-game.
+- **Ten targeted tests and CLI register/list smoke passed in local sandbox.** Neither named savestate reset nor startup auto-load nor button test has been tried on user's Dolphin yet. Guide: `docs/savestate-workflow.md`. Issue #2 remains open.
+
