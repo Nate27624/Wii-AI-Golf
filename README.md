@@ -44,6 +44,18 @@ The first command stores the image path and selected **named savestate profile**
 
 Prerequisites: single swing-enabled Felk bridge, Wii Remote 1 **Emulated** with **Extension None**, and an existing named `green-pre-start` savestate (do not recapture or overwrite it). Additional [launch instructions](docs/one-command-launch.md) and [calibrated button schedule](docs/launch-hitting-green.md). RPC dispatch counts are not verified contact or score evidence.
 
+## Mandatory one-command **fresh launch** for every live golf experiment
+
+Do not run live probes, recording scripts or training actions against an assumed already-running Dolphin process. Close Dolphin first; use the coordinator wrapper, which **starts Felk Dolphin, loads the existing named `green-pre-start` checkpoint, runs the user-confirmed A/A+B/A intro, then dispatches the selected action**:
+
+~~~powershell
+py scripts/run_golf_experiment.py --send-live --game "G:\Applications\Dolphin\Wii Games\Wii Sports (USA) (Rev 1).wbfs" --script probe_swing.py -- --preset forward --send-live-swing
+~~~
+
+After the first launch remembers the game image path locally, the `--game` argument is optional. The actual swing script asks for a human confirmation. This is intentionally a **fresh boot**, not `--attach-running`. For data capture and other action scripts, replace `probe_swing.py` and its arguments, but retain the wrapper. Offline analysis and tests do not start Dolphin.
+
+See [fresh-boot command policy and examples](docs/fresh-boot-experiments.md) and [AGENTS.md](AGENTS.md#mandatory-fresh-boot-command-contract-user-directive-2026-10-24). Different already-at-ball checkpoints require their own explicit safe runner; do not blindly replay menu A presses there.
+
 ## First real milestone
 
 Demonstrate **100 unattended, measured Dolphin shots** with controller input traces, successful resets, verified distance units, and failures logged. This comes **before** expensive neural network training.
