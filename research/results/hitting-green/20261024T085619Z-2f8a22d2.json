@@ -1,0 +1,130 @@
+{
+  "captured_utc": "2026-10-24T08:56:49.838272+00:00",
+  "documented_golf_field_transitions": {
+    "fields": {
+      "golf_config.current_course_hole_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          1
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 1,
+        "last_raw": 1,
+        "observed_samples": 50
+      },
+      "golf_config.golf_mode_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          4
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 4,
+        "last_raw": 4,
+        "observed_samples": 50
+      },
+      "golf_config.standard_player_hole_scores_raw": {
+        "changed_steps": 0,
+        "is_raw_standard_golf_score_array": true,
+        "observed_samples": 50
+      },
+      "golf_field.pin_object_count_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          6
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 6,
+        "last_raw": 6,
+        "observed_samples": 50
+      },
+      "golf_field.start_object_count_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          31
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 31,
+        "last_raw": 31,
+        "observed_samples": 50
+      },
+      "golf_field.target_object_count_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          0
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 0,
+        "last_raw": 0,
+        "observed_samples": 50
+      },
+      "sports_sequence.golf_mode_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          0
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 0,
+        "last_raw": 0,
+        "observed_samples": 50
+      },
+      "sports_sequence.sequence_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          0
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 0,
+        "last_raw": 0,
+        "observed_samples": 50
+      },
+      "sports_sequence.sport_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          2
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 2,
+        "last_raw": 2,
+        "observed_samples": 50
+      },
+      "sports_sequence.standard_golf_hole_scores_raw": {
+        "changed_steps": 0,
+        "is_raw_standard_golf_score_array": true,
+        "observed_samples": 50
+      },
+      "sports_sequence.training_game_raw": {
+        "changed_steps": 0,
+        "distinct_raw_values_first_15": [
+          1
+        ],
+        "distinct_value_count": 1,
+        "first_raw": 1,
+        "last_raw": 1,
+        "observed_samples": 50
+      }
+    },
+    "interpretation": "published US Rev1 field offsets only; training metric semantics unverified"
+  },
+  "frame_span_stats": {
+    "maximum": 28,
+    "minimum": 28
+  },
+  "position_candidates": {
+    "candidate_count": 0,
+    "candidates": [],
+    "candidates_truncated": false,
+    "samples": 50,
+    "scalar_candidate_count": 0,
+    "scalar_candidates": [],
+    "scalar_candidates_truncated": false,
+    "warning": "Do not treat candidate as moving golf ball without visual/temporal validation. Within-scene changes improve attribution but no score field identified."
+  },
+  "profile": "fast",
+  "read_errors": [],
+  "run_id": "20261024T085619Z-2f8a22d2",
+  "samples": 50,
+  "schema_version": 1,
+  "source": "live-bounded-golf-memory-heuristic-not-verified",
+  "study_id": "S002-HG-MOTION-DISCOVERY",
+  "warning": "Not a decoded ball, score, wind or shot counter. Raw memory local only."
+}
