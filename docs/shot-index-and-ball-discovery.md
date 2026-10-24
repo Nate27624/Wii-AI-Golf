@@ -74,3 +74,20 @@ See [boot-and-capture.md](boot-and-capture.md) for exact commands, verification 
 ## Mandatory standard startup before new full-session captures
 
 For a fresh/attached end-to-end game run, prefer **`py scripts/start_golf_recording.py --attach-running --seconds 30 --scan-profile fast`** from the evaluation worktree. This invokes canonical `scripts/launch_hitting_green.py` for **the existing `green-pre-start` named savestate + A → wait → A+B → release → A menu sequence**, then runs the read-only scanner. **Never** call `launch_golf.py` as a substitute for intro navigation; it only restores the savestate. The wrapper never emits its own menu buttons or swing. See [boot-and-capture.md](boot-and-capture.md) for fresh-launch usage and environment isolation. The direct `discover_golf_motion.py` command below remains appropriate when Dolphin is **already verified** at a ready-to-swing screen and a reset is unwanted.
+
+## Follow-up: deduplicate addresses and deprioritize transform vectors
+
+The 50-sample physical/manual run at [085852Z](https://github.com/Nate27624/Wii-AI-Golf/blob/data/hitting-green-20261024T085852Z-d39c3401/research/results/hitting-green/20261024T085852Z-d39c3401.json) found 111 changing float-triple hypotheses; many referenced **identical absolute RAM addresses through overlapping 512-byte minimap effect windows**. A scan result is not 111 independent golf variables. Other top changes near `0x91BF4AA4` had coordinates in [-1,1] suggesting a rotation/normal matrix, not a ball location.
+
+The updated `ball_discovery.analyze_samples` deduplicates by *absolute RAM address* per sample, preserves the reporting of source window names, and tags likely small orientation vectors. It ranks the latter below other candidates. **This is a triage heuristic only**: coordinates near the origin may also be small, and an animated transform may contain object position elsewhere.
+
+Two deterministic regression tests cover overlapping absolute-window deduplication and orientation flags. Tests are committed but **not yet rerun on the Windows host**.
+
+Next controlled 15–30-second capture with an already-paired physical Wii Remote and active read-only bridge:
+
+~~~powershell
+py -m unittest discover -s tests -v
+py scripts/discover_golf_motion.py --controller-mode physical --startup skip --seconds 25 --profile fast
+~~~
+
+Only do the first physical swing once visibly ready, and note when the ball visibly moves. This physical mode never reconfigures Wiimote 1, never restores the state and never sends the integration agent's synthetic A/A+B/A menu sequence. For autonomous AI-control experiments, use `--controller-mode emulated` and the canonical automatic intro instead. Capturing raw memory samples is still local-only; numeric summaries are uploaded. The scanner does not yet decode the authoritative ball physics or training score.
