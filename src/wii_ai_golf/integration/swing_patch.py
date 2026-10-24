@@ -10,8 +10,16 @@ from __future__ import annotations
 from .atomic_patch import PATCH_MARKER
 
 SWING_MARKER = "# WII_AI_GOLF_SWING_TRACE_V1"
+SWING_NEUTRAL_V2_MARKER = "# WII_AI_GOLF_SWING_NEUTRAL_BUTTON_ONLY_V2"
 
 _SWING_HANDLER = '''# WII_AI_GOLF_SWING_TRACE_V1
+# WII_AI_GOLF_SWING_NEUTRAL_BUTTON_ONLY_V2
+def _wii_ai_swing_capabilities(_p):
+    """Pure read-only RPC for safe client preflight, no input is dispatched."""
+    return {"swing_protocol": 2, "neutral_button_only": True,
+            "method": "trace.submit_swing", "button_first": True}
+
+
 def _wii_ai_submit_swing(p):
     global _wii_ai_trace, _wii_ai_trace_next_id, _wii_ai_trace_status
     if _wii_ai_trace is not None:
@@ -43,6 +51,7 @@ def _wii_ai_submit_swing(p):
     _wii_ai_trace = {"id": _wii_ai_trace_next_id, "port": port, "samples": clean,
                      "kind": "swing", "start": start, "applied": 0}
     _wii_ai_trace_status = {"state": "scheduled", "kind": "swing",
+                            "swing_protocol": 2,
                             "id": _wii_ai_trace_next_id, "start_frame": start,
                             "total_frames": len(clean), "applied_frames": 0}
     return dict(_wii_ai_trace_status)
@@ -67,13 +76,19 @@ def extend_atomic_bridge_with_swing(source: str) -> str:
         ("HANDLERS = {", _SWING_HANDLER + "HANDLERS = {"),
         ('    "trace.submit": _wii_ai_submit,',
          '    "trace.submit": _wii_ai_submit,\n'
-         '    "trace.submit_swing": _wii_ai_submit_swing,'),
+         '    "trace.submit_swing": _wii_ai_submit_swing,\n'
+         '    "trace.swing_capabilities": _wii_ai_swing_capabilities,'),
         ('        hold_a, x, y, z = t["samples"][index]',
          '        hold_a = t["samples"][index][0]'),
         ('        controller.set_wiimote_acceleration(t["port"], x, y, z)',
          '        if t.get("kind") == "swing":\n'
          '            try:\n'
-         '                controller.set_wiimote_swing(t["port"], *t["samples"][index][1:])\n'
+         '                # V2: neutral swing samples are BUTTON-ONLY frame updates.\n'
+         '                # Calling set_wiimote_swing(0...) can reset dynamics or\n'
+         '                # trigger an unintended practice swing before A is read.\n'
+         '                motion = t["samples"][index][1:]\n'
+         '                if any(value != 0.0 for value in motion):\n'
+         '                    controller.set_wiimote_swing(t["port"], *motion)\n'
          '            except Exception as exc:\n'
          '                controller.set_wiimote_buttons(t["port"], {"A": False})\n'
          '                _wii_ai_trace_status = {"state": "error", "id": t["id"],\n'
