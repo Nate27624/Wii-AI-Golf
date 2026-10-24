@@ -21,6 +21,8 @@ def main():
                    help="target delay; actual RPC frame time can exceed it")
     p.add_argument("--ready-timeout",type=float,default=180,
                    help="seconds for manual navigation before recording")
+    p.add_argument("--manual-ready",action="store_true",
+                   help="after golf mode detection, wait for ENTER once golfer is at tee")
     p.add_argument("--phase",choices=("idle","swing","landing","unknown"),
                    default="unknown",help="user-observed phase label, never inferred")
     p.add_argument("--data-dir",type=Path,default=ROOT.parent/"Wii-AI-Golf-Data"/"captures")
@@ -47,7 +49,17 @@ def main():
                     if time.monotonic() >= deadline:
                         raise RuntimeError("Golf mode not ready: "+str(exc)) from exc
                     time.sleep(1)
-            print("Training golf mode verified; starting capture.")
+            print("Training golf mode verified.")
+            if args.manual_ready:
+                print("Navigate to the tee and wait until the golfer is ready.")
+                print("No samples will be collected until you press ENTER.")
+                try:
+                    input("Press ENTER to start timed capture (Ctrl+C cancels): ")
+                except (KeyboardInterrupt,EOFError):
+                    print("Cancelled before capture.")
+                    return 1
+                preflight(rpc)
+            print("Starting capture.")
             print("Source-gated Hitting the Green. Unverified dynamic object XYZ.")
             print("Raw local:",rawfile)
             start=time.monotonic()
