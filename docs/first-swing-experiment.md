@@ -108,3 +108,19 @@ The alias `py scripts/launch_golf.py --slot 2 --swing --follow-through-frames 30
 **Advanced exception only:** If Dolphin is ALREADY open, correctly configured, and sitting at the ball after a previously verified intro, use `py scripts/probe_swing.py --attach-running --preset forward --follow-through-frames 30 --send-live-swing`. This bypasses startup deliberately. Without `--attach-running`, the probe will try a full fresh start and refuse a second bridge on occupied port. Close the prior Dolphin instance before normal fresh startup.
 
 The new `tests/test_integration_swing_startup.py` asserts the bare CLI makes **no FelkRPC call** and delegates to the full launcher, rejects reset/profile mixing, and propagates failure. Launcher tests assert A / A+B / A intro occurs before the `--attach-running` child, and pass follow-through parameter through unchanged. Live result must still be user-observed; this is code, not evidence of a ball strike.
+
+## Repeatability baseline: three identical live shots before tuning strength
+
+User has confirmed one complete in-game swing from the canonical fresh-launch Slot 2 + A/A+B/A intro with forward preset, 30 additional A-held follow-through frames (89 total). User uploaded a cropped power-meter photo, visually around three-quarters filled but **no ground-truth in-game power percentage or landing outcome**.
+
+**Preregistered next experiment:** Perform **3 independent fresh-boot shots** using **exactly the same 89-frame forward trace**; no tuning between them. Hypothesis: this input reproducibly causes visible ball contact and approximately consistent visual power; failure if any trial only moves the club, starts at the wrong screen, or returns an RPC error. Operator closes Dolphin between attempts and uses:
+
+~~~powershell
+cd "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
+git pull --ff-only
+py scripts/launch_golf.py --slot 2 --swing --preset forward --follow-through-frames 30
+~~~
+
+After each shot, the swing probe now asks optional human observations **ball visibly moved?**, **landed on the green?**, **on-screen displayed distance and its unit**, and **estimated meter fill 0..100**. Press Enter to leave any item unknown; never guess a distance or translate the meter fill into a game power percentage. Each trial appends timing and observations to the existing local `Wii-AI-Golf-Data/integration/swing-probes.jsonl`. `game_score` stays `null` because the evaluation agent has not established score units. The human answers are tagged `human-reported-not-verified`. Do not upload game binaries, states or screenshots to source control.
+
+**Decision after 3 repeats:** Only when all 3 runs show ball contact and consistent on-screen observations, run a **one-factor** calibration sweep with S003's candidate profiles (speed or distance, not both), using S002's validated real-game result capture. Don't send a 20+ random sweep based only on bridge ACKs. If repeated shots differ or fail, fix/measure scene readiness first. A strong swing does not necessarily mean a green hit or good target distance.
