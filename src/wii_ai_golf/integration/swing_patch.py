@@ -72,7 +72,14 @@ def extend_atomic_bridge_with_swing(source: str) -> str:
          '        hold_a = t["samples"][index][0]'),
         ('        controller.set_wiimote_acceleration(t["port"], x, y, z)',
          '        if t.get("kind") == "swing":\n'
-         '            controller.set_wiimote_swing(t["port"], *t["samples"][index][1:])\n'
+         '            try:\n'
+         '                controller.set_wiimote_swing(t["port"], *t["samples"][index][1:])\n'
+         '            except Exception as exc:\n'
+         '                controller.set_wiimote_buttons(t["port"], {"A": False})\n'
+         '                _wii_ai_trace_status = {"state": "error", "id": t["id"],\n'
+         '                    "applied_frames": t["applied"], "error": f"{type(exc).__name__}: {exc}"}\n'
+         '                _wii_ai_trace = None\n'
+         '                return\n'
          '        else:\n'
          '            _, x, y, z = t["samples"][index]\n'
          '            controller.set_wiimote_acceleration(t["port"], x, y, z)'),
