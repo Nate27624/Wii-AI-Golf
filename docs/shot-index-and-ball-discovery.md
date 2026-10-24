@@ -106,3 +106,20 @@ py scripts/probe_targeted_motion.py --controller-mode physical --startup skip --
 For a fresh physical launch without altering Wiimote settings, add `--startup fresh --game PATH`, then navigate manually. For emulated mode, the canonical prestart savestate and full A → A+B → A menu intro remain the startup default.
 
 Only an array of summary numbers is uploaded; all raw bytes stay in local `captures/targeted-motion-*.jsonl`. Frame span, changed positions, and tentative candidate vectors are diagnostic. Confirm any candidate against a visible ball flight and final resting position before assigning ball/score labels. Read restrictions: US Rev1, mode 4, known bounded pointer slots, <=128 bytes per effect window; no RAM writes or automatic swing.
+
+## Next: one-hop golf object pointer census (non-minimap investigation)
+
+The targeted effect probe yielded 124 samples/4-frame snapshot spans, but changes were duplicated scene-placement transforms. To progress beyond minimap effects, this read-only census follows **one level** of aligned plausible MEM1/MEM2 pointers from source-gated US Rev1 `golf_config`, `golf_field`, and `sports_sequence` root structures. It is deliberately not recursive; it reads at most 16 distinct 128-byte objects per sampling cycle, records frame spans, saves raw snapshots **locally**, and can publish a sanitized numerical report. Resulting pointers and vec3 candidates are exploratory; **none has been verified as the ball physics object**.
+
+Source: [ogws_info](https://github.com/kiwi515/ogws_info) documents RP/engine structures and a US Rev1 symbol map, but does not yet support claiming a ball-pointer offset. [doldecomp/ogws](https://github.com/doldecomp/ogws) is a work-in-progress source reference. The census does not invent a static ball pointer.
+
+If Hitting the Green is open with the **physical Wii Remote connected** and Felk bridge listening:
+
+~~~powershell
+py -m unittest discover -s tests -p "test_physics_pointer_census.py" -v
+py scripts/probe_golf_object_pointers.py --controller-mode physical --startup skip --seconds 25 --interval 0.2
+~~~
+
+Swing manually during the run. The new raw data stays under the local ignored `captures/pointer-census-*.jsonl`. If a candidate moves continuously while the ball is visibly airborne and stabilizes on landing, then verify it against multiple shots, different tee layouts, and an idle control capture. **Do not train on any census address until a controlled comparison verifies its identity.**
+
+The offline test checks region bounds, revision gating, one-hop traversal only, pointer dedup, no writes, frame brackets, and exploratory XYZ ranking. Real Windows live run pending.
