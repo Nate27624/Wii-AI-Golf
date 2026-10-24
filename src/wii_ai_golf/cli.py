@@ -7,6 +7,7 @@ swing physics, evaluation or training. Python stdlib only.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import json
 import os
 import socket
@@ -23,6 +24,37 @@ SCRIPTS = ROOT / "scripts"
 DATA_ROOT = ROOT.parent / "Wii-AI-Golf-Data"
 DEFAULT_EVIDENCE = DATA_ROOT / "integration" / "swing-probes.jsonl"
 DEFAULT_QUEUE = ROOT / "research" / "queue.jsonl"
+SWING_BRIDGE_PORT = 55355
+
+
+@contextmanager
+def reserve_bridge_port(port: int = SWING_BRIDGE_PORT):
+    """Refuse an occupied port, without making a fragile outgoing TCP connection.
+
+    On Windows a connection to an unused loopback port may time out instead
+    of raising ConnectionRefusedError, despite there being NO listener.
+    Binding an exclusive wildcard IPv4 socket detects an actual conflicting
+    listener and keeps the port reserved until the bridge file is replaced.
+    """
+    try:
+        guard = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    except OSError as exc:
+        raise ValueError(f"Cannot inspect bridge port {port}: {exc}") from exc
+    try:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            guard.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        guard.bind(("0.0.0.0", port))
+    except OSError as exc:
+        guard.close()
+        raise ValueError(
+            f"Bridge port {port} is unavailable or occupied ({exc}). "
+            "Close Dolphin; inspect the port's owning process before upgrading."
+        ) from exc
+    try:
+        yield
+    finally:
+        guard.close()
+
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -220,25 +252,18 @@ def execute(args: argparse.Namespace) -> int:
         if args.action == "upgrade-swing":
             if args.arguments:
                 raise ValueError("bridge upgrade-swing takes no arguments; close Dolphin first")
-            try:
-                with socket.create_connection(("127.0.0.1", 55355), timeout=0.35):
-                    raise ValueError("Felk bridge is running. Close Dolphin before upgrading.")
-            except ConnectionRefusedError:
-                pass
-            except TimeoutError:
-                raise ValueError("Cannot verify bridge is stopped. Close Dolphin before upgrading.")
-            except OSError as exc:
-                # Any other socket failure should not override an old generated
-                # bridge with no way to check whether Dolphin is running.
-                raise ValueError(f"Cannot verify bridge is stopped: {exc}") from exc
             source = ROOT.parent / "tools" / "mcp_bridge.py"
             output = ROOT.parent / "tools" / "mcp_bridge_swing.py"
             if not source.is_file():
                 raise ValueError(f"Pinned original bridge not found: {source}")
-            print("Dolphin must remain CLOSED while regenerating swing bridge V2.", flush=True)
-            return _run(_script_command("patch_felk_bridge.py",
-                        "--source", str(source), "--output", str(output),
-                        "--enable-swing"))
+            # Keep the port exclusively reserved while generating the bridge,
+            # so a Dolphin bridge cannot start halfway through replacement.
+            with reserve_bridge_port():
+                print("Bridge port is available. Regenerating swing bridge V2 "
+                      "(Dolphin must be closed).", flush=True)
+                return _run(_script_command("patch_felk_bridge.py",
+                            "--source", str(source), "--output", str(output),
+                            "--enable-swing"))
         return _run(_script_command("patch_felk_bridge.py", *args.arguments))
     if args.group == "research":
         if args.research_action == "studies":
