@@ -33,7 +33,7 @@ class DolphinControllerStartupTests(unittest.TestCase):
         ini = self.ini(self.base / "user", (
             "; existing Dolphin preferences\r\n"
             "[Wiimote1]\r\nSource = 2\r\nExtension = Nunchuk\r\n"
-            "Buttons/A = \`F\`\r\n"
+            "Buttons/A = `F`\r\n"
             "[Wiimote2]\r\nSource = 2\r\n"
             "[Extra]\r\nSetting = 4\r\n"
         ))
@@ -42,7 +42,7 @@ class DolphinControllerStartupTests(unittest.TestCase):
         self.assertTrue(result["changed"])
         now = ini.read_bytes()
         self.assertIn(b"Source = 1\r\nExtension = None\r\n", now)
-        self.assertIn(b"Buttons/A = \`F\`\r\n", now)
+        self.assertIn(b"Buttons/A = `F`\r\n", now)
         self.assertIn(b"[Wiimote2]\r\nSource = 2\r\n", now)
         self.assertIn(b"; existing Dolphin preferences\r\n", now)
         backup = Path(str(ini) + ".wii-ai-golf.original.bak")
