@@ -63,6 +63,14 @@ Both commands support Ctrl+C to stop and upload early. No need to collect anothe
 
 **Research limitation:** even a high-ranking in-scene coordinate is only a hypothesis until its trajectory matches the ball on screen and its final position predicts an independently visible result. These scans use sequential non-atomic read RPCs; actual ball physics and authoritative displayed distance-to-pin are not decoded.
 
+## Default changed: EVERY live evaluator now auto-starts the complete game intro
+
+Default `--startup auto` on **every** live S002 capture/probe will connect to an existing Felk bridge or, if none is listening, start Dolphin with the existing swing-enabled bridge. It invokes the canonical `launch_hitting_green.py`, loads `green-pre-start` once, and sends the integration agent's A → wait → A+B → release → A menu timing. Before a fresh launch it also calls Worker 1's Emulated Wii Remote configuration helper. The data tools never independently reproduce the menu timing. `start_golf_recording.py` invokes `discover_golf_motion.py` with **`--startup skip`** to avoid double loading.
+
+A fast capture from scratch is now `py scripts/start_golf_recording.py --game "G:\\Applications\\Dolphin\\Wii Games\\Wii Sports (USA) (Rev 1).wbfs" --seconds 30 --scan-profile fast`. Once the canonical gitignored launch config contains the game path, `--game` is optional. **Close an already-open Dolphin without a Felk bridge** before rerunning, to avoid dual emulator instances. For an existing in-progress shot you explicitly intend not to reset, add `--startup skip` to a direct live probe.
+
+See [boot-and-capture.md](boot-and-capture.md) for exact commands, verification and diagnostics.
+
 ## Mandatory standard startup before new full-session captures
 
 For a fresh/attached end-to-end game run, prefer **`py scripts/start_golf_recording.py --attach-running --seconds 30 --scan-profile fast`** from the evaluation worktree. This invokes canonical `scripts/launch_hitting_green.py` for **the existing `green-pre-start` named savestate + A → wait → A+B → release → A menu sequence**, then runs the read-only scanner. **Never** call `launch_golf.py` as a substitute for intro navigation; it only restores the savestate. The wrapper never emits its own menu buttons or swing. See [boot-and-capture.md](boot-and-capture.md) for fresh-launch usage and environment isolation. The direct `discover_golf_motion.py` command below remains appropriate when Dolphin is **already verified** at a ready-to-swing screen and a reset is unwanted.
