@@ -5,7 +5,7 @@
   "branch": "agent/integrator/scenario-coverage-workspace",
   "claim_comment": "https://github.com/Nate27624/Wii-AI-Golf/issues/2#issuecomment-6380103711",
   "date_claimed": "2026-10-24",
-  "status": "live-savestate-reset-user-verified;scenario-bank-offline-verified;game-swing-not-recognized",
+  "status": "real-controller-A-and-savestate-confirmed;swing-primitive-pending-human-observation",
   "owned_paths": [
     "src/wii_ai_golf/integration/**",
     "tests/test_integration_*.py",
@@ -22,16 +22,22 @@
     "src/wii_ai_golf/integration/scenario_bank.py",
     "scripts/plan_scenarios.py",
     "tests/test_integration_scenario_bank.py",
-    "docs/workspace-coordination.md"
+    "docs/workspace-coordination.md",
+    "src/wii_ai_golf/integration/swing_patch.py",
+    "src/wii_ai_golf/integration/swing_client.py",
+    "scripts/probe_swing.py",
+    "tests/test_integration_swing_*.py",
+    "docs/first-swing-experiment.md"
   ],
   "collaborator_boundaries": {
     "evaluation": "Only evaluation agent should own production score extraction and unit verification.",
     "modeling": "Only modeling agent should calibrate ShotAction or surrogate physics.",
     "learning": "Only learning agent should build or benchmark training policies."
   },
-  "verified_level": "user-confirmed-real-savestate-restoration-and-bridge-RPC;scenario-planning-offline-only",
+  "verified_level": "real-host-visible-button-A-and-user-verified-savestate-reset; swing-only-offline-proposal",
   "real_dolphin_tested": true,
   "gameplay_tested": true,
   "savestate_reset_user_confirmed": true,
-  "gameplay_swing_recognized": false
+  "gameplay_swing_recognized": false,
+  "controller_button_user_confirmed": true
 }

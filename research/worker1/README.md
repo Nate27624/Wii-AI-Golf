@@ -46,3 +46,10 @@ The second branch provides a version-pinned *patch generator*, a client, 9 addit
 - New `scripts/probe_wiimote.py --send-live-button --button Plus` is an explicit visually audited Wii Remote connection check. Controller input must be observed in-game.
 - **Ten targeted tests and CLI register/list smoke passed in local sandbox.** Neither named savestate reset nor startup auto-load nor button test has been tried on user's Dolphin yet. Guide: `docs/savestate-workflow.md`. Issue #2 remains open.
 
+
+## 2026-10-24 next step: recognized golf swing after confirmed Wii Remote routing
+
+- User visibly confirmed Python A now works when Wii Remote 1 is **Emulated** and Extension **None**, removing the unexpected Nunchuk warning.
+- Integration-owned optional `trace.submit_swing` based on Felk's documented Preview4 swing primitive, generated with `--enable-swing` and tested by `scripts/probe_swing.py` (one human-authorized shot, optional named reset).
+- `docs/first-swing-experiment.md` explains local setup, expected dispatcher ACK vs game-visible hit, bounded motion parameters, and local recording. **No live swing trial run or user observation exists for this new experiment yet.**
+- Continue to coordinate physical calibration with Issue #4 and automatic scoring/collection with Issue #3.
