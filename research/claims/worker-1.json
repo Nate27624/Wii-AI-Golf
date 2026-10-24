@@ -5,7 +5,7 @@
   "branch": "agent/integrator/trace-harness-s001",
   "claim_comment": "https://github.com/Nate27624/Wii-AI-Golf/issues/2#issuecomment-6380103711",
   "date_claimed": "2026-10-24",
-  "status": "atomic-extension-staged-pending-live-emulator-verification",
+  "status": "live-trace-dispatched-not-game-recognized; reusable-saves-staged-offline-tests",
   "owned_paths": [
     "src/wii_ai_golf/integration/**",
     "tests/test_integration_*.py",
@@ -14,14 +14,18 @@
     "research/worker1/**",
     "scripts/patch_felk_bridge.py",
     "scripts/probe_atomic_trace.py",
-    "docs/felk-atomic-scheduler.md"
+    "docs/felk-atomic-scheduler.md",
+    "src/wii_ai_golf/integration/savestates.py",
+    "scripts/savestate_session.py",
+    "scripts/probe_wiimote.py",
+    "docs/savestate-workflow.md"
   ],
   "collaborator_boundaries": {
     "evaluation": "Only evaluation agent should own production score extraction and unit verification.",
     "modeling": "Only modeling agent should calibrate ShotAction or surrogate physics.",
     "learning": "Only learning agent should build or benchmark training policies."
   },
-  "verified_level": "offline-local-test-and-mock-socket-only",
-  "real_dolphin_tested": false,
+  "verified_level": "user-reported-live-RPC-and-atomic-trace-dispatch",
+  "real_dolphin_tested": true,
   "gameplay_tested": false
 }
