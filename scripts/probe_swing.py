@@ -27,6 +27,7 @@ sys.path.insert(0, _LOCAL_SRC)
 from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.integration.savestates import StateCatalog, StateManager
 from wii_ai_golf.integration.swing_client import SwingSample, SwingTraceClient
+from wii_ai_golf.integration.button_prime import prime_a_button, release_buttons
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "research" / "savestates.local.json"
@@ -35,13 +36,12 @@ OBSERVATIONS = {"hit", "club-only", "menu", "none", "other"}
 
 
 def build_probe(preset: str, *, follow_through_frames: int = 30,
-                a_setup_frames: int = 45) -> list[SwingSample]:
-    """Press A for a configurable neutral setup BEFORE any backswing motion.
+                a_setup_frames: int = 12) -> list[SwingSample]:
+    """Build the unchanged 89-frame first-hit baseline by default.
 
-    A previously had only 12 neutral frames before swing motion. A real user
-    subsequently observed motion appearing before the A interaction registered.
-    Longer pre-hold tests the game-input latency hypothesis; frame dispatch
-    alone does NOT prove the in-game A press has been registered.
+    Note: A-held neutral SwingSample frames still call set_wiimote_swing.
+    To press A *without* touching the swing API, call prime_a_button
+    independently BEFORE submitting this trace.
     """
     if type(follow_through_frames) is not int or not 0 <= follow_through_frames <= 180:
         raise ValueError("follow_through_frames must be an integer 0..180")
@@ -74,8 +74,10 @@ def main() -> None:
     parser.add_argument("--preset", choices=("forward", "reverse", "sideways"), default="forward")
     parser.add_argument("--follow-through-frames", type=int, default=30,
                         help="Extra frames holding A after the forward stroke, before release (0..180; default 30)")
-    parser.add_argument("--a-setup-frames", type=int, default=45,
-                        help="Neutral frames pressing A BEFORE any motion (1..180; default 45; old trace used 12)")
+    parser.add_argument("--a-setup-frames", type=int, default=12,
+                        help="Neutral samples INSIDE the swing trace (1..180; first-hit baseline 12)")
+    parser.add_argument("--a-prime-frames", type=int, default=60,
+                        help="Separate A-button-only RPC requests BEFORE any swing API call (0..180; default 60)")
     parser.add_argument("--send-live-swing", action="store_true", help="Required to change game controller state")
     parser.add_argument("--attach-running", action="store_true",
                         help="ADVANCED: bypass canonical Dolphin launch/savestate/A-A+B-A intro; "
@@ -94,13 +96,17 @@ def main() -> None:
         parser.error("--follow-through-frames must be between 0 and 180")
     if not 1 <= args.a_setup_frames <= 180:
         parser.error("--a-setup-frames must be between 1 and 180")
+    if not 0 <= args.a_prime_frames <= 180:
+        parser.error("--a-prime-frames must be between 0 and 180")
     samples = build_probe(args.preset,
                           follow_through_frames=args.follow_through_frames,
                           a_setup_frames=args.a_setup_frames)
     a_held_frames = sum(sample.hold_a for sample in samples)
     first_motion_sample = args.a_setup_frames + 1
     print(f"Single trial: preset={args.preset}, frames={len(samples)}, remote={args.remote}")
-    print(f"A pre-held with ZERO swing motion for {args.a_setup_frames} frames; "
+    print(f"BEFORE ANY swing API call: {args.a_prime_frames} separate BUTTON-ONLY "
+          "A-held RPC requests (no set_wiimote_swing).")
+    print(f"Within trace: {args.a_setup_frames} A-held zero-motion samples; "
           f"first backswing on sample {first_motion_sample} (1-based).")
     print(f"A held for {a_held_frames} frames; first released on sample {a_held_frames + 1} "
           f"(1-based). Extra follow-through: {args.follow_through_frames} frames.")
@@ -125,6 +131,7 @@ def main() -> None:
             "--swing", "--preset", args.preset,
             "--follow-through-frames", str(args.follow_through_frames),
             "--a-setup-frames", str(args.a_setup_frames),
+            "--a-prime-frames", str(args.a_prime_frames),
             "--port", str(args.port), "--remote", str(args.remote),
             "--catalog", str(args.catalog), "--report", str(args.report),
         ]
@@ -154,9 +161,22 @@ def main() -> None:
         if answer.strip().lower() != "":
             print("Canceled without sending a swing.")
             return
-        result = SwingTraceClient(rpc, port=args.remote).run(samples)
+        # No set_wiimote_swing occurs until all button-only requests
+        # return. This preserves the first confirmed successful 89-frame
+        # waveform while solving the faulty "zero swing = A prime" design.
+        print("Sending BUTTON-ONLY A press before initiating the swing...", flush=True)
+        try:
+            prime_report = prime_a_button(rpc, remote=args.remote,
+                                          requests=args.a_prime_frames)
+            print(f"Button prehold completed: {prime_report['button_only_requests']} "
+                  "RPC requests. Scheduling actual swing now.", flush=True)
+            result = SwingTraceClient(rpc, port=args.remote).run(samples)
+        finally:
+            # Never leave the emulated A press stuck after errors/timeouts.
+            release_buttons(rpc, remote=args.remote)
 
-    print(json.dumps({"source": "live-Felk-swing-dispatch-only", "trace": result}, indent=2))
+    print(json.dumps({"source": "live-Felk-swing-dispatch-only",
+                      "button_prehold": prime_report, "trace": result}, indent=2))
     print("Observe the game before labeling. A complete trace is NOT proof of ball contact.")
     label = input("What happened? hit / club-only / menu / none / other: ").strip().lower()
     if label not in OBSERVATIONS:
@@ -201,6 +221,9 @@ def main() -> None:
         "preset": args.preset,
         "follow_through_frames": args.follow_through_frames,
         "a_setup_frames": args.a_setup_frames,
+        "a_prime_frames": args.a_prime_frames,
+        "button_prime_method": "controller.set_wiimote_buttons-only-before-trace.submit_swing",
+        "button_prime_dispatch": prime_report,
         "first_motion_sample_1_based": first_motion_sample,
         "a_held_frames": a_held_frames,
         "first_a_release_sample_1_based": a_held_frames + 1,

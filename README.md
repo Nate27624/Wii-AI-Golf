@@ -96,16 +96,19 @@ Optional installation: `py -m pip install -e .` then `wii-golf --help` or `py -m
 
 The historical `scripts/*.py` commands remain functional for advanced users and the other agents. This is an **additive** consolidation, not a breaking rename. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Current swing timing experiment
 
-The first human-observed ball strike used an **89-frame** trace with `--a-setup-frames 12` and `--follow-through-frames 30`. Later the operator observed motion before A appeared registered on a repeat. Normal `golf swing` now defaults to a **45-frame A-held neutral pre-motion setup** (122 frames total) to test whether more time lets Wii Sports recognize the A press before motion. This newer default is **not yet a confirmed successful shot**; physical swing power/axis/distance and the canonical A/A+B/A intro are unchanged.
+## Current swing ordering experiment
+
+**Observed failure (2026-10-24):** After a good full Dolphin launch and A/A+B/A menu intro, the operator reported that motion happened before A visibly engaged, **no ball contact**, even with 45 A-held neutral samples in the swing trace. Investigation found that those so-called A-only samples **still invoked Dolphin's swing API with zero motion**. That is not equivalent to button-only input.
+
+The current command now sends **60 separate `controller.set_wiimote_buttons(A=True)` RPC requests with NO swing API calls**, then replays the **unchanged 89-frame forward trace** from the first user-confirmed hit (12 neutral samples inside trace, 15 back, 20 forward, 30 A-held follow-through, 12 release). This is a new **untested** ordering hypothesis, not another confirmed hit.
 
 ~~~powershell
-# Try longer A preparation from a CLOSED Dolphin session:
-py scripts/golf.py swing --slot 2 --a-setup-frames 45
+# Close Dolphin entirely; then this command handles everything.
+py scripts/golf.py swing --slot 2 --a-prime-frames 60
 
-# Reproduce the first recorded successful 89-frame timing:
-py scripts/golf.py swing --slot 2 --a-setup-frames 12
+# To compare against the original swing trace WITHOUT additional button-only priming:
+py scripts/golf.py swing --slot 2 --a-prime-frames 0
 ~~~
 
-See [controlled timing experiment](docs/first-swing-experiment.md) and [CLI guide](docs/cli.md); report actual motion-vs-A ordering and whether the ball visibly moves. Neither RPC completion nor gauge appearance alone certifies a hit.
+The standard CLI uses `--a-prime-frames 60`, `--a-setup-frames 12`, and `--follow-through-frames 30`. Both normal commands retain the canonical fresh Felk startup, Emulated Wii Remote 1/Extension None, Slot 2 restore, A/A+B/A intro and human ready-screen confirmation. See [timing experiment](docs/first-swing-experiment.md) and [CLI guide](docs/cli.md). In-game button acceptance is still human-observed, not automatically verified.
