@@ -24,7 +24,7 @@ class ControllerConfigError(RuntimeError):
     """Dolphin controller source cannot safely be configured."""
 
 
-def _registry_user_directory() -> Path | None:
+def _registry_user_directory(dolphin_parent: Path) -> Path | None:
     """Honor a Windows Dolphin user-path override when one is configured."""
     try:
         import winreg
@@ -35,8 +35,8 @@ def _registry_user_directory() -> Path | None:
             try:
                 local, _ = winreg.QueryValueEx(key, "LocalUserConfig")
                 if int(local) == 1:
-                    # A portable registry setting is handled separately by locator.
-                    return None
+                    # Dolphin uses its local User folder when LocalUserConfig=1.
+                    return dolphin_parent / "User"
             except OSError:
                 pass
             try:
@@ -70,7 +70,7 @@ def locate_controller_ini(dolphin: Path, *, user_dir: Path | None = None,
         candidates = [Path(env["DOLPHIN_EMU_USERPATH"]).expanduser()]
         forced = True
     else:
-        reg = _registry_user_directory() if os.name == "nt" and environ is None else None
+        reg = _registry_user_directory(exe.parent) if os.name == "nt" and environ is None else None
         if reg:
             candidates = [reg]
             forced = True
@@ -81,6 +81,7 @@ def locate_controller_ini(dolphin: Path, *, user_dir: Path | None = None,
             candidates.append(base_home / "Documents" / "Dolphin Emulator")
             candidates.append(base_home / "My Documents" / "Dolphin Emulator")
             forced = False
+    # A custom user folder can be a symlink, but no new user directories are made.
     distinct = list(dict.fromkeys((p.resolve() / "Config" / "WiimoteNew.ini") for p in candidates))
     existing = [p for p in distinct if p.is_file()]
     if not existing:
