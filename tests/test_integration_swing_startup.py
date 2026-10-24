@@ -33,7 +33,7 @@ class SwingStartupContractTests(unittest.TestCase):
     def test_bare_live_swing_delegates_to_full_canonical_launcher(self):
         calls, rpc_count = self._run(
             "--preset", "forward", "--follow-through-frames", "30",
-            "--send-live-swing",
+            "--a-setup-frames", "60", "--send-live-swing",
         )
         self.assertEqual(len(calls), 1)
         self.assertEqual(rpc_count, 0, "never connect to a missing bare bridge")
@@ -44,6 +44,7 @@ class SwingStartupContractTests(unittest.TestCase):
         self.assertIn("forward", cmd)
         self.assertIn("--follow-through-frames", cmd)
         self.assertEqual(cmd[cmd.index("--follow-through-frames")+1], "30")
+        self.assertEqual(cmd[cmd.index("--a-setup-frames")+1], "60")
         self.assertNotIn("--attach-running", cmd)
         self.assertIn("--catalog", cmd)
 
