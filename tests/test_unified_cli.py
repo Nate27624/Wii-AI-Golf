@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import os
+import socket
+from contextlib import nullcontext
 from pathlib import Path
 import subprocess
 import sys
@@ -124,10 +126,14 @@ class UnifiedGolfCliTests(unittest.TestCase):
             tools.mkdir(parents=True)
             (tools / "mcp_bridge.py").write_text("old pinned source placeholder")
             with patch.object(cli, "ROOT", root), \
+                 patch.object(cli, "reserve_bridge_port",
+                              return_value=nullcontext()) as reserve, \
                  patch.object(cli.socket, "create_connection",
-                              side_effect=ConnectionRefusedError(10061, "refused")), \
+                              side_effect=TimeoutError("loopback connect blocked")) as connect, \
                  patch.object(cli, "_run", return_value=0) as run:
                 self.assertEqual(cli.main(["bridge", "upgrade-swing"]), 0)
+                reserve.assert_called_once_with()
+                connect.assert_not_called()
                 cmd = run.call_args.args[0]
                 self.assertEqual(Path(cmd[1]).name, "patch_felk_bridge.py")
                 self.assertEqual(cmd[cmd.index("--source") + 1],
@@ -136,12 +142,42 @@ class UnifiedGolfCliTests(unittest.TestCase):
                                  str(tools / "mcp_bridge_swing.py"))
                 self.assertIn("--enable-swing", cmd)
 
+    def test_port_guard_rejects_actual_listening_server(self):
+        # Test actual port binding rather than fake socket connect behavior.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+            server.bind(("127.0.0.1", 0))
+            server.listen(1)
+            busy_port = server.getsockname()[1]
+            with self.assertRaisesRegex(ValueError, "unavailable or occupied"):
+                with cli.reserve_bridge_port(busy_port):
+                    self.fail("must not enter context for occupied port")
+
+    def test_port_guard_reserves_available_port_until_upgrade_ends(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as temp:
+            temp.bind(("127.0.0.1", 0))
+            free_port = temp.getsockname()[1]
+        with cli.reserve_bridge_port(free_port):
+            # The guard is actively holding the wildcard port during work.
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as competing:
+                with self.assertRaises(OSError):
+                    competing.bind(("127.0.0.1", free_port))
+        # After release it should be available for another exclusive bind.
+        with cli.reserve_bridge_port(free_port):
+            pass
+
     def test_bridge_upgrade_refuses_to_rewrite_live_dolphin_bridge(self):
-        with patch.object(cli.socket, "create_connection") as connect, \
-             patch.object(cli, "_run") as run:
-            connect.return_value.__enter__.return_value = object()
-            self.assertEqual(cli.main(["bridge", "upgrade-swing"]), 2)
-            run.assert_not_called()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "Wii-AI-Golf"
+            tools = root.parent / "tools"
+            tools.mkdir(parents=True)
+            (tools / "mcp_bridge.py").write_text("pinned original placeholder")
+            with patch.object(cli, "ROOT", root), \
+                 patch.object(cli, "reserve_bridge_port",
+                              side_effect=ValueError("bridge port is occupied")) as reserve, \
+                 patch.object(cli, "_run") as run:
+                self.assertEqual(cli.main(["bridge", "upgrade-swing"]), 2)
+                reserve.assert_called_once_with()
+                run.assert_not_called()
 
     def test_test_and_synthetic_stay_local(self):
         command, _ = self.run_mock(["test", "--pattern", "test_integration_*.py"])
