@@ -79,9 +79,12 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
     """
     if min(pre_samples, post_samples, settled_samples) < 2 or not 0 <= interval <= 5:
         raise ValueError("require >=2 samples per phase, interval between 0 and 5 seconds")
+    # Compute the actual trace length from Worker 1's current waveform.
+    # That worker can refine its initial held-A setup without changing this
+    # collector; do not claim a fixed 89-frame swing in evidence labels.
+    samples = build_probe("forward", follow_through_frames=30)
     if swing_fn is None:
-        swing_fn = lambda client: SwingTraceClient(client, port=0).run(
-            build_probe("forward", follow_through_frames=30))
+        swing_fn = lambda client: SwingTraceClient(client, port=0).run(samples)
     ready = input_fn("Visually verify golfer is ready. ENTER starts capture; type q to cancel: ")
     if ready.strip():
         return {"cancelled": True, "raw_data_created": False}
@@ -99,7 +102,7 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 if i + 1 < count and interval:
                     sleep_fn(interval)
         capture_stage("pre", pre_samples)
-        approval = input_fn("Press ENTER to execute ONE known-good 89-frame forward swing; q cancels: ")
+        approval = input_fn(f"Press ENTER to execute ONE {len(samples)}-frame forward swing; q cancels: ")
         if approval.strip():
             return {"cancelled": True, "raw_data_created": True, "partial_samples": len(rows)}
         stroke = swing_fn(rpc)
@@ -118,7 +121,11 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
             "utc": datetime.now(timezone.utc).isoformat(),
             "study_id": "S002-HG-OUTCOME-TRANSITION-EXPLORATORY",
             "raw_data_created": True, "swing_dispatch": stroke,
-            "known_good_swing_request": {"preset": "forward", "follow_through_frames": 30},
+            "known_good_swing_request": {
+                "preset": "forward", "follow_through_frames": 30,
+                "generated_trace_frames": len(samples),
+                "trace_generator": "probe_swing.build_probe",
+            },
             "human_observation": annotation, "candidate_ranking": ranked,
             "warning": "Candidate RAM and labels unverified; no automatic game score or ball XYZ."}
 
@@ -126,7 +133,7 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--send-live-swing", action="store_true",
-                   help="Explicit opt-in to ONE unchanged 89-frame forward stroke")
+                   help="Explicit opt-in to ONE forward stroke using the current known-good generator")
     p.add_argument("--port", type=int, default=55355)
     p.add_argument("--data-dir", type=Path, default=DATA_DIR,
                    help="PRIVATE local directory; never automatically uploaded")
