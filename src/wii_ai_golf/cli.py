@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
 from pathlib import Path
 import subprocess
 import sys
@@ -81,7 +82,7 @@ def build_parser() -> argparse.ArgumentParser:
                            help="Extra arguments passed to the existing scenario planner")
 
     bridge = sub.add_parser("bridge", help="Advanced bridge utilities")
-    bridge.add_argument("action", choices=("patch", "ping"))
+    bridge.add_argument("action", choices=("patch", "ping", "upgrade-swing"))
     bridge.add_argument("arguments", nargs=argparse.REMAINDER,
                         help="For patch: --source/--output/--enable-swing; ping: --read-only-live")
 
@@ -216,6 +217,28 @@ def execute(args: argparse.Namespace) -> int:
     if args.group == "bridge":
         if args.action == "ping":
             return _run(_script_command("probe_dolphin_bridge.py", "--read-only-live", *args.arguments))
+        if args.action == "upgrade-swing":
+            if args.arguments:
+                raise ValueError("bridge upgrade-swing takes no arguments; close Dolphin first")
+            try:
+                with socket.create_connection(("127.0.0.1", 55355), timeout=0.35):
+                    raise ValueError("Felk bridge is running. Close Dolphin before upgrading.")
+            except ConnectionRefusedError:
+                pass
+            except TimeoutError:
+                raise ValueError("Cannot verify bridge is stopped. Close Dolphin before upgrading.")
+            except OSError as exc:
+                # Any other socket failure should not override an old generated
+                # bridge with no way to check whether Dolphin is running.
+                raise ValueError(f"Cannot verify bridge is stopped: {exc}") from exc
+            source = ROOT.parent / "tools" / "mcp_bridge.py"
+            output = ROOT.parent / "tools" / "mcp_bridge_swing.py"
+            if not source.is_file():
+                raise ValueError(f"Pinned original bridge not found: {source}")
+            print("Dolphin must remain CLOSED while regenerating swing bridge V2.", flush=True)
+            return _run(_script_command("patch_felk_bridge.py",
+                        "--source", str(source), "--output", str(output),
+                        "--enable-swing"))
         return _run(_script_command("patch_felk_bridge.py", *args.arguments))
     if args.group == "research":
         if args.research_action == "studies":
