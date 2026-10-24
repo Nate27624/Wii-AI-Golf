@@ -68,3 +68,26 @@ py scripts/discover_golf_motion.py --controller-mode physical --seconds 30 --pro
 The wrapper also accepts `--controller-mode physical`. If physical mode is requested and there is no listening bridge, it fails safely with instructions to start Dolphin manually rather than launch the emulated controller startup. This is intentional: the integrator's `launch_hitting_green.py` always emits virtual button inputs, so reusing it in physical mode would mix controller input sources.
 
 **Emulated** mode continues the exact automatic canonical full launch, prestart savestate and A/A+B/A menu sequence. In either mode, the motion scanner itself is read-only. For live data with the physical remote, no automatic intro is implied; the player must navigate.
+
+## Physical Wii Remote: bridge refused / zero captured samples
+
+The user ran **115 passing offline tests**, but `--controller-mode physical --startup skip` emitted 5 `ConnectionRefusedError` messages and 0 captures: the bridge was NOT running. This is not a decoder failure. Prior startup code returned success from physical skip without checking the port; now physical skip and attach **verify the Felk bridge before beginning a capture**.
+
+To start a fresh Felk instance without ever modifying the real Wii Remote settings or sending virtual A/B:
+
+~~~powershell
+# Close Dolphin first. It must NOT already be running.
+py scripts/discover_golf_motion.py --controller-mode physical --startup fresh --game "G:\Applications\Dolphin\Wii Games\Wii Sports (USA) (Rev 1).wbfs" --seconds 30 --profile fast
+~~~
+
+This launches Dolphin with `--script mcp_bridge_swing.py --exec <game>` but does **not** alter `WiimoteNew.ini`, does **not** load the prestart checkpoint, and does **not** navigate menus. Pair the physical Wii Remote in Dolphin's Controllers interface and enter Hitting the Green before/while observing. This experiment starts capturing as soon as the bridge responds, so results may initially contain non-training menu scenes.
+
+If the game is already at a swing-ready screen with the bridge running, use:
+
+~~~powershell
+py scripts/discover_golf_motion.py --controller-mode physical --startup skip --seconds 30 --profile fast
+~~~
+
+If a normal Dolphin window is open *without* a bridge, close it before the fresh launch (the script refuses duplicate instances). **Avoid `--controller-mode emulated` if you want to retain real Wiimote 1**: that mode invokes the controller setup helper and virtual menu sequence. Automated A/A+B/A navigation currently requires emulated mode; physical mode intentionally leaves buttons under real Wii Remote control.
+
+The physical bridge preflight and fresh launch have mocked regression tests, but a real Windows / physical Wiimote run is still required.
