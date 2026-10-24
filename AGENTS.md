@@ -48,3 +48,8 @@ Every session MUST read README, this document, research/ledger.md, research/queu
 The current DolphinBridge is a dependency-injected interface, not a working Dolphin API integration. ShotAction aim/power are placeholder normalized parameters until real motion has been calibrated. The current toy environment uses invented physics.
 
 When blocked by legal game access, emulator control, inaccurate score units or unreliable resets, record the blocker, reproduce it and propose a test instead of pretending the code works.
+
+
+## Collision prevention and handoffs
+
+Before claiming or editing a new workstream, read [research/coordination.md](research/coordination.md), `research/claims/`, and the corresponding issue comments. Claims are recorded FIRST in an issue comment, then in a per-worker JSON file; conflicting paths require an explicit handoff. The shared ledger is a summary, not an automatic job scheduler or locking service. Keep raw findings in per-worker research folders to minimize merge conflicts.

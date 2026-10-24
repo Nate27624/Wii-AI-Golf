@@ -1,0 +1,24 @@
+{
+  "worker_id": "worker-1",
+  "role": "integrator",
+  "issue": 2,
+  "branch": "agent/integrator/trace-harness-s001",
+  "claim_comment": "https://github.com/Nate27624/Wii-AI-Golf/issues/2#issuecomment-6380103711",
+  "date_claimed": "2026-10-24",
+  "status": "scaffold-implemented-awaiting-hardware-verification",
+  "owned_paths": [
+    "src/wii_ai_golf/integration/**",
+    "tests/test_integration_*.py",
+    "scripts/probe_dolphin_bridge.py",
+    "docs/integrator-research.md",
+    "research/worker1/**"
+  ],
+  "collaborator_boundaries": {
+    "evaluation": "Only evaluation agent should own production score extraction and unit verification.",
+    "modeling": "Only modeling agent should calibrate ShotAction or surrogate physics.",
+    "learning": "Only learning agent should build or benchmark training policies."
+  },
+  "verified_level": "offline-local-test-and-mock-socket-only",
+  "real_dolphin_tested": false,
+  "gameplay_tested": false
+}
