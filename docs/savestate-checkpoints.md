@@ -3,7 +3,7 @@
 **Status:** implemented and unit-test scenarios written; on-device restore not yet verified. This is integrator-owned work for [Issue #2](https://github.com/Nate27624/Wii-AI-Golf/issues/2).
 
 ## Purpose
-Keep different training scenarios reproducible without navigating Wii Sports menus for every trial. Dolphin owns the actual savestate bytes; `research/local-savestates.json` contains only user-defined human-readable labels, slot numbers and notes. The registry is **local machine metadata**, not a portable copy of a savestate. Do not assume states transfer across game revisions, region, Dolphin builds, Wii system configurations or controllers.
+Keep different training scenarios reproducible without navigating Wii Sports menus for every trial. Dolphin owns the actual savestate bytes; `research/savestates.local.json` contains only user-defined human-readable labels, slot numbers and notes. The registry is **local machine metadata**, not a portable copy of a savestate. Do not assume states transfer across game revisions, region, Dolphin builds, Wii system configurations or controllers.
 
 ## Initial setup: first shot
 
