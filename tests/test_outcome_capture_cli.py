@@ -51,6 +51,47 @@ class OutcomeCaptureCliTests(unittest.TestCase):
             self.assertFalse(result["candidate_ranking"]["game_score_verified"])
             self.assertEqual(len(path.read_text().splitlines()), 6)
 
+    def test_distance_with_unit_suffix_does_not_ask_for_unit_again(self):
+        prompts = []
+        responses = iter(["", "", "", "yes", "no", "100.0ft"])
+        def input_fn(prompt):
+            prompts.append(prompt)
+            return next(responses)
+        with tempfile.TemporaryDirectory() as d:
+            result = run_session(object(), raw_path=Path(d) / "RAW.jsonl",
+                pre_samples=2, post_samples=2, settled_samples=2, interval=0,
+                input_fn=input_fn,
+                snapshot_fn=lambda _r, phase: row(phase, {"pre": 0, "post": 2, "settled": 1}[phase]),
+                swing_fn=lambda _r: {"state": "complete"})
+        self.assertEqual(result["human_observation"]["displayed_distance_human"], 100.0)
+        self.assertEqual(result["human_observation"]["displayed_unit_human"], "ft")
+        self.assertFalse(any("Displayed unit" in prompt for prompt in prompts))
+        self.assertEqual(result["settled_screen_observation"], "operator_confirmed_before_transition")
+
+    def test_invalid_distance_retries_after_preserving_all_samples(self):
+        responses = iter(["", "", "", "yes", "no", "not-a-distance", "100.0ft"])
+        with tempfile.TemporaryDirectory() as d:
+            raw = Path(d) / "RAW.jsonl"
+            result = run_session(object(), raw_path=raw, pre_samples=2,
+                post_samples=2, settled_samples=2, interval=0,
+                input_fn=lambda _q: next(responses),
+                snapshot_fn=lambda _r, phase: row(phase, {"pre": 0, "post": 2, "settled": 1}[phase]),
+                swing_fn=lambda _r: {"state": "complete"})
+            self.assertEqual(len(raw.read_text().splitlines()), 6)
+            self.assertEqual(result["human_observation"]["displayed_unit_human"], "ft")
+
+    def test_transition_before_settled_prompt_is_marked_uncertain(self):
+        responses = iter(["", "", "t", "yes", "no", "100ft"])
+        with tempfile.TemporaryDirectory() as d:
+            result = run_session(object(), raw_path=Path(d) / "RAW.jsonl",
+                pre_samples=2, post_samples=2, settled_samples=2, interval=0,
+                input_fn=lambda _q: next(responses),
+                snapshot_fn=lambda _r, phase: row(phase, {"pre": 0, "post": 2, "settled": 1}[phase]),
+                swing_fn=lambda _r: {"state": "complete"})
+        self.assertEqual(result["settled_screen_observation"],
+                         "screen_had_already_transitioned_before_settled_samples")
+        self.assertFalse(result["candidate_ranking"]["game_score_verified"])
+
     def test_early_cancel_does_not_write_or_swing(self):
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "RAW.jsonl"
