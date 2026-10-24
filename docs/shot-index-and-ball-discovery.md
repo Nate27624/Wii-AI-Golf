@@ -8,7 +8,7 @@ Source-gated US Rev1 coordinate fingerprints live in the evaluation scenario inf
 
 ## Searching candidate moving-ball and score data
 
-Public [ogws_info reverse-engineering headers](https://github.com/kiwi515/ogws_info) identify golf config/field/sequence struct pointers and field manager minimap effect pointers. They do **not** establish the actual physics ball XYZ or the final score location. The new read-only motion sampler probes fixed US Rev1 golf config and modest windows around field, sequence and three minimap effects. It ranks big-endian f32 XYZ triples that change at stable addresses over the recording; a moving UI effect is not necessarily the ball.
+Public [ogws_info reverse-engineering headers](https://github.com/kiwi515/ogws_info) identify golf config/field/sequence struct pointers and field manager minimap effect pointers. They do **not** establish the actual physics ball XYZ or the final score location. The new read-only motion sampler probes fixed US Rev1 golf config and modest windows around field, sequence and three minimap effects. It ranks both big-endian f32 XYZ triples that change at stable addresses and big-endian u32 values (0..100000) that change over the recording. A moving UI effect is not necessarily the ball; a changing integer is not necessarily a shot counter or score.
 
 From a clean updated evaluation checkout with Felk Dolphin bridge active, manually navigate to Hitting the Green, then run:
 
