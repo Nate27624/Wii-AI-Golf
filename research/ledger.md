@@ -51,3 +51,11 @@ New evidence records: date, study_id, source (synthetic/emulator/human), agent v
 - **Validated claim:** the local Python script can communicate with the Felk bridge over loopback while the emulator advances frames. Earlier bridge-connection failure (`WinError 10061`) is resolved for the read-only probe.
 - **Not validated:** controller injection, patched atomic trace, game recognition of a swing, real scoring/extraction, deterministic resets, or unattended trials. **0 demonstrated AI golf shots** so far.
 - **Next experiment:** generate separately named pinned atomic bridge via `scripts/patch_felk_bridge.py`, restart Dolphin with only that bridge loaded, run read-only preflight and then explicitly authorized `scripts/probe_atomic_trace.py --send-live-trace`. Do not mark S001 complete until game sees an actual shot; preserve both success/failure evidence.
+
+## 2026-10-24 — Worker 1 S001: first reported live atomic trace dispatch
+
+- **Source:** user-executed Windows PowerShell CLI transcript, not replayed in Worker 1 sandbox. After loading the experimental source-pinned `mcp_bridge_atomic.py`, user ran `py scripts/probe_atomic_trace.py --send-live-trace`.
+- **Observed response:** `source=experimental-patched-emulator`; result `state=complete`, `id=1`, `start_frame=3455`, `completion_dispatch_frame=3470`, `total_frames=15`, `applied_frames=15`. Bridge acknowledges 15 sequential dispatch frames, ending one frame after last sample as designed.
+- **Meaning:** real Dolphin bridge command accepted; in-bridge scheduled calls to set Wii Remote A and acceleration were reported completed. Does **not** independently verify Wii Sports consumed controller values or that a club swing/shot occurred.
+- **Still unobserved:** on-screen movement/contact, score/distance, reset determinism, trials, optimization. **Confirmed golf swings remain 0 until user supplies gameplay observation.**
+- **Next:** ask the human observer whether Nueron moved/swang/struck the ball during the 15-frame trace, then design the minimal calibrated input experiment. Preserve clear separation between transport success and game behavior.
