@@ -156,12 +156,18 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
     if min_changed < 1 or top_n < 1:
         raise ValueError("min_changed and top_n must be positive")
     observations: dict[
-        tuple[str, str, int], list[tuple[int, tuple[float, float, float]]]
+        tuple[str, str, int], list[tuple[int, tuple[float, float, float], tuple[int, int] | None]]
     ] = defaultdict(list)
-    scalar_samples: dict[tuple[str, str, int], list[tuple[int, int]]] = defaultdict(list)
+    scalar_samples: dict[tuple[str, str, int], list[tuple[int, int, tuple[int, int] | None]]] = defaultdict(list)
     for idx, sample in enumerate(samples):
         if sample.get("game_id") != "RSPE01" or sample.get("disc_revision") != 1:
             continue
+        scene = sample.get("scene") or {}
+        scene_key = None
+        if scene.get("scene_status") == "aligned_candidate":
+            i, j = scene.get("tee_index_observed"), scene.get("pin_variant_observed")
+            if type(i) is int and type(j) is int:
+                scene_key = (i, j)
         for name, window in sample.get("windows", {}).items():
             if name not in WINDOWS or not isinstance(window, dict):
                 continue
@@ -175,22 +181,32 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
             for offset in range(0, len(blob) - 3, 4):
                 u32 = struct.unpack_from(">I", blob, offset)[0]
                 if 0 <= u32 <= 100000:
-                    scalar_samples[(name, address, offset)].append((idx, u32))
+                    scalar_samples[(name, address, offset)].append((idx, u32, scene_key))
             for offset in range(0, len(blob) - 11, 4):
                 xyz = struct.unpack_from(">fff", blob, offset)
                 if all(math.isfinite(v) and abs(v) < 100000 for v in xyz):
-                    observations[(name, address, offset)].append((idx, xyz))
+                    observations[(name, address, offset)].append((idx, xyz, scene_key))
     ranked = []
     for (name, address, offset), entries in observations.items():
         if len(entries) < 3:
             continue
         changes = 0
         displacement = 0.0
-        for (_i, p), (_j, q) in zip(entries, entries[1:]):
+        within_scene_steps = 0
+        across_scene_steps = 0
+        for (i, p, scene_a), (j, q, scene_b) in zip(entries, entries[1:]):
+            # Only adjacent successful samples. Don't infer movement across
+            # missing data, changing instance addresses, or shot transitions.
+            if j != i + 1:
+                continue
             moved = math.dist(p, q)
             if moved >= 0.1:
                 changes += 1
                 displacement += moved
+                if scene_a is not None and scene_a == scene_b:
+                    within_scene_steps += 1
+                elif scene_a != scene_b:
+                    across_scene_steps += 1
         if changes < min_changed:
             continue
         ranked.append({
@@ -198,28 +214,36 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
             "offset_hex": f"+0x{offset:X}",
             "candidate_address": f"0x{int(address,16) + offset:08X}",
             "observed_samples": len(entries), "changed_steps": changes,
+            "within_same_scene_changed_steps": within_scene_steps,
+            "cross_scene_changed_steps": across_scene_steps,
             "total_displacement_game_units_unverified": round(displacement, 4),
             "first_xyz": [round(v, 4) for v in entries[0][1]],
             "last_xyz": [round(v, 4) for v in entries[-1][1]],
             "status": "unverified_numeric_vec3_candidate",
         })
-    ranked.sort(key=lambda x: (-x["changed_steps"],
+    ranked.sort(key=lambda x: (-x["within_same_scene_changed_steps"],
+                               -x["changed_steps"],
                                -x["total_displacement_game_units_unverified"],
                                x["candidate_address"]))
     scalar_ranked = []
     for (name, address, offset), entries in scalar_samples.items():
         if len(entries) < 3:
             continue
-        steps = sum(p != q for (_i, p), (_j, q) in zip(entries, entries[1:]))
+        steps = sum(p != q for (i, p, _sa), (j, q, _sb) in zip(entries, entries[1:])
+                    if j == i + 1)
+        within = sum(p != q for (i, p, sa), (j, q, sb) in zip(entries, entries[1:])
+                     if j == i + 1 and sa is not None and sa == sb)
         if steps < min_changed:
             continue
         scalar_ranked.append({
             "window": name, "candidate_address": f"0x{int(address,16)+offset:08X}",
             "offset_hex": f"+0x{offset:X}", "changed_steps": steps,
+            "within_same_scene_changed_steps": within,
             "first_u32": entries[0][1], "last_u32": entries[-1][1],
             "status": "unverified_integer_state_candidate_NOT_score",
         })
-    scalar_ranked.sort(key=lambda x: (-x["changed_steps"], x["candidate_address"]))
+    scalar_ranked.sort(key=lambda x: (-x["within_same_scene_changed_steps"],
+                                       -x["changed_steps"], x["candidate_address"]))
     return {
         "samples": len(samples), "candidate_count": len(ranked),
         "candidates": ranked[:top_n],
@@ -227,5 +251,5 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
         "scalar_candidate_count": len(scalar_ranked),
         "scalar_candidates": scalar_ranked[:top_n],
         "scalar_candidates_truncated": len(scalar_ranked) > top_n,
-        "warning": "Do not treat candidate as moving golf ball without visual/temporal validation. No score field identified.",
+        "warning": "Do not treat candidate as moving golf ball without visual/temporal validation. Within-scene changes improve attribution but no score field identified.",
     }
