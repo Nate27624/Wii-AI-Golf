@@ -109,3 +109,34 @@ If you want Dolphin to use real controllers again outside the research project, 
 ### Verification limits
 
 The source setting is supported by Dolphin's `WiimoteSettings.cpp`, `Wiimote.h` and `CommonPaths.h`. This implementation has focused offline tests but **needs a user-observed restart** to establish that the Felk fork uses the selected config and the game does not override it with a per-game INI. If the Dolphin Controllers UI still says Real Wii Remote after launch, send the printed selected config path and we will investigate game-specific settings / user-folder discrepancy; do not collect swings. The launcher does not delete game data, savestates, or any files unrelated to the controller INI.
+
+## Fix: no editable-package reinstall required after pulling main
+
+On 2026-10-24 the user updated Git to the latest commit and immediately received:
+`ModuleNotFoundError: No module named 'wii_ai_golf.integration.dolphin_controller_config'`.
+This was **not a failed Git pull or missing GitHub file**. Python resolved an earlier installed editable `wii_ai_golf` package from a different checkout. The same bug had previously hit `swing_patch`.
+
+Worker 1 repaired the entrypoints to prepend the **source directory adjacent to the actual launched script** before ANY project imports, including the launcher and its subprocesses `savestate_session.py` and `probe_swing.py`. Bridge generator, controller preflight and scenario scheduling scripts are also corrected. The first command in each process now deterministically imports `<that script's repository>/src/wii_ai_golf`, even if `pip install -e .` was done for another worktree.
+
+From the repository root, after pulling this fix, perform this **installation-independent** check (no Dolphin required):
+
+~~~powershell
+cd "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
+git pull --ff-only
+py -I scripts/launch_golf.py --help
+py -I scripts/savestate_session.py --help
+py -I scripts/probe_swing.py --help
+py -m unittest discover -s tests -p "test_integration_source_bootstrap.py" -v
+py -m unittest discover -s tests -p "test_integration_controller_config.py" -v
+py -m unittest discover -s tests -p "test_integration_launcher.py" -v
+~~~
+
+No reinstallation, `PYTHONPATH`, branch switching, or resetting the private catalog should be necessary. The isolated `-I` test strips the normal Python path, and the bootstrap regression suite additionally launches all Worker 1 CLIs from an unrelated cwd with a fake/stale installed package shadowing the real code. It must fail if a future script reintroduces an unguarded `wii_ai_golf` import.
+
+After the checks pass, close Dolphin and start your saved slot:
+
+~~~powershell
+py scripts/launch_golf.py --slot 2
+~~~
+
+Observe the controller source and checkpoint as usual. **These source changes must still be verified on the operator's Windows host before declaring the regression fixed in the actual Dolphin run.**
