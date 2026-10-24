@@ -56,3 +56,15 @@ The new tests mock Dolphin, Git subprocesses and controller preparation; they mu
 **No automatic swing yet:** The user saw the club move slightly, but a ball strike or score has not been verified. Data collection must not misclassify RPC motion as successful shot contact.
 
 This workflow only changes S002 evaluation scripts. Worker #2 continues to own the canonical launch, controller configuration, savestate registration and menu timing. Do not create another start sequence or boot from an autorestore bridge script.
+
+## Physical Wii Remote data collection (`--controller-mode physical`)
+
+All live S002 capture scripts now accept `--controller-mode physical` or `--controller-mode emulated` (default). **Physical** does not rewrite Wii Remote 1 to Emulated, does not load/reset the named savestate, and does not send automated menu presses. Instead, you manually start Dolphin with Wii Remote 1 set to **Real Wii Remote**, pair the controller, have the Felk read-only bridge available at port 55355, navigate to the first ball and swing. Example:
+
+~~~powershell
+py scripts/discover_golf_motion.py --controller-mode physical --seconds 30 --profile fast
+~~~
+
+The wrapper also accepts `--controller-mode physical`. If physical mode is requested and there is no listening bridge, it fails safely with instructions to start Dolphin manually rather than launch the emulated controller startup. This is intentional: the integrator's `launch_hitting_green.py` always emits virtual button inputs, so reusing it in physical mode would mix controller input sources.
+
+**Emulated** mode continues the exact automatic canonical full launch, prestart savestate and A/A+B/A menu sequence. In either mode, the motion scanner itself is read-only. For live data with the physical remote, no automatic intro is implied; the player must navigate.
