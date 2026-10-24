@@ -91,3 +91,18 @@ py scripts/discover_golf_motion.py --controller-mode physical --startup skip --s
 ~~~
 
 Only do the first physical swing once visibly ready, and note when the ball visibly moves. This physical mode never reconfigures Wiimote 1, never restores the state and never sends the integration agent's synthetic A/A+B/A menu sequence. For autonomous AI-control experiments, use `--controller-mode emulated` and the canonical automatic intro instead. Capturing raw memory samples is still local-only; numeric summaries are uploaded. The scanner does not yet decode the authoritative ball physics or training score.
+
+## Higher-rate targeted effect telemetry (next validation experiment)
+
+New `src/wii_ai_golf/targeted_motion.py`, `scripts/probe_targeted_motion.py`, and `tests/test_targeted_motion.py` probe only small (default 64-byte) windows around source-gated field-manager minimap effect pointers, reusing one FelkRPC connection. The old broad reader used 28 emulation frames per snapshot; this targeted probe records its **actual** RPC frame span so timing improvement can be measured, not assumed. These are **render effect hints**, NOT a validated physical golf ball.
+
+After pairing the physical Wii Remote and getting Dolphin to a swing-ready Hitting the Green screen with bridge running:
+
+~~~powershell
+py -m unittest discover -s tests -p "test_targeted_motion.py" -v
+py scripts/probe_targeted_motion.py --controller-mode physical --startup skip --seconds 25 --interval 0.2
+~~~
+
+For a fresh physical launch without altering Wiimote settings, add `--startup fresh --game PATH`, then navigate manually. For emulated mode, the canonical prestart savestate and full A → A+B → A menu intro remain the startup default.
+
+Only an array of summary numbers is uploaded; all raw bytes stay in local `captures/targeted-motion-*.jsonl`. Frame span, changed positions, and tentative candidate vectors are diagnostic. Confirm any candidate against a visible ball flight and final resting position before assigning ball/score labels. Read restrictions: US Rev1, mode 4, known bounded pointer slots, <=128 bytes per effect window; no RAM writes or automatic swing.
