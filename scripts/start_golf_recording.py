@@ -12,6 +12,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "scripts"))
 from session_bootstrap import (
     add_boot_options, ensure_intro, boot_command, bridge_open,
     CANONICAL as DEFAULT_CANONICAL, DEFAULT_BRIDGE, DEFAULT_DOLPHIN,
