@@ -153,6 +153,21 @@ def main() -> None:
         info = rpc.call("bridge.ping")
         if not isinstance(info, dict) or not isinstance(info.get("bridge_version"), str):
             raise RuntimeError("bridge.ping failed")
+        # Fail BEFORE any button or swing input if the user is still running
+        # the earlier generated bridge. V1 calls set_wiimote_swing on zero
+        # motion frames, which is not a reliable A-only hold.
+        try:
+            caps = rpc.call("trace.swing_capabilities", [])
+        except Exception as exc:
+            raise RuntimeError(
+                "Swing bridge V2 is required. Close Dolphin and regenerate "
+                "tools/mcp_bridge_swing.py with 'py scripts/golf.py bridge patch "
+                "--source <tools/mcp_bridge.py> --output "
+                "<tools/mcp_bridge_swing.py> --enable-swing', then relaunch."
+            ) from exc
+        if not isinstance(caps, dict) or caps.get("swing_protocol") != 2 or caps.get("neutral_button_only") is not True:
+            raise RuntimeError("Swing bridge V2 capability mismatch: refusing to send swing.")
+        print("Verified swing bridge V2: neutral trace frames are button-only.", flush=True)
         if args.reset_profile:
             profile = StateCatalog(args.catalog).get(args.reset_profile)
             print("State load:", json.dumps(StateManager(rpc).request_load(profile)))
