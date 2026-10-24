@@ -86,3 +86,25 @@ py scripts/probe_swing.py --preset forward --follow-through-frames 30 --send-liv
 Human confirms visually before the probe sends exactly one shot, then labels `hit`, `club-only`, `none`, etc. If A still releases too soon and the club visibly responds, rerun on **the same verified starting screen** with `--follow-through-frames 45` or `60`; avoid changing motion strength/direction at the same time. If the observed swing *stalls while A is held*, use shorter values (15, 0) and report exactly what happens. Never claim a successful hit from bridge ACK alone.
 
 **Canonical intro coordination:** `scripts/launch_hitting_green.py` already calls `build_probe("forward")` for its optional single swing; it will automatically use the new follow-through default after merging this change. Another Worker 1 agent owns the active intro PR #25; do **not** duplicate menu timing logic inside `probe_swing.py`.
+
+## Required normal startup for every swing experiment (2026-10-24 correction)
+
+A user ran the earlier suggested `py scripts/probe_swing.py --preset forward --follow-through-frames 30 --send-live-swing` after Dolphin was no longer running and got `[WinError 10061]` because the probe previously assumed a listening bridge. This was a workflow bug: a real-game experiment must start from the known-good **Felk Dolphin + Emulated Wii Remote 1 / Extension None + named green-pre-start Slot 2 savestate + A / wait / A+B / wait / A + settle** intro, **then** send the opted-in swing.
+
+As of the launcher change, the very same `probe_swing.py` command **automatically delegates to** `scripts/launch_golf.py --swing`, which itself invokes `launch_hitting_green.py` and the shared `wii_ai_golf.menu_sequence` implementation. No independent button delays or separate bridge setup exist in the probe. `launch_golf` next starts the actual probe in `--attach-running` mode, so the child does NOT spawn Dolphin again or reset the already ready screen.
+
+Preferred from a completely CLOSED Dolphin session:
+
+~~~powershell
+cd "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
+git pull --ff-only
+py -m unittest discover -s tests -p "test_integration_swing_startup.py" -v
+py -m unittest discover -s tests -p "test_integration_launcher.py" -v
+py scripts/probe_swing.py --slot 2 --preset forward --follow-through-frames 30 --send-live-swing
+~~~
+
+The alias `py scripts/launch_golf.py --slot 2 --swing --follow-through-frames 30` is identical in launch semantics. Both use the locally remembered game image and controller config and the human-ready-screen confirmation; **no manual Scripting attachment or separate savestate command** is required. The intro currently requests **120, 30, 315, 60, 135, 45, 300** frames for its settled phases, inherited from the user-verified menu test (not an automatic visual game-state proof).
+
+**Advanced exception only:** If Dolphin is ALREADY open, correctly configured, and sitting at the ball after a previously verified intro, use `py scripts/probe_swing.py --attach-running --preset forward --follow-through-frames 30 --send-live-swing`. This bypasses startup deliberately. Without `--attach-running`, the probe will try a full fresh start and refuse a second bridge on occupied port. Close the prior Dolphin instance before normal fresh startup.
+
+The new `tests/test_integration_swing_startup.py` asserts the bare CLI makes **no FelkRPC call** and delegates to the full launcher, rejects reset/profile mixing, and propagates failure. Launcher tests assert A / A+B / A intro occurs before the `--attach-running` child, and pass follow-through parameter through unchanged. Live result must still be user-observed; this is code, not evidence of a ball strike.

@@ -9,6 +9,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 import sys
 
@@ -67,6 +68,12 @@ def main() -> None:
     parser.add_argument("--follow-through-frames", type=int, default=30,
                         help="Extra frames holding A after the forward stroke, before release (0..180; default 30)")
     parser.add_argument("--send-live-swing", action="store_true", help="Required to change game controller state")
+    parser.add_argument("--attach-running", action="store_true",
+                        help="ADVANCED: bypass canonical Dolphin launch/savestate/A-A+B-A intro; "
+                             "only for an ALREADY RUNNING, ready-to-swing Dolphin bridge")
+    checkpoint = parser.add_mutually_exclusive_group()
+    checkpoint.add_argument("--slot", type=int, help="Full-launch only: registered pre-start slot, e.g. 2")
+    checkpoint.add_argument("--profile", help="Full-launch only: registered pre-start profile")
     parser.add_argument("--reset-profile", help="Optional named SAVED AT FIRST SHOT state; not the pre-Start screen")
     parser.add_argument("--catalog", type=Path, default=CATALOG)
     parser.add_argument("--report", type=Path, default=REPORT)
@@ -85,6 +92,38 @@ def main() -> None:
     if not args.send_live_swing:
         print("DRY RUN ONLY. Add --send-live-swing to perform one trial.")
         return
+    if args.port not in range(1, 65536):
+        parser.error("--port must be 1..65535")
+
+    if not args.attach_running:
+        if args.reset_profile:
+            parser.error("--reset-profile requires --attach-running; the standard "
+                         "launcher restores green-pre-start and runs A / A+B / A automatically")
+        # Canonical path; no RPC connection is attempted until the launcher
+        # has configured Emulated Wii Remote, started Felk Dolphin, loaded the
+        # registered pre-start state, and executed the known-good menu sequence.
+        # launch_golf.py invokes this probe child with --attach-running to
+        # avoid recursive launch.
+        command = [
+            sys.executable, str(ROOT / "scripts" / "launch_golf.py"),
+            "--swing", "--preset", args.preset,
+            "--follow-through-frames", str(args.follow_through_frames),
+            "--port", str(args.port), "--remote", str(args.remote),
+            "--catalog", str(args.catalog), "--report", str(args.report),
+        ]
+        if args.slot is not None:
+            command += ["--slot", str(args.slot)]
+        if args.profile is not None:
+            command += ["--profile", args.profile]
+        print("Starting canonical full golf session: Felk Dolphin -> Emulated Wii "
+              "Remote -> pre-start savestate -> A / A+B / A -> guarded swing.", flush=True)
+        returncode = subprocess.run(command, check=False).returncode
+        if returncode != 0:
+            raise SystemExit(returncode)
+        return
+
+    if args.slot is not None or args.profile is not None:
+        parser.error("--slot/--profile only apply to a full startup, without --attach-running")
 
     with FelkRPC(port=args.port) as rpc:
         info = rpc.call("bridge.ping")

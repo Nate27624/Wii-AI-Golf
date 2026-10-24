@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = (
     "launch_golf.py",
     "launch_hitting_green.py",
+    "launch_hitting_green.py",
     "savestate_session.py",
     "probe_swing.py",
     "patch_felk_bridge.py",
