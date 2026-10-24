@@ -59,3 +59,11 @@ New evidence records: date, study_id, source (synthetic/emulator/human), agent v
 - **Meaning:** real Dolphin bridge command accepted; in-bridge scheduled calls to set Wii Remote A and acceleration were reported completed. Does **not** independently verify Wii Sports consumed controller values or that a club swing/shot occurred.
 - **Still unobserved:** on-screen movement/contact, score/distance, reset determinism, trials, optimization. **Confirmed golf swings remain 0 until user supplies gameplay observation.**
 - **Next:** ask the human observer whether Nueron moved/swang/struck the ball during the 15-frame trace, then design the minimal calibrated input experiment. Preserve clear separation between transport success and game behavior.
+
+## 2026-10-24 — Worker 1 S001: no visible golf response; reusable savestate/reset tooling staged
+
+- **Negative real-game observation:** user reports *nothing happened on screen* after the bridge acknowledged 15/15 experimental A+acceleration frame dispatches (frames 3455–3470). Controller connection to the game is **not proven**; no ball strike and no score.
+- **Independent verified source:** Felk scripting-preview4 `controller.pyi` specifies accelerometer units **m/s²**. Earlier 1–2-unit test was incorrectly described as g and was too weak to be a conclusive swing test. Button recognition and motion calibration now priorities.
+- **New integration tooling:** local named StateCatalog + StateManager (save/load by named slot, 0..99 from Felk `savestate.pyi`), capture/register/reset/start CLI, optional one-shot `--startup-slot` in pinned atomic bridge, and `Plus` visual controller check. Scope is reusable for future game screens and training states, not tied to first golf shot.
+- **Validation:** eight new isolated Python unit tests pass locally (savestate catalog/RPC and boot hook). No user-operated savestate load/capture or new button probe yet. Startup auto-load is currently an **untested experimental hypothesis**, and acknowledgement does not establish successful restore.
+- **Docs:** `docs/savestate-workflow.md`; Issue #2 claim/handoff. Evaluation #3 owns score extraction; modeling #4 owns physical swing calibration.
