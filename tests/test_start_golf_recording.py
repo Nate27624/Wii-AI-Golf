@@ -54,6 +54,27 @@ class SharedStartupTests(unittest.TestCase):
             argv.extend(["--game", str(game)])
         return parser.parse_args(argv)
 
+    def test_physical_mode_preserves_controller_and_does_not_inject_buttons(self):
+        args = self.args()
+        args.controller_mode = "physical"
+        with patch.object(boot, "bridge_open", return_value=True), patch.object(
+            boot, "prepare_emulated_remote"
+        ) as emulated, patch.object(boot.subprocess, "run") as launch:
+            self.assertEqual(boot.ensure_intro(args), "physical_existing")
+            emulated.assert_not_called()
+            launch.assert_not_called()
+
+    def test_physical_mode_missing_bridge_fails_without_changing_settings(self):
+        args = self.args()
+        args.controller_mode = "physical"
+        with patch.object(boot, "bridge_open", return_value=False), patch.object(
+            boot, "prepare_emulated_remote"
+        ) as emulated, patch.object(boot.subprocess, "run") as launch:
+            with self.assertRaisesRegex(ConnectionError, "Physical mode"):
+                boot.ensure_intro(args)
+            emulated.assert_not_called()
+            launch.assert_not_called()
+
     def test_canonical_menu_only_one_load_no_second_swing(self):
         cmd = boot.boot_command(canonical=self.root, profile="green-pre-start",
                                 port=55355, attach=True)
