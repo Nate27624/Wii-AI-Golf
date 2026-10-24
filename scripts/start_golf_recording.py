@@ -18,6 +18,8 @@ DEFAULT_CANONICAL = (
     EVALUATION_ROOT if EVALUATION_ROOT.name.casefold() == "wii-ai-golf"
     else EVALUATION_ROOT.parent / "Wii-AI-Golf"
 )
+# Force branch-local Python modules even if another worktree is installed editable.
+sys.path.insert(0, str(EVALUATION_ROOT / "src"))
 DEFAULT_DOLPHIN = DEFAULT_CANONICAL.parent / "tools" / "FelkDolphin" / "Dolphin.exe"
 DEFAULT_BRIDGE = DEFAULT_CANONICAL.parent / "tools" / "mcp_bridge_swing.py"
 SCAN_SCRIPT = EVALUATION_ROOT / "scripts" / "discover_golf_motion.py"
