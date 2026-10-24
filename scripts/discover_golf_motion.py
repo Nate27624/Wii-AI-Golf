@@ -20,6 +20,7 @@ from wii_ai_golf.decoded_golf_fields import (  # noqa: E402
 )
 from wii_ai_golf.golf_collection import make_run_id, publish_sanitized  # noqa: E402
 from wii_ai_golf.integration.rpc import FelkRPC  # noqa: E402
+from session_bootstrap import add_boot_options, ensure_intro  # noqa: E402
 
 
 def main() -> None:
@@ -27,6 +28,7 @@ def main() -> None:
     parser.add_argument("--seconds", type=float, default=45, help="5..180; Ctrl+C stops early")
     parser.add_argument("--interval", type=float, default=0.6, help="0.2..10 seconds; RPC may be slower")
     parser.add_argument("--port", type=int, default=55355)
+    add_boot_options(parser)
     parser.add_argument("--profile", choices=("fast", "broad"), default="fast",
                         help="fast=small motion windows; broad=full golf config to hunt scores/counters")
     parser.add_argument("--data-dir", type=Path,
@@ -37,6 +39,7 @@ def main() -> None:
         parser.error("--seconds must be between 5 and 180")
     if not 0.2 <= args.interval <= 10:
         parser.error("--interval must be between 0.2 and 10")
+    ensure_intro(args)
     args.data_dir.mkdir(parents=True, exist_ok=True)
     run = make_run_id()
     local = args.data_dir / f"golf-motion-{run}.jsonl"
