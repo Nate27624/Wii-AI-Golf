@@ -113,6 +113,7 @@ def _words(sample: dict[str, Any]) -> dict[int, tuple[int, set[str]]]:
     if sample.get("game_id") != "RSPE01" or sample.get("disc_revision") != 1:
         raise ValueError("invalid game identification in snapshot")
     result: dict[int, tuple[int, set[str]]] = {}
+    conflicting: set[int] = set()
     for window, data in sample.get("windows", {}).items():
         if window not in (set(STATIC_STRUCTS) | set(EFFECT_POINTER_OFFSETS)):
             continue
@@ -125,10 +126,16 @@ def _words(sample: dict[str, Any]) -> dict[int, tuple[int, set[str]]]:
         for offset in range(0, len(raw) - 3, 4):
             address = base + offset
             value = struct.unpack_from(">I", raw, offset)[0]
+            if address in conflicting:
+                continue
             if address in result:
                 if result[address][0] != value:
-                    raise ValueError("same absolute memory address had conflicting window values")
-                result[address][1].add(window)
+                    # These windows span different emulation frames. Exclude
+                    # contradictory aliases instead of trusting either read.
+                    result.pop(address)
+                    conflicting.add(address)
+                else:
+                    result[address][1].add(window)
             else:
                 result[address] = (value, {window})
     return result
