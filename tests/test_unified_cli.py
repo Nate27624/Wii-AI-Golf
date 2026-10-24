@@ -42,13 +42,15 @@ class UnifiedGolfCliTests(unittest.TestCase):
     def test_swing_is_one_canonical_fresh_launch_not_bare_bridge(self):
         command, kwargs = self.run_mock([
             "swing", "--slot", "2", "--preset", "forward",
-            "--follow-through-frames", "30", "--a-setup-frames", "60"
+            "--follow-through-frames", "30", "--a-setup-frames", "12",
+            "--a-prime-frames", "75"
         ])
         self.assertEqual(Path(command[1]).name, "launch_golf.py")
         self.assertIn("--swing", command)
         self.assertEqual(command[command.index("--slot")+1], "2")
         self.assertEqual(command[command.index("--follow-through-frames")+1], "30")
-        self.assertEqual(command[command.index("--a-setup-frames")+1], "60")
+        self.assertEqual(command[command.index("--a-setup-frames")+1], "12")
+        self.assertEqual(command[command.index("--a-prime-frames")+1], "75")
         self.assertNotIn("--attach-running", command)
         self.assertNotIn("probe_swing.py", command)
         self.assertFalse(kwargs["dry_run"])
@@ -58,10 +60,16 @@ class UnifiedGolfCliTests(unittest.TestCase):
         self.assertTrue(kwargs["dry_run"])
         self.assertEqual(Path(command[1]).name, "launch_golf.py")
 
-    def test_default_precharge_is_explicit_and_dry_run_is_safe(self):
+    def test_default_button_only_prime_and_original_trace_are_explicit(self):
         command, kwargs = self.run_mock(["swing", "--slot", "2", "--dry-run"])
-        self.assertEqual(command[command.index("--a-setup-frames") + 1], "45")
+        self.assertEqual(command[command.index("--a-setup-frames") + 1], "12")
+        self.assertEqual(command[command.index("--a-prime-frames") + 1], "60")
         self.assertTrue(kwargs["dry_run"])
+
+    def test_invalid_a_prime_fails_without_spawning(self):
+        with patch.object(cli, "_run") as run:
+            self.assertEqual(cli.main(["swing", "--a-prime-frames", "181"]), 2)
+            run.assert_not_called()
 
     def test_invalid_a_setup_fails_without_spawning(self):
         with patch.object(cli, "_run") as run:
