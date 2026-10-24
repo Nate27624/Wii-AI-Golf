@@ -1,48 +1,58 @@
-# Standard Wii Sports evaluation startup: ONE savestate restore and A → A+B → A
+# Standard Wii Sports data-recording startup — automatic fresh-or-attach
 
-This is the **recommended** entry point for new ball-position, score and swing research runs. Use `scripts/start_golf_recording.py` from the evaluation checkout. It **does not implement its own menu timings**; it invokes the integrator-owned, current canonical `scripts/launch_hitting_green.py` to load the existing named pre-start savestate and send the already user-validated A → delay → A+B → delay → A sequence. Once the launcher finishes and releases all buttons, the evaluator starts `scripts/discover_golf_motion.py` on its existing read-only capture path.
+**All live S002 evaluation entry points now default to the FULL integration launch.**
+There is a single source of truth for the savestate and menu timing:
+the canonical checkout's `scripts/launch_hitting_green.py` + `menu_sequence.py`.
 
-**Do not combine this with `launch_golf.py` or an auto-restoring startup bridge.** `launch_golf.py` restores a named checkpoint but does *not* advance the pre-start menu; a startup-autoloading bridge can cause an unintended second restore. The preferred source of truth is the canonical checkout at `D:\Projects\Wii Golf AI\Wii-AI-Golf`, holding the only named savestate catalog at `research/savestates.local.json`, and the integrator's `launch_hitting_green.py`. Sibling `Wii-AI-Golf-Data` is a separate evaluation code worktree during PR development but uses the canonical catalog. A completed merge can run from the canonical checkout itself.
+## Every run — one command
 
-## Existing running Dolphin: pre-start reset + exact intro + automatic capture
-
-**This command WILL reset the running Dolphin state**, so save any gameplay work first. Dolphin must have one healthy scripting bridge listening at 127.0.0.1:55355.
-
-~~~powershell
-cd 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data'
-$env:PYTHONPATH = (Resolve-Path '.\src').Path
-py scripts/start_golf_recording.py --attach-running --seconds 30 --scan-profile fast
-~~~
-
-It loads the **registered `green-pre-start` checkpoint**, not `green-first-shot`. It does not save/overwrite any savestate. The integrator's default button request durations are **120 / 30 / 315 / 60 / 135 / 45 / 300** (state settle, A, wait, A+B, release, A, game settle). Those values remain owned by the integration agent and are not duplicated or adjustable in this wrapper. The requested frame counts approximate timing; actual menu navigation should still be visually verified.
-
-After the menu settles, the wrapper starts recording automatically. **Swing manually** while the scanner is running. The collector will not send a swing or a second savestate load. Ctrl+C stops the scanner early and should preserve its local JSONL and upload its compact summary.
-
-## Fresh Dolphin: launch game, restore and navigate, then capture
-
-**Fully close Dolphin first.** The command uses the existing swing bridge (`tools\mcp_bridge_swing.py`) and Felk Dolphin (`tools\FelkDolphin\Dolphin.exe`) as defaults. No new bridge is patched or launched simultaneously.
+Close Dolphin first if it is open without a working Felk bridge. Run from the S002 evaluation worktree:
 
 ~~~powershell
-cd 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data'
-$env:PYTHONPATH = (Resolve-Path '.\src').Path
-py scripts/start_golf_recording.py --fresh --game 'G:\Applications\Dolphin\Wii Games\Wii Sports (USA) (Rev 1).wbfs' --seconds 30 --scan-profile fast
+cd "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data"
+$env:PYTHONPATH = (Resolve-Path ".\src").Path
+$game = "G:\Applications\Dolphin\Wii Games\Wii Sports (USA) (Rev 1).wbfs"
+
+py scripts/start_golf_recording.py --game $game --seconds 30 --scan-profile fast
 ~~~
 
-Wii Remote 1 must be **Emulated Wii Remote**, extension **None**, before launch. For read-only counter/score scans, pass `--scan-profile broad`. Use `--no-upload` to retain all results locally. Raw emulator RAM hex is *always* local even if the compact report is uploaded.
+The script now automatically:
 
-## Design and error handling
+1. Checks port 55355 for a responsive bridge. If one is listening, reuse that Dolphin. If not, start the normal Felk Dolphin + swing-enabled bridge. If a Dolphin window is already running **without** a listening bridge, fail safely rather than launching a competing instance; close Dolphin and rerun.
+2. For a fresh launch, call the canonical integration helper to set **Wii Remote 1: Emulated / Extension None**, preserving its original config backup and any saved Dolphin user folder.
+3. Restore the existing named pre-start checkpoint `green-pre-start` from the **canonical** `research/savestates.local.json`. Never save, register or overwrite savestates. A first-ball checkpoint is NOT suitable for the menu sequence.
+4. Dispatch integrator-owned **A → wait → A+B → release → A**, with the tested request lengths **120 / 30 / 315 / 60 / 135 / 45 / 300**. This sequence is NOT copied into the S002 evaluation scripts. Actual screen arrival still needs visual verification; RPC ACK alone is not enough.
+5. Automatically start a READ-ONLY memory scan. The bridge remains running; no extra reset or button press is sent by the scanner. The scanner receives an internal explicit `--startup skip` to avoid a second launch. **Swing manually** during capture, and Ctrl+C to stop early and preserve/auto-publish a compact report.
 
-- Requires the existing `green-pre-start` profile in the canonical `research/savestates.local.json` (verify with `py scripts/savestate_session.py list` **from the canonical repo**). If the correct pre-start checkpoint has a different registered name, use `--savestate-profile NAME`. Do not use a first-ball checkpoint for the A/A+B/A intro.
-- Attach mode refuses to run if the bridge is not listening. Fresh mode refuses to run when a bridge already owns the port.
-- The wrapper calls the canonical launcher as a subprocess, using that checkout's exact `src` path. The scanner runs as a **second, sequential subprocess**, using the evaluation checkout's `src` path. This prevents earlier cross-worktree import failures.
-- If the canonical launcher fails or the named profile is missing, it never starts the scanner or duplicates the button sequence. It never sends `--swing`, and the scanner only reads.
-- This verifies ordering and RPC dispatch, **not that the game consumed a menu press or that a swing struck the ball**. The user's observation of a slightly moving club indicates the bridge may be influencing motion, but it does not prove a scored swing.
-- The integrator agent owns `launch_hitting_green.py`, `menu_sequence.py` and button timing. The evaluator owns only the orchestration wrapper and data capture. Do not copy those implementations between workers.
+Once the game path has been recorded by the canonical `launch_golf.py` in ignored `research/launch.local.json`, `--game` may be omitted. Explicit `--startup fresh` insists on a fresh launch; `--startup attach` insists on a listening bridge. The historic `--attach-running` wrapper flag remains accepted but now means automatic fresh-or-attach, fixing previous ConnectionRefusedError when Dolphin wasn't running.
 
-Run its offline tests with:
+## Every live capture script uses the SAME startup
+
+The default `--startup auto` behavior applies to:
+
+- `scripts/start_golf_recording.py` — startup once, then launches the motion scanner
+- `scripts/discover_golf_motion.py` — direct candidate ball/score scan
+- `scripts/monitor_hitting_green.py` — continuous map position monitor
+- `scripts/collect_hitting_green.py` — manually scored before/after trials
+- `scripts/probe_golf_spatial.py` — version-gated pin/cup/tee vectors
+- `scripts/probe_golf_symbols.py` — struct pointer and mode probe
+- `scripts/capture_golf_data.py capture` — live state capture
+
+Their read-only subcommands do not write emulator memory. `scripts/capture_golf_data.py compare` is **offline** and never starts Dolphin.
+
+**Only for an already-verified in-progress session**, explicitly add `--startup skip` to a live capture command to avoid rewinding progress. This is particularly important when collecting an `after` capture after a `before` capture. Omitting this flag intentionally resets to the registered pre-start checkpoint every run.
+
+## Local verification
 
 ~~~powershell
-py -m unittest discover -s tests -p 'test_start_golf_recording.py' -v
+cd "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data"
+$env:PYTHONPATH = (Resolve-Path ".\src").Path
+py -m unittest discover -s tests -p "test_start_golf_recording.py" -v
+py -m unittest discover -s tests -v
 ~~~
 
-See `docs/launch-hitting-green.md` for the authoritative integrator-owned menu sequence and limitations.
+The new tests mock Dolphin, Git subprocesses and controller preparation; they must not alter the user's emulator. Runtime UI navigation, port availability, and real ball contact still need a live test.
+
+**No automatic swing yet:** The user saw the club move slightly, but a ball strike or score has not been verified. Data collection must not misclassify RPC motion as successful shot contact.
+
+This workflow only changes S002 evaluation scripts. Worker #2 continues to own the canonical launch, controller configuration, savestate registration and menu timing. Do not create another start sequence or boot from an autorestore bridge script.
