@@ -27,3 +27,12 @@ Last updated: 2026-10-24. Distinguish verified repository tests from external ga
 | 2026-10-24 | coordinator | Initial scaffold, contracts, synthetic baselines and issue queue | foundation commit/PR |
 
 New evidence records: date, study_id, source (synthetic/emulator/human), agent version, train/eval IDs, attempts, seeds, metrics, uncertainty, artifact links and PR.
+
+
+## 2026-10-24 — Worker 1 (integrator) — S001 research / mock transport
+
+- Claim: [Issue #2](https://github.com/Nate27624/Wii-AI-Golf/issues/2#issuecomment-6380103711); scope tracked in `research/claims/worker-1.json` and ownership protocol in `research/coordination.md`.
+- **Primary-source finding:** `mcp-dolphin` v0.2 added accelerometer/pointer methods; its bridge accepts one RPC command at a time from Felk's scripting loop. See `docs/integrator-research.md` for exact code and sources.
+- **Blocking risk:** Hitting the Green holds A during a swing; sequential independent A/button and accelerometer RPC calls are not provably atomic. Need an in-emulator per-frame scheduler or an alternative validated path before repeatable shots.
+- **Local tests:** original 8 plus 13 integrator tests = 21 passing; mock socket and trace only. No live Dolphin, game observations, medal tests or scored attempts performed.
+- **Handoff:** `research/worker1/README.md`; next step is read-only Felk preflight, followed by A+acceleration delivery verification and 30-shot experiment.

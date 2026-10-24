@@ -35,3 +35,14 @@ In offline environments with setuptools already installed: `python -m pip instal
 Demonstrate **100 unattended, measured Dolphin shots** with controller input traces, successful resets, verified distance units, and failures logged. This comes **before** expensive neural network training.
 
 Only synthetic code has been exercised here. The repository intentionally excludes ROMs, BIOS, Nintendo assets, savestates and emulator binaries. Default to local experimentation, not GPU training in GitHub Actions.
+
+
+## Worker 1 integration research (safe mock first)
+
+```bash
+PYTHONPATH=src python scripts/probe_dolphin_bridge.py
+# On a PC with Felk's Dolphin scripting bridge v0.2 already running:
+PYTHONPATH=src python scripts/probe_dolphin_bridge.py --read-only-live
+```
+
+Read [coordination and claims](research/coordination.md) before another AI session starts work. Worker 1's [findings](docs/integrator-research.md) show why the bridge currently cannot guarantee simultaneous button and motion input; no real swing or scored run has yet been demonstrated.
