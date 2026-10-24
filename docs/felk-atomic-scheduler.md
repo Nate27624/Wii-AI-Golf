@@ -48,3 +48,7 @@ If the upstream blob hash has changed, **the script refuses to patch**. Investig
 - Independent heartbeat demonstrated ~60 script frames per second; original bridge recovered after restarts. Failure to see a golf swing does not imply IPC failure.
 - Felk scripting-preview4 `controller.pyi` documents acceleration in **m/s²**. Earlier 1–2-unit test was **1–2 m/s², not 1–2 g**. Calibration remains an open modeling research question.
 - New `--startup-slot` patching option requests one load after the first frame; named catalog and reset/start/capture in `scripts/savestate_session.py` documented in `docs/savestate-workflow.md`.
+
+## Dedicated swing primitive (new opt-in path)
+
+Felk Preview4 includes `controller.set_wiimote_swing`, separate from raw acceleration. The integrator's new `--enable-swing` generator flag adds `trace.submit_swing` for same-callback A+swing dispatch and preserved `trace.status`/abort behavior. **Never treat dispatch as proof of game reaction.** See [first swing experiment](first-swing-experiment.md) for guarded one-shot trial and human outcome record. This is a separate optional extension; the original atomic acceleration protocol remains supported.
