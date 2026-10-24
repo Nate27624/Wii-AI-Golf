@@ -107,3 +107,37 @@ py scripts/golf.py swing --slot 2 --a-prime-frames 60 --a-setup-frames 12 --foll
 ~~~
 
 The operator still confirms the **actual at-ball game screen before pressing Enter**. The button-only phase automatically finishes before the swing submission; do not manually initiate a second process. `--a-prime-frames 0` reproduces the old no-extra-priming full session with the exact 89-frame trace. `--a-setup-frames N` now explicitly means **neutral samples INSIDE the swing trace**, not a genuine independent button-only phase; default remains 12. These are bounded, separate parameters. The JSONL report records priming requests and swing samples/hash separately. This is an **unverified in-game timing hypothesis**; no new ball hit is claimed.
+
+## 2026-10-24: Swing bridge V2 — neutral frames do NOT issue swing commands
+
+**Negative live evidence:** Dolphin reported 60 completed A-only RPC requests and a complete 89/89-frame swing trace (start frame 1646; completion frame 1735), but the user observed **A released too early and no ball strike**. This is another failed shot, **not** a verified game hit. The Windows machine was still running the V1 `tools/mcp_bridge_swing.py` generator output; source changes do NOT update that local generated file by themselves.
+
+**V1 code defect uncovered:** `set_wiimote_swing` ran every frame of `trace.submit_swing`, *including* zero-direction / zero-speed neutral A-held preparation and follow-through frames, and final A-off tail frames. Sending a zero swing primitive is not equivalent to doing no swing input; it may reset/override the Wii Remote dynamics that the game uses. This is a source-grounded hypothesis, **not yet empirically confirmed as the game's causal failure**.
+
+**V2:** the pinned generated bridge now calls `set_wiimote_buttons` every frame, but calls `set_wiimote_swing` **only when the sample actually contains nonzero motion**. Neutral preparation, neutral follow-through, and A-released tail are therefore **button-only in the emulator frame loop**. A stays True across the full configured follow-through phase. The new read-only RPC `trace.swing_capabilities` advertises `swing_protocol: 2` and `neutral_button_only: true`. Both launcher and live probe fail closed when an outdated generated bridge is present (before launch and before swing, respectively).
+
+**Once after pulling this update, with ALL Dolphin instances CLOSED:**
+
+~~~powershell
+cd "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
+git pull --ff-only
+py scripts/golf.py bridge upgrade-swing
+~~~
+
+That regenerates `../tools/mcp_bridge_swing.py` from the existing SHA-pinned `../tools/mcp_bridge.py` and saves the former output **once** as `mcp_bridge_swing.py.before-neutral-v2.bak`. It refuses upgrade while port 55355 is in use. If the original source is not found or SHA mismatches, it fails without overwriting the existing bridge. Do **not** patch the already-generated V1 bridge as source. The one-time generated file is local and never pushed to GitHub.
+
+**Tests and a single guarded experiment:**
+
+~~~powershell
+py scripts/golf.py test --pattern "test_integration_swing_patch.py"
+py scripts/golf.py test --pattern "test_integration_button_prime.py"
+py scripts/golf.py test --pattern "test_integration_launcher.py"
+py scripts/golf.py test --pattern "test_unified_cli.py"
+
+# Make sure Dolphin is fully closed before starting this fresh session.
+py scripts/golf.py swing --slot 2 --a-prime-frames 60 --a-setup-frames 12 --follow-through-frames 90
+~~~
+
+This experiment extends **only the A-held neutral follow-through from 30 to 90** frames (new V2 bridge ignores zero-motion swing inputs); the **35 active swing samples** remain the same. Expected trace length: `12 + 15 + 20 + 90 + 12 = 149`. A is held for 137 trace samples, first released on sample 138 (1-based). The original first-hit 89-frame waveform remains available with `--follow-through-frames 30` on V2, but *bridge execution semantics differ*, so never claim a byte-identical game outcome from an identical input hash alone.
+
+The operator confirms the golfer is **at the first ball** before pressing Enter; after the trace, record actual hit/no-hit, A release timing impression, and game distance if visible. V2 test mocks prove button/motion call order but cannot prove Wii Sports consumes them in that order. If the ball still isn't struck, investigate controller input readback, frame sampling and dynamics rather than extending the follow-through indefinitely.
