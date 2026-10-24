@@ -1,33 +1,23 @@
-# Milestones
+# Wii AI Golf milestones and acceptance gates
 
-## M0 — multi-agent foundation
+Evidence date: 2026-10-24. This is the shared project status; older entries in `research/ledger.md` are chronological snapshots, not necessarily the current gate.
 
-- [x] Repository initialization, collaboration contract and proposed studies
-- [x] Policy and environment contracts, synthetic example, working local tests
-- [ ] Merge foundation PR into default branch
+| Stage | Milestone | Verified status | Next acceptance gate |
+| --- | --- | --- | --- |
+| **M0** | Single repo, agent coordination, synthetic smoke tests | **Complete foundation**; unified CLI added, runtime tests pending | Stable source-local `golf` command with isolated tests and Windows confirmation |
+| **M1** | Real controller, reset, recognized swing | **Partially validated in game:** human reports Python A button works and ball visibly moves under 89-frame forward swing; named Slot 2 restore/intro works | Repeat **3 independent** identical shots, retain trace and actual human outcomes |
+| **M2** | Real outcome measurement | **Not achieved:** no confirmed raw landing score units, distance extractor or 100 unattended scored attempts | ≥100 full attempts with ≥95% complete, human-audited scores and all failures logged |
+| **M3** | Parameter calibration and fair learning | **Not achieved in Wii Sports:** S003 design and S004 synthetic baseline work separate | Measure one-factor action–outcome response then honest equal-budget comparisons |
+| **M4** | Held-out Hitting the Green challenge | **Not achieved** | Frozen model, untouched ten-shot run, replicates and documented score/medal rules |
 
-## M1 — control validation
+**Do not merge these states:** verified Python command dispatch ≠ recognized in-game swing ≠ landed on green ≠ verified score ≠ optimized model. The first live JSONL confirms 89/89 bridge frames, human ball movement yes, green landing no, and a visual ~75% power-meter estimate only.
 
-- [ ] Record Dolphin build and exact game region/revision
-- [ ] Verify programmatic controller event playback recognized by the game
-- [ ] Reproduce and audit a single shot with recorded input trace and output
-- [ ] Document repeatable reset method or stochastic differences
+## Immediate priority
 
-## M2 — production-quality data
+1. Record remaining identical fresh-boot trials with `py scripts/golf.py swing --slot 2`, preserving the 89-frame baseline.
+2. S002 validates landing distance, score and their units against game evidence; cross-check RAM candidate hypotheses.
+3. S003 varies one motion parameter at a time only when corresponding outcome labels exist.
+4. S004 benchmarks random/heuristic/response-surface policies only after a genuine reward is measurable.
+5. S005 generalizes to withheld shot layouts.
 
-- [ ] Execute >=100 unattended scored shots
-- [ ] Verify distance/units against human annotation
-- [ ] Record all failures and time per shot
-- [ ] Freeze unseen configurations/seed protocols
-
-## M3 — learning
-
-- [ ] Collect random and search baselines under equal attempt budgets
-- [ ] Train a contextual/model-based candidate and evaluate blind
-- [ ] Explore RL only with justified sample-efficiency assumptions
-
-## M4 — challenge
-
-- [ ] Verify medal threshold on the target game
-- [ ] Freeze policy, score an untouched ten-shot run, replicate
-- [ ] Save auditable plots and replay captures for video production
+See [research/README.md](../research/README.md) for ownership, study budget discipline and evidence schemas. The pending open evaluation/modeling/learning PRs are **not** automatically verified by this roadmap update.
