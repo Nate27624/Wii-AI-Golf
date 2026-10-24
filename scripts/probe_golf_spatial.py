@@ -2,6 +2,11 @@
 import argparse
 import json
 from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+from session_bootstrap import add_boot_options, ensure_intro
 
 from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.observation_capture import write_snapshot
@@ -11,6 +16,7 @@ from wii_ai_golf.spatial_probe import capture_spatial_rev1
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=55355)
+    add_boot_options(parser)
     parser.add_argument("--label", required=True,
                         help="unique basename, e.g. green01-before-spatial")
     args = parser.parse_args()
@@ -19,6 +25,7 @@ def main():
     path = Path("research/game-data.local") / f"{args.label}.json"
     if path.exists():
         parser.error(f"refusing to overwrite existing evidence file: {path}")
+    ensure_intro(args)
     with FelkRPC(port=args.port, timeout_s=15) as rpc:
         result = capture_spatial_rev1(rpc)
     result["label"] = args.label
