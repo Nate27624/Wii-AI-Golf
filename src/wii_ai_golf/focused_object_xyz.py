@@ -41,11 +41,11 @@ def observe(rpc: Any, root: int) -> dict[str, Any]:
     if not valid_mem(ptr, VEC_OFFSET + 12):
         value = (f"0x{ptr:08X}" if type(ptr) is int and 0 <= ptr <= 0xFFFFFFFF
                  else repr(ptr))
-        raise RuntimeError(
-            f"candidate pointer at golf_field +0x{OWNER_OFFSET:X} is {value} "
-            f"(root=0x{live_root:08X}, previous root=0x{root:08X}); "
-            "this object may be absent while idle. No read was attempted."
-        )
+        end = rpc.call("frame.get_count")
+        return {"state": "present", "golf_field_root": f"0x{live_root:08X}", "object_base": None,
+                "vec_address": None, "xyz": None, "pointer_raw": value,
+                "state": "absent_or_invalid", "frame_start": start,
+                "frame_end": end, "frame_span": end-start}
     raw = read_bytes(rpc, ptr + VEC_OFFSET, 12)
     xyz = struct.unpack(">fff", raw)
     if not all(math.isfinite(x) and abs(x) < 100000 for x in xyz):
@@ -61,7 +61,8 @@ def observe(rpc: Any, root: int) -> dict[str, Any]:
 def summarize(samples: list[dict[str, Any]]) -> dict[str, Any]:
     groups: dict[str, list[dict[str, Any]]] = {}
     for sample in samples:
-        groups.setdefault(sample["object_base"], []).append(sample)
+        if sample.get("xyz") is not None and sample.get("object_base"):
+            groups.setdefault(sample["object_base"], []).append(sample)
     results = []
     for base, rows in groups.items():
         consecutive = [(a,b) for a,b in zip(rows,rows[1:])
@@ -72,5 +73,8 @@ def summarize(samples: list[dict[str, Any]]) -> dict[str, Any]:
                         "moving_steps":len(moves),
                         "max_step_displacement_unverified":round(max(changes,default=0),4),
                         "first_xyz":rows[0]["xyz"],"last_xyz":rows[-1]["xyz"]})
-    return {"sample_count":len(samples),"object_instances":results,
+    return {"sample_count":len(samples),
+            "pointer_present_samples":sum(x.get("state")=="present" for x in samples),
+            "pointer_absent_samples":sum(x.get("state")=="absent_or_invalid" for x in samples),
+            "object_instances":results,
             "status":"UNVERIFIED_object_movement_NOT_confirmed_ball_physics"}
