@@ -22,6 +22,15 @@ class FocusedTests(unittest.TestCase):
         with patch("wii_ai_golf.focused_object_xyz.probe_rev1",
                    return_value={"supported":False}):
             with self.assertRaises(RuntimeError):preflight(Bridge())
+    def test_missing_mode_during_menu_is_graceful(self):
+        header = {"supported": True, "fields": {
+            "golf_config": {"raw_fields": {}},
+            "golf_field": {"plausible_mem_pointer": False},
+        }}
+        with patch("wii_ai_golf.focused_object_xyz.probe_rev1", return_value=header):
+            with self.assertRaisesRegex(RuntimeError, "requires Hitting the Green mode"):
+                preflight(Bridge())
+
     def test_read_only_follow_one_pointer_offset(self):
         rpc=Bridge()
         row=observe(rpc,0x91BF4590)
