@@ -25,6 +25,14 @@ To tune observation timing, pass `--post-samples 2 --interval 0` through the ful
 
 Raw samples are written immediately to a uniquely named, exclusive-create **outcome-RUNID-RAW-PRIVATE.jsonl** file under Wii-AI-Golf-Data/captures. **Never upload raw dumps.** A separate local **outcome-RUNID-candidates.json** contains candidate addresses, before/settled possible u32/s32/f32 readings, persistence statistics and the manually entered result. It contains no screenshot. Inspect that summary before sharing.
 
+## Swing regression correction (2026-10-24)
+
+**Do not add a separate A-button prehold to this collector by default.** The user confirmed ball contact in two genuine outcome-collector runs (one 122-frame, one 89-frame forward trace) **without** a separate `prime_a_button` call. PR #40 then forced 60 additional A-only RPCs and the user immediately reported a non-strike. That priming program was not validated for this collector; reverting to the earlier unprimed action is an empirical correction, **not a new guarantee**.
+
+The collector now calls `SwingTraceClient.run(build_probe("forward", follow_through_frames=30))` directly by default. It records `a_button_only_prime_requests: 0`, `a_button_prime_applied: false` and the actual waveform SHA-256. It does not change the canonical Dolphin launch, savestate restore, menu intro, or swing samples. If a specialist explicitly wants a controlled A-prehold experiment, pass `--a-prime-requests 60` to the **collector action**, never to the outer launcher. Treat primed and unprimed results as different controller programs.
+
+**Bridge caveat:** The separate S001 agent has also revised the *generated local* swing bridge to V2. The V2 implementation changes how neutral motion frames are sent and can affect live behavior independently of the collector. Keep your existing locally installed bridge version fixed when comparing attempts and record its capabilities; a bridge upgrade or regression must be assessed as a separate change. This fix has not yet been validated on your machine.
+
 ## Recover the run that failed at `100.0ft` (OFFLINE)
 
 A completed RAM capture is written to the local private `outcome-...-RAW-PRIVATE.jsonl` file **before** the label parser ran. An invalid text entry prevented a sanitized candidates JSON but **did not erase raw RAM**. The following command works without Dolphin because it only processes existing local data. The previous run's swing-dispatch metadata was not persisted and is **not recoverable** from memory snapshots; the recovered summary explicitly marks it unknown.
