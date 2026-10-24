@@ -189,6 +189,18 @@ class SharedStartupTests(unittest.TestCase):
         self.assertEqual(command[command.index("--startup")+1], "skip")
         self.assertIn("--no-upload", command)
 
+    def test_legacy_attach_running_argument_still_auto_launches(self):
+        """The exact user's previous command no longer requires a live bridge."""
+        with patch.object(start, "ensure_intro", return_value="launched") as intro, patch.object(
+            start.subprocess, "run",
+            return_value=subprocess.CompletedProcess([], 0)
+        ):
+            result = start.main(["--canonical", str(self.root),
+                                 "--attach-running", "--seconds", "30",
+                                 "--scan-profile", "fast"])
+        self.assertEqual(result, 0)
+        self.assertEqual(intro.call_args.args[0].startup, "auto")
+
     def test_all_live_entrypoints_share_bootstrap(self):
         paths = [
             "discover_golf_motion.py", "monitor_hitting_green.py",
