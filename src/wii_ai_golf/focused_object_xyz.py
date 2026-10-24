@@ -7,7 +7,7 @@ from __future__ import annotations
 import math
 import struct
 from typing import Any
-from .symbol_probe import probe_rev1
+from .symbol_probe import probe_rev1, STATIC
 from .physics_pointer_census import valid_mem, read_bytes
 
 OWNER_OFFSET = 0x04  # observed one-hop field on 20261024T232725Z-b034328d
@@ -34,9 +34,18 @@ def observe(rpc: Any, root: int) -> dict[str, Any]:
     start = rpc.call("frame.get_count")
     if type(start) is not int or start < 0:
         raise ValueError("invalid frame start")
-    ptr = rpc.call("memory.read_u32", [root + OWNER_OFFSET])
+    live_root = rpc.call("memory.read_u32", [STATIC["golf_field"][0]])
+    if not valid_mem(live_root, OWNER_OFFSET + 4):
+        raise RuntimeError(f"golf field root changed to invalid {live_root!r}; wait for gameplay")
+    ptr = rpc.call("memory.read_u32", [live_root + OWNER_OFFSET])
     if not valid_mem(ptr, VEC_OFFSET + 12):
-        raise RuntimeError("dynamic golf object pointer invalidated; stop recording")
+        value = (f"0x{ptr:08X}" if type(ptr) is int and 0 <= ptr <= 0xFFFFFFFF
+                 else repr(ptr))
+        raise RuntimeError(
+            f"candidate pointer at golf_field +0x{OWNER_OFFSET:X} is {value} "
+            f"(root=0x{live_root:08X}, previous root=0x{root:08X}); "
+            "this object may be absent while idle. No read was attempted."
+        )
     raw = read_bytes(rpc, ptr + VEC_OFFSET, 12)
     xyz = struct.unpack(">fff", raw)
     if not all(math.isfinite(x) and abs(x) < 100000 for x in xyz):
@@ -44,7 +53,7 @@ def observe(rpc: Any, root: int) -> dict[str, Any]:
     end = rpc.call("frame.get_count")
     if type(end) is not int or end < start:
         raise ValueError("invalid frame end")
-    return {"object_base": f"0x{ptr:08X}", "vec_address": f"0x{ptr+VEC_OFFSET:08X}",
+    return {"golf_field_root": f"0x{live_root:08X}", "object_base": f"0x{ptr:08X}", "vec_address": f"0x{ptr+VEC_OFFSET:08X}",
             "xyz": [round(x, 6) for x in xyz], "frame_start": start,
             "frame_end": end, "frame_span": end-start}
 
