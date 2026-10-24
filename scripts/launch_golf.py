@@ -242,6 +242,18 @@ def main(argv: list[str] | None = None) -> int:
     try:
         game = resolve_game(args.game, args.config)
         profile = resolve_profile(args.profile, args.slot, args.config, args.catalog)
+        if args.swing:
+            # Prevent a normal full boot/menu sequence when the generated bridge
+            # still invokes set_wiimote_swing on idle frames. Verify source
+            # marker before touching Dolphin or controller settings.
+            from wii_ai_golf.integration.swing_patch import SWING_NEUTRAL_V2_MARKER
+            bridge_text = args.bridge.read_text(encoding="utf-8") if args.bridge.is_file() else ""
+            if SWING_NEUTRAL_V2_MARKER not in bridge_text:
+                raise ValueError(
+                    "Swing bridge V2 not installed. Close Dolphin, run "
+                    "'py scripts/golf.py bridge upgrade-swing', then retry. "
+                    "The upgrade keeps a backup of the previous generated bridge."
+                )
         print(f"Selected checkpoint: {profile.name} (Dolphin slot {profile.slot})")
         if profile.description:
             print(f"Checkpoint description: {profile.description}")
