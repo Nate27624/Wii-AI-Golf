@@ -86,7 +86,7 @@ class GuidedCollectionTests(unittest.TestCase):
 
     def test_interactive_one_shot_no_upload_when_disabled(self):
         ready = iter(["", "", "y", "green", "", "q"])
-        def snap(_rpc, _port, label):
+        def snap(_rpc, _port, label, **kwargs):
             return {"label": label, "game_id": "RSPE01"}
         with tempfile.TemporaryDirectory() as tmp, \
              patch("wii_ai_golf.golf_collection.read_stage", side_effect=snap), \
@@ -121,6 +121,45 @@ class GuidedCollectionTests(unittest.TestCase):
         self.assertTrue(_GIT_REMOTE.search("git@github.com:Nate27624/Wii-AI-Golf.git"))
         self.assertFalse(_GIT_REMOTE.search("https://github.com/other/fake.git"))
         self.assertFalse(_GIT_REMOTE.search("https://evil.com/github.com/Nate27624/Wii-AI-Golf.git"))
+
+    def test_upload_publishes_only_report_to_new_branch(self):
+        from wii_ai_golf.golf_collection import publish_sanitized
+        run_id = "20261024T120000Z-12345678"
+        report = {"run_id": run_id, "schema_version": 1, "attempts": []}
+        calls = []
+        def fake_git(_root, *args):
+            calls.append(args)
+            if args[:3] == ("remote", "get-url", "origin"):
+                return "git@github.com:Nate27624/Wii-AI-Golf.git"
+            return ""
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch("wii_ai_golf.golf_collection._git", side_effect=fake_git), \
+             patch("wii_ai_golf.golf_collection.shutil.which", return_value=None):
+            url = publish_sanitized(report, Path(tmp))
+        self.assertIn("data/hitting-green-" + run_id, url)
+        self.assertTrue(any(x[0] == "push" and "HEAD:refs/heads/data/hitting-green-" + run_id in x for x in calls))
+        self.assertTrue(any(x[:2] == ("worktree", "remove") for x in calls))
+
+    def test_read_stage_refuses_wrong_mode_before_not_after(self):
+        from wii_ai_golf.golf_collection import read_stage
+        from unittest.mock import MagicMock
+        rpc = MagicMock()
+        class Context:
+            def __enter__(self):
+                return rpc
+            def __exit__(self, *args):
+                return None
+        bad_state = {"game_id": "RSPE01", "disc_revision": 1,
+                     "supported": True, "mode_label": "other_or_unknown", "map_objects": {}}
+        capture_value = {"captured_utc": "2026-10-24T00:00:00+00:00",
+                         "frame_start": 1, "frame_end": 4, "controller": {}}
+        with patch("wii_ai_golf.golf_collection.capture_spatial_rev1", return_value=bad_state), \
+             patch("wii_ai_golf.golf_collection.capture", return_value=capture_value):
+            with self.assertRaises(RuntimeError):
+                read_stage(lambda **kwargs: Context(), 55355, "before")
+            result = read_stage(lambda **kwargs: Context(), 55355, "after",
+                                allow_result_transition=True)
+            self.assertEqual(result["mode"], "other_or_unknown")
 
     def test_run_id_format(self):
         import re
