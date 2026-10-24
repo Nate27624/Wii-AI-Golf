@@ -67,3 +67,5 @@ New evidence records: date, study_id, source (synthetic/emulator/human), agent v
 - **New integration tooling:** local named StateCatalog + StateManager (save/load by named slot, 0..99 from Felk `savestate.pyi`), capture/register/reset/start CLI, optional one-shot `--startup-slot` in pinned atomic bridge, and `Plus` visual controller check. Scope is reusable for future game screens and training states, not tied to first golf shot.
 - **Validation:** eight new isolated Python unit tests pass locally (savestate catalog/RPC and boot hook). No user-operated savestate load/capture or new button probe yet. Startup auto-load is currently an **untested experimental hypothesis**, and acknowledgement does not establish successful restore.
 - **Docs:** `docs/savestate-workflow.md`; Issue #2 claim/handoff. Evaluation #3 owns score extraction; modeling #4 owns physical swing calibration.
+
+- **Adaptability update:** source-pinned patch generator now supports `--startup-profile NAME` resolved via local catalog, as well as `--startup-slot`. This avoids embedding first-shot-specific code in reusable integration and preserves multi-scenario training support.
