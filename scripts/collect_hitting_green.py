@@ -35,9 +35,9 @@ def main() -> None:
     parser.add_argument("--no-upload", action="store_true",
                         help="save observations locally only; default automatically git-pushes compact report")
     args = parser.parse_args()
-    ensure_intro(args)
     plan = json.loads(args.plan.read_text(encoding="utf-8")) if args.plan else None
     steps = session_steps(start_shot=args.start_shot, shots=args.shots, plan=plan)
+    ensure_intro(args)
     print("HITTING THE GREEN — MANUAL SHOT COLLECTION")
     print("This script never swings or writes RAM. Startup loaded the named state and navigated menus.")
     print(f"Prepare to manually perform up to {len(steps)} shot(s).")
