@@ -17,9 +17,32 @@ py scripts/run_golf_experiment.py --send-live --game "G:\Applications\Dolphin\Wi
 
 The outer command starts Felk Dolphin, configures the emulated remote, restores the registered green-pre-start savestate and performs the successful A / A+B / A menu sequence. The new action only begins **after** this full startup. It never starts a second Dolphin or loads another savestate.
 
-You confirm the first ball is ready. It records three pre-shot snapshots, asks you to press Enter for exactly ONE forward swing from the current swing generator (the actual frame count is recorded dynamically) with the existing 30-frame A-held follow-through, collects eight post-swing snapshots, waits until YOU confirm that ball/result has settled, then collects three settled snapshots. You enter whether the ball was struck, whether it landed on the green, and the exact displayed distance and unit if visible. No invisible score is invented.
+You confirm the first ball is ready. It records three pre-shot snapshots, asks you to press Enter for exactly ONE forward swing from the current swing generator (the actual frame count is recorded dynamically), then collects **two rapid post-swing snapshots (new default; previously eight)**. The collector immediately prompts you to press Enter when the ball first stops, **before** Wii Sports advances to the next screen. Type `t` if the result screen has already disappeared; the run is retained but its "settled" memory is marked as post-transition/uncertain, NOT verified ball-at-rest. Type `q` to stop without fabricating a result. The script then takes three settled snapshots and asks for a human contact/green/distance label.
+
+Enter the display exactly as shown: **`100.0ft`**, `2.1 ft`, `3 yards`, or a bare number (then it asks for units). An invalid distance prompts again **without discarding the snapshots**. No automatic score is invented. The prompt still cannot detect the game's screen state by itself; if Wii Sports transitions during the swing or the first two reads, the data will not contain missing frames.
+
+To tune observation timing, pass `--post-samples 2 --interval 0` through the full-launch wrapper after `--script collect_outcome_transition.py --` (the new defaults). Increasing `--post-samples` can delay the prompt and miss the result overlay.
 
 Raw samples are written immediately to a uniquely named, exclusive-create **outcome-RUNID-RAW-PRIVATE.jsonl** file under Wii-AI-Golf-Data/captures. **Never upload raw dumps.** A separate local **outcome-RUNID-candidates.json** contains candidate addresses, before/settled possible u32/s32/f32 readings, persistence statistics and the manually entered result. It contains no screenshot. Inspect that summary before sharing.
+
+## Recover the run that failed at `100.0ft` (OFFLINE)
+
+A completed RAM capture is written to the local private `outcome-...-RAW-PRIVATE.jsonl` file **before** the label parser ran. An invalid text entry prevented a sanitized candidates JSON but **did not erase raw RAM**. The following command works without Dolphin because it only processes existing local data. The previous run's swing-dispatch metadata was not persisted and is **not recoverable** from memory snapshots; the recovered summary explicitly marks it unknown.
+
+~~~powershell
+cd "D:\Projects\Wii Golf AI\Wii-AI-Golf"
+git pull --ff-only
+
+$captures = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures"
+$raw = Get-ChildItem -LiteralPath $captures -Filter "outcome-*-RAW-PRIVATE.jsonl" |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+$raw.FullName  # verify it is the run that failed at 100.0ft
+
+py scripts/recover_outcome_capture.py --raw "$($raw.FullName)" --contact yes --green no --distance "100.0ft"
+~~~
+
+The output is a new local `outcome-...-candidates.json` file, generated with exclusive creation. The original `RAW-PRIVATE.jsonl` is never overwritten, transmitted, or committed. If you already have a matching candidates JSON, pass `--out` with another new filename (it will not overwrite existing files). This offline summary documents human-observed 100 ft/no-green and the persistent candidate memory values, **not** an automatic game score or recovered result-screen image.
 
 ## Interpretation and stop rules
 
@@ -32,6 +55,7 @@ Collect three fresh-boot repetitions with the same swing and at least two distin
 ~~~powershell
 py -m unittest discover -s tests -p "test_outcome_transition.py" -v
 py -m unittest discover -s tests -p "test_outcome_capture_cli.py" -v
+py -m unittest discover -s tests -p "test_outcome_recovery.py" -v
 py -m unittest discover -s tests -v
 py -I scripts/collect_outcome_transition.py --help
 ~~~
