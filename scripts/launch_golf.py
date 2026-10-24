@@ -14,6 +14,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+from wii_ai_golf.integration.savestates import MAX_SLOT, StateCatalog
+
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT.parent / "tools"
 CONFIG = ROOT / "research" / "launch.local.json"
@@ -48,7 +50,12 @@ def save_game(path: Path, game: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     try:
-        tmp.write_text(json.dumps({"schema_version": 1, "game": str(game)}, indent=2) + "\n", encoding="utf-8")
+        # Preserve an operator-selected checkpoint when --game replaces the image path.
+        old = read_config(path)
+        updated = {"schema_version": 1, "game": str(game)}
+        if isinstance(old.get("profile"), str):
+            updated["profile"] = old["profile"]
+        tmp.write_text(json.dumps(updated, indent=2) + "\n", encoding="utf-8")
         os.replace(tmp, path)
     finally:
         if tmp.exists():
@@ -69,6 +76,45 @@ def resolve_game(game_arg: str | None, config: Path, *, prompt=input) -> Path:
     value = game_path(return_value)
     save_game(config, value)
     return value
+
+def resolve_profile(profile_arg: str | None, slot_arg: int | None,
+                    config: Path, catalog_path: Path):
+    """Require a registered profile and persist operator's selection locally.
+
+    --slot resolves via the StateCatalog; it never blindly writes/loads an
+    unnamed slot and never captures a new savestate.
+    """
+    catalog = StateCatalog(catalog_path)
+    if slot_arg is not None:
+        if not 0 <= slot_arg <= MAX_SLOT:
+            raise ValueError(f"slot must be between 0 and {MAX_SLOT}")
+        matches = [p for p in catalog.profiles.values() if p.slot == slot_arg]
+        if not matches:
+            raise ValueError(
+                f"slot {slot_arg} is not registered in {catalog_path}; "
+                "register it first with savestate_session.py"
+            )
+        selected = matches[0].name
+    elif profile_arg:
+        selected = profile_arg
+    else:
+        selected = read_config(config).get("profile") or "green-first-shot"
+
+    profile = catalog.get(selected)
+    # Only the operator's explicit --slot/--profile overrides the saved choice.
+    if slot_arg is not None or profile_arg is not None:
+        value = read_config(config)
+        if not value.get("game"):
+            raise ValueError("game must be configured before selecting the checkpoint")
+        value["profile"] = profile.name
+        temp = config.with_name(config.name + ".tmp")
+        try:
+            temp.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+            os.replace(temp, config)
+        finally:
+            if temp.exists():
+                temp.unlink()
+    return profile
 
 
 def make_start_command(*, game: Path, dolphin: Path, bridge: Path,
@@ -102,8 +148,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--catalog", type=Path, default=CATALOG)
     parser.add_argument("--dolphin", type=Path, default=DEFAULT_DOLPHIN)
     parser.add_argument("--bridge", type=Path, default=DEFAULT_BRIDGE)
-    parser.add_argument("--profile", default="green-first-shot",
-                        help="Registered, previously validated savestate profile")
+    checkpoint = parser.add_mutually_exclusive_group()
+    checkpoint.add_argument("--profile", help="Select and remember registered checkpoint by name")
+    checkpoint.add_argument("--slot", type=int, help="Select and remember a REGISTERED savestate slot, e.g. 2")
     parser.add_argument("--port", type=int, default=55355)
     parser.add_argument("--swing", action="store_true",
                         help="After startup, invoke ONE human-confirmed swing experiment")
@@ -111,9 +158,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         game = resolve_game(args.game, args.config)
+        profile = resolve_profile(args.profile, args.slot, args.config, args.catalog)
+        print(f"Selected checkpoint: {profile.name} (Dolphin slot {profile.slot})")
+        if profile.description:
+            print(f"Checkpoint description: {profile.description}")
         launch = make_start_command(
             game=game, dolphin=args.dolphin, bridge=args.bridge,
-            profile=args.profile, catalog=args.catalog, port=args.port,
+            profile=profile.name, catalog=args.catalog, port=args.port,
         )
         print("Starting Felk Dolphin with the swing bridge and requesting named savestate restoration...")
         print("Keep Wii Remote 1: Emulated Wii Remote; Extension: None.")

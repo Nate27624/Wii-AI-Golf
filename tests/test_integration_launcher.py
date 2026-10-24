@@ -24,7 +24,10 @@ class OneCommandLauncherTests(unittest.TestCase):
         self.bridge = self.root / "mcp_bridge_swing.py"
         self.bridge.write_text("# stub\n")
         self.catalog = self.root / "savestates.local.json"
-        self.catalog.write_text('{"schema_version":1,"profiles":[]}')
+        self.catalog.write_text(json.dumps({"schema_version": 1, "profiles": [
+            {"name": "green-first-shot", "slot": 1, "description": "At the ball"},
+            {"name": "green-pre-start", "slot": 2, "description": "At instructions screen"}
+        ]}))
 
     def test_first_launch_prompts_once_and_saves_ignored_local_config(self):
         asked = []
@@ -90,6 +93,47 @@ class OneCommandLauncherTests(unittest.TestCase):
             self.assertIn("start", run.call_args_list[0].args[0])
             self.assertIn("--send-live-swing", run.call_args_list[1].args[0])
             self.assertIn("reverse", run.call_args_list[1].args[0])
+
+    def test_select_slot2_persists_named_profile_and_reuses_later(self):
+        launch_golf.resolve_game(str(self.game), self.config)
+        selected = launch_golf.resolve_profile(None, 2, self.config, self.catalog)
+        self.assertEqual((selected.name, selected.slot), ("green-pre-start", 2))
+        self.assertEqual(launch_golf.read_config(self.config)["profile"], "green-pre-start")
+        reused = launch_golf.resolve_profile(None, None, self.config, self.catalog)
+        self.assertEqual((reused.name, reused.slot), ("green-pre-start", 2))
+
+    def test_game_reconfiguration_preserves_slot_preference(self):
+        launch_golf.resolve_game(str(self.game), self.config)
+        launch_golf.resolve_profile(None, 2, self.config, self.catalog)
+        launch_golf.save_game(self.config, self.game)
+        self.assertEqual(launch_golf.read_config(self.config)["profile"], "green-pre-start")
+
+    def test_unregistered_slot_rejected_without_changing_existing_preference(self):
+        launch_golf.resolve_game(str(self.game), self.config)
+        launch_golf.resolve_profile(None, 2, self.config, self.catalog)
+        with self.assertRaisesRegex(ValueError, "not registered"):
+            launch_golf.resolve_profile(None, 9, self.config, self.catalog)
+        self.assertEqual(launch_golf.read_config(self.config)["profile"], "green-pre-start")
+
+    def test_explicit_profile_overrides_persisted_slot(self):
+        launch_golf.resolve_game(str(self.game), self.config)
+        launch_golf.resolve_profile(None, 2, self.config, self.catalog)
+        selected = launch_golf.resolve_profile("green-first-shot", None, self.config, self.catalog)
+        self.assertEqual(selected.slot, 1)
+        self.assertEqual(launch_golf.read_config(self.config)["profile"], "green-first-shot")
+
+    def test_main_slot_select_prints_and_passes_registered_profile(self):
+        argv = [
+            "--game", str(self.game), "--config", str(self.config),
+            "--bridge", str(self.bridge), "--dolphin", str(self.exe),
+            "--catalog", str(self.catalog), "--slot", "2"
+        ]
+        with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(launch_golf.main(argv), 0)
+            self.assertEqual(run.call_count, 1)
+            cmd = run.call_args.args[0]
+            self.assertEqual(cmd[cmd.index("start")+1], "green-pre-start")
+            self.assertNotIn("--send-live-swing", cmd)
 
     def test_launch_error_never_sends_swing(self):
         argv = [

@@ -56,3 +56,18 @@ py -m unittest discover -s tests -p "test_integration_launcher.py" -v
 ~~~
 
 This feature's GitHub commit is **code only**, not a report of a new Dolphin live run. The first user launch, screen restore, and any swing remain subject to human verification.
+
+## Choose and remember a specific savestate slot (fix for Slot 1 vs Slot 2)
+
+After a user-observed launcher restored Slot 1 instead of the intended Slot 2, the launcher now supports selecting a **registered** local slot exactly once:
+
+~~~powershell
+cd "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
+py scripts/savestate_session.py list
+py scripts/launch_golf.py --slot 2
+~~~
+
+It looks up Slot 2 in the existing gitignored `research/savestates.local.json` catalog, prints the resolved profile name, slot number and description, and stores that **name** in the local gitignored `research/launch.local.json`. It fails before launching if Slot 2 is not registered; it does not register an unknown slot or overwrite game data. Later `py scripts/launch_golf.py` (or `--swing`) uses that selected profile without requiring `--slot 2` each time. Alternatively `--profile green-pre-start` persists the named choice.
+
+**Important:** In earlier user setup Slot 2 was `green-pre-start`, at the **instructions screen**, whereas Slot 1 `green-first-shot` was for the ball. The local catalog is private, so verify with `list` before assuming this has not changed. A successful Slot 2 restore may still require manually pressing Start before sending a swing; `--swing` prompts for human confirmation, and you must not press Enter until standing at the first ball. For experiments we ultimately want a newly verified `green-first-shot` profile saved at the ball, not a menu checkpoint.
+
