@@ -83,6 +83,54 @@ class UnifiedGolfCliTests(unittest.TestCase):
             self.assertEqual(cli.main(["swing", "--follow-through-frames", "181"]), 2)
             run.assert_not_called()
 
+    def test_outcome_record_is_existing_s002_collector_via_single_boot(self):
+        command, kwargs = self.run_mock([
+            "outcome", "record", "--send-live", "--pre-samples", "3",
+            "--post-samples", "8", "--settled-samples", "3",
+        ])
+        self.assertEqual(Path(command[1]).name, "run_golf_experiment.py")
+        self.assertEqual(command[command.index("--script")+1],
+                         "collect_outcome_transition.py")
+        self.assertIn("--send-live", command)
+        self.assertIn("--send-live-swing", command)
+        self.assertNotIn("--attach-running", command)
+        self.assertNotIn("--reset-profile", command)
+        self.assertNotIn("launch_hitting_green.py", command)
+        self.assertEqual(command[command.index("--pre-samples")+1], "3")
+        self.assertEqual(command[command.index("--post-samples")+1], "8")
+        self.assertFalse(kwargs.get("dry_run", False))
+
+    def test_outcome_record_defaults_to_coordinator_dry_run(self):
+        command, _ = self.run_mock(["outcome", "record"])
+        self.assertNotIn("--send-live", command)
+        self.assertIn("--send-live-swing", command)
+        self.assertEqual(Path(command[1]).name, "run_golf_experiment.py")
+
+    def test_outcome_record_parameter_forwarding_is_explicit(self):
+        command, _ = self.run_mock([
+            "outcome", "record", "--game", "G:/Wii Sports.wbfs",
+            "--pre-samples", "4", "--post-samples", "3",
+            "--settled-samples", "2", "--interval", "0",
+            "--data-dir", "D:/captures"
+        ])
+        self.assertEqual(command[command.index("--game")+1], "G:/Wii Sports.wbfs")
+        self.assertEqual(command[command.index("--pre-samples")+1], "4")
+        self.assertEqual(command[command.index("--post-samples")+1], "3")
+        self.assertEqual(command[command.index("--settled-samples")+1], "2")
+        self.assertEqual(command[command.index("--interval")+1], "0.0")
+        self.assertEqual(command[command.index("--data-dir")+1], "D:/captures")
+
+    def test_outcome_rejects_invalid_sample_parameters_without_launch(self):
+        for argv in [
+            ["outcome", "record", "--send-live", "--pre-samples", "1"],
+            ["outcome", "record", "--send-live", "--post-samples", "41"],
+            ["outcome", "record", "--send-live", "--interval", "-0.1"],
+            ["outcome", "record", "--send-live", "--interval", "nan"],
+        ]:
+            with self.subTest(argv=argv), patch.object(cli, "_run") as run:
+                self.assertEqual(cli.main(argv), 2)
+                run.assert_not_called()
+
     def test_experiment_is_coordinator_fresh_boot_not_standalone_probe(self):
         command, kwargs = self.run_mock([
             "experiment", "--send-live", "--script", "probe_swing.py",
