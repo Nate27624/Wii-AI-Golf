@@ -1,4 +1,13 @@
 import unittest
+from pathlib import Path
+import sys
+
+# Avoid a stale editable install shadowing this checkout during unittest discovery.
+_ROOT = Path(__file__).resolve().parents[1]
+for _entry in (str(_ROOT), str(_ROOT / "src")):
+    if _entry in sys.path:
+        sys.path.remove(_entry)
+    sys.path.insert(0, _entry)
 
 from wii_ai_golf.integration.swing_client import SwingSample, SwingTraceClient
 from scripts.probe_swing import build_probe
@@ -26,17 +35,43 @@ class SwingClientTests(unittest.TestCase):
         rpc = RPC()
         cli = SwingTraceClient(rpc, port=0)
         result = cli.run(build_probe("forward"))
-        self.assertEqual(result["applied_frames"], 59)
+        self.assertEqual(result["applied_frames"], 89)
         self.assertEqual(rpc.calls[0][0], "trace.submit_swing")
         self.assertEqual(len(rpc.calls[0][1][1][0]), 8)
 
-    def test_all_presets_have_bounded_frames_and_release(self):
+    def test_all_presets_hold_A_through_followthrough_then_release(self):
         for name in ("forward", "reverse", "sideways"):
             ss = build_probe(name)
-            self.assertEqual(len(ss), 59)
-            self.assertTrue(all(s.hold_a for s in ss[:47]))
-            self.assertFalse(any(s.hold_a for s in ss[47:]))
+            self.assertEqual(len(ss), 89)
+            self.assertTrue(all(s.hold_a for s in ss[:77]))
+            self.assertFalse(any(s.hold_a for s in ss[77:]))
             self.assertEqual(ss[-1].speed_m_s, 0)
+            # Motion stroke 27..46, followed by neutral A-held 47..76.
+            self.assertTrue(all(s.hold_a and s.speed_m_s == 0 for s in ss[47:77]))
+
+    def test_configurable_followthrough_and_legacy_release(self):
+        for delay in (0, 1, 15, 30, 45, 90, 180):
+            with self.subTest(delay=delay):
+                ss = build_probe("forward", follow_through_frames=delay)
+                self.assertEqual(len(ss), 59 + delay)
+                held = 47 + delay
+                self.assertTrue(all(s.hold_a for s in ss[:held]))
+                self.assertTrue(all(not s.hold_a for s in ss[held:]))
+                self.assertTrue(all(s.speed_m_s == 0 for s in ss[47:held]))
+                self.assertFalse(any(s.hold_a for s in ss[-12:]))
+        self.assertEqual(len(build_probe("forward", follow_through_frames=0)), 59)
+
+    def test_bad_followthrough_rejected(self):
+        for val in (-1, 181, 3.5, None, True, "45"):
+            with self.subTest(val=val), self.assertRaises(ValueError):
+                build_probe("forward", follow_through_frames=val)
+
+    def test_protocol_limit_and_client_dispatch_extended_trace(self):
+        rpc = RPC()
+        long_samples = build_probe("forward", follow_through_frames=180)
+        self.assertLessEqual(len(long_samples), 600)
+        result = SwingTraceClient(rpc, port=0).run(long_samples)
+        self.assertEqual(result["applied_frames"], 239)
 
     def test_validation(self):
         with self.assertRaises(ValueError):

@@ -55,3 +55,34 @@ If forward has no visible effect, try --preset reverse or --preset sideways on s
 Modeling Issue #4 owns physical calibration and optimization; this is Worker 1's transport diagnostic. Document negative attempts as carefully as positive ones.
 
 Bridge source pin: dmang-dev/mcp-dolphin blob 8e70624680a365707f844b322f5b093746a1c022. Felk Preview 4 required.
+
+## 2026-10-24: premature A release after first partial in-game response
+
+**User's qualitative live observation:** The first dedicated Felk swing primitive experiment *almost worked*, but **A was released too early**. Treat this as **partial controller/motion recognition only**, not a verified ball strike or scored attempt.
+
+The initial S001 forward trace kept `A=True` for 12 neutral setup + 15 backswing + 20 forward = **47 frames**, then immediately released A for 12 frames (59 total). New source-only client-side profile holds A through a configurable **neutral follow-through** before releasing. This deliberately leaves all existing swing direction/distance/speed values unchanged and varies only **A release timing** (one factor at a time):
+
+| CLI setting | A-held samples | First A-off sample (1-based) | Total trace samples |
+| --- | ---: | ---: | ---: |
+| `--follow-through-frames 0` (old control) | 47 | 48 | 59 |
+| `--follow-through-frames 15` | 62 | 63 | 74 |
+| **`--follow-through-frames 30` (new default)** | **77** | **78** | **89** |
+| `--follow-through-frames 45` | 92 | 93 | 104 |
+| `--follow-through-frames 90` | 137 | 138 | 149 |
+
+The neutral follow-through sends **A held** with zero dedicated swing motion and does **not** release the club button. These values are **not calibrated shot physics**. The trace API accepts at most 600 samples; this probe restricts follow-through to 0..180 (239 total maximum). The command prints exact A-held and release-frame counts and writes these timing values plus a hash of the full input trace to the user's local ignored JSONL evidence file.
+
+### Next experiment from an ALREADY-RUNNING Dolphin session
+
+Keep Wii Remote 1 on Emulated / Extension None, and advance through the validated A → A+B → A intro until Nueron is standing at the ball. No new bridge generator run is required because this change is to the client-generated trace only.
+
+~~~powershell
+cd "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
+git pull --ff-only
+py -m unittest discover -s tests -p "test_integration_swing_client.py" -v
+py scripts/probe_swing.py --preset forward --follow-through-frames 30 --send-live-swing
+~~~
+
+Human confirms visually before the probe sends exactly one shot, then labels `hit`, `club-only`, `none`, etc. If A still releases too soon and the club visibly responds, rerun on **the same verified starting screen** with `--follow-through-frames 45` or `60`; avoid changing motion strength/direction at the same time. If the observed swing *stalls while A is held*, use shorter values (15, 0) and report exactly what happens. Never claim a successful hit from bridge ACK alone.
+
+**Canonical intro coordination:** `scripts/launch_hitting_green.py` already calls `build_probe("forward")` for its optional single swing; it will automatically use the new follow-through default after merging this change. Another Worker 1 agent owns the active intro PR #25; do **not** duplicate menu timing logic inside `probe_swing.py`.

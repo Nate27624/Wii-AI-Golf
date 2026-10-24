@@ -32,8 +32,14 @@ REPORT = ROOT.parent / "Wii-AI-Golf-Data" / "integration" / "swing-probes.jsonl"
 OBSERVATIONS = {"hit", "club-only", "menu", "none", "other"}
 
 
-def build_probe(preset: str) -> list[SwingSample]:
-    """Bounded hypotheses, NOT pre-calibrated Wii Sports swings."""
+def build_probe(preset: str, *, follow_through_frames: int = 30) -> list[SwingSample]:
+    """Bounded swing probe. Keep A held through a tunable follow-through.
+
+    Before this change A was released after 47 samples (12+15+20);
+    user observed premature release in Wii Sports on a live trial.
+    """
+    if type(follow_through_frames) is not int or not 0 <= follow_through_frames <= 180:
+        raise ValueError("follow_through_frames must be an integer 0..180")
     if preset not in ("forward", "reverse", "sideways"):
         raise ValueError("unknown preset")
     axis = {
@@ -48,6 +54,9 @@ def build_probe(preset: str) -> list[SwingSample]:
         [frame(True, (0.0, 0.0, 0.0), 0, 0, 0) for _ in range(12)]
         + [frame(True, neg, 0.25, 1.2, 1.2) for _ in range(15)]
         + [frame(True, axis, 0.6, 3.5, 2.0) for _ in range(20)]
+        # Do not release A immediately after forward motion: the club needs
+        # time to finish the stroke while the button is still held.
+        + [frame(True, (0.0, 0.0, 0.0), 0, 0, 0) for _ in range(follow_through_frames)]
         + [frame(False, (0.0, 0.0, 0.0), 0, 0, 0) for _ in range(12)]
     )
 
@@ -55,6 +64,8 @@ def build_probe(preset: str) -> list[SwingSample]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="One human-observed Wii Remote swing trial (not a trained shot)")
     parser.add_argument("--preset", choices=("forward", "reverse", "sideways"), default="forward")
+    parser.add_argument("--follow-through-frames", type=int, default=30,
+                        help="Extra frames holding A after the forward stroke, before release (0..180; default 30)")
     parser.add_argument("--send-live-swing", action="store_true", help="Required to change game controller state")
     parser.add_argument("--reset-profile", help="Optional named SAVED AT FIRST SHOT state; not the pre-Start screen")
     parser.add_argument("--catalog", type=Path, default=CATALOG)
@@ -63,8 +74,13 @@ def main() -> None:
     parser.add_argument("--remote", type=int, choices=range(4), default=0)
     args = parser.parse_args()
 
-    samples = build_probe(args.preset)
+    if not 0 <= args.follow_through_frames <= 180:
+        parser.error("--follow-through-frames must be between 0 and 180")
+    samples = build_probe(args.preset, follow_through_frames=args.follow_through_frames)
+    a_held_frames = sum(sample.hold_a for sample in samples)
     print(f"Single trial: preset={args.preset}, frames={len(samples)}, remote={args.remote}")
+    print(f"A held for {a_held_frames} frames; first released on sample {a_held_frames + 1} "
+          f"(1-based). Extra follow-through: {args.follow_through_frames} frames.")
     print("Requires Emulated Wii Remote 1 / Extension None and patched --enable-swing bridge.")
     if not args.send_live_swing:
         print("DRY RUN ONLY. Add --send-live-swing to perform one trial.")
@@ -95,6 +111,9 @@ def main() -> None:
         "probe": "Felk Preview 4 set_wiimote_swing experimental",
         "bridge_version": info["bridge_version"],
         "preset": args.preset,
+        "follow_through_frames": args.follow_through_frames,
+        "a_held_frames": a_held_frames,
+        "first_a_release_sample_1_based": a_held_frames + 1,
         "remote": args.remote,
         "reset_profile": args.reset_profile,
         "samples_sha256": hashlib.sha256(json.dumps([[s.hold_a, *s.direction, s.distance_m,
