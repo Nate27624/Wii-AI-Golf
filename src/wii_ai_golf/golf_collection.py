@@ -20,7 +20,11 @@ from .observation_capture import capture
 from .spatial_probe import capture_spatial_rev1
 
 REPOSITORY = "Nate27624/Wii-AI-Golf"
-_GIT_REMOTE = re.compile(r"github\.com[:/]Nate27624/Wii-AI-Golf(?:\.git)?$", re.IGNORECASE)
+_GIT_REMOTE = re.compile(
+    r"^(?:https://(?:[^/@]+@)?github\.com/|git@github\.com:|ssh://git@github\.com/)"
+    r"Nate27624/Wii-AI-Golf(?:\.git)?$",
+    re.IGNORECASE,
+)
 _OBJECTS = ("current_pin_obj_ptr", "current_start_obj_ptr", "cup_obj_ptr",
             "course_obj_ptr", "minimap_course_obj_ptr")
 _STATES = {"green", "missed", "unknown"}
@@ -257,6 +261,9 @@ def collect(*, steps: list[dict[str, Any]], port: int, data_dir: Path,
             print(f"Shot {number} recorded locally: {saved.name}")
     except (KeyboardInterrupt, EOFError):
         print("\nSession interrupted; preserving observations so far.")
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"\nCapture stopped safely: {exc}")
+        print("Completed observations and any partial attempt are preserved.")
     finally:
         if report["attempts"]:
             saved = persist_local(report, data_dir)
