@@ -150,16 +150,20 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
                     top_n: int = 30) -> dict[str, Any]:
     """Rank big-endian f32 VEC3 candidates that change at the same address.
 
-    A changing vector may be a UI effect, model transform or unrelated state.
+    Deduplicate overlapping windows at absolute addresses. A changing vector may be a UI effect, model transform or unrelated state.
     Static score integers / full ball identity are NOT decoded here.
     """
     if min_changed < 1 or top_n < 1:
         raise ValueError("min_changed and top_n must be positive")
     observations: dict[
-        tuple[str, str, int], list[tuple[int, tuple[float, float, float], tuple[int, int] | None]]
+        int, list[tuple[int, tuple[float, float, float], tuple[int, int] | None]]
     ] = defaultdict(list)
-    scalar_samples: dict[tuple[str, str, int], list[tuple[int, int, tuple[int, int] | None]]] = defaultdict(list)
+    scalar_samples: dict[int, list[tuple[int, int, tuple[int, int] | None]]] = defaultdict(list)
+    vector_provenance: dict[int, set[str]] = defaultdict(set)
+    scalar_provenance: dict[int, set[str]] = defaultdict(set)
     for idx, sample in enumerate(samples):
+        seen_vectors: set[int] = set()
+        seen_scalars: set[int] = set()
         if sample.get("game_id") != "RSPE01" or sample.get("disc_revision") != 1:
             continue
         scene = sample.get("scene") or {}
@@ -178,16 +182,30 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
                 blob = bytes.fromhex(raw)
             except ValueError:
                 continue
+            try:
+                base_address = int(address, 16)
+            except ValueError:
+                continue
             for offset in range(0, len(blob) - 3, 4):
+                absolute = base_address + offset
+                scalar_provenance[absolute].add(name)
+                if absolute in seen_scalars:
+                    continue
+                seen_scalars.add(absolute)
                 u32 = struct.unpack_from(">I", blob, offset)[0]
                 if 0 <= u32 <= 100000:
-                    scalar_samples[(name, address, offset)].append((idx, u32, scene_key))
+                    scalar_samples[absolute].append((idx, u32, scene_key))
             for offset in range(0, len(blob) - 11, 4):
+                absolute = base_address + offset
+                vector_provenance[absolute].add(name)
+                if absolute in seen_vectors:
+                    continue
+                seen_vectors.add(absolute)
                 xyz = struct.unpack_from(">fff", blob, offset)
                 if all(math.isfinite(v) and abs(v) < 100000 for v in xyz):
-                    observations[(name, address, offset)].append((idx, xyz, scene_key))
+                    observations[absolute].append((idx, xyz, scene_key))
     ranked = []
-    for (name, address, offset), entries in observations.items():
+    for absolute, entries in observations.items():
         if len(entries) < 3:
             continue
         changes = 0
@@ -210,9 +228,8 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
         if changes < min_changed:
             continue
         ranked.append({
-            "window": name, "window_address": address,
-            "offset_hex": f"+0x{offset:X}",
-            "candidate_address": f"0x{int(address,16) + offset:08X}",
+            "source_windows": sorted(vector_provenance[absolute]),
+            "candidate_address": f"0x{absolute:08X}",
             "observed_samples": len(entries), "changed_steps": changes,
             "within_same_scene_changed_steps": within_scene_steps,
             "cross_scene_changed_steps": across_scene_steps,
@@ -221,12 +238,23 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
             "last_xyz": [round(v, 4) for v in entries[-1][1]],
             "status": "unverified_numeric_vec3_candidate",
         })
-    ranked.sort(key=lambda x: (-x["within_same_scene_changed_steps"],
+    # Three adjacent unit-sized axes in a 3x3 float matrix are not a
+    # moving world position: tag the likely transform region for triage.
+    for candidate in ranked:
+        address = int(candidate["candidate_address"], 16)
+        first = candidate["first_xyz"]
+        last = candidate["last_xyz"]
+        unitish = all(abs(v) <= 1.05 for v in first + last)
+        neighbors = sum((address + d) in observations for d in (-8, -4, 4, 8))
+        candidate["likely_orientation_or_normal"] = bool(unitish and neighbors >= 2)
+        candidate["status"] = ("likely_orientation_not_ball_xyz" if candidate["likely_orientation_or_normal"]
+                               else "unverified_numeric_vec3_candidate")
+    ranked.sort(key=lambda x: (x["likely_orientation_or_normal"], (-x["within_same_scene_changed_steps"],
                                -x["changed_steps"],
                                -x["total_displacement_game_units_unverified"],
                                x["candidate_address"]))
     scalar_ranked = []
-    for (name, address, offset), entries in scalar_samples.items():
+    for absolute, entries in scalar_samples.items():
         if len(entries) < 3:
             continue
         steps = sum(p != q for (i, p, _sa), (j, q, _sb) in zip(entries, entries[1:])
@@ -236,8 +264,8 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
         if steps < min_changed:
             continue
         scalar_ranked.append({
-            "window": name, "candidate_address": f"0x{int(address,16)+offset:08X}",
-            "offset_hex": f"+0x{offset:X}", "changed_steps": steps,
+            "source_windows": sorted(scalar_provenance[absolute]),
+            "candidate_address": f"0x{absolute:08X}", "changed_steps": steps,
             "within_same_scene_changed_steps": within,
             "first_u32": entries[0][1], "last_u32": entries[-1][1],
             "status": "unverified_integer_state_candidate_NOT_score",
@@ -246,6 +274,7 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
                                        -x["changed_steps"], x["candidate_address"]))
     return {
         "samples": len(samples), "candidate_count": len(ranked),
+        "unique_absolute_addresses": True,
         "candidates": ranked[:top_n],
         "candidates_truncated": len(ranked) > top_n,
         "scalar_candidate_count": len(scalar_ranked),
