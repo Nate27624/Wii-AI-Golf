@@ -77,6 +77,18 @@ class SwingPatchTests(unittest.TestCase):
             self.ns["_wii_ai_submit"]([0, [[True, 0, 1, 0]]])
         self.assertEqual(self.ns["_wii_ai_abort"]([])["state"], "aborted")
 
+    def test_swing_unsupported_returns_error_and_releases_A(self):
+        def broken_swing(*args):
+            raise RuntimeError("unsupported by current emulator")
+        self.ns["controller"].set_wiimote_swing = broken_swing
+        self.ns["_wii_ai_submit_swing"]([0, [[True, 0, 1, 0, .3, 2, 1, 0]]])
+        self.advance()
+        status = self.ns["_wii_ai_status"]([])
+        self.assertEqual(status["state"], "error")
+        self.assertIn("unsupported", status["error"])
+        self.assertEqual(self.ns["controller"].calls[-1][-1], {"A": False})
+        self.assertIsNone(self.ns["_wii_ai_trace"])
+
     def test_patcher_guard(self):
         self.assertIn(SWING_MARKER, self.patched)
         with self.assertRaises(SwingExtensionError):
