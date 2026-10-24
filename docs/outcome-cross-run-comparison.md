@@ -12,6 +12,7 @@
 - The two golf-config words 0x91BF176C and 0x91BF1770 transition 3→5 and 10→1 **identically in both shots**, so they cannot be a *direct, unchanged-unit* representation of the displayed 2.1 ft versus 100 ft. They may be game phases or counters; NOT confirmed.
 - The minimap_ball_effect 0x91BF4AA8..0x91BF4AB8 values differ between outcomes; the first three settled f32 values have approximately **unit vector norms in BOTH runs**, suggesting an orientation/rotation hypothesis, not a verified ball location.
 - **Major confound:** The swing traces were different lengths (122 versus 89 frames). The experimental program has changed as the integration agent introduced a separate A-button-only prehold, so outcomes cannot be attributed solely to landing variance and neither memory address has a causal/validated game-score interpretation.
+- **Collector consistency fix:** The outcome collector now calls the same `prime_a_button` (60 button-only A requests) before the existing `build_probe("forward", follow_through_frames=30)` trace and always calls `release_buttons` afterward, matching the standalone successful S001 probe. It also records the exact waveform SHA256, generated frame count, and A-prime metadata. The previous two captures did NOT have this documented prime protocol; both remain exploratory and unchanged. The cross-run tool requires matching waveform hashes AND matching documented prime parameters before marking full controller programs comparable.
 
 ## Usage on existing local summaries
 
@@ -33,6 +34,6 @@ Eight focused mock tests are provided but have NOT been executed on the user's W
 
 ## What to do before training
 
-Collect *repeated same-waveform* shots using a confirmed first-shot setup and exactly one fully recorded waveform per run. Confirm same savestate, pin/tee scene and controller phase. Preserve human observation labels and their displayed units. Record a waveform fingerprint (sha256) as well as count, because 89 samples alone doesn't establish that two swings had the same motion. Add no speculative score calculations or forced zero rewards for misses. Independently confirm a candidate's numeric relationship with distance/score on at least one held-out scenario. If the game displays 100 ft as a limit/sentinel or a different metric, verify that visually.
+Collect *repeated same-waveform* shots using a confirmed first-shot setup and exactly one fully recorded waveform per run. Confirm same savestate, pin/tee scene and controller phase. Preserve human observation labels and their displayed units. Record a waveform fingerprint (sha256) **and button-only A prime request count**, because 89 samples alone doesn't establish that two controller programs were identical. Add no speculative score calculations or forced zero rewards for misses. Independently confirm a candidate's numeric relationship with distance/score on at least one held-out scenario. If the game displays 100 ft as a limit/sentinel or a different metric, verify that visually.
 
 This comparison work is independent of S002 evaluation PR #14. [Issue #3](https://github.com/Nate27624/Wii-AI-Golf/issues/3).
