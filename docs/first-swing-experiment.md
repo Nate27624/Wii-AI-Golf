@@ -124,3 +124,29 @@ py scripts/launch_golf.py --slot 2 --swing --preset forward --follow-through-fra
 After each shot, the swing probe now asks optional human observations **ball visibly moved?**, **landed on the green?**, **on-screen displayed distance and its unit**, and **estimated meter fill 0..100**. Press Enter to leave any item unknown; never guess a distance or translate the meter fill into a game power percentage. Each trial appends timing and observations to the existing local `Wii-AI-Golf-Data/integration/swing-probes.jsonl`. `game_score` stays `null` because the evaluation agent has not established score units. The human answers are tagged `human-reported-not-verified`. Do not upload game binaries, states or screenshots to source control.
 
 **Decision after 3 repeats:** Only when all 3 runs show ball contact and consistent on-screen observations, run a **one-factor** calibration sweep with S003's candidate profiles (speed or distance, not both), using S002's validated real-game result capture. Don't send a 20+ random sweep based only on bridge ACKs. If repeated shots differ or fail, fix/measure scene readiness first. A strong swing does not necessarily mean a green hit or good target distance.
+
+## 2026-10-24: A-press ordering observed late relative to motion
+
+**New user observation:** After the unified `golf swing --slot 2` correctly booted Dolphin and ran the canonical A / A+B / A menu sequence, the observer reported that club/swing motion visually occurred **before the game's A interaction**. The previous 89-frame trace had only **12 neutral samples with A held** before 15 backswing + 20 forward motion. Since Felk bridge ACKs reflect command dispatch rather than the frame at which Wii Sports accepts controller state, the actual in-game A/motion ordering is **not independently measured**.
+
+**Isolate one factor: A-only setup duration.** The swing probe now supports `--a-setup-frames N`, a contiguous A-held, ZERO-motion prep phase before the first backswing sample. Default **45** (instead of 12), bounded **1..180**. No changes to A / A+B / A intro, 15 backswing samples, 20 forward samples, motion speed/distance/axes, 30 A-held follow-through, or 12 released samples.
+
+| Trial | A-held neutral setup | First backswing sample (1-based) | A first released | Total trace | Interpretation |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Exact earlier 89-frame baseline | `--a-setup-frames 12` | 13 | 78 | 89 | Replays prior command / known human hit evidence |
+| New delay hypothesis | `--a-setup-frames 45` | 46 | 111 | 122 | Allows A to settle before any motion; **NOT yet validated in-game** |
+| Longer controlled follow-up | `--a-setup-frames 60` | 61 | 126 | 137 | If 45 still looks premature; no simultaneous motion changes |
+
+**Safest user-facing entrypoint, from CLOSED Dolphin:**
+
+~~~powershell
+cd "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
+git pull --ff-only
+py scripts/golf.py test --pattern "test_integration_swing_client.py"
+py scripts/golf.py test --pattern "test_unified_cli.py"
+py scripts/golf.py swing --slot 2 --preset forward --a-setup-frames 45 --follow-through-frames 30
+~~~
+
+This invokes Felk launch, Emulated Wii Remote 1/Extension None, named Slot 2 `green-pre-start`, user-proven A / A+B / A menu intro, then a **single guarded swing**. The probe prints both A setup and first-motion sample. The JSONL trial now includes `a_setup_frames` and `first_motion_sample_1_based` to avoid comparing unlike traces. At the Enter prompt confirm the golfer is actually ready. Human should note whether A is visibly active **before** the club moves and whether the ball moved. If the motion still precedes A, report that and retain the record as a failed ordering hypothesis; do not call it a hit from RPC completeness alone. For apples-to-apples replay of first successful swing, use `--a-setup-frames 12`.
+
+**Warning:** The API still calls `set_wiimote_swing` with zero motion during the A setup; this is a scheduling/latency hypothesis, not a proof of Wii Sports' internal input-consumption order. If pre-hold alone fails, next work is an in-bridge button-first readiness barrier / readback, **not** arbitrary power changes.
