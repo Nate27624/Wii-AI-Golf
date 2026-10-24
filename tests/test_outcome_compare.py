@@ -95,6 +95,14 @@ class OutcomeComparisonTests(unittest.TestCase):
         for d in docs:
             d["known_good_swing_request"]["trace_sha256"] = "a" * 64
         self.assertTrue(compare_outcome_runs(docs)["waveforms_proven_identical"])
+        self.assertFalse(compare_outcome_runs(docs)["full_controller_program_comparable"])
+        for d in docs:
+            d["known_good_swing_request"]["a_button_prime_applied"] = True
+            d["known_good_swing_request"]["a_button_only_prime_requests"] = 60
+        self.assertTrue(compare_outcome_runs(docs)["full_controller_program_comparable"])
+        docs[1]["known_good_swing_request"]["a_button_only_prime_requests"] = 0
+        self.assertFalse(compare_outcome_runs(docs)["full_controller_program_comparable"])
+        docs[1]["known_good_swing_request"]["a_button_only_prime_requests"] = 60
         docs[1]["known_good_swing_request"]["trace_sha256"] = "b" * 64
         self.assertFalse(compare_outcome_runs(docs)["waveforms_proven_identical"])
 
