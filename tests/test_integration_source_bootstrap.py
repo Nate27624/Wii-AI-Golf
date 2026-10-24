@@ -16,6 +16,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = (
     "launch_golf.py",
+    "launch_hitting_green.py",
     "savestate_session.py",
     "probe_swing.py",
     "patch_felk_bridge.py",
@@ -60,7 +61,7 @@ class SourceBootstrapTests(unittest.TestCase):
         # -I drops PYTHONPATH and current directory while retaining Python stdlib.
         # Local-src bootstrap must still supply the project's wii_ai_golf code.
         with tempfile.TemporaryDirectory() as d:
-            for script in ("launch_golf.py", "probe_swing.py", "savestate_session.py"):
+            for script in ("launch_golf.py", "launch_hitting_green.py", "probe_swing.py", "savestate_session.py"):
                 with self.subTest(script=script):
                     out = subprocess.run(
                         [sys.executable, "-I", str(ROOT / "scripts" / script), "--help"],
