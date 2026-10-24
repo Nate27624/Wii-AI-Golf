@@ -20,6 +20,8 @@ def main():
     parser.add_argument("--out", type=Path,
                         default=Path("research/game-data.local/symbol-probe.json"))
     args = parser.parse_args()
+    if args.out.exists():
+        parser.error(f"refusing to overwrite existing evidence: {args.out}")
     ensure_intro(args)
     with FelkRPC(port=args.port) as rpc:
         result = probe_rev1(rpc)
