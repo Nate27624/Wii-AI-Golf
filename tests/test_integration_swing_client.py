@@ -1,4 +1,6 @@
 import unittest
+import hashlib
+import json
 from pathlib import Path
 import sys
 
@@ -81,6 +83,14 @@ class SwingClientTests(unittest.TestCase):
         self.assertEqual(ss[12].distance_m, .25)
         self.assertEqual(ss[27].distance_m, .6)
         self.assertTrue(all(not s.hold_a for s in ss[77:]))
+        payload = [[s.hold_a, *s.direction, s.distance_m,
+                    s.speed_m_s, s.return_speed_m_s, s.angle_rad] for s in ss]
+        # Hash from the user's FIRST observed live hit, 2026-10-24.
+        # Negative-zero components in reversed axis must stay preserved.
+        self.assertEqual(
+            hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest(),
+            "b63a1818ba5086c64b0fe7338236a498240e4be97bbd111809a772d783699891",
+        )
 
     def test_setup_delay_is_one_factor_and_preserves_motion_profile(self):
         old = build_probe("sideways", a_setup_frames=12)
