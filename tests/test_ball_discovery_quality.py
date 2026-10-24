@@ -105,6 +105,37 @@ class BallDiscoveryQualityTests(unittest.TestCase):
         candidate = next(x for x in ranked["candidates"] if x["offset_hex"] == "+0x8")
         self.assertEqual(candidate["changed_steps"], 3)
 
+    def test_overlapping_windows_report_one_absolute_candidate(self):
+        def overlapping(i):
+            vector = struct.pack(">fff", float(i * 5), 200.0, -300.0)
+            blob = bytes(8) + vector + bytes(32)
+            return {"game_id": "RSPE01", "disc_revision": 1,
+                    "scene": {"scene_status": "aligned_candidate",
+                              "tee_index_observed": 1, "pin_variant_observed": 1},
+                    "windows": {
+                        "minimap_ball_effect": {"address": "0x91BF48BC", "bytes_hex": blob.hex()},
+                        "minimap_player_effect": {"address": "0x91BF48C4",
+                                                  "bytes_hex": blob[8:].hex()},
+                    }}
+        result = analyze_samples([overlapping(i) for i in range(5)], min_changed=3)
+        addresses = [x["candidate_address"] for x in result["candidates"]]
+        self.assertEqual(len(addresses), len(set(addresses)))
+        item = next(x for x in result["candidates"]
+                    if x["candidate_address"] == "0x91BF48C4")
+        self.assertEqual(len(item["source_windows"]), 2)
+        self.assertFalse(item["likely_orientation_or_normal"])
+
+    def test_unit_vectors_flagged_as_possible_orientation_not_ball(self):
+        def rotating(i):
+            a = i / 10.0
+            blob = struct.pack(">fffff", 0., a, 0., 0., 1-a) + bytes(20)
+            return {"game_id": "RSPE01", "disc_revision": 1,
+                    "windows": {"minimap_ball_effect":
+                                {"address": "0x91BF4AA0", "bytes_hex": blob.hex()}}}
+        result = analyze_samples([rotating(i) for i in range(5)], min_changed=2)
+        self.assertGreater(result["candidate_count"], 0)
+        self.assertTrue(any(c["likely_orientation_or_normal"] for c in result["candidates"]))
+
     def test_invalid_profile_rejected_before_any_rpc(self):
         rpc = FakeRPC()
         with self.assertRaises(ValueError):
