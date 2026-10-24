@@ -125,6 +125,8 @@ def git_blob_sha(text: str) -> str:
 def patch_bridge(source: str, *, expected_sha: str = UPSTREAM_GIT_BLOB_SHA,
                  startup_slot: int | None = None) -> str:
     """Fail closed on source mismatch; never mutate the original input."""
+    if startup_slot is not None and (type(startup_slot) is not int or not 0 <= startup_slot <= 255):
+        raise ValueError("startup_slot must be 0..255 or None")
     if git_blob_sha(source) != expected_sha:
         raise UnsupportedBridgeVersion("Bridge source SHA mismatch: pin and inspect upstream before patching")
     if PATCH_MARKER in source:
@@ -147,4 +149,21 @@ def patch_bridge(source: str, *, expected_sha: str = UPSTREAM_GIT_BLOB_SHA,
         if source.count(old) != 1:
             raise UnsupportedBridgeVersion("Expected upstream structure missing or repeated")
         source = source.replace(old, new, 1)
+    if startup_slot is not None:
+        # Runs once after the first completed emulated frame, rather than at
+        # module import before the game is active. Save slot must exist.
+        marker = '    _frame_count += 1\n    _wii_ai_tick()'
+        if source.count(marker) != 1:
+            raise UnsupportedBridgeVersion("Startup hook anchor not found")
+        bootstrap = (
+            '    _frame_count += 1\n'
+            '    if _frame_count == 1:\n'
+            '        try:\n'
+            f'            savestate.load_from_slot({startup_slot})\n'
+            f'            print("[wii-ai] startup savestate slot {startup_slot} load requested")\n'
+            '        except Exception as exc:\n'
+            '            print(f"[wii-ai] startup savestate LOAD FAILED: {type(exc).__name__}: {exc}")\n'
+            '    _wii_ai_tick()'
+        )
+        source = source.replace(marker, bootstrap, 1)
     return source
