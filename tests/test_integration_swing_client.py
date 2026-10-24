@@ -37,42 +37,41 @@ class SwingClientTests(unittest.TestCase):
         rpc = RPC()
         cli = SwingTraceClient(rpc, port=0)
         result = cli.run(build_probe("forward"))
-        self.assertEqual(result["applied_frames"], 122)
+        self.assertEqual(result["applied_frames"], 89)
         self.assertEqual(rpc.calls[0][0], "trace.submit_swing")
         self.assertEqual(len(rpc.calls[0][1][1][0]), 8)
 
-    def test_all_presets_hold_A_before_motion_and_through_followthrough(self):
+    def test_all_presets_replay_known_good_trace_with_12_neutral_samples(self):
         for name in ("forward", "reverse", "sideways"):
             ss = build_probe(name)
-            # 45 pre-A + 15 backswing + 20 forward + 30 A-held follow-through
-            # +12 released = 122. First motion is sample 46 (1-based).
-            self.assertEqual(len(ss), 122)
-            self.assertTrue(all(s.hold_a for s in ss[:110]))
-            self.assertFalse(any(s.hold_a for s in ss[110:]))
+            # REAL A-only priming is now a separate RPC phase; this
+            # function must remain the exact first-hit 89-sample waveform.
+            self.assertEqual(len(ss), 89)
+            self.assertTrue(all(s.hold_a for s in ss[:77]))
+            self.assertFalse(any(s.hold_a for s in ss[77:]))
             self.assertEqual(ss[-1].speed_m_s, 0)
-            for sample in ss[:45]:
+            for sample in ss[:12]:
                 self.assertTrue(sample.hold_a)
                 self.assertEqual(sample.direction, (0.0, 0.0, 0.0))
                 self.assertEqual(sample.distance_m, 0)
                 self.assertEqual(sample.speed_m_s, 0)
                 self.assertEqual(sample.return_speed_m_s, 0)
                 self.assertEqual(sample.angle_rad, 0)
-            self.assertNotEqual(ss[45].direction, (0.0, 0.0, 0.0))
-            # Follow-through with A held, then 12 A-off neutral tail.
+            self.assertNotEqual(ss[12].direction, (0.0, 0.0, 0.0))
             self.assertTrue(all(sample.hold_a and sample.speed_m_s == 0
-                                for sample in ss[80:110]))
+                                for sample in ss[47:77]))
 
     def test_configurable_followthrough_and_legacy_release(self):
         for delay in (0, 1, 15, 30, 45, 90, 180):
             with self.subTest(delay=delay):
                 ss = build_probe("forward", follow_through_frames=delay)
-                self.assertEqual(len(ss), 92 + delay)
-                held = 80 + delay
+                self.assertEqual(len(ss), 59 + delay)
+                held = 47 + delay
                 self.assertTrue(all(s.hold_a for s in ss[:held]))
                 self.assertTrue(all(not s.hold_a for s in ss[held:]))
-                self.assertTrue(all(s.speed_m_s == 0 for s in ss[80:held]))
+                self.assertTrue(all(s.speed_m_s == 0 for s in ss[47:held]))
                 self.assertFalse(any(s.hold_a for s in ss[-12:]))
-        self.assertEqual(len(build_probe("forward", follow_through_frames=0)), 92)
+        self.assertEqual(len(build_probe("forward", follow_through_frames=0)), 59)
 
     def test_setup_delay_12_exactly_replays_original_successful_89_frame_trace(self):
         ss = build_probe("forward", a_setup_frames=12, follow_through_frames=30)
@@ -115,7 +114,7 @@ class SwingClientTests(unittest.TestCase):
         long_samples = build_probe("forward", follow_through_frames=180)
         self.assertLessEqual(len(long_samples), 600)
         result = SwingTraceClient(rpc, port=0).run(long_samples)
-        self.assertEqual(result["applied_frames"], 272)
+        self.assertEqual(result["applied_frames"], 239)
 
     def test_validation(self):
         with self.assertRaises(ValueError):
