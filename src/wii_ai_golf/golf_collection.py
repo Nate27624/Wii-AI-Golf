@@ -95,12 +95,15 @@ def summarize(snapshot: dict[str, Any], spatial: dict[str, Any]) -> dict[str, An
     }
 
 
-def read_stage(rpc_factory: Callable[..., Any], port: int, label: str) -> dict[str, Any]:
-    """Read-only RPC calls; require the version-gated training screen."""
+def read_stage(rpc_factory: Callable[..., Any], port: int, label: str,
+               *, allow_result_transition: bool = False) -> dict[str, Any]:
+    """Read-only RPC; require training mode before, permit end-of-round result after."""
     with rpc_factory(port=port, timeout_s=15) as rpc:
         spatial = capture_spatial_rev1(rpc)
-        if not spatial.get("supported") or spatial.get("mode_label") != "GAMEMODE_TR_NEARPIN":
-            raise RuntimeError("Not confirmed as US Rev1 Hitting the Green; no shot recorded")
+        if not spatial.get("supported"):
+            raise RuntimeError("Not US Rev1 Wii Sports; no shot recorded")
+        if not allow_result_transition and spatial.get("mode_label") != "GAMEMODE_TR_NEARPIN":
+            raise RuntimeError("Not on Hitting the Green shot screen; no shot recorded")
         snap = capture(rpc, label, [])
     return summarize(snap, spatial)
 
@@ -253,7 +256,8 @@ def collect(*, steps: list[dict[str, Any]], port: int, data_dir: Path,
                                    "capture_complete": False}
             report["attempts"].append(row)
             saved = persist_local(report, data_dir)
-            post = read_stage(rpc_factory, port, f"shot-{number}-after")
+            post = read_stage(rpc_factory, port, f"shot-{number}-after",
+                              allow_result_transition=True)
             row["after"] = post
             row["human_result"] = human_result(input_fn)
             row["capture_complete"] = True
