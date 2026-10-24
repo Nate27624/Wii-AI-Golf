@@ -3,7 +3,8 @@ import unittest
 
 from wii_ai_golf.integration.atomic_patch import _ATOMIC_SNIPPET, git_blob_sha, patch_bridge
 from wii_ai_golf.integration.swing_patch import (
-    _SWING_HANDLER, SWING_MARKER, SwingExtensionError, extend_atomic_bridge_with_swing,
+    _SWING_HANDLER, SWING_MARKER, SWING_NEUTRAL_V2_MARKER,
+    SwingExtensionError, extend_atomic_bridge_with_swing,
 )
 
 
@@ -52,12 +53,46 @@ class SwingPatchTests(unittest.TestCase):
         for _ in range(4):
             self.advance()
         calls = self.ns["controller"].calls
-        self.assertEqual([x[1] for x in calls], ["buttons", "swing"] * 3 + ["buttons"])
-        for i in range(3):
-            self.assertEqual(calls[2*i][0], calls[2*i+1][0])
+        self.assertEqual([x[1] for x in calls],
+                         ["buttons", "swing", "buttons", "swing", "buttons", "buttons"])
+        for i in (0, 2):
+            self.assertEqual(calls[i][0], calls[i+1][0])
         self.assertEqual(self.ns["_wii_ai_status"]([])["applied_frames"], 3)
         self.assertEqual(self.ns["_wii_ai_status"]([])["state"], "complete")
         self.assertEqual(calls[-1][-1], {"A": False})
+
+    def test_v2_capability_advertised_read_only(self):
+        before = list(self.ns["controller"].calls)
+        self.assertEqual(self.ns["_wii_ai_swing_capabilities"]([]),
+                         {"swing_protocol": 2, "neutral_button_only": True,
+                          "method": "trace.submit_swing", "button_first": True})
+        self.assertEqual(before, self.ns["controller"].calls)
+        self.assertIn('"trace.swing_capabilities": _wii_ai_swing_capabilities', self.patched)
+        self.assertIn(SWING_NEUTRAL_V2_MARKER, self.patched)
+
+    def test_neutral_preparation_and_long_followthrough_call_buttons_only(self):
+        # 12 neutral A-held, 15 back, 20 forward, 90 neutral A-held,
+        # 12 released = 149; only 35 physical motion calls allowed.
+        neutral = [True, 0, 0, 0, 0, 0, 0, 0]
+        back = [True, 0, -1, 0, .25, 1.2, 1.2, 0]
+        forward = [True, 0, 1, 0, .6, 3.5, 2, 0]
+        released = [False, 0, 0, 0, 0, 0, 0, 0]
+        samples = ([neutral] * 12 + [back] * 15 + [forward] * 20 +
+                   [neutral] * 90 + [released] * 12)
+        response = self.ns["_wii_ai_submit_swing"]([0, samples])
+        self.assertEqual(response["swing_protocol"], 2)
+        for _ in range(len(samples) + 1):
+            self.advance()
+        calls = self.ns["controller"].calls
+        buttons = [x for x in calls if x[1] == "buttons"]
+        swing = [x for x in calls if x[1] == "swing"]
+        self.assertEqual(len(buttons), 150)
+        self.assertEqual(len(swing), 35)
+        self.assertEqual([x[-1]["A"] for x in buttons[:137]], [True] * 137)
+        self.assertEqual([x[-1]["A"] for x in buttons[137:]], [False] * 13)
+        self.assertTrue(all(x[0] in range(113, 148) for x in swing))
+        self.assertEqual(self.ns["_wii_ai_status"]([])["state"], "complete")
+        self.assertEqual(self.ns["_wii_ai_status"]([])["applied_frames"], 149)
 
     def test_existing_accel_path_still_works(self):
         self.ns["_wii_ai_submit"]([0, [[True, 0, 1, 0]]])
