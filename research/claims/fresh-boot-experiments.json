@@ -1,0 +1,25 @@
+{
+  "worker_id": "fresh-boot-experiments",
+  "role": "coordinator",
+  "issue": 2,
+  "date": "2026-10-24",
+  "branch": "agent/coordinator/fresh-boot-experiments",
+  "claim_comment": "https://github.com/Nate27624/Wii-AI-Golf/issues/2#issuecomment-6382121079",
+  "status": "pr_in_progress",
+  "owned_paths": [
+    "scripts/run_golf_experiment.py",
+    "tests/test_golf_experiment_boot.py",
+    "docs/fresh-boot-experiments.md",
+    "research/claims/fresh-boot-experiments.json",
+    "README.md",
+    "AGENTS.md",
+    "research/ledger.md"
+  ],
+  "intent": "All delivered live game commands must fresh launch Dolphin and the saved game, restore named pre-start state, run the established intro, then execute an action on successful boot; low-level and other-scenario work remain separate.",
+  "live_validation": "No additional live emulator testing performed; user-confirmed menu sequence precedes this change.",
+  "limitations": [
+    "First-shot prestart only; other named savestates need explicitly safe runner.",
+    "Script command must live in canonical scripts; no automatic screenshot verification.",
+    "No proof yet of swing ball contact or scored outcome."
+  ]
+}
