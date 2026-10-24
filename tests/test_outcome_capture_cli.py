@@ -11,6 +11,7 @@ for item in (str(ROOT), str(ROOT / "src"), str(ROOT / "scripts")):
         sys.path.remove(item)
     sys.path.insert(0, item)
 from scripts.collect_outcome_transition import run_session
+from scripts.probe_swing import build_probe
 
 
 def row(phase, value):
@@ -44,6 +45,8 @@ class OutcomeCaptureCliTests(unittest.TestCase):
                 ["pre", "pre", "swing", "post", "post", "settled", "settled"])
             self.assertEqual(result["candidate_ranking"]["all_phase_stable_change_count"], 1)
             self.assertEqual(result["human_observation"]["displayed_distance_human"], 12.5)
+            self.assertEqual(result["known_good_swing_request"]["generated_trace_frames"],
+                             len(build_probe("forward", follow_through_frames=30)))
             self.assertFalse(result["candidate_ranking"]["game_score_verified"])
             self.assertEqual(len(path.read_text().splitlines()), 6)
 
