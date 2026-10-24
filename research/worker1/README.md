@@ -32,3 +32,7 @@ PYTHONPATH=src python scripts/probe_dolphin_bridge.py --send-live-probe --i-unde
 ```
 
 The live probe **alters the running emulator** and is best effort; do not use it for scored experiments. Read-only mode is the recommended first step.
+
+## Additional research: emulator-side atomic trace scheduler
+
+The second branch provides a version-pinned *patch generator*, a client, 9 additional offline tests and [setup/testing notes](../../docs/felk-atomic-scheduler.md). This is a candidate response to the separate-RPC timing limitation: two input writes happen inside one emulator coroutine tick rather than two client requests. It is **not yet hardware validated**. Do not merge downstream real-game claims without proof of actual input recognition.
