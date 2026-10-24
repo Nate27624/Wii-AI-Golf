@@ -37,12 +37,28 @@ def scan_command(*, seconds: float, interval: float, profile: str,
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     add_boot_options(parser)
+    # Keep the command from the earlier conversation working. Legacy
+    # --attach-running now prefers existing Dolphin but falls back to fresh
+    # startup automatically if no bridge is listening.
+    parser.add_argument("--attach-running", action="store_true",
+                        help="compatibility alias: use automatic fresh-or-attach startup")
+    parser.add_argument("--fresh", action="store_true",
+                        help="compatibility alias for --startup fresh")
+    parser.add_argument("--savestate-profile", dest="prestart_profile",
+                        default=argparse.SUPPRESS,
+                        help="alias for --prestart-profile")
     parser.add_argument("--port", type=int, default=55355)
     parser.add_argument("--seconds", type=float, default=30)
     parser.add_argument("--interval", type=float, default=0.6)
     parser.add_argument("--scan-profile", choices=("fast", "broad"), default="fast")
     parser.add_argument("--no-upload", action="store_true")
     args = parser.parse_args(argv)
+    if args.fresh:
+        if args.startup not in ("auto", "fresh"):
+            parser.error("--fresh conflicts with --startup")
+        args.startup = "fresh"
+    if args.attach_running and args.startup == "fresh":
+        parser.error("choose either --fresh or --attach-running")
     if not 5 <= args.seconds <= 180 or not .2 <= args.interval <= 10:
         parser.error("seconds must be 5..180; interval must be 0.2..10")
     if not SCAN_SCRIPT.is_file():
