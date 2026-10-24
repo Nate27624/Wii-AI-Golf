@@ -40,6 +40,9 @@ class FakeRPC:
         self.calls.append((method, params))
         if method == "bridge.ping":
             return {"bridge_version": "0.3.0"}
+        if method == "trace.swing_capabilities":
+            return {"swing_protocol": 2, "neutral_button_only": True,
+                    "method": "trace.submit_swing", "button_first": True}
         if method == "controller.set_wiimote_buttons":
             if params[1]["A"]:
                 self.pressed += 1
@@ -100,7 +103,8 @@ class ButtonPrimeTests(unittest.TestCase):
             methods = [method for method, _ in rpc.calls]
             swing_idx = methods.index("trace.submit_swing")
             self.assertEqual(methods[0], "bridge.ping")
-            before = rpc.calls[1:swing_idx]
+            self.assertEqual(methods[1], "trace.swing_capabilities")
+            before = rpc.calls[2:swing_idx]
             self.assertEqual(len(before), 60)
             self.assertTrue(all(method == "controller.set_wiimote_buttons"
                                 and params == [0, {"A": True, "B": False}]
@@ -123,6 +127,25 @@ class ButtonPrimeTests(unittest.TestCase):
             self.assertEqual(line["dispatch"]["applied_frames"], 89)
             self.assertEqual(line["human_ball_moved"], "no")
             self.assertIsNone(line["game_score"])
+
+    def test_stale_v1_bridge_fails_before_any_buttons_or_motion(self):
+        class StaleBridge(FakeRPC):
+            def call(self, method, params=None):
+                if method == "trace.swing_capabilities":
+                    raise RuntimeError("Unknown RPC method")
+                return super().call(method, params)
+
+        rpc = StaleBridge()
+        with tempfile.TemporaryDirectory() as tmp:
+            report = Path(tmp) / "stale.jsonl"
+            args = ["probe_swing.py", "--attach-running", "--send-live-swing",
+                    "--report", str(report)]
+            with patch.object(sys, "argv", args), \
+                 patch.object(probe_swing, "FelkRPC", return_value=rpc):
+                with self.assertRaisesRegex(RuntimeError, "Swing bridge V2 is required"):
+                    probe_swing.main()
+            self.assertEqual([m for m, _ in rpc.calls], ["bridge.ping"])
+            self.assertFalse(report.exists())
 
     def test_failed_button_prehold_never_submits_swing_and_releases_a(self):
         rpc = FakeRPC(fail_prime_after=3)
