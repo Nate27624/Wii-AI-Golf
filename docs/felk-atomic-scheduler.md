@@ -1,6 +1,6 @@
 # Experimental atomic Wii Remote trace scheduler (Worker 1)
 
-**Status: offline-verified patch logic only; NOT tested inside Dolphin or Wii Sports.** Do not use for scoring experiments until real input is audited. Issue [#2](https://github.com/Nate27624/Wii-AI-Golf/issues/2).
+**Status: user-reported live 15/15 bridge dispatch on 2026-10-24; no visible Wii Sports response.** Not yet validated as a recognized golf swing or save-state reset. See [savestate workflow](savestate-workflow.md). Issue [#2](https://github.com/Nate27624/Wii-AI-Golf/issues/2).
 
 ## Motivation
 
@@ -41,3 +41,10 @@ If the upstream blob hash has changed, **the script refuses to patch**. Investig
 - Felk's `controller.set_wiimote_acceleration` might not map to Wii Sports' expected swing detector under selected Wii Remote emulation options.
 - A sustained A press must be confirmed in-game; the bridge returns dispatch status but cannot measure it.
 - Repeatable shot reload/state restoration, ball contact and final distance extraction remain undone.
+
+## User-operated live integration evidence, 2026-10-24
+
+- Atomic trace `state=complete`, frames 3455–3470, 15/15 dispatch acknowledgements; user saw **no on-screen response**.
+- Independent heartbeat demonstrated ~60 script frames per second; original bridge recovered after restarts. Failure to see a golf swing does not imply IPC failure.
+- Felk scripting-preview4 `controller.pyi` documents acceleration in **m/s²**. Earlier 1–2-unit test was **1–2 m/s², not 1–2 g**. Calibration remains an open modeling research question.
+- New `--startup-slot` patching option requests one load after the first frame; named catalog and reset/start/capture in `scripts/savestate_session.py` documented in `docs/savestate-workflow.md`.
