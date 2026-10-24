@@ -18,9 +18,10 @@ def preflight(rpc: Any) -> int:
     info = probe_rev1(rpc)
     if not info.get("supported"):
         raise RuntimeError("focused probe requires Wii Sports RSPE01 disc revision 1")
-    field = info["fields"]["golf_field"]
-    mode = info["fields"]["golf_config"]["raw_fields"]["game_mode_raw"]["value_hex"]
-    if mode != "0x00000004" or not field["plausible_mem_pointer"]:
+    field = info.get("fields", {}).get("golf_field", {})
+    mode = (info.get("fields", {}).get("golf_config", {})
+            .get("raw_fields", {}).get("game_mode_raw", {}).get("value_hex"))
+    if mode != "0x00000004" or not field.get("plausible_mem_pointer"):
         raise RuntimeError("focused probe requires Hitting the Green mode 4")
     root = int(field["instance_pointer"], 16)
     if not valid_mem(root + OWNER_OFFSET, 4):
