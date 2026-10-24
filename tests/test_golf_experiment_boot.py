@@ -35,12 +35,15 @@ class FreshBootDispatchTests(unittest.TestCase):
         self.assertEqual(boot[boot.index("--game") + 1], "G:/Wii Sports.wbfs")
         self.assertEqual(action[1], str(self.scripts / "probe_swing.py"))
         self.assertIn("--send-live-swing", action)
+        self.assertIn("--attach-running", action)
+        self.assertEqual(action.count("--attach-running"), 1)
         self.assertEqual(action[-2:], ["--port", "55355"])
 
     def test_future_capture_script_without_boot_code_is_accepted(self):
         boot, action = self.plan(action="discover_golf_motion.py",
                                  action_args=["--seconds", "30", "--profile", "fast"])
         self.assertEqual(action[1], str(self.scripts / "discover_golf_motion.py"))
+        self.assertNotIn("--attach-running", action)
         self.assertEqual(boot[1], str(self.scripts / "launch_golf.py"))
 
     def test_no_arbitrary_paths_or_double_launch(self):
@@ -85,6 +88,15 @@ class FreshBootDispatchTests(unittest.TestCase):
             self.assertEqual(run.call_count, 2)
             self.assertIn("launch_golf.py", run.call_args_list[0].args[0][1])
             self.assertIn("probe_swing.py", run.call_args_list[1].args[0][1])
+            self.assertIn("--attach-running", run.call_args_list[1].args[0])
+            self.assertNotIn("--attach-running", run.call_args_list[0].args[0])
+
+    def test_attach_is_internal_only_even_when_user_passes_it(self):
+        with self.assertRaisesRegex(ValueError, "must not launch/reset"):
+            self.plan(action_args=["--attach-running", "--send-live-swing"])
+        _, action = self.plan(action_args=["--preset", "forward", "--send-live-swing"])
+        self.assertEqual(action.count("--attach-running"), 1)
+        self.assertEqual(action[2], "--attach-running")
 
     def test_dry_run_never_launches_or_sends_controller_input(self):
         with patch.object(dispatcher.subprocess, "run") as run:

@@ -84,7 +84,13 @@ def build_commands(*, action: str, action_args: list[str],
 
     # Honor target script's own arguments. Pass the canonical port if it
     # supports the standard --port flag (all known live bridge probes do).
-    action_command = [python, str(target), *action_args]
+    # Worker 1 made probe_swing.py self-boot by default. The dispatcher has
+    # ALREADY completed launch_golf.py and its A/A+B/A navigation, so the
+    # probe must explicitly consume this running session without relaunching.
+    # Keep --attach-running forbidden in user-supplied action_args: only this
+    # trusted post-boot handoff may inject it, never a bare user command.
+    handoff_args = ["--attach-running"] if target.name == "probe_swing.py" else []
+    action_command = [python, str(target), *handoff_args, *action_args]
     if not any(x == "--port" or x.startswith("--port=") for x in action_args):
         action_command.extend(["--port", str(port)])
     return boot, action_command

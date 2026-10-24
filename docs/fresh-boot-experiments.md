@@ -18,7 +18,9 @@ py scripts/run_golf_experiment.py `
   --script probe_swing.py -- --preset forward --send-live-swing
 ~~~
 
-This boots the emulator, restores the registered `green-pre-start` savestate, runs the full intro and then starts `probe_swing.py`. The swing probe still asks you to confirm that the game is ready before sending one motion trace. The script prints a game-visible result prompt afterward; button acknowledgements alone are not hit evidence.
+This boots the emulator, restores the registered `green-pre-start` savestate, runs the full intro and then starts `probe_swing.py`. **The dispatcher now automatically supplies `--attach-running` to its internal swing-probe child after successful startup**, because Worker 1 recently made bare `probe_swing.py` self-launching. Do **not** supply `--attach-running` in the user command: the wrapper deliberately rejects it at its outer boundary and inserts it only after the already verified boot.
+
+The swing probe still asks you to confirm that the game is ready before sending one motion trace. The script prints a game-visible result prompt afterward; button acknowledgements alone are not hit evidence. Earlier attempts that ended in `Felk bridge port is already occupied` at this handoff **never sent a swing**; do not interpret them as insufficient power.
 
 After the first run, the ignored `research/launch.local.json` retains the game path, so later complete commands can omit `--game`:
 
@@ -50,7 +52,7 @@ This example works after `discover_golf_motion.py` has been merged into the cano
 
 ## Safety and tests
 
-- The dispatcher refuses a second launch script, configuration/capture utility, `--reset-profile`, `--attach-running`, `--fresh`, and commands outside the canonical `scripts/` directory. It refuses other named profiles in this first-shot workflow, to avoid pressing A into arbitrary saved game screens.
+- The dispatcher refuses a second launch script, configuration/capture utility, **user-provided** `--reset-profile`, `--attach-running`, `--fresh`, and commands outside the canonical `scripts/` directory. Its **internal** post-boot `probe_swing.py` child does receive `--attach-running`, so no second Dolphin startup is attempted. It refuses other named profiles in this first-shot workflow, to avoid pressing A into arbitrary saved game screens.
 - If the canonical boot fails, the action **is never started**. An existing Dolphin bridge intentionally triggers a failure rather than creating a second emulator. Close Dolphin before executing every standalone live command.
 - `--send-live` is required for writes. Omit it to print the exact boot and action command without launching Dolphin.
 - This only enforces the rule for experiments run **through this dispatcher**. Low-level scripts are still available for debugging and intentional alternate-scenario work; do not present their bare invocations as complete user-facing gameplay commands.
