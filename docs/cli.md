@@ -160,3 +160,25 @@ py scripts/golf.py bridge upgrade-swing
 If upgrade fails with a **port unavailable/occupied** message, inspect the listener and owning process using `Get-NetTCPConnection -LocalPort 55355 -State Listen -ErrorAction SilentlyContinue`; do **not** disable safety checks. If instead the pinned bridge source is missing or has a SHA mismatch, check `../tools/mcp_bridge.py` rather than providing a regenerated bridge as source. The generator backs up the existing output before replacing it.
 
 This correction ONLY concerns the local bridge-upgrade preflight; it does not verify a golf swing or change swing physics.
+
+## Coordinating with the evaluation agent's actual ball-contact workflow (2026-10-24)
+
+**Why a separate route?** The user reports the evaluation/other agent is striking the ball reliably while multiple S001 standalone `golf swing` trials have resulted in club-only misses. The uploaded S001 JSONL has just two rows: first **89/89 frames, ball moved yes, green no**, later **149/149 frames, 60 separate A prime requests, club-only, ball moved no**. Neither bridge-ACK proves the ball was struck.
+
+The S002 outcome collector also has **two independent operator-confirmed ball strikes**, one **2.1 ft on green** using 122 frames and one **100 ft off green** using 89 frames. Their input programs and controller provenance **differ**; do **not** treat them as proof of a stable one-size-fits-all waveform. In particular, S002's collector captures multiple pre-shot RAM snapshots before sending motion, unlike the standalone S001 probe. This could change in-game readiness timing but has not yet been established as the cause.
+
+Instead of copying S002's logic into S001, the unified CLI now exposes its **existing** action-only collector through exactly one canonical boot:
+
+~~~powershell
+# Read-only DRY-RUN of the planned boot and collector; starts no Dolphin:
+py scripts/golf.py outcome record
+
+# OPERATOR-APPROVED ONE SHOT, from fully CLOSED Dolphin:
+py scripts/golf.py outcome record --send-live
+~~~
+
+`golf outcome record` uses the same coordinator-owned `run_golf_experiment.py` -> `launch_golf.py` -> named `green-pre-start` checkpoint -> canonical A/A+B/A intro, then runs only `collect_outcome_transition.py` as its post-boot S002 action. It takes pre/post/settled RAM snapshots, asks for consent before a swing, and requests human contact/on-green/displayed-distance annotations. No duplicate Dolphin session, no independent reset, and **no verified automatic score**. Default without `--send-live` is an inner-coordinator dry-run.
+
+Options include `--pre-samples 3 --post-samples 8 --settled-samples 3 --interval 0.4`, `--game PATH`, and `--data-dir PATH`. Private raw RAM files stay local; only inspect/share sanitized summary if requested. The evaluation collector's UI labeling and V2 bridge compatibility are still being coordinated with its owner—**this route is not yet a certified fixed-shot generator**. For now do not change the S001 main `golf swing` trace just to chase contact and do not ask the operator for additional repetitive missed shots before the working recipe is identified.
+
+**Cross-agent handoff:** [S001 integration issue #2](https://github.com/Nate27624/Wii-AI-Golf/issues/2), [S002 evaluation issue #3](https://github.com/Nate27624/Wii-AI-Golf/issues/3), [evaluation PR #14](https://github.com/Nate27624/Wii-AI-Golf/pull/14). The evaluation owner has been asked to provide exact command, remote mode, bridge revision, waveform SHA, preparation timing and repeated hit evidence, so we can promote one verified common swing route after reproducing it.
