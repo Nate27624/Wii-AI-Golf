@@ -169,3 +169,22 @@ The new intro CLI now prepends its own checkout's `src` directory before importi
 For all subsequent real-game golf/training scripts, **reuse the canonical intro** from `wii_ai_golf.menu_sequence.planned_menu_phases` and `execute_menu_phases`, rather than duplicating numeric delays or interpreting a bare savestate load as ready-to-swing. See [AGENTS.md](../AGENTS.md#required-startup-for-real-hitting-the-green-runs-2026-10-24). Explicit low-level savestate probing is still permitted when capturing/evaluating *different* already-at-ball scenarios, but that is not the default S001 launch workflow.
 
 Verification limits: frame-request counts are not exact timing, no code has yet verified the ready screen automatically, and a dispatched swing does not prove ball contact or a score. Run `py -m unittest discover -s tests -v` in the user checkout and visually verify a game start.
+
+## 2026-10-24: never start a bare swing without the canonical A / A+B / A intro
+
+The previous stand-alone probe attempted a bridge connection and failed with Windows 10061 when Dolphin wasn't running. **The default entrypoint is now a full-session launcher, not a pre-existing bridge client.** From a CLOSED Dolphin instance:
+
+~~~powershell
+cd "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
+py scripts/launch_golf.py --slot 2 --swing --follow-through-frames 30
+~~~
+
+or run the familiar:
+
+~~~powershell
+py scripts/probe_swing.py --slot 2 --preset forward --follow-through-frames 30 --send-live-swing
+~~~
+
+Both routes are guaranteed to use the same `launch_golf.py` -> `launch_hitting_green.py` -> `menu_sequence.planned_menu_phases / execute_menu_phases` workflow, restoring the **registered** `green-pre-start` checkpoint in Slot 2, dispatching the user-proven **A, wait, A+B, wait, A** intro, then waiting for confirmation before sending a single 89-frame default swing (A held 77 frames). Launcher always configures Emulated Wii Remote 1 / Extension None and attaches the swing bridge before loading the state. Neither path writes savestates. The slot is verified by local catalog and logged on launch.
+
+Only use `probe_swing.py --attach-running` if you intentionally wish to skip boot and intro **because the same instance already has a running bridge and golfer at the ball**. The full launcher calls its swing subprocess with that flag to avoid recursive Dolphin starts. Source-only regression tests cover both command routes, their exact ordering, no bare RPC and early failure; live end-to-end needs Windows observation.
