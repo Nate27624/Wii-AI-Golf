@@ -51,3 +51,11 @@ py scripts/golf.py swing --slot 2 --preset forward --follow-through-frames 30
 - **Reproducibility:** include Git commit, study ID, experiment manifest, environment versions, local evidence path/hash, code to regenerate summary, and explicit unverified steps.
 
 Coordinate path ownership via [AGENTS.md](../AGENTS.md), [coordination.md](coordination.md), live GitHub issues and [ledger.md](ledger.md). Preserve negative attempts; do not overwrite the existing historical ledger. Keep operator guidance in [docs/cli.md](../docs/cli.md) instead of independently inventing launch snippets in every worker's README.
+
+## 2026-10-24 cross-agent convergence: stop unproductive S001 misses
+
+The user reports another agent's shot collector is making contact consistently. The current S001 local log actually documents **one human-confirmed hit** using an 89-sample trace, followed by **one club-only miss** using a 149-sample trace with 60 separate A-only prehold requests; it is misleading to extrapolate success from RPC completion. S002 separately captured **two human-confirmed impacts** with distance labels 2.1 ft green and 100 ft missed green. They used different 122 and 89 sample traces, without enough identical-input repeats to prove reliability, but represent working live-shot observations that must be incorporated.
+
+**Immediate priority:** align on the *other agent's precise current working input program* before any more power/release tweaks. Coordinator posted requests on Issues #2/#3 and PR #14 asking for exact script, bridge revision, controller mode, trace hash, actual A priming and readiness wait, and two or more repeated hit confirmations. S001 must not silently replace S002's verified-by-human control method or call different-length traces equivalent.
+
+The unified CLI now exposes `py scripts/golf.py outcome record` (dry-run) and `py scripts/golf.py outcome record --send-live` (explicit one full-start shot, after operator confirmation) through the **already merged S002 collector**. The public CLI is an adapter, not a competing controller program. Preserve both human successes AND failures in the study ledger and keep scores labeled human-reported until S002 independently verifies game memory units. Additional gaming trials should follow a written same-revision, same-trace comparison, not repeated speculative A hold increases.
