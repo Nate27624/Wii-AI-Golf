@@ -69,3 +69,11 @@ New evidence records: date, study_id, source (synthetic/emulator/human), agent v
 - **Docs:** `docs/savestate-workflow.md`; Issue #2 claim/handoff. Evaluation #3 owns score extraction; modeling #4 owns physical swing calibration.
 
 - **Adaptability update:** source-pinned patch generator now supports `--startup-profile NAME` resolved via local catalog, as well as `--startup-slot`. This avoids embedding first-shot-specific code in reusable integration and preserves multi-scenario training support.
+
+## 2026-10-24 — Worker 1 S001: no game response; reusable checkpoints staged
+
+- **Negative user observation:** despite successful live atomic trace report (`state=complete`, `applied_frames=15/15`), Nueron showed **no visible response** in Wii Sports. This is not an achieved golf swing. Prior user preflight and heartbeat confirm bridge transport and emulator scripting loop, not game's controller input consumption.
+- **New higher priority requested by user:** eliminate menu navigation by reloading a pre-shot Dolphin savestate and generalize this for future training scenarios.
+- **Implementation:** reusable `SavestateManager` for `savestate.save_to_slot` and `savestate.load_from_slot`, named local registry (unique names/slots; 0..255), `scripts/savestate_checkpoint.py` CLI for register/list/save/load, plus an **optional** `--startup-slot N` for `patch_felk_bridge.py`. The patched bridge asks Dolphin to load the chosen slot once at the first advanced emulated frame; log indicates request/failure. No automatic restore without explicit opt-in.
+- **Limits:** savestate bytes remain stored by the user's Dolphin; registry `research/savestates.local.json` is Git-ignored, and no saved game is committed. No restore verified yet on the user's emulator; verify restored tee and controller settings before training. Repo tests added for slot validation, registry collisions and startup hook, but not executed remotely in the user's Dolphin environment.
+- **Next:** confirm the chosen slot works manually with local capture/load, then test auto-load and Wii Remote emulation connection (Wii Remote 1 = Emulated; in-game A response) before physics optimization.
