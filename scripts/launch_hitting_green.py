@@ -6,6 +6,7 @@ Use Felk Dolphin with Emulated Wii Remote 1, Extension None.
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 import json
 from pathlib import Path
 import sys
@@ -113,7 +114,7 @@ def main() -> None:
         status = _launch(args, profile)
         print("Dolphin startup / state load:", json.dumps(status, indent=2))
 
-    with _healthy_connection(args.port, args.timeout) as rpc:
+    with closing(_healthy_connection(args.port, args.timeout)) as rpc:
         print("Felk bridge is responsive and advancing frames. Sending menu sequence.")
         reports = execute_menu_phases(rpc, phases, remote=args.remote)
         print("Button dispatch report:", json.dumps(reports, indent=2))
