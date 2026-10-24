@@ -144,20 +144,46 @@ def ensure_intro(args: argparse.Namespace) -> str:
     if controller_mode not in ("emulated", "physical"):
         raise ValueError("controller mode must be emulated or physical")
     if controller_mode == "physical":
-        if startup == "skip":
-            print("Physical Wii Remote: existing Dolphin settings preserved; no menu inputs sent.")
+        # Never change Real Wii Remote settings or inject virtual A/B presses.
+        if startup == "skip" or startup in ("auto", "attach"):
+            if not bridge_open(args.port):
+                raise ConnectionError(
+                    "Physical mode needs the Felk bridge at 127.0.0.1:"
+                    f"{args.port}. Close ordinary Dolphin, then use "
+                    "--controller-mode physical --startup fresh --game PATH "
+                    "to launch scripting-enabled Dolphin without changing Wii Remote settings."
+                )
+            print("Physical Wii Remote: live bridge detected; preserving controller and game state.")
+            print("Navigate and swing manually. No scripted menu buttons or savestate reset.")
             return "physical_existing"
-        if not bridge_open(args.port):
-            raise ConnectionError(
-                "Physical mode cannot automatically start with the emulated-only "
-                "integrator launcher. Start Dolphin with Wii Remote 1 set to Real, "
-                "connect the controller and enable the Felk read-only bridge; "
-                "then rerun --controller-mode physical."
+        if startup != "fresh":
+            raise ValueError("physical controller startup must be fresh, auto, attach, or skip")
+        if bridge_open(args.port) or dolphin_process_running():
+            raise RuntimeError(
+                "Close existing Dolphin and retry physical --startup fresh; "
+                "refusing competing emulator instances."
             )
-        print("Physical Wii Remote: preserving settings and game progress.")
-        print("Navigate the Hitting the Green intro and swing with the physical remote.")
-        print("No automated state restore or A/A+B/A presses are sent in physical mode.")
-        return "physical_existing"
+        game = args.game or game_from_local_settings(Path(args.canonical))
+        for name, path in (("Felk Dolphin", args.dolphin), ("read-only capable Felk bridge", args.bridge),
+                           ("Wii Sports disc image", game)):
+            if path is None or not Path(path).is_file():
+                raise FileNotFoundError(f"{name} missing: {path}")
+        # Launch *without* pre-start emulated inputs or Wiimote configuration edits.
+        process = subprocess.Popen(
+            [str(args.dolphin), "--script", str(args.bridge), "--exec", str(game)],
+            cwd=str(args.dolphin.parent),
+        )
+        import time
+        deadline = time.monotonic() + 25
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise RuntimeError(f"Felk Dolphin exited on startup: {process.returncode}")
+            if bridge_open(args.port):
+                print("Physical mode bridge active. Wii Remote settings preserved.")
+                print("Navigate to Hitting the Green manually before interpreting golf snapshots.")
+                return "physical_launched"
+            time.sleep(0.25)
+        raise TimeoutError("Felk Dolphin started but bridge did not listen within 25 seconds")
     if startup == "skip":
         print("Explicit --startup skip: game must ALREADY be ready to swing.")
         return "skipped"
