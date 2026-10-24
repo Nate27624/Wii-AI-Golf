@@ -176,11 +176,27 @@ def make_start_command(*, game: Path, dolphin: Path, bridge: Path,
     ]
 
 
-def make_swing_command(*, preset: str, port: int) -> list[str]:
-    return [
+def make_swing_command(*, preset: str, port: int,
+                       follow_through_frames: int = 30, remote: int = 0,
+                       report: Path | None = None) -> list[str]:
+    """The launcher ALREADY ran the intro; child must explicitly attach.
+
+    Without --attach-running the probe would invoke launch_golf again,
+    causing recursion and/or a second Dolphin process.
+    """
+    if not 0 <= follow_through_frames <= 180:
+        raise ValueError("follow_through_frames must be between 0 and 180")
+    if remote not in range(4):
+        raise ValueError("remote must be 0..3")
+    cmd = [
         sys.executable, str(ROOT / "scripts" / "probe_swing.py"),
-        "--preset", preset, "--port", str(port), "--send-live-swing",
+        "--attach-running", "--preset", preset, "--port", str(port),
+        "--follow-through-frames", str(follow_through_frames),
+        "--remote", str(remote), "--send-live-swing",
     ]
+    if report is not None:
+        cmd += ["--report", str(report)]
+    return cmd
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -199,7 +215,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--swing", action="store_true",
                         help="After validated intro dispatch, prompt for ONE human-confirmed swing experiment")
     parser.add_argument("--preset", choices=("forward", "reverse", "sideways"), default="forward")
+    parser.add_argument("--follow-through-frames", type=int, default=30,
+                        help="Extra frames holding A through swing (0..180, default 30)")
+    parser.add_argument("--remote", type=int, choices=range(4), default=0)
+    parser.add_argument("--report", type=Path,
+                        help="Optional local JSONL observation path, passed to guarded swing child")
     args = parser.parse_args(argv)
+    if not 0 <= args.follow_through_frames <= 180:
+        parser.error("--follow-through-frames must be 0..180")
     try:
         game = resolve_game(args.game, args.config)
         profile = resolve_profile(args.profile, args.slot, args.config, args.catalog)
@@ -236,10 +259,14 @@ def main(argv: list[str] | None = None) -> int:
         print("Calibrated intro dispatched; visually confirm the golfer reached the ready-to-swing screen.")
         if args.swing:
             print("Starting guarded single-shot test. It waits for YOUR Enter before dispatch.")
-            result = subprocess.run(make_swing_command(preset=args.preset, port=args.port), check=False)
+            result = subprocess.run(make_swing_command(
+                preset=args.preset, port=args.port,
+                follow_through_frames=args.follow_through_frames,
+                remote=args.remote, report=args.report), check=False)
             return result.returncode
-        print("Intro complete (screen not machine-verified). To attempt one guarded swing: "
-              "py scripts/probe_swing.py --preset forward --send-live-swing")
+        print("Intro complete (screen not machine-verified). For the next full session, run "
+              "py scripts/launch_golf.py --swing. Do NOT assume a standalone probe "
+              "has a running bridge unless using --attach-running explicitly.")
         return 0
     except (OSError, ValueError, ControllerConfigError, json.JSONDecodeError) as exc:
         print(f"Golf launcher error: {exc}", file=sys.stderr)
