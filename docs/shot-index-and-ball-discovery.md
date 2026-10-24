@@ -33,3 +33,32 @@ Raw memory hex and full time series stay **local only** in the sibling Wii-AI-Go
 - The updated monitor labels tentative stable tee/pin configurations, **not** completed swings or scores.
 - This probe generates rank-ordered numeric *hypotheses*. Physical ball motion requires independent multi-frame and on-screen correspondence. A score decoder requires validated landing position or actual game result variable and its units.
 - The earlier 417-sample run did not capture any actual ball position or score. New tests are offline mocks only; real Dolphin scan and upload remain to be checked.
+
+## 2026-10-24 variable recording upgrade
+
+The motion sampler now has two bounded read-only profiles:
+
+- **Fast** (default): reads the first 192 bytes of the golf configuration, golf field manager, sports sequence, and three minimap effect windows (~2.1 KiB of candidate windows). Fewer memory RPC calls gives more opportunities to catch short-duration motion.
+- **Broad**: scans the full source-documented golf configuration (~7.3 KiB), plus the same other windows (~9.2 KiB total). This is useful for finding possible result/counter state, but takes more RPC frames and may miss fast flight.
+
+Every successful sample records its emulator frame count before/after the reads, exact frame span, raw candidate windows (PRIVATE local JSONL only), matched empirical tee/pin and pin/cup alignment status. Candidate ranking distinguishes changes *within* a matching tee/pin from scene transitions. A short-lived pointer value, transition, or a missing sample is not counted as repeated ball motion.
+
+**Source-grounded typed decoder:** `decoded_golf_fields.py` also extracts US Rev1 fields at published offsets: raw golf mode, current course-hole, sport/sequence/training-game IDs, pin/start/target object counts and two standard golf score arrays (36 entries each). The documented score arrays are **not confirmed** to represent the Hitting the Green training metric. These raw values appear in each local sample and their compact change statistics appear in the GitHub report. No guessed units or score conversion is applied.
+
+### Suggested short experiments
+
+For dynamic motion, stand at the same shot, start recording, swing once normally, and let the ball settle:
+
+~~~powershell
+py scripts/discover_golf_motion.py --seconds 30 --profile fast
+~~~
+
+For possibly slower-changing scores, counters and wind-related state, try a separate run that includes a displayed result and the transition to the next shot:
+
+~~~powershell
+py scripts/discover_golf_motion.py --seconds 25 --profile broad
+~~~
+
+Both commands support Ctrl+C to stop and upload early. No need to collect another entire 10-shot round. The full raw game bytes remain local under `Wii-AI-Golf-Data/captures` and **are not** part of the auto-published data branch. Only a numerical candidate ranking, counts, documented raw-field change summaries, and frame-span statistics are uploaded.
+
+**Research limitation:** even a high-ranking in-scene coordinate is only a hypothesis until its trajectory matches the ball on screen and its final position predicts an independently visible result. These scans use sequential non-atomic read RPCs; actual ball physics and authoritative displayed distance-to-pin are not decoded.
