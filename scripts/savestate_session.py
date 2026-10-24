@@ -11,6 +11,16 @@ import subprocess
 import sys
 import time
 
+
+# Resolve the canonical source checkout BEFORE importing wii_ai_golf.
+# Editable pip installs may point at a different Git worktree.
+# This also works with Python -I (isolated mode) and from any CWD.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_LOCAL_SRC = str(_REPO_ROOT / "src")
+if _LOCAL_SRC in sys.path:
+    sys.path.remove(_LOCAL_SRC)
+sys.path.insert(0, _LOCAL_SRC)
+
 from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.integration.savestates import MAX_SLOT, StateCatalog, StateManager, StateProfile
 
