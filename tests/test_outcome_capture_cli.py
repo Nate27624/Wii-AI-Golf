@@ -1,6 +1,7 @@
 """Mocked capture lifecycle tests: no emulator, no user files."""
 from pathlib import Path
 import struct
+from unittest.mock import patch
 import sys
 import tempfile
 import unittest
@@ -72,6 +73,47 @@ class OutcomeCaptureCliTests(unittest.TestCase):
             self.assertTrue(result["cancelled"])
             self.assertEqual(result["partial_samples"], 2)
             self.assertEqual(len(path.read_text().splitlines()), 2)
+
+    def test_live_default_primes_button_before_swing_and_releases(self):
+        events = []
+        answers = iter(["", "", "", "yes", "no", "100", "ft"])
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "RAW.jsonl"
+            with patch("scripts.collect_outcome_transition.prime_a_button") as prime, \
+                 patch("scripts.collect_outcome_transition.SwingTraceClient") as client, \
+                 patch("scripts.collect_outcome_transition.release_buttons") as release:
+                prime.side_effect = lambda *_a, **_k: events.append("prime")
+                def trace(samples):
+                    events.append("trace")
+                    return {"state": "complete", "applied_frames": len(samples)}
+                client.return_value.run.side_effect = trace
+                release.side_effect = lambda *_a, **_k: events.append("release")
+                result = run_session(object(), raw_path=path, pre_samples=2,
+                    post_samples=2, settled_samples=2, interval=0,
+                    input_fn=lambda _q: next(answers),
+                    snapshot_fn=lambda _r, phase: row(phase, {"pre": 0, "post": 1, "settled": 2}[phase]))
+            self.assertEqual(events, ["prime", "trace", "release"])
+            self.assertEqual(prime.call_args.kwargs, {"remote": 0, "requests": 60})
+            self.assertEqual(result["known_good_swing_request"]["a_button_only_prime_requests"], 60)
+            self.assertTrue(result["known_good_swing_request"]["a_button_prime_applied"])
+            self.assertEqual(len(result["known_good_swing_request"]["trace_sha256"]), 64)
+            self.assertEqual(result["known_good_swing_request"]["generated_trace_frames"],
+                             result["swing_dispatch"]["applied_frames"])
+
+    def test_cleanup_after_failed_live_swing(self):
+        answers = iter(["", ""])
+        rpc = object()
+        with tempfile.TemporaryDirectory() as d:
+            with patch("scripts.collect_outcome_transition.prime_a_button"), \
+                 patch("scripts.collect_outcome_transition.SwingTraceClient") as client, \
+                 patch("scripts.collect_outcome_transition.release_buttons") as release:
+                client.return_value.run.side_effect = RuntimeError("synthetic swing failure")
+                with self.assertRaisesRegex(RuntimeError, "synthetic swing failure"):
+                    run_session(rpc, raw_path=Path(d) / "RAW.jsonl",
+                        pre_samples=2, post_samples=2, settled_samples=2, interval=0,
+                        input_fn=lambda _q: next(answers),
+                        snapshot_fn=lambda _r, phase: row(phase, 1))
+                release.assert_called_once_with(rpc, remote=0)
 
     def test_evidence_file_never_overwritten(self):
         with tempfile.TemporaryDirectory() as d:

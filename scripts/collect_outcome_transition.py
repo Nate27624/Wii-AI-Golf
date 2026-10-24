@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -27,6 +28,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.integration.swing_client import SwingTraceClient
+from wii_ai_golf.integration.button_prime import prime_a_button, release_buttons
 from wii_ai_golf.audit.outcome_transition import (
     capture_outcome_windows, rank_outcome_candidates)
 from probe_swing import build_probe
@@ -83,8 +85,21 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
     # That worker can refine its initial held-A setup without changing this
     # collector; do not claim a fixed 89-frame swing in evidence labels.
     samples = build_probe("forward", follow_through_frames=30)
-    if swing_fn is None:
-        swing_fn = lambda client: SwingTraceClient(client, port=0).run(samples)
+    trace_sha256 = hashlib.sha256(json.dumps(
+        [[s.hold_a, *s.direction, s.distance_m, s.speed_m_s,
+          s.return_speed_m_s, s.angle_rad] for s in samples],
+        separators=(",", ":")).encode()).hexdigest()
+    canonical_swing = swing_fn is None
+    if canonical_swing:
+        def swing_fn(client):
+            # Match Worker 1's actual recognized swing contract. The A prehold
+            # is BUTTON-ONLY and occurs before ANY swing API call. It is not
+            # included in generated_trace_frames or swing_dispatch.applied_frames.
+            try:
+                prime_a_button(client, remote=0, requests=60)
+                return SwingTraceClient(client, port=0).run(samples)
+            finally:
+                release_buttons(client, remote=0)
     ready = input_fn("Visually verify golfer is ready. ENTER starts capture; type q to cancel: ")
     if ready.strip():
         return {"cancelled": True, "raw_data_created": False}
@@ -125,6 +140,9 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 "preset": "forward", "follow_through_frames": 30,
                 "generated_trace_frames": len(samples),
                 "trace_generator": "probe_swing.build_probe",
+                "trace_sha256": trace_sha256,
+                "a_button_only_prime_requests": 60 if canonical_swing else None,
+                "a_button_prime_applied": canonical_swing,
             },
             "human_observation": annotation, "candidate_ranking": ranked,
             "warning": "Candidate RAM and labels unverified; no automatic game score or ball XYZ."}
