@@ -9,6 +9,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 import subprocess
 from pathlib import Path
 import sys
@@ -144,6 +145,38 @@ def main() -> None:
     label = input("What happened? hit / club-only / menu / none / other: ").strip().lower()
     if label not in OBSERVATIONS:
         label = "other"
+    # These fields are intentionally HUMAN observations, never inferred from
+    # a successful bridge ACK. Blank means unknown, not zero or a miss.
+    contact = input("Did the ball visibly move? yes / no / unknown [unknown]: ").strip().lower() or "unknown"
+    if contact not in ("yes", "no", "unknown"):
+        contact = "unknown"
+    green = input("Did the ball land on the green? yes / no / unknown [unknown]: ").strip().lower() or "unknown"
+    if green not in ("yes", "no", "unknown"):
+        green = "unknown"
+    distance_text = input("Displayed landing distance to target (number, blank if unknown): ").strip()
+    units = None
+    distance = None
+    if distance_text:
+        try:
+            parsed = float(distance_text)
+            if not math.isfinite(parsed) or parsed < 0:
+                raise ValueError("distance must be nonnegative")
+            units = input("Distance unit shown in game (e.g. ft, yd, m): ").strip() or None
+            if not units:
+                print("Unit unknown: retaining distance as UNVERIFIED rather than a scored value.")
+            distance = parsed
+        except ValueError:
+            print("Distance not numeric/nonnegative; recording it as unknown.")
+    power_text = input("Visual power gauge estimate 0..100 (blank if unknown): ").strip()
+    power_estimate = None
+    if power_text:
+        try:
+            parsed_power = float(power_text)
+            if not math.isfinite(parsed_power) or not 0 <= parsed_power <= 100:
+                raise ValueError("power outside 0..100")
+            power_estimate = parsed_power
+        except ValueError:
+            print("Invalid gauge estimate; recording unknown.")
     record = {
         "utc": datetime.now(timezone.utc).isoformat(),
         "source": "user-observed-live-Felk",
@@ -160,6 +193,12 @@ def main() -> None:
                     separators=(",", ":")).encode()).hexdigest(),
         "dispatch": result,
         "human_observation": label,
+        "human_ball_moved": contact,
+        "human_on_green": green,
+        "human_displayed_distance": distance,
+        "human_displayed_distance_unit": units,
+        "human_visual_power_gauge_estimate_pct": power_estimate,
+        "observations_quality": "human-reported-not-verified",
         "game_score": None,
         "warning": "Human label unverified; no automatic outcome detection",
     }
