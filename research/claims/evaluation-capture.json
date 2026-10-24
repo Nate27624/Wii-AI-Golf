@@ -1,0 +1,21 @@
+{
+  "worker_id": "evaluation-capture",
+  "role": "evaluation",
+  "issue": 3,
+  "branch": "agent/evaluation/read-only-golf-snapshots",
+  "date_claimed": "2026-10-24",
+  "status": "offline-tested-read-only-scaffold-pending-live",
+  "claim_comment": "https://github.com/Nate27624/Wii-AI-Golf/issues/3#issuecomment-6380862356",
+  "owned_paths": [
+    "src/wii_ai_golf/observation_capture.py",
+    "scripts/capture_golf_data.py",
+    "tests/test_observation_capture.py",
+    "docs/game-data-capture.md",
+    "research/evaluation-capture/**",
+    "research/claims/evaluation-capture.json",
+    ".gitignore (add local capture directory only)"
+  ],
+  "verified_level": "targeted-offline-mock-tests",
+  "real_dolphin_tested": false,
+  "gameplay_tested": false
+}
