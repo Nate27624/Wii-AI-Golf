@@ -99,13 +99,13 @@ class OutcomeTransitionTests(unittest.TestCase):
                 snapshot("settled", [10])]
         self.assertEqual(rank_outcome_candidates(rows)["all_phase_stable_change_count"], 0)
 
-    def test_reject_conflicting_overlapping_reads(self):
+    def test_excludes_conflicting_nonatomic_overlapping_reads(self):
         a = snapshot("pre", [10])
         a["windows"]["golf_field"] = {
             "address": "0x91000000", "bytes_hex": struct.pack(">I", 11).hex()}
         rows = [a, snapshot("pre", [10]), snapshot("settled", [20]), snapshot("settled", [20])]
-        with self.assertRaisesRegex(ValueError, "conflicting"):
-            rank_outcome_candidates(rows)
+        result = rank_outcome_candidates(rows)
+        self.assertEqual(result["all_phase_stable_change_count"], 0)
 
     def test_phase_order_required(self):
         rows = [snapshot("pre", [0]), snapshot("settled", [1]),
