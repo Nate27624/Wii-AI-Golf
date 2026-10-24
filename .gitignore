@@ -24,3 +24,4 @@ outputs/
 research/*.local.json
 research/*.local.json.tmp
 research/game-data.local/
+captures/
