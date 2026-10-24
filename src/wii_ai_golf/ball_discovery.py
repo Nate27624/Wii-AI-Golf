@@ -111,6 +111,7 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
     observations: dict[
         tuple[str, str, int], list[tuple[int, tuple[float, float, float]]]
     ] = defaultdict(list)
+    scalar_samples: dict[tuple[str, str, int], list[tuple[int, int]]] = defaultdict(list)
     for idx, sample in enumerate(samples):
         if sample.get("game_id") != "RSPE01" or sample.get("disc_revision") != 1:
             continue
@@ -124,6 +125,10 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
                 blob = bytes.fromhex(raw)
             except ValueError:
                 continue
+            for offset in range(0, len(blob) - 3, 4):
+                u32 = struct.unpack_from(">I", blob, offset)[0]
+                if 0 <= u32 <= 100000:
+                    scalar_samples[(name, address, offset)].append((idx, u32))
             for offset in range(0, len(blob) - 11, 4):
                 xyz = struct.unpack_from(">fff", blob, offset)
                 if all(math.isfinite(v) and abs(v) < 100000 for v in xyz):
@@ -154,9 +159,26 @@ def analyze_samples(samples: list[dict[str, Any]], *, min_changed: int = 3,
     ranked.sort(key=lambda x: (-x["changed_steps"],
                                -x["total_displacement_game_units_unverified"],
                                x["candidate_address"]))
+    scalar_ranked = []
+    for (name, address, offset), entries in scalar_samples.items():
+        if len(entries) < 3:
+            continue
+        steps = sum(p != q for (_i, p), (_j, q) in zip(entries, entries[1:]))
+        if steps < min_changed:
+            continue
+        scalar_ranked.append({
+            "window": name, "candidate_address": f"0x{int(address,16)+offset:08X}",
+            "offset_hex": f"+0x{offset:X}", "changed_steps": steps,
+            "first_u32": entries[0][1], "last_u32": entries[-1][1],
+            "status": "unverified_integer_state_candidate_NOT_score",
+        })
+    scalar_ranked.sort(key=lambda x: (-x["changed_steps"], x["candidate_address"]))
     return {
         "samples": len(samples), "candidate_count": len(ranked),
         "candidates": ranked[:top_n],
         "candidates_truncated": len(ranked) > top_n,
+        "scalar_candidate_count": len(scalar_ranked),
+        "scalar_candidates": scalar_ranked[:top_n],
+        "scalar_candidates_truncated": len(scalar_ranked) > top_n,
         "warning": "Do not treat candidate as moving golf ball without visual/temporal validation. No score field identified.",
     }
