@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from wii_ai_golf.golf_collection import collect, session_steps  # noqa: E402
+from session_bootstrap import add_boot_options, ensure_intro  # noqa: E402
 
 DATA = ROOT.parent / "Wii-AI-Golf-Data" / "captures"
 
@@ -28,15 +29,17 @@ def main() -> None:
                         help="number of shots/plan attempts to collect, max 10")
     parser.add_argument("--plan", type=Path, help="optional observed scenario plan created by scripts/plan_scenarios.py")
     parser.add_argument("--port", type=int, default=55355)
+    add_boot_options(parser)
     parser.add_argument("--data-dir", type=Path, default=DATA,
                         help="private local JSON files; NEVER committed by this tool")
     parser.add_argument("--no-upload", action="store_true",
                         help="save observations locally only; default automatically git-pushes compact report")
     args = parser.parse_args()
+    ensure_intro(args)
     plan = json.loads(args.plan.read_text(encoding="utf-8")) if args.plan else None
     steps = session_steps(start_shot=args.start_shot, shots=args.shots, plan=plan)
     print("HITTING THE GREEN — MANUAL SHOT COLLECTION")
-    print("This script NEVER swings, loads savestates or changes Dolphin memory.")
+    print("This script never swings or writes RAM. Startup loaded the named state and navigated menus.")
     print(f"Prepare to manually perform up to {len(steps)} shot(s).")
     print(f"Local evidence: {args.data_dir}")
     if not args.no_upload:
