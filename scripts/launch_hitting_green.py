@@ -12,6 +12,14 @@ from pathlib import Path
 import sys
 import time
 
+# Resolve this checkout's source before any wii_ai_golf import. A pip editable
+# installation may otherwise point to an older branch/worktree.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_LOCAL_SRC = str(_REPO_ROOT / "src")
+if _LOCAL_SRC in sys.path:
+    sys.path.remove(_LOCAL_SRC)
+sys.path.insert(0, _LOCAL_SRC)
+
 from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.integration.savestates import StateCatalog, StateManager
 from wii_ai_golf.integration.swing_client import SwingTraceClient
