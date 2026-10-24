@@ -58,6 +58,10 @@ class MenuSequenceTests(unittest.TestCase):
             execute_menu_phases(bridge, planned_menu_phases(), remote=4)
         self.assertEqual(bridge.calls, [])
 
+    def test_calibrated_defaults(self):
+        stages = planned_menu_phases()
+        self.assertEqual([p.requests for p in stages], [120, 30, 315, 60, 135, 45, 300])
+
     def test_all_phases_bounded(self):
         stages = planned_menu_phases()
         self.assertEqual([p.label for p in stages],

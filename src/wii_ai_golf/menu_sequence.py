@@ -28,13 +28,15 @@ class MenuPhase:
             raise ValueError("each phase requires 1..600 frame requests")
 
 
-def planned_menu_phases(*, startup: int = 90, a_press: int = 12,
-                        between: int = 75, ab_press: int = 15,
-                        gap: int = 8, final_a: int = 12,
-                        settle: int = 120) -> tuple[MenuPhase, ...]:
+def planned_menu_phases(*, startup: int = 120, a_press: int = 30,
+                        between: int = 315, ab_press: int = 60,
+                        gap: int = 135, final_a: int = 45,
+                        settle: int = 300) -> tuple[MenuPhase, ...]:
     """Load pre-start checkpoint, then A, release/wait, A+B, release, A.
 
-    Timings are calibration defaults, not verified navigation for all versions.
+    Defaults reflect one user-confirmed successful navigation, with ~15 requested
+    frames of extra padding before A+B and the final A press. RPC request
+    counts are not guaranteed exact real or emulation time.
     Explicit release between A+B and final A creates a new press edge.
     """
     return (
