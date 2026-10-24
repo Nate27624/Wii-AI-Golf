@@ -26,6 +26,21 @@ Every session MUST read README, this document, research/ledger.md, research/queu
 6. Integrate through PR after tests and review. If another PR changed a shared file, update your branch and resolve conflict deliberately.
 7. Append findings to research/ledger.md and proposal records to research/queue.jsonl; don't erase failures or mark studies complete without associated artifact links.
 
+## Required startup for real Hitting the Green runs (2026-10-24)
+
+**User-confirmed working baseline:** On the target Wii Sports USA Rev 1 setup, a live operator saw the first-shot screen reached with the existing `green-pre-start` savestate and the A → wait → A+B → release → A menu sequence. PR #22 standardized the slower default timing with a small margin: requested-frame counts **120, 30, 315, 60, 135, 45, 300**. These are *RPC requests*, not accurate wall-clock/video frame timing; no automatic screen-state verifier exists yet.
+
+**Rule for all future real-game golf launch/training scripts:** use the canonical `scripts/launch_hitting_green.py` flow or call its shared `wii_ai_golf.menu_sequence.planned_menu_phases` / `execute_menu_phases` logic after loading the same named `green-pre-start` checkpoint through `StateCatalog` + `StateManager`. Do **not** issue a bare `savestate_session start green-first-shot` and treat it as readiness; do not duplicate hardcoded menu delays in training code. `scripts/launch_golf.py` must delegate to the canonical intro rather than stop after savestate load. To add a new action collection loop, use this startup as the reproducible S001 baseline before any first-ball swing.
+
+- Use `green-pre-start` by **name** in `research/savestates.local.json`; do not hardcode a slot, overwrite existing savestate bytes, or copy a game image into Git.
+- Fresh boot: Felk Dolphin, **Emulated Wii Remote 1 / Extension None**, single `mcp_bridge_swing.py` patched without a separate startup-slot hook. Restart before fresh launch if another bridge occupies port 55355.
+- Running emulator: `py scripts/launch_hitting_green.py --attach-running --send-live` restores the named checkpoint and runs the intro. Fresh boot: `py scripts/launch_golf.py` (first run prompts for game image, stores locally), or `launch_hitting_green.py --dolphin ... --game ... --bridge ... --send-live`.
+- Actual swing execution is a **separate** phase and requires explicit opt-in (`--swing`, ideally with a human-ready-screen confirmation until screen detection exists). Controller ACK alone is not proof of recognized shot, successful menu navigation or score.
+- Low-level `savestate_session.py`, `probe_wiimote.py`, `probe_atomic_trace.py` and custom scenario resets remain permitted as **explicit diagnostics**, not the normal first-shot golf launcher. Alternate saved-at-ball states require their own documented scenario contract and proof of readiness.
+- Add a regression test whenever launch behavior changes, verifying that the canonical intro is invoked before an optional swing. Keep the user-confirmed timing baseline available as a default; proposed recalibration must preserve a runnable known-good profile.
+
+Relevant docs: [launch-hitting-green.md](docs/launch-hitting-green.md), [one-command-launch.md](docs/one-command-launch.md), [workspace-coordination.md](docs/workspace-coordination.md). Observed menu success was **human reported**, not frame-count/video verified by an automated detector.
+
 ## Scientific integrity gates
 
 - Every experiment gets a unique study ID, baseline, hypothesis, seeds, train/evaluation partitions, attempt/time budget, success criterion and stop rule BEFORE training.
