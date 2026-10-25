@@ -24,7 +24,7 @@ def operator_input(message: str) -> str:
             )
         finally:
             root.destroy()
-    except (ImportError, RuntimeError, tk.TclError) as exc:
+    except Exception as exc:
         # Do not implicitly approve a live experiment if the UI is unavailable.
         raise RuntimeError("Operator dialog unavailable; experiment canceled") from exc
     return "q" if value is None else value
