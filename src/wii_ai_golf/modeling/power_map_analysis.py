@@ -18,7 +18,10 @@ _CAPTURE_SOURCES = frozenset({"sanitized_human_annotation_only",
 def _number(value: object) -> float | None:
     if type(value) not in (int, float):  # bool is NOT a measurement
         return None
-    x = float(value)
+    try:
+        x = float(value)
+    except (OverflowError, ValueError):
+        return None
     return x if math.isfinite(x) else None
 
 
@@ -121,6 +124,7 @@ def analyze_power_map(
                 or record.get("trial_count") != len(plan)):
             reason = "study_schema_or_count_mismatch"
         elif (record.get("bridge_sha256") != expected_bridge_sha256
+              or not isinstance(record.get("capture_status"), str)
               or record.get("capture_status") not in _CAPTURE_SOURCES):
             reason = "unmatched_bridge_or_capture_provenance"
         elif (not _same_number(record.get("requested_a_lead_frames"), required_a_lead_frames)
