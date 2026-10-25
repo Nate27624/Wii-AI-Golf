@@ -125,7 +125,7 @@ class GameplayCaptureTests(unittest.TestCase):
         self.assertEqual(out["changed_candidate_words"],1)
         self.assertEqual(out["top_relative_changes"][0]["offset"],"+0x030")
         self.assertEqual(out["top_relative_changes"][0]["region"],"main")
-        self.assertFalse(out["observed_creator_scene_id_matches_golf"])
+        self.assertTrue(out["creator_scene_id_not_used_for_identity"])
         self.assertTrue(out["actual_scene_id_verified"])
         self.assertFalse(out["power_verified"])
         for value in ("80040000","80030000","3F800000","40000000","bytes_hex"):
