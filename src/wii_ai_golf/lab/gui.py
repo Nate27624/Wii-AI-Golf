@@ -205,7 +205,7 @@ def launch(root: Path = ROOT) -> int:
             bridge_status.set("Bridge inspection failed")
             prep_button.configure(state="disabled")
             v1_button.configure(state="disabled")
-            show_game_details("Unable to inspect bridge files.\\n\\n" + str(exc))
+            show_game_details("Unable to inspect bridge files.\n\n" + str(exc))
             return None
 
     def inspect_bridges():
