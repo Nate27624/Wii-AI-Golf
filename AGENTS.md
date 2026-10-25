@@ -4,6 +4,10 @@
 Read [cross-agent cooperation contract](docs/cross-agent-cooperation.md) before changing a shared interface. Every PR must identify upstream/downstream owners, concrete schemas/commands, collision paths, exact tests and evidence limitations, and the next integration owner. Publish API changes on the affected GitHub PRs/issues before consumers integrate them. S000 coordinates merge order; agent chats are not a shared queue. The retired GUI must not be revived.
 
 
+## New research result publication (sanitized only)
+
+The script-only operator workflow now includes explicit requested **automatic publishing of allowlisted SANITIZED summaries** via `scripts/research_cli.py`. Run results go to the distinct `research/observations` branch; code PRs go to `main`. This is not permission to upload raw captures, ROMs, savestates, generated bridges, local paths, configs or arbitrary logs. The operator can opt out with `--no-upload`. Agents must examine the small observation JSONs on that branch when planning new experiments. Do not create another independent application or user-facing GUI. The published `process_exit_code` is not a game score. See [docs/cli-only-workflow.md](docs/cli-only-workflow.md).
+
 ## ACTIVE OPERATOR DECISION — SCRIPT-ONLY WORKFLOW (2026-10-24)
 
 Retire the Windows Research Lab GUI: do not add Tkinter buttons, launch popups, or make GUI integration a merge gate. Use the single source-local `scripts/golf.py` CLI through `scripts/golf.sh` for Git Bash, preserving `lab list|plan|run|sync|history|reports`, study IDs, scientific provenance, fresh Dolphin startup, and explicit approval for live swings. Contributors must add offline `tests/test_*.py` with each new feature and use GitHub PRs for reviewed merges. The coordinator merges by default when safe. Local run metadata stays local; **do not auto-upload private evidence**. Any public report must be explicitly sanitized/allowlisted with provenance. No blanket process killing. Old GUI-related instructions below are superseded.
