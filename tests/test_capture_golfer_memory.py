@@ -59,6 +59,31 @@ class GameplayCaptureTests(unittest.TestCase):
         one=m.read_instance(rpc,matches[0])
         self.assertEqual(len(bytes.fromhex(one["bytes_hex"])),m.MAIN_BYTES)
         self.assertTrue(all(x in ("frame.get_count","memory.read_u32","memory.read_bytes") for x in rpc.calls))
+    def test_second_child_batch_is_disjoint_and_small(self):
+        rpc=FakeRPC()
+        offsets=[x for x in range(0,0x100,4) if x not in (0x30,0x74)][:22]
+        for index,off in enumerate(offsets):
+            ptr=0x80070000+index*0x1000
+            word(rpc.objects[0x80040000],off,ptr)
+            rpc.objects[ptr]=bytearray(m.CHILD_BYTES)
+        match=m.find_golfer(rpc)[0][0]
+        first,overflow1=m.child_watchlist(rpc,match,start_index=0,limit=16)
+        second,overflow2=m.child_watchlist(rpc,match,start_index=16,limit=4)
+        self.assertEqual(len(first),16)
+        self.assertEqual(len(second),4)
+        self.assertTrue(overflow1)
+        self.assertTrue(overflow2)
+        self.assertFalse({x["parent_offset"] for x in first} &
+                         {x["parent_offset"] for x in second})
+        observed=m.read_instance(rpc,match,second)
+        self.assertEqual(len(observed["child_windows"]),4)
+
+    def test_child_start_beyond_inventory_fails_before_capture(self):
+        rpc=FakeRPC()
+        match=m.find_golfer(rpc)[0][0]
+        with self.assertRaises(ValueError):
+            m.child_watchlist(rpc,match,start_index=63,limit=1)
+
     def test_wrong_scene_never_dereferences_candidate(self):
         a,b=m.find_golfer(FakeRPC(scene_id=6))
         self.assertEqual(a,[])
