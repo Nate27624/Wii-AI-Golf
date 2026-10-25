@@ -20,8 +20,8 @@ This is a suggestion to owners, NOT a unilateral public schema change:
 
 | Canonical owner | Proposed fields | Meaning |
 | --- | --- | --- |
-| S001/S002 V1 | reciprocal `linkage.memory_id`, `session_id`, `scene_fingerprint`, bridge/trace SHA, `shot_start_frame` | Same-run association, NOT A accepted or physical contact |
-| S002 memory | reciprocal `linkage.swing_id`, same session/scene/bridge/trace/start, `game_id`, `disc_revision`, `game_mode_raw`, `phase_frame_brackets` | Validated scene and *bounded non-atomic* snapshots |
+| S001/S002 V1 | reciprocal `linkage.memory_id`, `session_id`, `scene_fingerprint`, bridge/trace SHA, `shot_start_frame`, observed `trace_end_frame` from the bridge | Same-run association, NOT A accepted or physical contact |
+| S002 memory | reciprocal `linkage.swing_id`, same session/scene/bridge/trace/start/end, `game_id`, `disc_revision`, `game_mode_raw`, `phase_frame_brackets` | Validated scene and *bounded non-atomic* snapshots |
 | S002 per-offset rank | `phase_change_counts` keyed by `idle`, `aim_only`, `a_hold`, `club_motion`, `shot_attempt`, `settled` | Sanitized relative changes only; no absolute addresses or raw values |
 | S001 optional private A log | emulator-frame dispatch events ONLY if actually instrumented | Client-issued requests are not evidence of game input |
 
@@ -45,6 +45,6 @@ Command used in an isolated source-only runtime:
 PYTHONPATH=src python -m unittest discover -s tests -p test_research_memory_swing_link.py -v
 ```
 
-**18/18 synthetic tests passed locally.** Python compile check also passed. No Windows/Felk test and **no full canonical checkout suite** were run because this environment cannot retrieve a checkout by git; do NOT self-merge until full test suite and S001/S002/S000 owner acknowledgment.
+**20/20 synthetic tests passed locally** in the isolated source-equivalent working tree (including rejecting requested-sample counts as elapsed game frames). Python compile check also passed. No Windows/Felk test and **no full canonical checkout suite** were run because this environment cannot retrieve a checkout by git; do NOT self-merge until full test suite and S001/S002/S000 owner acknowledgment.
 
 Ownership and next steps: S001 owns command/frame instrumentation; S002 owns memory capture, score/power provenance and sanitized publication; S003 owns power hypothesis testing; S000 owns shared CLI/public schemas. This PR edits only independent S003 research files. Next owner: S001 + S002 agree exact per-shot linkage and fast read feasibility on GitHub, S003 designs balanced contacts/misses and response sensitivity afterward.
