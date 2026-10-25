@@ -92,7 +92,7 @@ def find_golfer(rpc):
     checks["census_frame_span"]=end-start
     return matches,checks
 
-def child_watchlist(rpc,match):
+def child_watchlist(rpc,match,*,start_index=0,limit=MAX_CHILD_POINTERS):
     """Select stable, valid, distinct first-level pointer targets from gameplay."""
     gate(rpc)
     data=_bytes(rpc,match["gameplay"],MAIN_BYTES)
@@ -104,8 +104,13 @@ def child_watchlist(rpc,match):
         if any(existing["pointer"]==ptr for existing in found):
             continue
         found.append({"parent_offset":i*4,"pointer":ptr})
-    overflow=len(found)>MAX_CHILD_POINTERS
-    return found[:MAX_CHILD_POINTERS],overflow
+    if type(start_index) is not int or start_index<0 or type(limit) is not int or not 1<=limit<=MAX_CHILD_POINTERS:
+        raise ValueError("Invalid child selection")
+    if start_index>=len(found):
+        raise ValueError("Requested child batch starts beyond candidate pointer inventory")
+    selected=found[start_index:start_index+limit]
+    overflow=(start_index+len(selected))<len(found)
+    return selected,overflow
 
 def read_instance(rpc,match,watchlist=()):
     """Recheck disc, game mode and chain before every candidate gameplay read."""
@@ -189,7 +194,7 @@ def summarize(rows,phase_labels,checks,match,run_id,child_count=0,child_overflow
         "warning":"Read-only candidate object graph, not identified club or power; bytes and runtime pointers remain PRIVATE."
     }
 
-def capture(rpc,stages,interval,frame_limit,private):
+def capture(rpc,stages,interval,frame_limit,private,*,child_start=0,child_limit=MAX_CHILD_POINTERS):
     matches,checks=find_golfer(rpc)
     print("Pointer-census result:",json.dumps({
         **checks,"matching_golf_main_chains":len(matches)},indent=2),flush=True)
@@ -198,8 +203,9 @@ def capture(rpc,stages,interval,frame_limit,private):
                 "candidate_chains":len(matches),**checks,
                 "note":"No gameplay bytes dereferenced unless exactly one source-gated pointer chain matches."}
     match=matches[0]
-    watchlist,overflow=child_watchlist(rpc,match)
-    print("First-level candidate objects:",len(watchlist), "cap exceeded:",overflow,flush=True)
+    watchlist,overflow=child_watchlist(rpc,match,start_index=child_start,limit=child_limit)
+    print("Selected first-level objects:",len(watchlist),
+          "batch starts at:",child_start,"more pointers after batch:",overflow,flush=True)
     count={};rows=[]
     with private.open("x",encoding="utf-8") as stream:
         for stage,(name,n) in enumerate(stages):
@@ -224,7 +230,11 @@ def capture(rpc,stages,interval,frame_limit,private):
                 rows.append(row)
                 time.sleep(max(0,interval-(time.monotonic()-t0)))
                 print(f"{name}: {i+1}/{n} game frames {row['frame_start']}..{row['frame_end']}",flush=True)
-    return summarize(rows,count,checks,match,private.stem,len(watchlist),overflow)
+    report=summarize(rows,count,checks,match,private.stem,len(watchlist),overflow)
+    report["first_level_child_batch_start"]=child_start
+    report["first_level_child_parent_offsets"]=[
+        f"+0x{item['parent_offset']:03X}" for item in watchlist]
+    return report
 
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
@@ -232,10 +242,16 @@ def main(argv=None):
     p.add_argument("--port",type=int,default=55355)
     p.add_argument("--phase",action="append",help="idle:6 or aim_only:8, repeated; default idle:6,aim_only:8")
     p.add_argument("--interval",type=float,default=.18)
+    p.add_argument("--child-start",type=int,default=0,
+                   help="Zero-based child-pointer candidate index for next batch")
+    p.add_argument("--child-limit",type=int,default=MAX_CHILD_POINTERS,
+                   help="Number of candidate child objects in this batch (1..16)")
     p.add_argument("--max-frame-span",type=int,default=80)
     a=p.parse_args(argv)
     if not a.read_only:p.error("Must pass --read-only. This program never controls Dolphin.")
-    if not 1<=a.port<=65535 or not .05<=a.interval<=2.0 or not 1<=a.max_frame_span<=240:
+    if (not 1<=a.port<=65535 or not .05<=a.interval<=2.0
+        or not 1<=a.max_frame_span<=240 or not 0<=a.child_start<=63
+        or not 1<=a.child_limit<=MAX_CHILD_POINTERS):
         p.error("Invalid port, interval or frame budget")
     stages=[]
     for stage in a.phase or ["idle:6","aim_only:8","idle:6"]:
@@ -253,7 +269,8 @@ def main(argv=None):
     print("Dolphin must already be on ready-to-swing Hitting the Green tee.",flush=True)
     try:
         with FelkRPC(port=a.port,timeout_s=15) as rpc:
-            result=capture(rpc,stages,a.interval,a.max_frame_span,private)
+            result=capture(rpc,stages,a.interval,a.max_frame_span,private,
+                           child_start=a.child_start,child_limit=a.child_limit)
         with summary_file.open("x",encoding="utf-8") as fp:
             json.dump(result,fp,indent=2,sort_keys=True,allow_nan=False)
             fp.write("\n")
