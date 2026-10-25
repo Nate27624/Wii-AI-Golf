@@ -160,7 +160,7 @@ def build_parser() -> argparse.ArgumentParser:
     tests = sub.add_parser("test", help="Run project unittest suite against THIS checkout")
     tests.add_argument("--pattern", default="test_*.py")
 
-    lab = sub.add_parser("lab", help="One shared S000-S005 experiment registry and script runner")
+    lab = sub.add_parser("lab", help="One shared S000-S005 experiment registry with desktop and CLI runners")
     actions = lab.add_subparsers(dest="lab_action", required=True)
     ls = actions.add_parser("list", help="All agent experiments and runnable/planned state")
     ls.add_argument("--json", action="store_true")
@@ -193,6 +193,7 @@ def build_parser() -> argparse.ArgumentParser:
     outcomes.add_argument("--json", action="store_true")
     sync = actions.add_parser("sync", help="Safely fast-forward approved GitHub main and discover new agent tests")
     sync.add_argument("--json", action="store_true")
+    actions.add_parser("gui", help="Open the optional Windows Research Lab desktop application")
 
     sub.add_parser("demo", help="Run the existing SYNTHETIC toy environment (not Wii Sports)")
     return parser
@@ -354,6 +355,9 @@ def execute(args: argparse.Namespace) -> int:
                           f"{e.get('execution_status')}  exit={e.get('exit_code')} "
                           "(NOT a game score)")
             return 0
+        if args.lab_action == "gui":
+            from .lab.gui import launch
+            return launch(ROOT)
         if args.lab_action == "reports":
             from .lab.reports import sanitized_reports
             entries = sanitized_reports(root=ROOT, limit=args.limit)
