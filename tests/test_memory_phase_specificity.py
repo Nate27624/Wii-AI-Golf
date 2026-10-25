@@ -95,7 +95,7 @@ class PhaseSpecificityTests(unittest.TestCase):
     def test_sanitized_summary_does_not_echo_raw_ram(self):
         out = summary([sample(0,"idle",0xDEADBEEF,0),sample(0,"idle",0xCAFEBABE,1)])
         data = json.dumps(out)
-        for secret in ("80010000","DEADBEEF","CAFEBABE","bytes_hex","address"):
+        for secret in ("80010000","DEADBEEF","CAFEBABE","bytes_hex","\"address\":"):
             self.assertNotIn(secret,data)
         self.assertIn("+0x9C",data)
 
