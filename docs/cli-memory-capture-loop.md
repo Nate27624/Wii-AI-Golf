@@ -165,49 +165,31 @@ measure exact power or club rotation. The documented `RPGolScene`
 chain, but the scene object's live address and gameplay substructures
 have not been verified. Do not dereference fabricated addresses.
 
-## Next-source experiment: inspect the ACTIVE golf scene chain
+## Next research priority — source-verified golfer object discovery
 
-The 24-run cohort report `cohort-20261025T025308Z-fbda2d0e` shows
-16 universal offsets, all belonging to minimap effects. The documented
-course configuration and manager fields provide no identified club/power
-signal. The next target is the source-documented pointer chain:
+The published 24-capture cohort `cohort-20261025T025308Z-fbda2d0e`
+has 84 recurring offsets, 16 universal changes, and overwhelmingly
+minimap-rendering effects. The only repeatable golf-core changes belong
+to documented pin/start pointers, visibility flags, and as-yet-untyped
+configuration data; they are not club power.
+
+**Do not run a speculative live pointer scanner.** S002 PR #122
+(`docs/golf-gameplay-pointer-investigation.md`) documents the next
+provenance gate: establish the actual Wii Sports Rev1 scene-manager
+singleton storage address using the source/decompiled call graph BEFORE
+dereferencing the following potential source-backed chain:
 
 ```text
-candidate EGG::SceneManager instance
-   +0x0C -> current scene
-       +0x40 -> scene ID (expected RP_GOL_SCENE = 5)
-       +0x54 -> sport ID (expected golf = 2)
-       +0x9C -> RPGolMain* (required RAM-like pointer; NOT yet decoded)
+Source-verified EGG::SceneManager instance (not yet known)
+   +0x0C → active scene*
+     RPSysScene +0x40 → scene ID
+     RPSportsBaseScene +0x54 → sport ID
+     RPGolScene +0x9C → RPGolMain*
 ```
 
-References: `doldecomp/ogws/include/egg/core/eggSceneManager.h`,
-`kiwi515/ogws_info/RP/RPSports/RPSportsBaseScene.h`,
-`kiwi515/ogws_info/RP/RPSports/RPGolScene/RPGolScene.h`.
-
-The survey searches only a bounded 4 KiB page of candidate global
-singleton pointers near source-documented golf-instance statics. This
-page is a **heuristic search region**, not a confirmed static manager
-slot. It is safe to get zero matches; the chain may be stored elsewhere
-or scene timing could differ. The survey validates RSPE01 Rev1 and mode 4
-before dereferencing any candidate, then checks RAM bounds and scene
-identity before publishing the validated slot **relative offsets** only.
-No raw addresses, bytes or screenshots are uploaded. It never invokes a
-controller, savestate, or game-memory write.
-
-Once PR #116 passes review, the source survey can run DIRECTLY against a
-pre-existing, ready-to-play Felk Dolphin session on the canonical main
-checkout:
-
-```powershell
-Set-Location "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
-py scripts/probe_golf_scene_chain.py --attach-running
-```
-
-Do not launch a second Dolphin from the probe and do not pass the
-attach flag through `run_golf_experiment.py`; the outer runner
-explicitly forbids it. If a fresh-boot automated survey is desired,
-S001 must review and implement the post-boot action handoff contract.
-
-Use `--no-upload` to keep the sanitized report local during the first
-read-only live test. Only use this tool when the exact active Dolphin
-bridge/session has already been verified by S001; no new session starts.
+`RPGolMain`'s live object address and layout remain unknown, as do
+club pose and in-game swing power. Once S001/S002 validates the manager
+anchor, a separate bounded read-only capture proposal must check the
+scene lifetime, exact type, pointer ranges, frame spans, and repeated
+independent scene identity before adding gameplay windows. This
+collector must not send swing or controller commands.
