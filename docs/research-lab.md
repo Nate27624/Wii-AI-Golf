@@ -16,6 +16,16 @@ The interface lists all studies with **OFFLINE / LIVE / PLANNED** classification
 
 **PLANNED entries cannot run** until the corresponding agent's reviewed work is merged. Do not assume pending S003/S005 studies work merely because they are catalogued.
 
+## Game testing: ONE selected experiment, automatic safe setup
+
+Select **Game tests** in the experiment list and click **Historical V1 contact comparison**. Its **Show / details** pane (right side) now contains the bridge-readiness findings, only the parameters this study actually uses, and **Prepare and run one V1 shot**. The old disconnected three-step panel above the catalog is removed, and the underlying bridge-audit/preparation implementations remain available for expert diagnostics but are hidden from the normal Lab list.
+
+A single click **inspects the installed bridge and historical backup**, refuses unsafe/missing/mismatched sources with a specific explanation in the selected details, and **if a safe backup exists**, asks for permission to copy it to the isolated V1 test file. Preparation runs in the background and records its result in local Lab history. Once verified, the Lab asks before launching **one** real Dolphin game test, preserving the canonical existing green-pre-start checkpoint and S002 human outcome prompts. No silent V2 replacement, no automatic real shot, no claim of contact from an exit code. The original A-lead defaults to 0 and remains visible in the settings for deliberate controlled changes.
+
+**Crash-safe experiment locks:** A prior interrupted Lab process could leave a `Wii-AI-Golf-Data/lab/run-session.lock` file permanently, blocking later shots even though no test ran. New code uses process-owned OS file locks (`msvcrt.locking` on Windows; `flock` elsewhere), which release when a process ends. The Lab also reads the old JSON PID record; if that prior PID has ended, it safely reuses the lock rather than asking you to delete it manually. If the prior process is still active, PID status cannot be verified, or the lock record is unfamiliar, it **fails closed** without deleting another process's lock. GitHub sync checks the same lock protocol and holds it during updates. An idle sentinel file may remain; its mere presence does NOT block experiments.
+
+For a one-time update, close Dolphin and the old Lab process and start a new Lab from an up-to-date clean checkout. Thereafter the game workflow is entirely selected from the **Show** pane without separate bridge-audit/prepare commands. New bridge and lock regression tests are under `tests/test_lab_session_recovery.py`.
+
 ## Test a real golf swing — everything in the UI
 
 The historical V1 vs installed V2 experiment previously required a separate shell command to create the V1 bridge. **That is now a fully visible guided workflow** above the Lab's experiment list:
