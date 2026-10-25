@@ -105,7 +105,7 @@ class ValidationStudyTests(unittest.TestCase):
             subprocess.assert_not_called()
         self.assertIn("VAL-PUB-01", out.getvalue())
         self.assertIn("VAL-POWER-10", out.getvalue())
-        self.assertIn("PLANNED", "PLANNED")
+        self.assertIn("planning statuses; NOT proof of execution", out.getvalue())
 
 
 if __name__ == "__main__":
