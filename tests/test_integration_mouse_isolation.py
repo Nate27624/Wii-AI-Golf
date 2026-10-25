@@ -118,7 +118,8 @@ class MouseIsolationTests(unittest.TestCase):
         updated, changed, _ = _isolate_physical_mouse(original)
         self.assertTrue(changed)
         self.assertIn("IR/Up = W ; pointer\r\n", updated)
-        self.assertIn("IMUIR/Enabled = False\r\n[Wiimote2]", updated)
+        self.assertIn("IMUIR/Enabled = False\r\n", updated)
+        self.assertIn("Shake/Z = \r\n[Wiimote2]", updated)
         self.assertIn("[Wiimote2]\r\nIR/Up = X\r\n", updated)
 
     def test_inserting_when_section_has_no_trailing_newline(self):
