@@ -1,5 +1,27 @@
 # Wii AI Golf
 
+## One-command research status sharing (existing Git authentication)
+
+```powershell
+py scripts/golf.py research test
+```
+
+This delegates to the **existing** `scripts/research_cli.py test` workflow:
+safely sync reviewed main, run offline tests, write a small allowlisted test
+result, then publish it using Git's existing authenticated remote to the
+`research/observations` branch. No new GitHub personal access token,
+manual JSON transfer, Dolphin startup, or duplicate publisher. Run it from
+a clean `main` checkout; detached audit branches cannot safely auto-sync.
+
+For a dry local run with **no upload**:
+`py scripts/golf.py research test --local-only`.
+
+`py scripts/golf.py lab export` and `lab verify-export` are **optional,
+offline-only backup/inspection commands** for Lab execution statuses.
+Exporting does NOT notify agents. A passing process is **not** proof of a
+ball hit or verified golf score. See
+[Token-free CLI usage](docs/token-free-research-export.md).
+
 ## Active workflow: automatic GitHub pull → local research → sanitized GitHub push
 
 The **desktop UI is retired**. The Windows operator runs ONE central script against the existing codebase:
