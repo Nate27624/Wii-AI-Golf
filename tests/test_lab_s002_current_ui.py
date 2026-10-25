@@ -23,6 +23,12 @@ class CurrentLabS002Tests(unittest.TestCase):
     def test_latest_test_discovery_kept(self):
         registry={x["id"]:x for x in available_experiments()}
         self.assertTrue(any(name.startswith("agent-tests.") for name in registry))
+    def test_ui_s002_actions_remain_explicit_one_live(self):
+        from wii_ai_golf.lab import core
+        for study in ("evaluation.landmarks", "evaluation.minimap", "evaluation.minimap-swing"):
+            plan_obj=plan(study)
+            with self.assertRaisesRegex(ValueError, "explicit --live"):
+                core.execute(plan_obj,allow_live=False)
     def test_unsafe_a_prime_rejected(self):
         with self.assertRaises(ValueError):plan("evaluation.minimap",a_prime=30)
 if __name__=="__main__":unittest.main()
