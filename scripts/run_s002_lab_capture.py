@@ -44,8 +44,10 @@ def main():
         print("Enter your locally owned Wii Sports Rev1 .wbfs/.iso image path (never uploaded):",flush=True)
         game=Path(input("Game path: ").strip().strip('"'))
     cmd=command(args.study,game)
-    print("Close any existing Dolphin BEFORE continuing.",flush=True)
-    input("Press ENTER to begin ONE physical Wii Remote fresh-session capture: ")
+    print("S002 live capture selected:",args.study,flush=True)
+    print("Fresh physical Wii Remote mode: close Dolphin before launching.",flush=True)
+    print("Dolphin will launch once. Navigate manually to Hitting the Green.",flush=True)
+    print("Press ENTER only when the *capture script* says the tee is ready.",flush=True)
     return subprocess.run(cmd,cwd=EVAL,check=False).returncode
 if __name__=="__main__":
     raise SystemExit(main())
