@@ -1,5 +1,25 @@
 # Wii AI Golf
 
+## Current workflow: GitHub + Git Bash + one Python codebase
+
+The **desktop Research Lab GUI is retired**. Use the source-local shell wrapper and unified Python runner instead. Agents commit code/tests and open reviewed GitHub pull requests; merged tests are discovered from the one `main` checkout. The shell wrapper never auto-uploads private game files or runs new tests without a user command.
+
+```bash
+cd "/d/Projects/Wii Golf AI/Wii-AI-Golf"  # Git Bash; adjust to your checkout
+bash scripts/golf.sh sync
+bash scripts/golf.sh list
+bash scripts/golf.sh plan core.tests
+bash scripts/golf.sh run core.tests
+bash scripts/golf.sh history
+```
+
+To run a live, registered trial only after reviewing its plan: `bash scripts/golf.sh run integration.swing --live`. This still uses canonical Dolphin startup and asks for human confirmation. On Windows PowerShell, use the same underlying `py scripts/golf.py lab ...` commands. No duplicate control or evaluation implementation is introduced.
+
+**GitHub publishing:** Agents push feature branches and PRs; the merge coordinator integrates approved work. Never publish local ROMs, savestates, raw RAM, secrets, personal configuration, or unrestricted run logs. See [script workflow](docs/script-workflow.md). The following historical GUI instructions are archived context only.
+
+---
+
+
 ## Game Testing UI result visibility
 
 The **Inspect bridges** button writes the actual V1/V2 inspection into the permanent Game Testing results area. **Prepare historical V1** runs the reviewed recorded Lab preparation in the background and displays progress/errors there. Neither opens a separate terminal or a generic missing-log popup. The one-shot Dolphin swing retains its interactive console and explicit consent. A historical V1 trial can only be enabled if the isolated copy exactly matches the verified pre-V2 backup. See [Research Lab UI guide](docs/research-lab.md).
