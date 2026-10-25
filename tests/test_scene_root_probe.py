@@ -15,7 +15,10 @@ import probe_golf_scene_root as scene
 
 class FakeRPC:
     def __init__(self, *, revision=1, mode=4, scene_id=5, relocate=False,
-                 sport_id=2, vtable=None, two_slots=False):
+                 sport_id=2, vtable=None, two_slots=False,
+                 own_scene_id=None, bad_backlink=False):
+        self.own_scene_id = own_scene_id
+        self.bad_backlink = bad_backlink
         self.sport_id = sport_id
         self.vtable = vtable
         self.two_slots = two_slots
@@ -54,6 +57,10 @@ class FakeRPC:
             scene_ptr: (scene.GOLF_SCENE_DATA_START + 0x18
                         if self.vtable is None else self.vtable),
             scene_ptr + scene.SCENE_SPORT_OFFSET: self.sport_id,
+            scene_ptr + scene.SCENE_OWN_ID_OFFSET: (self.scene_id if self.own_scene_id is None
+                                                    else self.own_scene_id),
+            scene_ptr + scene.SCENE_MANAGER_BACKLINK_OFFSET: (
+                manager + 0x100 if self.bad_backlink else manager),
             scene_ptr + scene.POSSIBLE_GOLF_MAIN_OFFSET: 0x90040000,
         }
         if address not in values:
@@ -93,6 +100,8 @@ class SceneRootTests(unittest.TestCase):
         self.assertEqual(result["possible_main_pointer_ram_like_count"], 1)
         self.assertEqual(result["vtable_in_golf_scene_data_count"], 1)
         self.assertEqual(result["stable_sport_id_match_count"], 1)
+        self.assertEqual(result["stable_scene_own_id_match_count"], 1)
+        self.assertEqual(result["stable_manager_backlink_match_count"], 1)
         self.assertTrue(result["unique_stable_golf_scene_chain"])
         self.assertFalse(result["confirmed_manager_singleton_address"])
         self.assertFalse(result["confirmed_golf_power_address"])
@@ -119,6 +128,21 @@ class SceneRootTests(unittest.TestCase):
         self.assertFalse(any(args == [rpc.scene + scene.POSSIBLE_GOLF_MAIN_OFFSET]
                              for name, args in rpc.calls
                              if name == "memory.read_u32"))
+
+    def test_stale_scene_own_id_blocks_scene_main_member(self):
+        rpc = FakeRPC(own_scene_id=7)
+        result = scene.probe(rpc)
+        self.assertEqual(result["stable_golf_scene_chain_count"], 0)
+        self.assertFalse(result["unique_stable_golf_scene_chain"])
+        self.assertFalse(any(args == [rpc.scene + scene.POSSIBLE_GOLF_MAIN_OFFSET]
+                             for name, args in rpc.calls if name == "memory.read_u32"))
+
+    def test_foreign_manager_backlink_blocks_scene_main_member(self):
+        rpc = FakeRPC(bad_backlink=True)
+        result = scene.probe(rpc)
+        self.assertEqual(result["stable_golf_scene_chain_count"], 0)
+        self.assertFalse(any(args == [rpc.scene + scene.POSSIBLE_GOLF_MAIN_OFFSET]
+                             for name, args in rpc.calls if name == "memory.read_u32"))
 
     def test_two_matching_root_cells_are_ambiguous_not_unique(self):
         rpc = FakeRPC(two_slots=True)
