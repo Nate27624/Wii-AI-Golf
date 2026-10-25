@@ -95,6 +95,21 @@ class PublicObservationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 public_observation(secret)
 
+    def test_bad_power_numbers_fail_closed(self):
+        row = {k: v for k, v in test_record().items()
+               if k not in ("test_pattern", "outcome")}
+        row.update({"kind": "v1", "requested_a_lead_frames": 45,
+                    "requested_motion_scale": 1.0,
+                    "requested_speed_scale": 1.0,
+                    "requested_backswing_scale": 1.0})
+        for bad in (101, -1, float("nan"), float("inf"), 10 ** 1000):
+            with self.subTest(value=str(bad)[:30]), self.assertRaises(ValueError):
+                public_observation({**row, "human": {
+                    "displayed_power_percent_human": bad}})
+        self.assertEqual(
+            public_observation({**row, "human": {
+                "displayed_power_percent_human": 75.0}})["human"]["displayed_power_percent_human"], 75.0)
+
     def test_free_text_screen_and_warning_never_publish(self):
         record = {k: v for k, v in test_record().items()
                   if k not in ("test_pattern", "outcome")}
