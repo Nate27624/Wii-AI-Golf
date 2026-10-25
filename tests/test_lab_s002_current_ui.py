@@ -20,6 +20,9 @@ class CurrentLabS002Tests(unittest.TestCase):
                 self.assertEqual(Path(p.command[1]).name,"run_s002_lab_capture.py")
                 self.assertEqual(p.command[-1],study)
                 self.assertEqual(p.command[-2],"--study")
+    def test_latest_test_discovery_kept(self):
+        registry={x["id"]:x for x in available_experiments()}
+        self.assertTrue(any(name.startswith("agent-tests.") for name in registry))
     def test_unsafe_a_prime_rejected(self):
         with self.assertRaises(ValueError):plan("evaluation.minimap",a_prime=30)
 if __name__=="__main__":unittest.main()
