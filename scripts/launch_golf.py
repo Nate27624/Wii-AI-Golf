@@ -26,6 +26,7 @@ if _LOCAL_SRC in sys.path:
     sys.path.remove(_LOCAL_SRC)
 sys.path.insert(0, _LOCAL_SRC)
 
+from wii_ai_golf.integration.post_boot import post_boot_action_args
 from wii_ai_golf.integration.savestates import MAX_SLOT, StateCatalog
 from wii_ai_golf.integration.dolphin_controller_config import (
     ControllerConfigError, ensure_emulated_controller,
@@ -196,7 +197,7 @@ def make_swing_command(*, preset: str, port: int,
         raise ValueError("remote must be 0..3")
     cmd = [
         sys.executable, str(ROOT / "scripts" / "probe_swing.py"),
-        "--attach-running", "--preset", preset, "--port", str(port),
+        *post_boot_action_args("probe_swing.py", []), "--preset", preset, "--port", str(port),
         "--follow-through-frames", str(follow_through_frames),
         "--a-setup-frames", str(a_setup_frames),
         "--a-prime-frames", str(a_prime_frames),
