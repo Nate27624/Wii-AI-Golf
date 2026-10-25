@@ -152,7 +152,7 @@ class LabTests(unittest.TestCase):
                                   allow_live=True, run_command=runner)
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0][1]["cwd"], self.root)
-        self.assertFalse((self.data / "live-session.lock").exists())
+        self.assertFalse(core.lock_busy(self.data / "live-session.lock"))
         self.assertEqual(record["revision"], "safesha")
         self.assertEqual(record["bridge_on_disk"]["sha256"], "bridgehash")
         self.assertEqual(record["execution_status"], "finished")
@@ -170,7 +170,7 @@ class LabTests(unittest.TestCase):
                 core.execute(p, root=self.root, data=self.data, allow_live=True,
                              run_command=lambda *_a, **_k: self.fail("No second process"))
             self.assertTrue((self.data / "live-session.lock").is_file())
-        self.assertFalse((self.data / "live-session.lock").exists())
+        self.assertFalse(core.lock_busy(self.data / "live-session.lock"))
 
     def test_offline_runs_require_no_live_approval(self):
         p = self.plan("core.tests")
@@ -181,7 +181,7 @@ class LabTests(unittest.TestCase):
                                   run_command=lambda *_a, **_k: SimpleNamespace(returncode=3))
         self.assertEqual(result["execution_status"], "failed")
         self.assertEqual(result["exit_code"], 3)
-        self.assertFalse((self.data / "live-session.lock").exists())
+        self.assertFalse(core.lock_busy(self.data / "live-session.lock"))
         with self.assertRaisesRegex(ValueError, "--live is only"):
             core.execute(p, root=self.root, data=self.data, allow_live=True)
 
