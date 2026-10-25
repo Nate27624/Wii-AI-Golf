@@ -21,7 +21,7 @@ def fixture(shared=True):
     struct.pack_into(">I", dol, 0x48, 0x80184000)  # first text section virtual address
     struct.pack_into(">I", dol, 0x90, 0x1600)      # size
     for index, (name, (address, _size)) in enumerate(mod.TARGETS.items()):
-        displacement = -0x1C if shared or index == 0 else -0x2C
+        displacement = -0x1C if shared else (-0x1C - 0x10 * index)
         word = (32 << 26) | (3 << 21) | (13 << 16) | (displacement & 0xFFFF)
         struct.pack_into(">I", dol, 0x100 + address - 0x80184000, word)
     return bytes(dol)
