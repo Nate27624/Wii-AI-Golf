@@ -114,6 +114,31 @@ class TokenFreeExportTests(unittest.TestCase):
             self.assertEqual(cli.main(["lab", "verify-export"]), 0)
         self.assertIn("VALID status bundle", check.getvalue())
 
+    def test_research_test_reuses_existing_git_publisher_without_dolphin(self):
+        with patch.object(cli, "_run", return_value=0) as runner:
+            with redirect_stdout(io.StringIO()) as display:
+                self.assertEqual(cli.main(["research", "test",
+                                           "--pattern", "test_lab_export.py"]), 0)
+        command = runner.call_args.args[0]
+        self.assertEqual(Path(command[1]).name, "research_cli.py")
+        self.assertEqual(command[2:], ["test", "--pattern", "test_lab_export.py"])
+        self.assertNotIn("Dolphin", " ".join(command))
+        self.assertIn("Git", display.getvalue())
+
+    def test_research_test_local_only_forwards_no_upload(self):
+        with patch.object(cli, "_run", return_value=0) as runner:
+            with redirect_stdout(io.StringIO()) as display:
+                self.assertEqual(cli.main(["research", "test", "--local-only"]), 0)
+        self.assertEqual(runner.call_args.args[0][-1], "--no-upload")
+        self.assertIn("LOCAL ONLY", display.getvalue())
+
+    def test_research_study_delegates_existing_read_only_plan(self):
+        with patch.object(cli, "_run", return_value=0) as runner:
+            self.assertEqual(cli.main(["research", "study"]), 0)
+        command = runner.call_args.args[0]
+        self.assertEqual(Path(command[1]).name, "research_cli.py")
+        self.assertEqual(command[2:], ["study"])
+
     def test_empty_directory_cannot_claim_success(self):
         with self.assertRaisesRegex(ValueError, "No finalized valid"):
             export.create_export(self.data)
