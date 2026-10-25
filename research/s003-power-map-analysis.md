@@ -39,7 +39,7 @@ S000 may add a reviewed *read-only* adapter inside the single scripts/research_c
 
 ## Validation/provenance
 
-- **Offline isolated Python/source-equivalent unit run:** PYTHONPATH=src python -m unittest discover -s tests -p test_power_map_analysis.py -v : **8/8 pass**.
+- **Offline isolated Python/source-equivalent unit run:** PYTHONPATH=src python -m unittest discover -s tests -p test_power_map_analysis.py -v : **9/9 pass**.
 - **Full canonical Windows suite:** not run in the GitHub connector environment; required before any self-merge.
 - **Live emulator trials / actual scored shots / automated carry measurements:** zero for this PR.
 - **Privacy:** no raw captured data, absolute local paths, game files or generated bridge code added.
