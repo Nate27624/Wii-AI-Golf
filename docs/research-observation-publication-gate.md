@@ -24,6 +24,12 @@ The pure `wii_ai_golf.shared.public_observation.public_observation` gate now:
 - Validates S002 phase-differential output (PR #116): region-relative
   offsets, source-derived role vocabulary, bounded counts and human phase labels.
   It rejects runtime addresses/raw bytes and normalizes the public warning.
+- Allows the S000/S002 PR #130 `golf_scene_root_candidate_triage` **only**
+  with its exact source-gated Rev1/mode-4 schema: two static cells, two passes,
+  at most 40 emulation frames per read, slot indices 0 or 1, bounded counts,
+  and all `confirmed_*` flags **false**. Any runtime pointer, local path,
+  raw read, unsupported additional field, or verified-power claim is rejected.
+  A report with **zero candidates is valid and informative**.
 - Recognizes the **already-published S002 24-run cohort** record kind
   `golf-memory-cohort-relative-words` with a separate exact schema, safe
   `cohort-` ID, bounded recurrence counts and source-defined warning. A
@@ -50,3 +56,19 @@ py -m unittest discover -s tests -v
 Network publication should also be spot-checked using the existing
 `py scripts/golf.py research test` command **after merge**, not from an
 unreviewed detached branch. No live Dolphin permission is implied.
+
+## Existing unmerged scene-root pilot
+
+PR #130 intentionally checks `public_observation` before using the existing
+Git-based publisher. If that module is absent in its independent worktree,
+publication must be **refused** while its already-written sanitized JSON stays
+private. It does not mean the Dolphin probe failed. Because PR #126 has not
+merged into `main`, neither `main` nor PR #130 currently contains this
+module. After PR #126 passes the targeted+full Windows regression suite and
+S002 approves the source fields, merge #126; then refresh PR #130 against
+reviewed main and rerun tests. **Do not bypass validation or force publication.**
+
+The operator should run `py scripts/golf.py research validation` from the
+separate canonical clean `Wii-AI-Golf` main checkout (which includes merged
+PR #127), not from the historical detached/diverged Scene-Root-Pilot branch.
+Do not `git pull` into the pilot merely to get an unrelated CLI command.
