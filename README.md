@@ -1,19 +1,26 @@
 # Wii AI Golf
 
-## Optional token-free Lab evidence bundle
+## One-command research status sharing (existing Git authentication)
 
 ```powershell
-py scripts/golf.py lab run core.tests
-py scripts/golf.py lab export
-py scripts/golf.py lab verify-export
+py scripts/golf.py research test
 ```
 
-This creates a **local, verified, strictly allowlisted execution-status JSON** under
-the private sibling `Wii-AI-Golf-Data/lab/exports/` folder. It never connects to
-GitHub or requests a new token. Attach the exported JSON in ChatGPT when
-you want the connected GitHub integration to publish it after review.
-A passing process is **not** proof of ball contact or a game score.
-See [Token-free evidence handoff](docs/token-free-research-export.md).
+This delegates to the **existing** `scripts/research_cli.py test` workflow:
+safely sync reviewed main, run offline tests, write a small allowlisted test
+result, then publish it using Git's existing authenticated remote to the
+`research/observations` branch. No new GitHub personal access token,
+manual JSON transfer, Dolphin startup, or duplicate publisher. Run it from
+a clean `main` checkout; detached audit branches cannot safely auto-sync.
+
+For a dry local run with **no upload**:
+`py scripts/golf.py research test --local-only`.
+
+`py scripts/golf.py lab export` and `lab verify-export` are **optional,
+offline-only backup/inspection commands** for Lab execution statuses.
+Exporting does NOT notify agents. A passing process is **not** proof of a
+ball hit or verified golf score. See
+[Token-free CLI usage](docs/token-free-research-export.md).
 
 ## Active workflow: automatic GitHub pull → local research → sanitized GitHub push
 
