@@ -1,7 +1,6 @@
 """Synthetic S001/S002 timing gates, never connects to Dolphin."""
 from __future__ import annotations
 
-from copy import deepcopy
 from pathlib import Path
 import sys
 import unittest
@@ -75,7 +74,7 @@ class BridgeTimingFixtureTests(unittest.TestCase):
             audit_bridge_timing_fixture(r)
 
     def test_reject_wrong_game_revision_mode(self):
-        for key, value in (("game_id", "RSPP01"), ("revision", 0), ("revision", True),
+        for key, value in (("schema_version", True), ("game_id", "RSPP01"), ("revision", 0), ("revision", True),
                            ("game_mode", 3), ("game_mode", False)):
             r = example()
             r[key] = value
