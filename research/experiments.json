@@ -35,6 +35,14 @@
       "kind": "swing"
     },
     {
+      "id": "integration.v1-diagnostic",
+      "owner": "S001",
+      "title": "Historical V1 swing diagnostic (experimental)",
+      "description": "Isolated pre-V2 bridge; operator-adjustable observed A lead (0 or 12 frames). Previous 12-frame attempt worsened club motion. One full fresh-start trial; contact/score NOT verified.",
+      "mode": "live",
+      "kind": "v1_capture"
+    },
+    {
       "id": "evaluation.tests",
       "owner": "S002",
       "title": "Outcome and RAM audit tests",
