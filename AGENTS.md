@@ -100,3 +100,15 @@ The project now includes one source-local **`py scripts/golf.py lab ...`** exper
 - Distinguish **script exit**, **Felk bridge ACK**, **user-observed ball strike**, **verified game score** and **generalization performance**. The latest S002 unprimed V2 human-reported shot **failed due to insufficient strike strength** and must remain a negative observation; prior 2.1-ft green and 100-ft miss hits are non-equivalent input conditions.
 - Save metadata in local `Wii-AI-Golf-Data/lab`, not GitHub; never upload RAW-PRIVATE RAM. All offline commands may be planned without any Dolphin connection, and only approved live commands can launch it. No unattended batches until measured scoring and safe control gates are passed.
 
+## Mandatory automatic GitHub → Lab test delivery (2026-10-24)
+
+**Operator request:** AI agents must use the same local Lab. GitHub-committed tests from agents should arrive in the Lab automatically when merged. A contributor's **`tests/test_*.py`** file is discovered on the user's clean `main` checkout after the app's **automatic safe GitHub sync** (startup, every 120 seconds, or **Sync GitHub** button) and appears as selectable `agent-tests.test_...` **OFFLINE** test. There is no need to write another operator-facing `py scripts/test_one_off.py` command, and no need to edit the static experiment catalog for every new regression file.
+
+S001–S005 agent handoff requirements:
+1. Include focused unittest-compatible `tests/test_*.py` regression tests in each agent PR; prefix tests consistently (`test_integration_...` → S001, `test_outcome_...` → S002, `test_model_...` → S003, `test_learning_...` → S004, `test_generalization_...` → S005). These are **inferred labels**, not trusted authorization.
+2. Merge reviewed PRs to trusted **`origin/main`**; merely committing an agent branch/PR **does not** make code eligible for local auto-execution. Do not instruct the user to run arbitrary shell scripts or auto-checkout PR heads. The GUI **fetches/pulls code only**; the user selects when to run a test, and no live Dolphin tests run automatically.
+3. For a new real-game experiment or special offline data operation, coordinate with S000 on issue #51 and contribute a typed **Lab** adapter plus registry entry. Existing S001/S002 actions remain stable; never bypass canonical fresh-boot/startup and human swing authorization.
+4. After a merge, publish experiment ID(s), outcome caveats, expected local test outputs, any proprietary data requirements and safe reproduction instructions in the shared issue/PR rather than scattering separate PowerShell instructions.
+5. The Lab updater **rejects** dirty local trees, unapproved Git remotes, non-main branches, divergent histories, and concurrent Lab jobs. Never suggest `git reset --hard`, `git stash`, ignoring the guard, or overwriting the user's local savestates as a workaround.
+
+Docs: [docs/research-lab.md](docs/research-lab.md). Coordinator ownership: GitHub sync and registry; domain agents own their scripts/tests.
