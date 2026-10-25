@@ -1,6 +1,7 @@
 name: S001 WASD collision regression
 on:
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - 'src/wii_ai_golf/integration/dolphin_controller_config.py'
       - 'tests/test_integration_mouse_isolation.py'
