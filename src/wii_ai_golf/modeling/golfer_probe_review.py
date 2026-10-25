@@ -59,9 +59,9 @@ def _check_summary(item: Mapping) -> tuple[list[dict], bool, str | None]:
             or item.get("actual_scene_id_verified") is not True
             or item.get("manager_backlink_verified") is not True
             or item.get("creator_scene_id_role") != "previous_scene_not_current_scene_id"
-            or type(item.get("observed_creator_scene_id_matches_golf")) is not bool):
+            or item.get("creator_scene_id_not_used_for_identity") is not True):
         return [], False, "scene_source_or_backlink_not_verified"
-    # A different creator/previous scene ID is a legitimate Golf scene.
+    # The previous-scene ID is not an active golf-scene identity guard.
     if (not _int(item.get("samples"), 4, 60)
             or not _int(item.get("changed_candidate_words"), 0, 1024)
             or not _int(item.get("census_frame_span"), 0, 100000)
@@ -71,6 +71,17 @@ def _check_summary(item: Mapping) -> tuple[list[dict], bool, str | None]:
     truncated_child = item.get("first_level_child_watch_truncated")
     if not _int(count, 0, 16) or type(truncated_child) is not bool:
         return [], False, "invalid_child_watchlist"
+    batch_start = item.get("first_level_child_batch_start")
+    parents = item.get("first_level_child_parent_offsets")
+    if (not _int(batch_start, 0, 63)
+            or not isinstance(parents, list) or len(parents) != count
+            or len(set(parents)) != count
+            or any(not isinstance(off, str) or
+                   (m := _OFFSET.fullmatch(off)) is None or
+                   int(m.group(1), 16) > 0xFC or
+                   int(m.group(1), 16) % 4
+                   for off in parents)):
+        return [], False, "invalid_child_batch_provenance"
     phases = item.get("phase_sample_counts")
     if (not isinstance(phases, Mapping) or set(phases) != _VALID_PHASES
             or any(not _int(n, 2, 60) for n in phases.values())
@@ -94,7 +105,7 @@ def _check_summary(item: Mapping) -> tuple[list[dict], bool, str | None]:
             if match is None:
                 return [], False, "invalid_region_or_offset"
             parent = int(match.group(1), 16)
-            if parent % 4 or parent > 0xFC or count == 0:
+            if parent % 4 or parent > 0xFC or region[13:] not in parents:
                 return [], False, "invalid_region_or_offset"
             extent = 0x80
         else:
@@ -120,7 +131,8 @@ def _check_summary(item: Mapping) -> tuple[list[dict], bool, str | None]:
         eligible.append({"region": region, "relative_offset": f"+0x{pos:03X}",
                          "within_stage_changes": within,
                          "between_stage_changes": boundary,
-                         "float_shaped_changes": floatshape})
+                         "float_shaped_changes": floatshape,
+                         "changes_all_transitions": within + boundary == item["samples"] - 1})
     return eligible, total > 100 or truncated_child, None
 
 
@@ -143,7 +155,8 @@ def review_golfer_probe_summaries(reports: Iterable[Mapping], *,
     reject = Counter()
     diagnostics = Counter()
     ranked = defaultdict(lambda: {"capture_files": 0, "within_stage": 0,
-                                   "between_stage": 0, "float_shaped": 0})
+                                   "between_stage": 0, "float_shaped": 0,
+                                   "all_transitions_files": 0})
     accepted = static = slow = truncated = 0
     for item in data:
         if not isinstance(item, Mapping):
@@ -178,8 +191,11 @@ def review_golfer_probe_summaries(reports: Iterable[Mapping], *,
             s["within_stage"] += w["within_stage_changes"]
             s["between_stage"] += w["between_stage_changes"]
             s["float_shaped"] += w["float_shaped_changes"]
+            s["all_transitions_files"] += int(w["changes_all_transitions"])
     candidates = [{"region": region, "relative_offset": pos,
-                   "candidate_class": "idle_or_aim_negative_control_not_power",
+                   "candidate_class": ("continuous_idle_aim_clock_like_not_power"
+                                      if stats["all_transitions_files"] == stats["capture_files"]
+                                      else "idle_or_aim_negative_control_not_power"),
                    **stats, "verified_power": False}
                   for (region, pos), stats in ranked.items()]
     candidates.sort(key=lambda x: (-x["capture_files"], -x["within_stage"],
@@ -207,6 +223,9 @@ def review_golfer_probe_summaries(reports: Iterable[Mapping], *,
         "candidate_changes_truncated_reports": truncated,
         "slow_non_atomic_frame_reports": slow,
         "unchanged_candidate_reports": static,
+        "continuous_change_candidates": sum(
+            c["candidate_class"] == "continuous_idle_aim_clock_like_not_power"
+            for c in candidates),
         "candidate_regions": candidates[:100],
         "candidate_files_are_not_verified_independent_boots": True,
         "real_swing_observations": 0,
