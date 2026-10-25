@@ -210,5 +210,131 @@ class GolferNullControlTests(unittest.TestCase):
             self.assertNotIn("0x80160000", stdout.getvalue())
 
 
+def four_rows(*, varied=True, count_per_stage=(6, 8, 6)):
+    rows = rows_for(counts=count_per_stage)
+    frame = 1000
+    offsets = {"+0x008": (0x50, 100),
+               "+0x020": (0x38, 300),
+               "+0x044": (0x60, 600)}
+    increments = (7, 23, 11, 29, 17, 31)
+    for i, row in enumerate(rows):
+        if i:
+            frame += increments[(i - 1) % len(increments)] if varied else 15
+        row["frame_start"] = frame
+        row["frame_end"] = frame + 3
+        main = bytearray.fromhex(row["bytes_hex"])
+        struct.pack_into(">I", main, 0x74, (frame + 9000) & 0xFFFFFFFF)
+        row["bytes_hex"] = main.hex()
+        row["child_windows"] = {}
+        row["watched_child_addresses"] = {}
+        for ix, (key, (offset, bias)) in enumerate(offsets.items()):
+            child = bytearray(0x80)
+            struct.pack_into(">I", child, offset, (frame + bias) & 0xFFFFFFFF)
+            row["child_windows"][key] = child.hex()
+            row["watched_child_addresses"][key] = f"0x{0x80170000 + ix * 0x100:08X}"
+    return rows
+
+
+class FourWordClockTests(unittest.TestCase):
+    def test_varied_frame_intervals_produce_strong_4word_alignment(self):
+        result = audit.analyze_four_word_clock(four_rows())
+        self.assertTrue(result["varied_frame_cadence_observed"])
+        self.assertGreater(result["distinct_observed_frame_step_values"], 2)
+        self.assertEqual(result["within_stage_comparison_opportunities"], 17)
+        self.assertEqual(result["all_four_fields_changed_pairs"], 17)
+        self.assertEqual(result["all_four_fields_match_elapsed_frames_pairs"], 17)
+        for row in result["fields"]:
+            self.assertEqual(row["matches_elapsed_frames"], 17)
+            self.assertFalse(row["field_identity_verified"])
+            self.assertFalse(row["power_verified"])
+            if row["region"] != "main":
+                self.assertEqual(row["matches_main_delta"], 17)
+            self.assertLess(row["matches_shifted_frame_gaps"], 14)
+        self.assertFalse(result["timing_limited"])
+        self.assertNotIn("0x80170000", str(result))
+        self.assertNotIn("0x80140000", str(result))
+
+    def test_constant_sampling_cadence_is_not_identifying(self):
+        result = audit.analyze_four_word_clock(four_rows(varied=False))
+        self.assertEqual(result["distinct_observed_frame_step_values"], 1)
+        self.assertFalse(result["varied_frame_cadence_observed"])
+        self.assertEqual(result["all_four_fields_match_elapsed_frames_pairs"], 17)
+        for row in result["fields"]:
+            self.assertEqual(row["matches_shifted_frame_gaps"], 14)
+            self.assertEqual(row["shifted_control_opportunities"], 14)
+
+    def test_nonclock_child_does_not_match_frame_steps(self):
+        rows = four_rows()
+        for i, row in enumerate(rows):
+            child = bytearray.fromhex(row["child_windows"]["+0x020"])
+            struct.pack_into(">I", child, 0x38, i)
+            row["child_windows"]["+0x020"] = child.hex()
+        result = audit.analyze_four_word_clock(rows)
+        suspect = next(x for x in result["fields"]
+                       if x["region"] == "child_at_main+0x020")
+        self.assertEqual(suspect["changed_pairs"], 17)
+        self.assertEqual(suspect["matches_elapsed_frames"], 0)
+        self.assertEqual(suspect["matches_main_delta"], 0)
+        self.assertEqual(result["all_four_fields_match_elapsed_frames_pairs"], 0)
+
+    def test_missing_child_and_bad_child_bytes_fail_closed(self):
+        rows = four_rows()
+        del rows[5]["child_windows"]["+0x020"]
+        with self.assertRaisesRegex(ValueError, "provenance"):
+            audit.analyze_four_word_clock(rows)
+        rows = four_rows()
+        rows[2]["child_windows"]["+0x020"] = "ZZ" * 0x80
+        with self.assertRaisesRegex(ValueError, "bytes"):
+            audit.analyze_four_word_clock(rows)
+
+    def test_relocated_child_pointer_is_rejected(self):
+        rows = four_rows()
+        rows[-1]["watched_child_addresses"]["+0x008"] = "0x80180000"
+        with self.assertRaisesRegex(ValueError, "identity changed"):
+            audit.analyze_four_word_clock(rows)
+
+    def test_timing_limited_30_frame_capture_is_labeled_not_rejected(self):
+        rows = four_rows()
+        for i, row in enumerate(rows):
+            row["frame_start"] = 1000 + 45 * i
+            row["frame_end"] = row["frame_start"] + 30
+        report = audit.analyze_four_word_clock(rows)
+        self.assertTrue(report["timing_limited"])
+        self.assertEqual(report["max_non_atomic_frame_span"], 30)
+        self.assertFalse(report["game_power_field_verified"])
+
+    def test_cli_latest_four_picks_existing_eligible_older_capture(self):
+        with tempfile.TemporaryDirectory() as td:
+            directory = Path(td)
+            old = directory / "golfer-20261025T034000Z-12345678-RAW-PRIVATE.jsonl"
+            new = directory / "golfer-20261025T035000Z-12345678-RAW-PRIVATE.jsonl"
+            old.write_text("".join(json.dumps(r) + "\n" for r in four_rows()),
+                           encoding="utf-8")
+            new.write_text("".join(json.dumps(r) + "\n" for r in rows_for()),
+                           encoding="utf-8")
+            stdout, stderr = StringIO(), StringIO()
+            with patch.object(audit, "PRIVATE_CAPTURES", directory):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    code = audit.main(["--latest-four"])
+            self.assertEqual(code, 0, stderr.getvalue())
+            result = json.loads(stdout.getvalue())
+            self.assertEqual(result["kind"], "offline_four_golfer_words_vs_emulated_frames")
+            self.assertNotIn(str(directory), stdout.getvalue())
+            self.assertNotIn("0x80170000", stdout.getvalue())
+            self.assertNotIn("-RAW-PRIVATE", stdout.getvalue())
+
+    def test_cli_four_missing_capture_is_fixed_redacted_message(self):
+        with tempfile.TemporaryDirectory() as td:
+            directory = Path(td)
+            output = StringIO()
+            with patch.object(audit, "PRIVATE_CAPTURES", directory):
+                with redirect_stderr(output):
+                    self.assertEqual(audit.main(["--latest-four"]), 1)
+            self.assertIn("no compatible private four-child capture found",
+                          output.getvalue())
+            self.assertNotIn(td, output.getvalue())
+
+
+
 if __name__ == "__main__":
     unittest.main()
