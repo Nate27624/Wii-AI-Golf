@@ -71,7 +71,7 @@ def _frame(rpc: object) -> int:
     return value
 
 
-def _pass(rpc: object) -> tuple[list[dict], int]:
+def _pass(rpc: object) -> tuple[list[dict], tuple[int, int]]:
     begin = _frame(rpc)
     candidates = []
     for slot, storage in enumerate(ROOT_STORAGE_CELLS):
@@ -100,15 +100,17 @@ def _pass(rpc: object) -> tuple[list[dict], int]:
     end = _frame(rpc)
     if end < begin or end - begin > MAX_SPAN_FRAMES:
         raise RuntimeError("Non-atomic snapshot exceeded permitted frame span")
-    return candidates, end - begin
+    return candidates, (begin, end)
 
 
 def probe(rpc: object) -> dict:
     """Two independent bounded passes; no guessed address scanning."""
     _check_game(rpc)
-    first, span1 = _pass(rpc)
+    first, (start1, end1) = _pass(rpc)
     _check_game(rpc)
-    second, span2 = _pass(rpc)
+    second, (start2, end2) = _pass(rpc)
+    if start2 < end1:
+        raise RuntimeError("Emulation frame counter rolled backwards between passes")
     stable = [row for row, other in zip(first, second)
               if row == other and row.get("golf_scene_id_match")
               and row.get("scene_pointer_ram_like")]
@@ -120,7 +122,7 @@ def probe(rpc: object) -> dict:
         "game_mode": 4,
         "candidate_static_cells_checked": len(ROOT_STORAGE_CELLS),
         "pass_count": 2,
-        "max_sample_frame_span": max(span1, span2),
+        "max_sample_frame_span": max(end1 - start1, end2 - start2),
         "stable_golf_scene_chain_count": len(stable),
         "stable_slot_indices": [row["slot"] for row in stable],
         "vtable_in_golf_scene_data_count": sum(
