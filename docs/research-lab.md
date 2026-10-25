@@ -80,3 +80,16 @@ py scripts/golf.py lab gui
 ~~~
 
 Tests use fake subprocesses; real Windows GUI/Dolphin behavior must be verified on the operator's machine. Legacy scripts are retained as internal/advanced utilities.
+
+## S002 local trace integration (proposed PR)
+
+The study registry adds **evaluation.trace** as a runnable **OFFLINE** job in Golf Lab. The GUI's existing Input path and Output path fields pass through the typed runner; it cannot start Dolphin or claim ball identification. Capture studies **evaluation.landmarks** and **evaluation.minimap** are visible as **PLANNED** and blocked until their physical-controller/manual-ready workflows have an approved one-boot adapter. No duplicate game launcher or arbitrary script execution is introduced.
+
+~~~powershell
+py scripts/golf.py lab gui
+py scripts/golf.py lab plan evaluation.trace --input "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf-Data\\captures\\focused-object-xyz-20261025T000301Z-bfd74bbd.jsonl"
+py scripts/golf.py lab run evaluation.trace --input "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf-Data\\captures\\focused-object-xyz-20261025T000301Z-bfd74bbd.jsonl" --out "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf-Data\\captures\\two-swing-lab-summary.json"
+py -m unittest discover -s tests -p "test_lab_s002_trace.py" -v
+~~~
+
+This study analyzes **unverified XYZ candidate motion**, not real ball flight. Raw local JSONL remains on the PC; summary counts and timing can be viewed through the Lab's offline run logs.
