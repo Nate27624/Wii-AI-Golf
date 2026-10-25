@@ -1,4 +1,4 @@
-# Script-only research workflow
+# Git Bash research workflow (desktop Lab also supported)
 
 Use Git Bash on Windows or a POSIX shell. PowerShell users can run `py scripts/golf.py` directly. All commands share the same Python package, typed registry (`research/experiments.json`), local evidence storage and canonical Dolphin startup.
 
@@ -13,7 +13,7 @@ Use Git Bash on Windows or a POSIX shell. PowerShell users can run `py scripts/g
 | Sanitized local human observations | `bash scripts/golf.sh reports` |
 | Source-local setup diagnosis | `bash scripts/golf.sh doctor` |
 
-The previous Tkinter GUI is no longer a supported entry point. Shell prompts are the intended interaction; previous GUI-only modal prompts are not required. You can set `WII_GOLF_DIALOGS=1` only if you intentionally want the optional legacy popup input, but no shell commands enable it.
+The desktop Lab GUI is also supported using `py scripts/golf.py lab gui`; it shares the same reviewed Python registry/runner. The selected study Show/details pane offers a guided one-action V1 game workflow. Git Bash remains terminal-first and GUI-approved game runs use modal operator prompts. You can set `WII_GOLF_DIALOGS=1` only if you intentionally want the optional legacy popup input, but no shell commands enable it.
 
 ## GitHub data flow
 
