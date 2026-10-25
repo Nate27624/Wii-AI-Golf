@@ -40,15 +40,15 @@ def sections(dol: bytes):
                 raise ValueError("invalid DOL section bounds")
             if address % 4 or not (0x80000000 <= address < 0x94000000):
                 raise ValueError("invalid DOL mapped address")
-            entries.append((address, address + size, offset))
+            entries.append((address, address + size, offset, foff == 0))
     return entries
 
 
 def get_code(dol: bytes, addr: int, size: int) -> bytes:
     if size < 4 or size % 4 or addr % 4:
         raise ValueError("invalid code range")
-    for low, high, file_offset in sections(dol):
-        if low <= addr and addr + size <= high:
+    for low, high, file_offset, executable in sections(dol):
+        if executable and low <= addr and addr + size <= high:
             begin = file_offset + (addr - low)
             return dol[begin:begin + size]
     raise ValueError("Rev1 function range not mapped: code source or disc version differs")
