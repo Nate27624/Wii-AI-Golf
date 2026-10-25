@@ -1,0 +1,22 @@
+{
+  "adjacent_changes": 1,
+  "changed_byte_offsets": [
+    123,
+    126,
+    127
+  ],
+  "claim": "AUTOMATED_SWING_COMMAND_NOT_VERIFIED_BALL_CONTACT",
+  "condition": "swing",
+  "id": "20261025T014057Z-swing-automated-minimap",
+  "kind": "automated-minimap-effect",
+  "phase_counts": {
+    "post": 20,
+    "pre": 5
+  },
+  "samples": 25,
+  "schema_version": 1,
+  "study_id": "S002-AUTOMATED-MINIMAP-SHOT",
+  "swing_dispatch_received": true,
+  "utc": "2026-10-25T01:41:05.916175+00:00",
+  "warning": "Minimap visual effect is not verified physics ball or score"
+}
