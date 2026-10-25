@@ -7,9 +7,12 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import queue
 import subprocess
 import sys
-from .core import ROOT, get_experiment, history, load_catalog, plan
+import threading
+from .core import ROOT, get_experiment, history, available_experiments, plan
+from .github_sync import sync_merged_main
 
 
 def launch(root: Path = ROOT) -> int:
@@ -18,7 +21,10 @@ def launch(root: Path = ROOT) -> int:
     import tkinter as tk
     from tkinter import messagebox, ttk
 
-    catalog = load_catalog(root / "research" / "experiments.json")
+    catalog = available_experiments(root)
+    sync_messages: queue.SimpleQueue = queue.SimpleQueue()
+    sync_busy = [False]
+    last_changes: set[str] = set()
     ui = tk.Tk()
     ui.title("Wii AI Golf — Research Lab")
     ui.geometry("1020x760")
@@ -27,12 +33,20 @@ def launch(root: Path = ROOT) -> int:
     outer.pack(fill="both", expand=True)
     ttk.Label(outer, text="Wii AI Golf · Research Lab",
               font=("Segoe UI", 19, "bold")).pack(anchor="w")
-    ttk.Label(outer, text="S000–S005  •  Reviewed experiments  •  Local run history  •  One canonical Dolphin startup").pack(anchor="w")
+    ttk.Label(outer, text="S000–S005  •  Agent tests pulled from approved GitHub main  •  One canonical Dolphin startup").pack(anchor="w")
+    sync_line = tk.StringVar(value="GitHub: checking for newly merged tests...")
+    ttk.Label(outer, textvariable=sync_line, wraplength=930).pack(anchor="w", pady=(4, 0))
     panes = ttk.PanedWindow(outer, orient="horizontal")
     panes.pack(fill="both", expand=True, pady=12)
     left, right = ttk.Frame(panes), ttk.Frame(panes)
     panes.add(left, weight=2)
     panes.add(right, weight=3)
+    filter_mode = tk.StringVar(value="All")
+    ttk.Label(left, text="Show").pack(anchor="w", pady=(0, 3))
+    filter_select = ttk.Combobox(left, textvariable=filter_mode,
+                                 values=("All", "Agent tests", "Experiments"),
+                                 state="readonly", width=22)
+    filter_select.pack(fill="x", padx=(0, 12), pady=(0, 7))
     listing = ttk.Treeview(left, columns=("owner", "mode"), show="tree headings", height=15)
     listing.heading("#0", text="Experiment")
     listing.heading("owner", text="Agent")
@@ -41,9 +55,31 @@ def launch(root: Path = ROOT) -> int:
     listing.column("owner", width=58, anchor="center")
     listing.column("mode", width=65, anchor="center")
     listing.pack(fill="both", expand=True, padx=(0, 12))
-    for e in catalog:
-        listing.insert("", "end", iid=e["id"], text=e["title"],
-                       values=(e["owner"], e["mode"]))
+    def refill_catalog():
+        nonlocal catalog
+        wanted = listing.selection()[0] if listing.selection() else None
+        catalog = available_experiments(root)
+        for row in listing.get_children():
+            listing.delete(row)
+        for e in catalog:
+            agent_test = e["id"].startswith("agent-tests.")
+            if filter_mode.get() == "Agent tests" and not agent_test:
+                continue
+            if filter_mode.get() == "Experiments" and agent_test:
+                continue
+            marker = "NEW  " if agent_test and (
+                "tests/" + e["title"]) in last_changes else ""
+            label = marker + e["title"]
+            listing.insert("", "end", iid=e["id"], text=label,
+                           values=(e["owner"], e["mode"]))
+        if wanted and listing.exists(wanted):
+            listing.selection_set(wanted)
+            listing.focus(wanted)
+        elif listing.get_children():
+            first = listing.get_children()[0]
+            listing.selection_set(first)
+            listing.focus(first)
+    refill_catalog()
     description = tk.StringVar(value="Select an experiment.")
     ttk.Label(right, textvariable=description, wraplength=455, justify="left").pack(fill="x", pady=7)
     inputs = ttk.LabelFrame(right, text="Optional parameters", padding=8)
@@ -119,8 +155,62 @@ def launch(root: Path = ROOT) -> int:
 
     active: list[subprocess.Popen] = []
 
+    def request_sync() -> None:
+        """Never block Tkinter while fetching GitHub; never run fetched tests."""
+        if sync_busy[0]:
+            return
+        lab_root = root.parent / "Wii-AI-Golf-Data" / "lab"
+        if active or any((lab_root / name).exists()
+                         for name in ("live-session.lock", "run-session.lock")):
+            sync_line.set("GitHub: synchronization deferred while an experiment runs.")
+            return
+        sync_busy[0] = True
+        sync_line.set("GitHub: checking approved origin/main (offline tests NOT auto-run)...")
+
+        def worker():
+            try:
+                result = sync_merged_main(
+                    root, lab_data=root.parent / "Wii-AI-Golf-Data" / "lab")
+                sync_messages.put(result)
+            except Exception as exc:
+                sync_messages.put(("error", str(exc)))
+        threading.Thread(target=worker, daemon=True, name="golf-lab-git-sync").start()
+
+    def sync_messages_poll():
+        try:
+            while True:
+                item = sync_messages.get_nowait()
+                sync_busy[0] = False
+                if isinstance(item, tuple):
+                    sync_line.set("GitHub update error: " + str(item[1])[:200])
+                    continue
+                if item.status == "updated":
+                    last_changes.clear()
+                    last_changes.update(item.changed_tests)
+                    try:
+                        refill_catalog()
+                        selected()
+                    except (OSError, ValueError) as exc:
+                        sync_line.set("Updated checkout; restart Lab to read new code: " + str(exc))
+                        continue
+                    sync_line.set(
+                        f"GitHub: updated main; {len(item.changed_tests)} merged test files "
+                        "added/modified. Select NEW tests to run. Restart app if Lab code changed."
+                    )
+                else:
+                    sync_line.set("GitHub: " + item.status + " — " + item.note)
+        except queue.Empty:
+            pass
+        ui.after(800, sync_messages_poll)
+
+    def auto_sync_tick():
+        request_sync()
+        ui.after(120000, auto_sync_tick)
+
     def run_selected(live: bool):
         try:
+            if sync_busy[0]:
+                raise ValueError("GitHub update is in progress; start this test after it finishes.")
             p = selected_plan()
             if p.live != live:
                 raise ValueError("Experiment mode does not match this button")
@@ -222,13 +312,18 @@ def launch(root: Path = ROOT) -> int:
                           command=lambda: run_selected(True))
     live_btn.pack(side="left", padx=3)
     ttk.Button(actions, text="Refresh results", command=refresh).pack(side="left", padx=3)
+    ttk.Button(actions, text="Sync GitHub", command=request_sync).pack(side="left", padx=3)
     ttk.Button(actions, text="Sanitized outcomes", command=show_sanitized_reports).pack(side="left", padx=3)
     ttk.Button(actions, text="Offline log", command=show_last_offline_log).pack(side="left", padx=3)
     listing.bind("<<TreeviewSelect>>", selected)
+    filter_select.bind("<<ComboboxSelected>>",
+                       lambda _event: (refill_catalog(), selected()))
     refresh()
     if catalog:
         listing.selection_set(catalog[0]["id"])
         selected()
+    sync_messages_poll()
+    auto_sync_tick()
     ui.after(1400, poll)
     ui.mainloop()
     return 0
