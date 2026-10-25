@@ -1,0 +1,214 @@
+{
+  "changed_word_count": 21,
+  "confirmed_ball_position_address": false,
+  "confirmed_club_pose_address": false,
+  "confirmed_power_address": false,
+  "human_observations": [],
+  "id": "offline-20261025T024447Z-a37ee401",
+  "kind": "golf-memory-phase-differential",
+  "max_non_atomic_frame_span": 22,
+  "mean_non_atomic_frame_span": 22.0,
+  "origin": "existing_private_S002_outcome_capture",
+  "phase_sample_counts": {
+    "post": 2,
+    "pre": 3,
+    "settled": 3
+  },
+  "sample_count": 8,
+  "schema_version": 1,
+  "scope": "broad",
+  "skipped_relocated_windows": 0,
+  "study_id": "S002-GOLF-MEMORY-PHASES",
+  "top_changed_relative_words": [
+    {
+      "at_phase_boundary_changes": 2,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 3,
+      "pointer_like_changes": 0,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x1EC",
+      "within_phase_changes": 1
+    },
+    {
+      "at_phase_boundary_changes": 2,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 2,
+      "pointer_like_changes": 0,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x1F0",
+      "within_phase_changes": 1
+    },
+    {
+      "at_phase_boundary_changes": 2,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 2,
+      "pointer_like_changes": 0,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x1F4",
+      "within_phase_changes": 1
+    },
+    {
+      "at_phase_boundary_changes": 2,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 2,
+      "pointer_like_changes": 0,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x1F8",
+      "within_phase_changes": 1
+    },
+    {
+      "at_phase_boundary_changes": 2,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 3,
+      "pointer_like_changes": 0,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x1FC",
+      "within_phase_changes": 1
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x78",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x7C",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x108",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x10C",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x78",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x7C",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x108",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x10C",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x198",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x19C",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x78",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x7C",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x108",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x10C",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x198",
+      "within_phase_changes": 0
+    },
+    {
+      "at_phase_boundary_changes": 1,
+      "documented_role": "minimap_rendering_unknown",
+      "float_like_changes": 0,
+      "pointer_like_changes": 0,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x19C",
+      "within_phase_changes": 0
+    }
+  ],
+  "warning": "Exploratory non-atomic snapshots. Relative offsets are not identified gameplay fields; human observations are not verified by RAM. Legacy pre/post labels cannot prove a hit or exact impact frame."
+}
