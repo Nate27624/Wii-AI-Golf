@@ -59,6 +59,34 @@ def memory_record():
     }
 
 
+def cohort_record():
+    return {
+        "schema_version": 1, "kind": "golf-memory-cohort-relative-words",
+        "study_id": "S002-GOLF-MEMORY-COHORT",
+        "id": "cohort-20261025T025308Z-fbda2d0e",
+        "valid_independent_runs": 3, "shared_changed_words_all_runs": 1,
+        "recurrent_changed_words_2plus_runs": 2, "distinct_changed_words": 2,
+        "excluded_invalid_or_incomplete_runs": 0,
+        "regions_with_changes_by_run_count": {"minimap_ball_effect": 3},
+        "recurrent_words": [
+            {"region": "minimap_ball_effect", "relative_offset": "+0x78",
+             "runs_changed": 3, "runs_within_phase": 1,
+             "runs_at_phase_boundary": 3, "within_phase_events": 1,
+             "boundary_events": 5},
+            {"region": "golf_config", "relative_offset": "+0x94",
+             "runs_changed": 2, "runs_within_phase": 0,
+             "runs_at_phase_boundary": 2, "within_phase_events": 0,
+             "boundary_events": 2},
+        ],
+        "no_gameplay_variable_verified": True,
+        "warning": (
+            "Repeated changes are not identified golf power, club pose, flight or score. "
+            "Only already-recorded phase-aligned statistics are compared; "
+            "frame timing and human labels may differ."
+        ),
+    }
+
+
 class PublicObservationTests(unittest.TestCase):
     def test_matches_actual_published_test_shape(self):
         self.assertEqual(public_observation(test_record()), test_record())
@@ -141,6 +169,30 @@ class PublicObservationTests(unittest.TestCase):
         ):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 public_observation({**memory_record(), **change})
+
+    def test_s002_cohort_schema_accepts_safe_existing_shape(self):
+        safe = public_observation(cohort_record())
+        self.assertEqual(safe["kind"], "golf-memory-cohort-relative-words")
+        self.assertTrue(safe["no_gameplay_variable_verified"])
+
+    def test_cohort_rejects_private_fields_and_invalid_recurrence(self):
+        cohort = cohort_record()
+        altered = (
+            {**cohort, "private_path": "C:/Users/private"},
+            {**cohort, "no_gameplay_variable_verified": False},
+            {**cohort, "id": "cohort-../../secrets"},
+            {**cohort, "warning": "C:/private"},
+            {**cohort, "valid_independent_runs": 1},
+            {**cohort, "shared_changed_words_all_runs": 9},
+            {**cohort, "recurrent_words": [{
+                **cohort["recurrent_words"][0], "raw_value": "0x80000000"}]},
+            {**cohort, "recurrent_words": [{
+                **cohort["recurrent_words"][0], "runs_changed": 4}]},
+            {**cohort, "recurrent_words": cohort["recurrent_words"] * 2},
+        )
+        for row in altered:
+            with self.subTest(value=list(row.keys())[-1]), self.assertRaises(ValueError):
+                public_observation(row)
 
     def test_excess_rows_rejected(self):
         row = memory_record()
