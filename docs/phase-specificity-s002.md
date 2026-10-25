@@ -14,6 +14,22 @@ The existing source-gated S002 `summarize_phase_memory` now keeps:
 
 Prior S002 summary keys remain. No addresses, bytes, before/after word values or private paths are output. All `confirmed_*_address` flags remain false. This is additive to the **S002-owned** summary contract and requires S002/S000 review before production/public GitHub publishing. This branch is based on S002 PR #116; it cannot merge into main until #116 has been reviewed and integrated.
 
+## Operator control result: completed October 25, 2026
+
+**Do not repeat this study just to collect more of the same fields.** One completed operator run, `20261025T031559Z-3dfd5bf2`, contained 24 source-gated snapshots (8 idle, 8 aim-only with human label `camera_moved`, 8 idle) at the tee. From the sanitized summary and a private offline check of the provided local raw data:
+
+- `changed_word_count=0` across all three required windows; no full-window byte changes between any of the 24 snapshots.
+- Each window was nonempty, remained in one instance and produced the same byte sequence in every capture. No relocation was skipped.
+- Focused windows: golf_config 160 bytes, golf_field 168 bytes, sports_sequence 208 bytes.
+- Within-stage same-instance comparison opportunities **per region**: 14 idle (across two idle blocks) and 7 aim-only; each snapshot's frame bracket spanned **9 emulator frames**.
+- Source-verification and operator phase labels are not proof that camera coordinates, club pose, actual power or ball physics were captured. The config window ends at +0x9F and DOES NOT include the earlier source-undecoded +0xBC/+0xC0 broad-window changes.
+
+**Interpretation:** credible negative control for these *specific* source-documented window bytes, not a detection failure of the entire game. With 9-frame read spans and no observed change, a next run using exactly these windows is low-information. This study remains private locally; GitHub coordination comments contain these sanitized counts only, never the RAW-PRIVATE JSONL.
+
+**Next owner action:** S002 source-identifies the live scene instance and RPGolMain/golfer ownership (see PR #122); S001/S002 agree frame-synchronized, source-gated tiny gameplay reads inside the existing consented canonical swing path. S003 cannot train a numeric power model until there is independently varied, verified in-game power and negative-control specificity. **No additional operator live study is justified by this result until that instrumentation exists.**
+
+---
+
 ## First operator study: three-stage idle → aim-only → idle
 
 This is a **safe negative-control** and latency study, not power calibration.
