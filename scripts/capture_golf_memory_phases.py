@@ -40,7 +40,7 @@ def parse_phases(tokens):
     total=0
     for token in tokens:
         phase,sep,num=token.partition(":")
-        if not sep or phase not in ALLOWED_PHASES or not num.isdigit():
+        if not sep or phase not in CUES or not num.isdigit():
             raise ValueError(f"invalid phase specification: {token}")
         n=int(num)
         if not 2<=n<=40:raise ValueError("samples per stage must be 2..40")
