@@ -89,3 +89,14 @@ When blocked by legal game access, emulator control, inaccurate score units or u
 ## Collision prevention and handoffs
 
 Before claiming or editing a new workstream, read [research/coordination.md](research/coordination.md), `research/claims/`, and the corresponding issue comments. Claims are recorded FIRST in an issue comment, then in a per-worker JSON file; conflicting paths require an explicit handoff. The shared ledger is a summary, not an automatic job scheduler or locking service. Keep raw findings in per-worker research folders to minimize merge conflicts.
+
+## Shared research application: mandatory integration path
+
+The project now includes one source-local **`py scripts/golf.py lab ...`** experiment registry/runner and **`py scripts/golf.py lab gui`** Windows app. [docs/research-lab.md](docs/research-lab.md) defines the user/operator workflow and [research/experiments.json](research/experiments.json) is the reviewed catalog.
+
+- Every worker that proposes a new operator-visible test must register a stable `S000–S005`-owned ID with a **reviewed typed kind** (not a free-form shell command), evidence classification and test coverage. If a PR has not landed, keep its entry **planned**, not runnable.
+- S001 exclusively owns swing/bridge primitive revisions. S002 owns outcome/RAM probes, S003 motion modeling, S004 learning, S005 held-out generalization. Coordinator owns the CLI/GUI/registry. Coordinate overlapping changes on GitHub issues, not by changing another worker's live script.
+- Lab live runs require `--live`, preserve the canonical **fresh Dolphin / named existing green-pre-start state / A→A+B→A intro**, prompt the human and record every attempt, including missed shots. A Lab live lock prevents overlapping Lab sessions but does not kill or manage independently started legacy processes.
+- Distinguish **script exit**, **Felk bridge ACK**, **user-observed ball strike**, **verified game score** and **generalization performance**. The latest S002 unprimed V2 human-reported shot **failed due to insufficient strike strength** and must remain a negative observation; prior 2.1-ft green and 100-ft miss hits are non-equivalent input conditions.
+- Save metadata in local `Wii-AI-Golf-Data/lab`, not GitHub; never upload RAW-PRIVATE RAM. All offline commands may be planned without any Dolphin connection, and only approved live commands can launch it. No unattended batches until measured scoring and safe control gates are passed.
+

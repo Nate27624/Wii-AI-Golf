@@ -160,6 +160,37 @@ def build_parser() -> argparse.ArgumentParser:
     tests = sub.add_parser("test", help="Run project unittest suite against THIS checkout")
     tests.add_argument("--pattern", default="test_*.py")
 
+    lab = sub.add_parser("lab", help="One shared S000-S005 experiment registry, runner and Windows desktop app")
+    actions = lab.add_subparsers(dest="lab_action", required=True)
+    ls = actions.add_parser("list", help="All agent experiments and runnable/planned state")
+    ls.add_argument("--json", action="store_true")
+    desc = actions.add_parser("show", help="Describe one experiment and its owner")
+    desc.add_argument("experiment_id")
+    for name in ("plan", "run"):
+        subcommand = actions.add_parser(
+            name, help="Print exact safe command" if name == "plan" else
+            "Execute one recorded test (live requires --live)"
+        )
+        subcommand.add_argument("experiment_id")
+        subcommand.add_argument("--input", dest="input_path")
+        subcommand.add_argument("--second-input")
+        subcommand.add_argument("--out", dest="output_path")
+        subcommand.add_argument("--contact", choices=("yes", "no", "unknown"))
+        subcommand.add_argument("--green", choices=("yes", "no", "unknown"))
+        subcommand.add_argument("--distance")
+        subcommand.add_argument("--a-prime", type=int, default=0)
+        subcommand.add_argument("--follow-through", type=int, default=30)
+        if name == "run":
+            subcommand.add_argument("--live", action="store_true",
+                                    help="Explicitly approve ONE canonical Dolphin launch")
+    recent = actions.add_parser("history", help="Inspect local per-run execution records, never score claims")
+    recent.add_argument("--limit", type=int, default=20)
+    recent.add_argument("--json", action="store_true")
+    outcomes = actions.add_parser("reports", help="List ONLY sanitized local S002 human-observed outcome files")
+    outcomes.add_argument("--limit", type=int, default=20)
+    outcomes.add_argument("--json", action="store_true")
+    actions.add_parser("gui", help="Open local Windows research lab application")
+
     sub.add_parser("demo", help="Run the existing SYNTHETIC toy environment (not Wii Sports)")
     return parser
 
@@ -259,6 +290,68 @@ def _game_options(args) -> list[str]:
 
 
 def execute(args: argparse.Namespace) -> int:
+    if args.group == "lab":
+        from .lab import core
+        if args.lab_action == "list":
+            entries = core.load_catalog(ROOT / "research" / "experiments.json")
+            if args.json:
+                print(json.dumps(entries, indent=2))
+            else:
+                for e in entries:
+                    print(f"{e['id']:<27} {e['owner']}  {e['mode']:<8} {e['title']}")
+                print("PLANNED != runnable. LIVE requires --live and operator confirmation.")
+            return 0
+        if args.lab_action == "show":
+            e = core.get_experiment(args.experiment_id,
+                                    catalog=core.load_catalog(ROOT / "research" / "experiments.json"))
+            print(json.dumps(e, indent=2, sort_keys=True))
+            return 0
+        if args.lab_action in ("plan", "run"):
+            p = core.plan(
+                args.experiment_id, root=ROOT, python=sys.executable,
+                input_path=args.input_path, second_input=args.second_input,
+                output_path=args.output_path, a_prime=args.a_prime,
+                follow_through=args.follow_through, contact=args.contact,
+                green=args.green, distance=args.distance
+            )
+            if args.lab_action == "plan":
+                print(json.dumps(p.summary(), indent=2))
+                print("PREVIEW ONLY: no Dolphin process, RAM access, or file writes.")
+                return 0
+            print(f"LAB RUN {p.experiment['id']} | {p.experiment['mode']} | "
+                  "game outcome not automatically verified", flush=True)
+            record = core.execute(p, root=ROOT, allow_live=args.live)
+            print("Local run:", record["run_id"], "status:",
+                  record["execution_status"], "exit:", record.get("exit_code"), flush=True)
+            return 0 if record.get("exit_code") == 0 else 1
+        if args.lab_action == "history":
+            entries = core.history(DATA_ROOT / "lab", limit=args.limit)
+            if args.json:
+                print(json.dumps(entries, indent=2))
+            else:
+                if not entries:
+                    print("No lab executions yet. History is LOCAL only.")
+                for e in entries:
+                    print(f"{e.get('run_id')}  {e.get('experiment_id')}  "
+                          f"{e.get('execution_status')}  exit={e.get('exit_code')} "
+                          "(NOT a game score)")
+            return 0
+        if args.lab_action == "reports":
+            from .lab.reports import sanitized_reports
+            entries = sanitized_reports(root=ROOT, limit=args.limit)
+            if args.json:
+                print(json.dumps(entries, indent=2))
+            else:
+                if not entries:
+                    print("No sanitized outcome reports yet. Raw RAM is not inspected.")
+                for row in entries:
+                    print(f"{row['path']} | USER contact={row['contact_human']} "
+                          f"green={row['green_human']} distance={row['distance_human']} "
+                          f"{row['unit_human']} | game score NOT verified")
+            return 0
+        if args.lab_action == "gui":
+            from .lab.gui import launch
+            return launch(ROOT)
     if args.group == "doctor":
         return doctor()
     if args.group in ("play", "swing"):
