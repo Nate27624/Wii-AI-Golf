@@ -23,6 +23,19 @@ def command(action: str, game: Path):
     target=EVAL/"scripts"/script
     if not target.is_file() or not (EVAL/"scripts"/"session_bootstrap.py").is_file():
         raise FileNotFoundError("S002 evaluation checkout missing. Update Wii-AI-Golf-Data to reviewed S002 branch first.")
+    from importlib.util import spec_from_file_location, module_from_spec
+    bootstrap=EVAL/"scripts"/"session_bootstrap.py"
+    spec=spec_from_file_location("_s002_bootstrap_preflight",bootstrap)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("S002 bootstrap cannot be loaded")
+    module=module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for label, path in (("Felk Dolphin",module.DEFAULT_DOLPHIN),
+                        ("Felk read-only RPC bridge",module.DEFAULT_BRIDGE)):
+        if not Path(path).is_file():
+            raise FileNotFoundError(f"{label} missing: {path}. Fix local settings before running.")
+    if not (ROOT/"research"/"savestates.local.json").is_file():
+        print("NOTE: physical S002 mode navigates manually; no savestate required.",flush=True)
     return [sys.executable,str(target),
             "--controller-mode","physical","--startup","fresh",
             "--game",str(game),"--ready-timeout","180",
