@@ -3,14 +3,21 @@
 **Goal:** Follow a source-anchored *live* pointer chain to `RPGolMain`, and
 record candidate gameplay-object bytes while the operator changes camera/aim.
 
-This is an **experimental, read-only** census; it does NOT know the actual
-global scene-manager storage address. It is restricted to a 4096-byte static
-singleton neighborhood `0x804BF000..0x804BFFFF` sourced from known
-US Rev1 statics. No full RAM scan or guessed pointer write.
+**Observed October 25 result:** 20 samples found one candidate slot
+`0x804BF4D8`, with the candidate gameplay object's `+0x74` word
+changing in every one of 19 comparisons (including idle). That offset
+looks counter-like, not confirmed rotation/power. Independently the
+Rev1 split map places RPSysSceneMgr.cpp static storage in
+`[0x804BF4D8,0x804BF4E0)`. This follow-up searches only **two 32-bit
+cells** in that independently source-backed range. The exact singleton
+cell and live identity are validated at runtime, not assumed.
 
 Source-backed structural checks:
 * `EGG::SceneManager +0x0C` active scene, `+0x18` scene ID;
-* `RPSysScene +0x40` creator scene ID (recorded diagnostic only);
+* `EGG::Scene +0x1C` **current scene's own ID**, `+0x20` scene
+  manager backlink (both required to match);
+* `RPSysScene +0x40` **creator/previous** scene ID (recorded only;
+  its mismatch with current golf scene ID is expected);
 * `RPSportsBaseScene +0x54` sport ID = 2 (golf);
 * `RPGolScene +0x9C` candidate `RPGolMain*`.
 * `RPGolConfig +0x94` mode 4; RSPE01 revision byte 1.
@@ -61,7 +68,9 @@ the same already-running Dolphin RPC after main's single startup. No
 second Dolphin is launched.
 
 It prompts for Enter three times: no movement, manual WASD aim/camera
-movement, no movement. No button press or swing is required.
+movement, no movement. No button press or swing is required. If Dolphin
+is STILL running from the previous capture, skip the launch command and
+only refresh the clean detached worktree followed by the read-only probe.
 
 ## What to share
 
