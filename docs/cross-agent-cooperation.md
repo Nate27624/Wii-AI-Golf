@@ -1,6 +1,24 @@
-# Cross-agent cooperation contract (SPOCOC coordination)
+# SPOCOC — Single Point of Control Over Change
 
-The operator requests substantially stronger cooperation across S001–S005. Treat "SPOCOC" as the operator's label for this collaboration principle; do not assume a specific acronym expansion.
+SPOCOC means **Single Point of Control Over Change**, as defined by the operator. Each shared behavior has **one authoritative implementation and one owner approving modifications to its contract**. Different research agents may propose changes or run competing experiments, but must not create independent production implementations of the same responsibility.
+
+## Authority matrix: one canonical implementation per responsibility
+
+| Shared behavior | Canonical implementation | Change authority |
+| --- | --- | --- |
+| Operator command routing | `scripts/golf.py` → `wii_ai_golf.cli`, Bash wrapper `scripts/golf.sh` | S000 coordinator |
+| Experiment catalog, plans, runs, metadata and locks | `research/experiments.json` and `wii_ai_golf.lab.core` | S000 coordinator |
+| Dolphin launch and Wii Sports menu sequence | `launch_golf.py`, `launch_hitting_green.py`, `wii_ai_golf.menu_sequence` | S001 integrator |
+| Savestate selection and Felk input RPC | `wii_ai_golf.integration` | S001 integrator |
+| Outcome extraction, labels, measurement provenance | S002 audited measurement modules and reviewed report schema | S002 evaluation |
+| Swing parameter definitions and proposed calibration | S003 modeling modules; execution calls S001 | S003 modeling |
+| Policy optimization and replay | S004 learning modules; outcomes consume S002 | S004 learning |
+| Held-out evaluation protocol | S005 manifests using S002 scores and S003/S004 policies | S005 evaluation |
+| Merge review, public schemas and cross-domain interfaces | `AGENTS.md`, architecture contract, integration PRs | S000 coordinator |
+
+**Single owner does not mean a bottleneck for experimentation.** Agents are free to investigate alternatives in separate study files with clear experimental status. Promotion to a canonical shared module requires owner review and coordinator merge, with regression coverage. Never silently implement a second startup, score conversion, scenario reset, or RPC wrapper.
+
+**Change-control procedure:** propose → identify affected canonical module and owner → agree on an interface/compatibility contract in the issue → implement in its owning module or submit a narrow owner-reviewed PR → test all downstream consumers → coordinator merges → downstream agents update from `main`. A shared change cannot be declared complete while dependents still run incompatible copies.
 
 ## One shared delivery path
 
