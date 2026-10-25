@@ -178,6 +178,34 @@ class UnifiedGolfCliTests(unittest.TestCase):
         audit, _ = self.run_mock(["research", "audit-motion", "--input", "report.json"])
         self.assertEqual(Path(audit[1]).name, "audit_motion_candidates.py")
 
+    def test_bridge_inspect_is_offline_and_reports_generated_protocol(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "Wii-AI-Golf"
+            generated = root.parent / "tools" / "mcp_bridge_swing.py"
+            generated.parent.mkdir(parents=True)
+            self.assertEqual(cli.inspect_local_bridge(generated)["protocol_on_disk"], "missing")
+            generated.write_text("# WII_AI_GOLF_SWING_TRACE_V1\\n", encoding="utf-8")
+            self.assertEqual(cli.inspect_local_bridge(generated)["protocol_on_disk"],
+                             "V1-neutral-swing-events")
+            generated.write_text("# WII_AI_GOLF_SWING_TRACE_V1\\n"
+                                 "# WII_AI_GOLF_SWING_NEUTRAL_BUTTON_ONLY_V2\\n",
+                                 encoding="utf-8")
+            report = cli.inspect_local_bridge(generated)
+            self.assertEqual(report["protocol_on_disk"], "V2-neutral-button-only")
+            self.assertEqual(len(report["bridge_sha256"]), 64)
+            self.assertTrue(report["read_only"])
+            with patch.object(cli, "ROOT", root), \\
+                 patch.object(cli.socket, "create_connection") as connect, \\
+                 patch.object(cli, "_run") as run:
+                self.assertEqual(cli.main(["bridge", "inspect"]), 0)
+                connect.assert_not_called()
+                run.assert_not_called()
+
+    def test_bridge_inspect_rejects_flags_without_touching_rpc(self):
+        with patch.object(cli, "_run") as run:
+            self.assertEqual(cli.main(["bridge", "inspect", "--overwrite"]), 2)
+            run.assert_not_called()
+
     def test_bridge_upgrade_swing_uses_local_original_and_generates_v2(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d) / "Wii-AI-Golf"
