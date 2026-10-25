@@ -1,0 +1,36 @@
+{
+  "captured_utc": "2026-10-25T00:04:46.281680+00:00",
+  "errors": [],
+  "frame_span_max": 4,
+  "frame_span_min": 4,
+  "hypotheses": {
+    "object_instances": [
+      {
+        "first_xyz": [
+          -4.811025,
+          -0.544243,
+          -324.532501
+        ],
+        "last_xyz": [
+          -145.953232,
+          -9.368317,
+          -420.85202
+        ],
+        "max_step_displacement_unverified": 176.3425,
+        "moving_steps": 41,
+        "object_base": "0x92583488",
+        "observations": 300
+      }
+    ],
+    "pointer_absent_samples": 0,
+    "pointer_present_samples": 300,
+    "sample_count": 300,
+    "status": "UNVERIFIED_object_movement_NOT_confirmed_ball_physics"
+  },
+  "observed_phase": "swing",
+  "run_id": "20261025T000301Z-bfd74bbd",
+  "samples": 300,
+  "schema_version": 1,
+  "study_id": "S002-FOCUSED-GOLF-OBJECT-XYZ",
+  "warning": "This pointer +0x50 is NOT verified as the actual ball"
+}
