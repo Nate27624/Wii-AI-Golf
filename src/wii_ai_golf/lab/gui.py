@@ -29,7 +29,7 @@ def launch(root: Path = ROOT) -> int:
     last_changes: set[str] = set()
     ui = tk.Tk()
     ui.title("Wii AI Golf — Research Lab")
-    ui.geometry("1100x830")
+    ui.geometry("1180x820")
     ui.minsize(850, 660)
     outer = ttk.Frame(ui, padding=18)
     outer.pack(fill="both", expand=True)
@@ -51,7 +51,7 @@ def launch(root: Path = ROOT) -> int:
     game_buttons.pack(fill="x", pady=(7, 4))
     bridge_status = tk.StringVar(value="Checking local bridge files...")
     ttk.Label(game_panel, textvariable=bridge_status, wraplength=900).pack(anchor="w", pady=(3, 4))
-    game_details = tk.Text(game_panel, height=8, wrap="word",
+    game_details = tk.Text(game_panel, height=4, wrap="word",
                            font=("Consolas", 9), relief="flat",
                            padx=10, pady=8, cursor="arrow")
     game_details.pack(fill="x", pady=(2, 0))
@@ -122,10 +122,22 @@ def launch(root: Path = ROOT) -> int:
         v = tk.StringVar(value=default)
         ttk.Entry(line, textvariable=v).pack(side="left", fill="x", expand=True)
         values[key] = v
-    output = tk.Text(right, wrap="word", height=11, font=("Consolas", 9))
-    output.pack(fill="both", expand=True, pady=9)
+    # Keep technical JSON out of the normal operator workflow.
+    preview_frame = ttk.LabelFrame(right, text="Technical command preview", padding=6)
+    output = tk.Text(preview_frame, wrap="none", height=8, font=("Consolas", 9))
+    output.pack(fill="both", expand=True)
     output.configure(state="disabled")
-    status = tk.StringVar(value="Idle — no game launched")
+    preview_open = [False]
+
+    def toggle_preview():
+        preview_open[0] = not preview_open[0]
+        if preview_open[0]:
+            preview_frame.pack(fill="both", expand=True, pady=(7, 2))
+            preview_button.configure(text="Hide technical details")
+        else:
+            preview_frame.pack_forget()
+            preview_button.configure(text="Show technical details")
+    status = tk.StringVar(value="Ready — select an experiment and choose Run")
     ttk.Label(right, textvariable=status, wraplength=455).pack(anchor="w", pady=4)
 
     def selection():
@@ -529,7 +541,9 @@ def launch(root: Path = ROOT) -> int:
     primary_actions.pack(fill="x", pady=(0, 4))
     secondary_actions = ttk.Frame(actions)
     secondary_actions.pack(fill="x")
-    ttk.Button(primary_actions, text="Preview", command=preview).pack(side="left", padx=3)
+    preview_button = ttk.Button(
+        primary_actions, text="Show technical details", command=toggle_preview)
+    preview_button.pack(side="left", padx=3)
     offline_btn = ttk.Button(primary_actions, text="Run offline", state="disabled",
                              command=lambda: run_selected(False))
     offline_btn.pack(side="left", padx=3)
