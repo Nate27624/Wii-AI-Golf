@@ -142,6 +142,7 @@ def main(argv=None):
             from research_cli import publish_summary
             print("Published GitHub observation:",publish_summary(result),flush=True)
             print("Observation record ID:",run,flush=True)
+            print("GitHub JSON: https://github.com/Nate27624/Wii-AI-Golf/blob/research/observations/research/observations/"+run+".json",flush=True)
         except (OSError,RuntimeError,ValueError) as exc:
             print("Could not publish; sanitized summary safely retained locally:",exc,file=sys.stderr)
     return 0
