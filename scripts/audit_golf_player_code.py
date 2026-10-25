@@ -76,13 +76,13 @@ def analyze(dol: bytes) -> dict:
             address = start + pos
             opcode = word >> 26
             if opcode in MEM_OPS:
-                _, kind, width = MEM_OPS[opcode]
+                mnemonic, kind, width = MEM_OPS[opcode]
                 base = (word >> 16) & 31
                 disp = _signed16(word)
                 if base in OBJECT_BASES and 0 <= disp <= MAX_MEMBER_OFFSET:
-                    fields[(unit, base, disp, kind, width)] += 1
+                    fields[(unit, base, disp, mnemonic, kind, width)] += 1
                 if base == 13:  # Small data: static/global access, not player member
-                    sda[(unit, disp, kind, width)] += 1
+                    sda[(unit, disp, mnemonic, kind, width)] += 1
             dest = _branch_target(word, address)
             if dest is not None:
                 target_unit = _owner(dest)
@@ -92,17 +92,19 @@ def analyze(dol: bytes) -> dict:
     rows = [{
         "source_unit": unit, "base_register": f"r{base}",
         "relative_displacement": f"+0x{disp:03X}",
-        "access_kind": kind, "width_bytes": width, "instruction_count": count,
-    } for (unit, base, disp, kind, width), count in fields.items()]
+        "opcode_mnemonic": mnemonic, "access_kind": kind,
+        "width_bytes": width, "instruction_count": count,
+    } for (unit, base, disp, mnemonic, kind, width), count in fields.items()]
     rows.sort(key=lambda r: (-r["instruction_count"], r["source_unit"],
                             r["relative_displacement"], r["base_register"],
-                            r["access_kind"], r["width_bytes"]))
+                            r["access_kind"], r["width_bytes"], r["opcode_mnemonic"]))
     static_rows = [{
         "source_unit": unit,
         "r13_signed_displacement": ("+" if disp >= 0 else "-") +
                                   f"0x{abs(disp):04X}",
-        "access_kind": kind, "width_bytes": width, "instruction_count": count,
-    } for (unit, disp, kind, width), count in sda.items()]
+        "opcode_mnemonic": mnemonic, "access_kind": kind,
+        "width_bytes": width, "instruction_count": count,
+    } for (unit, disp, mnemonic, kind, width), count in sda.items()]
     static_rows.sort(key=lambda r: (-r["instruction_count"], r["source_unit"],
                                    r["r13_signed_displacement"], r["access_kind"]))
     call_rows = [{
@@ -120,6 +122,8 @@ def analyze(dol: bytes) -> dict:
         "object_base_candidate_count": len(rows),
         "object_access_patterns": rows[:MAX_RESULTS],
         "object_access_patterns_truncated": len(rows) > MAX_RESULTS,
+        "float_store_candidates": [r for r in rows if r["opcode_mnemonic"] in ("stfs", "stfd")][:MAX_RESULTS],
+        "float_store_candidate_count": sum(r["opcode_mnemonic"] in ("stfs", "stfd") for r in rows),
         "r13_static_pattern_count": len(static_rows),
         "r13_static_patterns": static_rows[:MAX_RESULTS],
         "r13_static_patterns_truncated": len(static_rows) > MAX_RESULTS,
