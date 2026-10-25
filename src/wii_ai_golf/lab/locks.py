@@ -105,10 +105,19 @@ def session_lock(path: Path, *, label: str = "Lab experiment") -> Iterator[None]
     # exclusive-create implementation. No deletion/unlink races.
     fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
     with os.fdopen(fd, "r+b", buffering=0) as file:
-        file.seek(0)
-        if not file.read(1):
+        # Windows denies even *reading* a locked byte. This probe happens
+        # before acquiring our own advisory lock, so translate a sharing
+        # violation into the ordinary busy state rather than propagating a
+        # PermissionError (which breaks both CLI runs and safe Git sync).
+        try:
             file.seek(0)
-            file.write(b"\x00")  # Windows byte-range lock needs a real byte
+            first_byte = file.read(1)
+            if not first_byte:
+                file.seek(0)
+                file.write(b"\x00")  # Windows locking requires an existing byte
+        except PermissionError as exc:
+            raise ValueError(f"{label} is already active. "
+                             "The Lab will not start a second job.") from exc
         acquired = False
         owns_record = False
         try:
