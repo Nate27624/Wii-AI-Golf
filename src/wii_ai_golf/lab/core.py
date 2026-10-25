@@ -127,7 +127,7 @@ def plan(
             raise ValueError("evaluation.recover requires --contact and --green (yes/no/unknown)")
     elif any(x is not None for x in (contact, green, distance)):
         raise ValueError("--contact/--green/--distance are only for evaluation.recover")
-    if a_prime != 0 and kind not in {"capture", "swing"}:
+    if a_prime != 0 and kind not in {"capture", "swing", "v1_capture"}:
         raise ValueError("--a-prime is only for live capture/swing")
     if a_lead and kind != "v1_capture":
         raise ValueError("--a-lead is only supported for integration.v1-diagnostic")
