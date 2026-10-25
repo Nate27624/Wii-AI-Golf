@@ -98,26 +98,35 @@ class UnifiedGolfCliTests(unittest.TestCase):
         self.assertNotIn("launch_hitting_green.py", command)
         self.assertEqual(command[command.index("--pre-samples")+1], "3")
         self.assertEqual(command[command.index("--post-samples")+1], "8")
+        self.assertEqual(command[command.index("--a-prime-requests")+1], "0")
         self.assertFalse(kwargs.get("dry_run", False))
 
-    def test_outcome_record_defaults_to_coordinator_dry_run(self):
+    def test_outcome_record_defaults_to_last_observed_strike_program_but_dry_run(self):
         command, _ = self.run_mock(["outcome", "record"])
         self.assertNotIn("--send-live", command)
         self.assertIn("--send-live-swing", command)
         self.assertEqual(Path(command[1]).name, "run_golf_experiment.py")
+        # PR #44: first two human hits had NO independent button primer.
+        # Fast post capture avoids losing the visible result-screen prompt.
+        self.assertEqual(command[command.index("--a-prime-requests")+1], "0")
+        self.assertEqual(command[command.index("--pre-samples")+1], "3")
+        self.assertEqual(command[command.index("--post-samples")+1], "2")
+        self.assertEqual(command[command.index("--settled-samples")+1], "3")
+        self.assertEqual(command[command.index("--interval")+1], "0.0")
 
     def test_outcome_record_parameter_forwarding_is_explicit(self):
         command, _ = self.run_mock([
             "outcome", "record", "--game", "G:/Wii Sports.wbfs",
             "--pre-samples", "4", "--post-samples", "3",
             "--settled-samples", "2", "--interval", "0",
-            "--data-dir", "D:/captures"
+            "--a-prime-requests", "60", "--data-dir", "D:/captures"
         ])
         self.assertEqual(command[command.index("--game")+1], "G:/Wii Sports.wbfs")
         self.assertEqual(command[command.index("--pre-samples")+1], "4")
         self.assertEqual(command[command.index("--post-samples")+1], "3")
         self.assertEqual(command[command.index("--settled-samples")+1], "2")
         self.assertEqual(command[command.index("--interval")+1], "0.0")
+        self.assertEqual(command[command.index("--a-prime-requests")+1], "60")
         self.assertEqual(command[command.index("--data-dir")+1], "D:/captures")
 
     def test_outcome_rejects_invalid_sample_parameters_without_launch(self):
@@ -126,6 +135,8 @@ class UnifiedGolfCliTests(unittest.TestCase):
             ["outcome", "record", "--send-live", "--post-samples", "41"],
             ["outcome", "record", "--send-live", "--interval", "-0.1"],
             ["outcome", "record", "--send-live", "--interval", "nan"],
+            ["outcome", "record", "--send-live", "--a-prime-requests", "-1"],
+            ["outcome", "record", "--send-live", "--a-prime-requests", "181"],
         ]:
             with self.subTest(argv=argv), patch.object(cli, "_run") as run:
                 self.assertEqual(cli.main(argv), 2)
@@ -166,6 +177,34 @@ class UnifiedGolfCliTests(unittest.TestCase):
         self.assertIn("--enable-swing", command)
         audit, _ = self.run_mock(["research", "audit-motion", "--input", "report.json"])
         self.assertEqual(Path(audit[1]).name, "audit_motion_candidates.py")
+
+    def test_bridge_inspect_is_offline_and_reports_generated_protocol(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "Wii-AI-Golf"
+            generated = root.parent / "tools" / "mcp_bridge_swing.py"
+            generated.parent.mkdir(parents=True)
+            self.assertEqual(cli.inspect_local_bridge(generated)["protocol_on_disk"], "missing")
+            generated.write_text("# WII_AI_GOLF_SWING_TRACE_V1\n", encoding="utf-8")
+            self.assertEqual(cli.inspect_local_bridge(generated)["protocol_on_disk"],
+                             "V1-neutral-swing-events")
+            generated.write_text("# WII_AI_GOLF_SWING_TRACE_V1\n"
+                                 "# WII_AI_GOLF_SWING_NEUTRAL_BUTTON_ONLY_V2\n",
+                                 encoding="utf-8")
+            report = cli.inspect_local_bridge(generated)
+            self.assertEqual(report["protocol_on_disk"], "V2-neutral-button-only")
+            self.assertEqual(len(report["bridge_sha256"]), 64)
+            self.assertTrue(report["read_only"])
+            with patch.object(cli, "ROOT", root), \
+                 patch.object(cli.socket, "create_connection") as connect, \
+                 patch.object(cli, "_run") as run:
+                self.assertEqual(cli.main(["bridge", "inspect"]), 0)
+                connect.assert_not_called()
+                run.assert_not_called()
+
+    def test_bridge_inspect_rejects_flags_without_touching_rpc(self):
+        with patch.object(cli, "_run") as run:
+            self.assertEqual(cli.main(["bridge", "inspect", "--overwrite"]), 2)
+            run.assert_not_called()
 
     def test_bridge_upgrade_swing_uses_local_original_and_generates_v2(self):
         with tempfile.TemporaryDirectory() as d:

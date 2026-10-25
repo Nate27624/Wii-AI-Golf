@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import contextmanager
+import hashlib
 import json
 import math
 import os
@@ -104,12 +105,14 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--game", help="Optional game path, else local remembered game")
     record.add_argument("--pre-samples", type=int, default=3,
                         help="Read-only game snapshots BEFORE swing (2..10; default 3)")
-    record.add_argument("--post-samples", type=int, default=8,
-                        help="Read-only game snapshots after swing (2..40; default 8)")
+    record.add_argument("--post-samples", type=int, default=2,
+                        help="Read-only game snapshots after swing (2..40; S002 default 2)")
     record.add_argument("--settled-samples", type=int, default=3,
                         help="Read-only snapshots after human confirms result (2..10)")
-    record.add_argument("--interval", type=float, default=0.4,
-                        help="Delay between RAM captures in seconds (0..5)")
+    record.add_argument("--interval", type=float, default=0.0,
+                        help="Delay between RAM captures in seconds (0..5; S002 default 0)")
+    record.add_argument("--a-prime-requests", type=int, default=0,
+                        help="Separate A-button priming requests BEFORE trace (0..180; default 0 is S002's last observed striking method)")
     record.add_argument("--data-dir", help="Override local PRIVATE output folder, never Git")
     
     experiment = sub.add_parser("experiment", help="Fresh intro then an approved action script")
@@ -137,7 +140,7 @@ def build_parser() -> argparse.ArgumentParser:
                            help="Extra arguments passed to the existing scenario planner")
 
     bridge = sub.add_parser("bridge", help="Advanced bridge utilities")
-    bridge.add_argument("action", choices=("patch", "ping", "upgrade-swing"))
+    bridge.add_argument("action", choices=("patch", "ping", "upgrade-swing", "inspect"))
     bridge.add_argument("arguments", nargs=argparse.REMAINDER,
                         help="For patch: --source/--output/--enable-swing; ping: --read-only-live")
 
@@ -159,6 +162,35 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("demo", help="Run the existing SYNTHETIC toy environment (not Wii Sports)")
     return parser
+
+
+def inspect_local_bridge(path: Path | None = None) -> dict[str, str | bool | None]:
+    """Inspect local generated bridge text ONLY, never connect to Dolphin.
+
+    A bridge on disk is not proof that a currently running emulator loaded
+    these exact bytes, so avoid claims about loaded/runtime bridge versions.
+    """
+    target = path if path is not None else ROOT.parent / "tools" / "mcp_bridge_swing.py"
+    if not target.is_file():
+        return {
+            "present": False, "bridge_sha256": None, "protocol_on_disk": "missing",
+            "read_only": True,
+            "caveat": "This does not inspect a running Dolphin process."
+        }
+    content = target.read_bytes()
+    from .integration.swing_patch import SWING_MARKER, SWING_NEUTRAL_V2_MARKER
+    v2 = SWING_NEUTRAL_V2_MARKER.encode("ascii") in content
+    v1 = SWING_MARKER.encode("ascii") in content
+    version = "V2-neutral-button-only" if v2 else (
+        "V1-neutral-swing-events" if v1 else "unrecognized")
+    return {
+        "present": True,
+        "bridge_sha256": hashlib.sha256(content).hexdigest(),
+        "protocol_on_disk": version,
+        "read_only": True,
+        "caveat": ("This describes the generated file on disk only; "
+                   "the exact loaded bridge must be verified separately.")
+    }
 
 
 def _environment() -> dict[str, str]:
@@ -252,8 +284,11 @@ def execute(args: argparse.Namespace) -> int:
             raise ValueError("outcome record: pre=2..10, post=2..40, settled=2..10")
         if not math.isfinite(args.interval) or not 0 <= args.interval <= 5:
             raise ValueError("outcome record: --interval must be finite, 0..5 seconds")
+        if not 0 <= args.a_prime_requests <= 180:
+            raise ValueError("outcome record: --a-prime-requests must be 0..180")
         action = [
             "--send-live-swing",
+            "--a-prime-requests", str(args.a_prime_requests),
             "--pre-samples", str(args.pre_samples),
             "--post-samples", str(args.post_samples),
             "--settled-samples", str(args.settled_samples),
@@ -268,8 +303,10 @@ def execute(args: argparse.Namespace) -> int:
             command.append("--send-live")
         # Exactly one canonical boot and one S002 shot collector. The
         # coordinator wraps the already-ready game; do not pass attach flags.
-        print("S002 outcome collector: pre-shot RAM reads and human landing "
-              "labels, NOT a verified automatic score.", flush=True)
+        print("S002 outcome collector: fixed direct unprimed swing by default "
+              "(A primer requests=", args.a_prime_requests,
+              "); pre-shot RAM reads + human labels, NOT a verified score.",
+              flush=True)
         return _run(_script_command("run_golf_experiment.py",
                                    *command, "--", *action))
     if args.group == "experiment":
@@ -297,6 +334,11 @@ def execute(args: argparse.Namespace) -> int:
     if args.group == "scenarios":
         return _run(_script_command("plan_scenarios.py", args.action, *args.arguments))
     if args.group == "bridge":
+        if args.action == "inspect":
+            if args.arguments:
+                raise ValueError("bridge inspect takes no arguments")
+            print(json.dumps(inspect_local_bridge(), indent=2, sort_keys=True))
+            return 0
         if args.action == "ping":
             return _run(_script_command("probe_dolphin_bridge.py", "--read-only-live", *args.arguments))
         if args.action == "upgrade-swing":
