@@ -35,9 +35,25 @@
       "kind": "swing"
     },
     {
+      "id": "integration.bridge-audit",
+      "owner": "S001",
+      "title": "Game setup · 1 — Inspect V1/V2 bridges",
+      "description": "Read-only audit of active V2 and saved historical V1 backup; shows whether the comparison can safely proceed. No Dolphin or button inputs.",
+      "mode": "offline",
+      "kind": "bridge_audit"
+    },
+    {
+      "id": "integration.prepare-v1",
+      "owner": "S001",
+      "title": "Game setup · 2 — Prepare isolated V1 bridge",
+      "description": "Explicitly copies an authentic, non-autoloading pre-V2 backup to a separate V1 diagnostic file. Never overwrites the active V2 bridge, saved states, or mismatched prior copy; needs your approval.",
+      "mode": "offline",
+      "kind": "bridge_prepare"
+    },
+    {
       "id": "integration.v1-diagnostic",
       "owner": "S001",
-      "title": "Historical V1 swing diagnostic (experimental)",
+      "title": "Game test · 3 — Historical V1 contact comparison",
       "description": "Isolated pre-V2 bridge; operator-adjustable observed A lead (0 or 12 frames). Previous 12-frame attempt worsened club motion. One full fresh-start trial; contact/score NOT verified.",
       "mode": "live",
       "kind": "v1_capture"
