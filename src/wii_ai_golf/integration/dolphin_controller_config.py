@@ -163,6 +163,14 @@ _POINT_SETTINGS = {**_WASD_POINT, "IR/Relative Input": "True",
 _DEFAULT_MOUSE_CONTROLS = ("Buttons/A", "Buttons/B",
                            "Shake/X", "Shake/Y", "Shake/Z")
 _WASD_KEY = re.compile(r"(?<![A-Za-z0-9_])[WASD](?![A-Za-z0-9_])", re.IGNORECASE)
+# With Extension=None the Nunchuk analog stick is disabled. A bare legacy
+# WASD mapping on exactly these four dead analog directions can be cleared
+# without modifying any active Wii Remote button, motion, or other extensions.
+_DISABLED_NUNCHUK_STICK = frozenset({
+    "nunchuk/stick/up", "nunchuk/stick/down",
+    "nunchuk/stick/left", "nunchuk/stick/right",
+})
+_SIMPLE_WASD_BINDING = re.compile(r"(?:[WASD]|`[WASD]`)", re.IGNORECASE)
 _CONTROL_ASSIGNMENT = re.compile(
     r"^(\s*)([^=;#\r\n]+?)(\s*=\s*)([^;#\r\n]*?)(\s*(?:[;#].*)?)$"
 )
@@ -197,6 +205,15 @@ def _isolate_physical_mouse(original: str) -> tuple[str, bool, list[str]]:
     keyboard_device: str | None = None
     changed = False
     newline = "\r\n" if "\r\n" in original else "\n"
+    # Inspect the final controller extension before clearing any dormant
+    # Nunchuk bindings. Callers may use this parser directly on an unprepared
+    # INI, so never assume the extension was already forced to None.
+    extension_none = any(
+        (m := _CONTROL_ASSIGNMENT.fullmatch(line.rstrip("\r\n"))) is not None
+        and m.group(2).strip().lower() == "extension"
+        and m.group(4).strip().lower() == "none"
+        for line in lines[start:end]
+    )
     for i in range(start, end):
         raw = lines[i]
         match = _CONTROL_ASSIGNMENT.fullmatch(raw.rstrip("\r\n"))
@@ -222,10 +239,18 @@ def _isolate_physical_mouse(original: str) -> tuple[str, bool, list[str]]:
             # entirely, not partially rewritten.
             target = ""
         if target is None and "/" in key and _WASD_KEY.search(value):
-            raise ControllerConfigError(
-                f"WASD pointer key also drives [Wiimote1] {key}; "
-                "resolve that input conflict before launching Dolphin"
-            )
+            if (extension_none and fold in _DISABLED_NUNCHUK_STICK
+                    and _SIMPLE_WASD_BINDING.fullmatch(value.strip())):
+                # Existing unused Nunchuk stick mapping would otherwise
+                # fail a no-conflict preflight even though Extension=None.
+                target = ""
+            else:
+                # Live Wii Remote buttons/swing/motion and composite or
+                # unexpected Nunchuk expressions must remain fail-closed.
+                raise ControllerConfigError(
+                    f"WASD pointer key also drives [Wiimote1] {key}; "
+                    "resolve that input conflict before launching Dolphin"
+                )
         if target is not None and value.strip() != target:
             eol = "\r\n" if raw.endswith("\r\n") else "\n" if raw.endswith("\n") else ""
             lines[i] = (match.group(1) + match.group(2) + match.group(3) +
