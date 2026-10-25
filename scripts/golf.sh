@@ -13,13 +13,15 @@ Usage: bash scripts/golf.sh <command> [arguments]
   run ID [flags]       Run one offline test; live requires --live and human consent
   history              Inspect local run metadata (not game scores)
   reports              Show sanitized local observations
-  export               Create a private, shareable sanitized status bundle (no token/network)
-  verify-export        Verify the latest exported bundle without network
+  research test        Offline tests + publish status with existing Git authentication
+  research study       Print preregistered swing experiment plan (no Dolphin)
+  export               OPTIONAL local-only execution status backup
+  verify-export        Verify local backup without network
   test [flags]         Run offline regression tests
   doctor               Diagnose local setup, without opening Dolphin
   <other> [flags]      Forward to canonical scripts/golf.py CLI
 No script uploads raw RAM, ROMs, savestates, screenshots or credentials.
-Agent commits and reviewed PRs are the GitHub publishing path.
+Scientific observation publication remains separate from process/test status.
 HELP
 }
 case "${1:-help}" in
