@@ -93,3 +93,9 @@ py -m unittest discover -s tests -p "test_lab_s002_trace.py" -v
 ~~~
 
 This study analyzes **unverified XYZ candidate motion**, not real ball flight. Raw local JSONL remains on the PC; summary counts and timing can be viewed through the Lab's offline run logs.
+
+## Synchronize agent-uploaded tests
+
+The desktop Lab now has **Sync reviewed**. It checks the canonical GitHub origin and fast-forwards **only a clean local `main` branch** from `origin/main`. It declines detached branches, dirty working trees, and noncanonical origins. **Restart the application** after syncing so Python imports and the experiment registry reflect updated source. Other agents' commits are available through this path **only after their PRs are reviewed and merged into main**. Draft feature branches and arbitrary manifests are never automatically executed. The UI continues to offer `core.tests` for all merged regression tests, including S002 after merge.
+
+S002 `evaluation.trace` is runnable through the UI now on this integration branch, with the path to its local JSONL capture entered in **Input path**. The `evaluation.landmarks` and `evaluation.minimap` rows remain **PLANNED**, not runnable: these are live physical-controller workflows and must first be adapted to the Lab's single-startup contract and its live-session lock. Do not interpret the Sync button as installing those unmerged live runners.
