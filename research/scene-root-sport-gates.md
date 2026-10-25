@@ -39,6 +39,20 @@ The updated probe now gates the controversial scene +0x9C **candidate read** on 
 
 ---
 
+## Static source-based next object clues (no new memory reads)
+
+The public [doldecomp/ogws RSPE01_01 splits](https://github.com/doldecomp/ogws/blob/master/config/RSPE01_01/splits.txt) include bounded module/class **compilation-unit ranges**:
+
+| Unit | Code `.text` | `.data` |
+| --- | --- | --- |
+| `RPGolMain.cpp` | `0x8028E098..0x8028E900` | `0x803C7798..0x803C77C0` |
+| `RPGolPlayer.cpp` | `0x8029E62C..0x802A2210` | `0x803C7CC8..0x803C7DD0` |
+| `RPGolPlayerManager.cpp` | `0x802A2210..0x802A3560` | `0x803C7DD0..0x803C7DE0` |
+
+These ranges **DO NOT prove exact class vtables, object type, or field offsets**. A first object word falling within a module's class-data interval could be a structural *hint* (if the type has a vtable); a mismatch is NOT conclusive evidence against a nonpolymorphic structure. Source-backed assembly/callsites must validate a full candidate player/manager relationship before following arbitrary child pointers.
+
+S002 #129 has reported an independent 20-sample candidate-struct inspection with `main+0x74` changing during every adjacent capture *including idle*. This weakens its specificity to physical golf power; the field is not decoded. Our successful two-pass source-root probe does NOT itself have any of those candidate object bytes, so no new code-derived gameplay measurements are claimed here.
+
 ## Safe operator commands, once owner review and full Windows tests pass
 
 Use a separate PowerShell session. The following fetches PR #132 into a detached worktree, never overwrites main. Stop if the directory already exists:
