@@ -51,6 +51,32 @@ class OutcomeCaptureCliTests(unittest.TestCase):
             self.assertFalse(result["candidate_ranking"]["game_score_verified"])
             self.assertEqual(len(path.read_text().splitlines()), 6)
 
+    def test_v1_observation_records_pose_and_frame_without_changing_swing(self):
+        prompts = []
+        replies = iter(["", "back", "", "", "yes", "no", "100ft"])
+        class RPC:
+            def call(self, method, args):
+                self_method = method
+                if self_method == "frame.get_count":
+                    return 1234
+                raise AssertionError("unexpected controller request")
+        def user_input(prompt):
+            prompts.append(prompt)
+            return next(replies)
+        with tempfile.TemporaryDirectory() as d:
+            result = run_session(RPC(), raw_path=Path(d) / "RAW.jsonl",
+                pre_samples=2, post_samples=2, settled_samples=2,
+                interval=0, observe_start_pose=True,
+                input_fn=user_input,
+                snapshot_fn=lambda _r, phase: row(phase, {"pre": 0, "post": 2, "settled": 1}[phase]),
+                swing_fn=lambda _r: {"state": "complete"})
+        observed = result["human_observation"]
+        self.assertEqual(observed["initial_club_pose_human"], "back")
+        self.assertFalse(observed["initial_club_pose_verified_by_memory"])
+        self.assertEqual(observed["shot_start_frame_before_controller_trace"], 1234)
+        self.assertTrue(any("initial club position" in p for p in prompts))
+        self.assertEqual(observed["contact_human"], "yes")
+
     def test_distance_with_unit_suffix_does_not_ask_for_unit_again(self):
         prompts = []
         responses = iter(["", "", "", "yes", "no", "100.0ft"])
