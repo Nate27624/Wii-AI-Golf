@@ -18,9 +18,9 @@ The existing Git Bash wrapper `bash scripts/golf.sh` remains an alternative for 
 ---
 
 
-## Current workflow: GitHub + Git Bash + one Python codebase
+## Current workflow: One research Lab, desktop and Git Bash
 
-The **desktop Research Lab GUI is retired**. Use the source-local shell wrapper and unified Python runner instead. Agents commit code/tests and open reviewed GitHub pull requests; merged tests are discovered from the one `main` checkout. The shell wrapper never auto-uploads private game files or runs new tests without a user command.
+The **Windows Research Lab GUI is supported** alongside Git Bash and PowerShell; all three use the same reviewed Python backend. For golf testing, use the selected experiment's Show/details pane. Agents commit code/tests and open reviewed GitHub pull requests; merged tests are discovered from the one `main` checkout. The shell wrapper never auto-uploads private game files or runs new tests without a user command.
 
 ```bash
 cd "/d/Projects/Wii Golf AI/Wii-AI-Golf"  # Git Bash; adjust to your checkout
@@ -33,7 +33,9 @@ bash scripts/golf.sh history
 
 To run a live, registered trial only after reviewing its plan: `bash scripts/golf.sh run integration.swing --live`. This still uses canonical Dolphin startup and asks for human confirmation. On Windows PowerShell, use the same underlying `py scripts/golf.py lab ...` commands. No duplicate control or evaluation implementation is introduced.
 
-**GitHub publishing:** Agents push feature branches and PRs; the merge coordinator integrates approved work. Never publish local ROMs, savestates, raw RAM, secrets, personal configuration, or unrestricted run logs. See [script workflow](docs/script-workflow.md). The following historical GUI instructions are archived context only.
+**Single guided V1 test:** Open `py scripts/golf.py lab gui`, select **Game tests → Historical V1 contact comparison**, and click **Prepare and run one V1 shot** in the right-hand details pane. The Lab inspects the bridge, prepares a verified isolated V1 copy if needed (with consent), and requests consent before launching ONE Dolphin trial. Previously crashed tests no longer strand the app behind permanent lockfiles.
+
+**GitHub publishing:** Agents push feature branches and PRs; the merge coordinator integrates approved work. Never publish local ROMs, savestates, raw RAM, secrets, personal configuration, or unrestricted run logs. See [script workflow](docs/script-workflow.md). Both desktop and script workflows below remain available.
 
 ---
 
