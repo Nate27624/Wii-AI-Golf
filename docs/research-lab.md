@@ -6,6 +6,8 @@ The source code for the old GUI was removed following the operator's script-only
 
 # Wii AI Golf Research Lab
 
+**Current operator view:** select **Game tests → Historical V1 contact comparison**, then use **Prepare and run one V1 shot** inside the selected study's right-hand Show/details pane. No detached 1/2/3 toolbar. The Lab safely inspects/validates current V2 and old V1, prepares an isolated copy only with consent, then asks for ONE canonical Dolphin shot. OS process-held Windows locks release on crash and recognized dead legacy PID locks recover without manual deletion; active/unknown owners remain blocked. Git Bash continues to use this same Lab core.
+
 **One local application for S000 coordination, S001 integration, S002 evaluation, S003 modeling, S004 learning and S005 generalization.** All experiments have registered ownership, execution mode, stable IDs, canonical commands, and local records. A process exit is *not* a game score.
 
 ## Launch the Windows desktop application
