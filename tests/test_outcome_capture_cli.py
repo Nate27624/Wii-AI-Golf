@@ -23,6 +23,37 @@ def row(phase, value):
 
 
 class OutcomeCaptureCliTests(unittest.TestCase):
+    def test_backswing_scale_changes_only_backward_travel_in_collector(self):
+        from scripts.collect_outcome_transition import run_session
+        from unittest.mock import patch
+        from scripts.probe_swing import build_probe
+        baseline = build_probe("forward", follow_through_frames=30)
+        recorded = {}
+        class Recorder:
+            def __init__(self, client, port):
+                self.client = client
+            def run(self, samples):
+                recorded["samples"] = list(samples)
+                return {"state": "complete"}
+        # Default normal path must remain identical and reject combined tuning.
+        with patch("scripts.collect_outcome_transition.SwingTraceClient", Recorder):
+            with tempfile.TemporaryDirectory() as folder:
+                inputs = iter(["", "", "", "yes", "no", "100ft"])
+                run_session(object(), raw_path=Path(folder) / "a.jsonl",
+                            pre_samples=2, post_samples=2, settled_samples=2,
+                            interval=0, backswing_scale=0.8,
+                            input_fn=lambda _p: next(inputs),
+                            snapshot_fn=lambda _r, phase: row(phase, 1))
+        after = recorded["samples"]
+        self.assertEqual(len(after), len(baseline))
+        for old, new in zip(baseline, after):
+            self.assertEqual(old.hold_a, new.hold_a)
+            self.assertEqual(old.speed_m_s, new.speed_m_s)
+            self.assertEqual(old.return_speed_m_s, new.return_speed_m_s)
+            self.assertEqual(old.direction, new.direction)
+            expected = old.distance_m * 0.8 if old.direction == (0.0, -1.0, 0.0) else old.distance_m
+            self.assertAlmostEqual(new.distance_m, expected)
+
     def test_one_swing_between_pre_and_post(self):
         got = []
         answers = iter(["", "", "", "yes", "yes", "12.5", "yd"])
