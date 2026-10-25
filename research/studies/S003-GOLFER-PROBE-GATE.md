@@ -1,39 +1,41 @@
-# S003-GOLFER-PROBE-GATE — Candidate gameplay RAM decision study
+# S003-GOLFER-PROBE-GATE — Source-gated RPGolMain candidate review
 
-**Owner:** S003 (draft PR #125). Downstream of S002 live candidate recorder PR #129. This is OFFLINE-ONLY analysis of previously sanitized reports. No Dolphin, controller, raw RAM, extra launcher, uploader or shared-schema change.
+**Owner:** S003 modeling, draft PR #125. This is a strictly OFFLINE consumer of S002 live-candidate probe PR #129's CURRENT **schema v2** sanitized summaries. It does not run Dolphin, send Wii inputs, publish observations, read ROM/RAM, start a second launcher, modify S002's recorder, or train a power model. The provisional code consumes the exact S002 source-anchored .sbss cell probe contract and will need updates if S002 revises it.
 
-## Hypothesis and budget
+## Scientific question and preregistration
 
-**H0:** Words changing during IDLE/AIM negative controls are not evidence of swing-power or club-angle state. **H1 (exploratory):** a uniquely source-gated RPGolMain candidate may contain relative words worth following up with a future synchronized swing study, but current report does not prove field semantics.
+**H0:** A changed candidate word observed during IDLE/AIM controls is not a validated club angle, real shot power or carry. **Exploratory H1:** if one active-game-scene object chain is established with source-level + runtime checks, recurrent relative words in main/child object windows may justify a later true same-shot memory study.
 
-Budget: 0 new game attempts and at most 32 preexisting sanitized S002 reports. No model fitting, held-out claims, physical carry or change to V1 A45 control. Source-verified candidate is not verified actual golfer, nor a decoded power sensor.
+Budget: zero new game trials for the offline reviewer; 1–32 existing locally SANITIZED S002 audit summaries. No inference of distinct boots from different filenames; no train/test split or held-out evaluation, and no convergence claim from off-green 100ft penalties.
 
-## Pure analysis API
+## Current S002 acquisition provenance
 
-The new wii_ai_golf.modeling.golfer_probe_review.review_golfer_probe_summaries(reports) parses S002 local-golfer-memory-audit summaries (or no_unique_golfer_pointer_chain diagnostics) and returns only safe counts, relative offsets, frame-span advisories and next action.
+Source-anchored two-cell RPSysSceneMgr .sbss hypothesis: [0x804BF4D8,0x804BF4E0) as described by the upstream Rev1 splits. S002 checks EGG::SceneManager current scene member +0x0C, current scene ID +0x18 =5, EGG::Scene current scene ID +0x1C =5 and parent manager backlink +0x20, RPSportsBaseScene golf sport ID +0x54=2, and RPGolScene main-object pointer +0x9C. It rechecks US RSPE01 Rev1 and RPGolConfig mode 4 before bounded 0x100-byte main snapshots. Up to 16 plausible first-level pointers into 0x80-byte candidate child windows are also read, privately, when still stable.
 
-Validation requires exact RSPE01 US Rev1 / mode4, singleton-candidate status, creator-scene diagnostic presence (true OR false), two or more idle/aim control snapshots, 4-byte aligned 0x100-window offsets, bounded counts, no duplicate IDs. It always emits estimated_power_percent=null, memory_power_model_ready=false and observed_real_swing_sample_count=0. It NEVER emits raw bytes, absolute RAM addresses, local paths, or caller free-text.
+**Correction about +0x40**: doldecomp/ogws RPSysScene.h identifies s32 mCreatorSceneID at +0x40 as the **previous/parent creator scene ID**, not the active golf scene ID. Therefore `observed_creator_scene_id_matches_golf=false` is legitimate. My earlier call to require that boolean true was wrong; I corrected S002 PR #129 review and fixed S003 code/tests. The authoritative active scene ID gate is the EGG::Scene +0x1C field and scene-manager +0x18, with the +0x20 manager backlink.
 
-Data present during idle/aim is a NEGATIVE CONTROL even if a bit pattern resembles finite f32. The analysis cannot establish a distinct physical power response. Max non-atomic read span >12 frames is advisory for timing invalidity; it cannot support precise swing timing.
+The two .sbss cells are SOURCE-BACKED CANDIDATE STORAGE, not yet a real-game verified singleton pointer. First-level child pointers are merely pointer-shaped, not source-confirmed club/physics member pointers; never claim these point to the golfer arm, swing gauge or ball.
 
-## Live S002 safety review and owner blockers
+## S003 sanitized reviewer API
 
-SOURCE CORRECTION: doldecomp/ogws RPSysScene.h says mCreatorSceneID at +0x40 is the PREVIOUS/PARENT scene, not the current scene. It can legitimately differ from current Golf scene ID 5; S002 PR #129 is correct to use it diagnostically and must NOT require creator ID==5. The remaining concern: initial RSPE01 revision + RPGolConfig mode4 gate should be checked again after operator prompts before every candidate memory read; please review and patch that with S002 ownership. S003 cannot mutate S002-owned live code.
+`wii_ai_golf.modeling.golfer_probe_review.review_golfer_probe_summaries(reports)` consumes only sanitized S002 schema2 `local-golfer-memory-audit` dictionaries plus no-unique-scene diagnostics; rejects raw/private fields, unrecognized source note, wrong revision/mode, missing active scene/backlink validation, duplicate report IDs, invalid stage/control counts, malformed relative offsets, and fabricated per-offset counts.
 
-The known source links are EGG::SceneManager current scene +0x0C and ID +0x18, RPSportsBaseScene sport +0x54, RPGolScene's RPGolMain* member +0x9C. Map symbol locations are not live instance pointers; RPGolScene+0x9C must NEVER be confused with golf_field+0x9C minimap effect pointer. Source-gated candidate search is not an established gameplay decoder.
+Each relative memory word is keyed by **(region, relative offset)**. A `main` +0x030 and a `child_at_main+0x024` +0x030 are DIFFERENT data sources. Parent offsets are source-relative, not absolute Wii addresses. The reviewer accounts for S002's top-100 candidate row cap and the 16-child-watch cap as **partial candidate outputs**, not complete inventories. Non-atomic capture frame spans greater than 12 frames are marked timing-limited, not fast swing observations.
 
-## Result→action preregistration
+The output is small and allowlisted, never echoes raw hex, runtime addresses, file paths, arbitrary comments or input free-text, and returns `real_swing_observations=0`, `confirmed_club_position=false`, `confirmed_game_power=false`, `ready_for_power_regression=false`, `estimated_power_percent=null`. Any 'float shaped' change observed during idle/aim is a NEGATIVE CONTROL, not a measured real-world strength response.
 
-| Result | S003 conclusion |
+## Decision tree after operator obtains S002 summary
+
+| Safe S002 outcome | S003 interpretation / next action |
 | --- | --- |
-| No unique candidate / ambiguous static census | Stop. S002 source-investigates singleton, no gameplay power. |
-| Previous/creator scene differs from Golf | Expected/possible: diagnostic only; do NOT reject because of that difference. |
-| Unique gated candidate with zero relative word changes | Negative for sampled 0x100-byte window in idle/aim only; source-inspect inner gameplay member pointers offline. |
-| Unique gated candidate with word changes | Camera/idle confounding, not power. Follow source data ownership and design true same-shot frame capture with negatives. |
-| Slow non-atomic snapshot or no per-stage counts | No fast temporal effect can be inferred. |
+| Zero/ambiguous source-gated scene chains | No verified gameplay owner; S002 investigates scene-manager static cell source/instance. No power model. |
+| Unique source-gated chain, candidate windows static under idle/aim | No changed words under THESE controls in THESE 0x100+child0x80 windows; source-inspect true player/club ownership before adding motion |
+| Unique source-gated chain, candidate words change during idle/aim | Confounded with camera/scene/time; request per-stage negative controls and verified member owner, not power response |
+| Slow non-atomic frames or child-watch truncation | Timing/coverage limitation; avoid phase-level claims |
+| Actual in-swing capture unavailable | Keep calibration blocked until S001 controller frames, S002 source-backed player/club fields and S000 publication gates are coordinated |
 
-## S002 / S001 / S000 / S003 responsibilities
+## Downstream and validation
 
-S002 #129 source-validates pointer census and safe read of candidate game RAM; S001 owns one canonical fresh boot and exact controller/frame clock; S000 #126 must approve any new sanitized public kind before publication; S003 #123 prospective same-shot link stays blocked until real run/scene/frame provenance and ≥3 genuinely distinct objective power levels exist. The present S003 reviewer adds NO competing live interface; its prospective experimental preregistration is separate from historical study S003-MEM-01.
+PR #123 owns stricter *future same-shot* swing/RAM join gates; #125 is solely current local probe output triage. S000 #126 must separately allowlist new public kinds before any automatic sanitized publication; until then only local sanitized S002 `golfer-*-summary.json` may be shared, never `golfer-*-RAW-PRIVATE.jsonl`. S001 remains owner of the canonical fresh-boot first-shot dispatcher and waveform; no stand-alone exposed live attach commands.
 
-**Privacy:** only inspect S002 golfer-*-summary.json, never golfer-*-RAW-PRIVATE.jsonl. Locally generated review summaries are not automatically publishable. This contribution was code-authored in GitHub; full canonical Windows tests/Dolphin verification remain pending.
+Tests: new synthetic `tests/test_model_golfer_probe_review.py` covers current schema v2, main vs child offset separation, previous scene semantics, Rev1/mode/backlink controls, duplicate IDs, private-field rejection, bounds, slow non-atomic reads, censored-power abstention, and bounded iterables. **These added tests have NOT been run against the full canonical Windows checkout in this session.** No live game attempts were executed by S003.
