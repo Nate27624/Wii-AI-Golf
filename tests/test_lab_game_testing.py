@@ -73,9 +73,8 @@ class LabGameTestingTests(unittest.TestCase):
         # exposes the registered audit/prep/live flow rather than only CLI.
         from wii_ai_golf.lab.gui import launch
         source = inspect.getsource(launch)
-        for label in ("Game Testing", "1  Inspect bridges",
-                      "2  Prepare historical V1", "3  Run ONE V1 shot",
-                      "Refresh readiness", "Game tests", "Restart Lab (updated)"):
+        for label in ("Historical V1 · game test", "Prepare and run one V1 shot",
+                      "Recheck environment", "Game tests", "Restart Lab (updated)") :
             with self.subTest(label=label):
                 self.assertIn(label, source)
         for experiment in ("integration.bridge-audit",
@@ -138,7 +137,7 @@ class LabGameTestingTests(unittest.TestCase):
         self.assertEqual(record["game_outcome"], "not_observed_or_verified")
         self.assertIn("V1 available",
                       Path(record["offline_log"]).read_text(encoding="utf-8"))
-        self.assertFalse((logdir / "live-session.lock").exists())
+        self.assertFalse(core.lock_busy(logdir / "live-session.lock"))
 
 
 if __name__ == "__main__":
