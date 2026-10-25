@@ -77,7 +77,38 @@ class PrivateTemporalTests(unittest.TestCase):
             self.assertTrue(row["one_direction_monotonic"])
             self.assertTrue(row["integer_step_proportional_to_frame_gap"])
             self.assertEqual(row["delta_pattern_group"], 1)
+            self.assertEqual((row["idle_changed_pairs"],
+                              row["idle_comparable_pairs"]), (2, 2))
+            self.assertEqual((row["aim_changed_pairs"],
+                              row["aim_comparable_pairs"]), (1, 1))
+            self.assertEqual(row["boundary_changed_pairs"], 2)
+            self.assertFalse(row["aim_changes_with_no_idle_changes"])
         self.assertFalse(out["power_verified"])
+
+    def test_aim_phase_can_be_isolated_without_claiming_actual_motion(self):
+        rows, report = synthetic()
+        for i, row in enumerate(rows):
+            window = bytearray.fromhex(row["bytes_hex"])
+            import struct
+            struct.pack_into(">I", window, 0x074, 100 + int(i >= 3))
+            row["bytes_hex"] = window.hex()
+            child = bytearray.fromhex(row["child_windows"]["+0x008"])
+            struct.pack_into(">I", child, 0x050, 900 + int(i >= 3))
+            row["child_windows"]["+0x008"] = child.hex()
+        for word in report["top_relative_changes"]:
+            word["within_stage_changes"] = 1
+            word["between_stage_changes"] = 0
+        result = analyze_private_trajectory(rows, report)
+        self.assertEqual(result["distinct_delta_patterns"], 1)
+        for pattern in result["offset_patterns"]:
+            self.assertEqual(pattern["idle_changed_pairs"], 0)
+            self.assertEqual(pattern["idle_comparable_pairs"], 2)
+            self.assertEqual(pattern["aim_changed_pairs"], 1)
+            self.assertEqual(pattern["aim_comparable_pairs"], 1)
+            self.assertTrue(pattern["aim_changes_with_no_idle_changes"])
+            self.assertTrue(pattern["aim_selectivity_is_unverified_human_phase_label"])
+            self.assertFalse(pattern["changes_all_transitions"])
+        self.assertFalse(result["power_verified"])
 
     def test_private_information_never_reemitted(self):
         rows, report = synthetic()
