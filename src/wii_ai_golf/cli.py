@@ -180,7 +180,7 @@ def build_parser() -> argparse.ArgumentParser:
         subcommand.add_argument("--distance")
         subcommand.add_argument("--a-prime", type=int, default=0)
         subcommand.add_argument("--a-lead", type=int, default=0,
-                                help="Experimental V1 A lead: 0 or 12 observed frames (12 previously failed)")
+                                help="Experimental V1 A lead: 0..90 observed frames; 12 previously failed")
         subcommand.add_argument("--follow-through", type=int, default=30)
         if name == "run":
             subcommand.add_argument("--live", action="store_true",
