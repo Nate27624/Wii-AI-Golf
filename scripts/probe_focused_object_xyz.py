@@ -23,13 +23,17 @@ def main():
                    help="seconds for manual navigation before recording")
     p.add_argument("--manual-ready",action="store_true",
                    help="after golf mode detection, wait for ENTER once golfer is at tee")
-    p.add_argument("--phase",choices=("idle","swing","landing","unknown"),
+    p.add_argument("--phase",choices=("idle","aim_control","swing","landing","unknown"),
                    default="unknown",help="user-observed phase label, never inferred")
+    p.add_argument("--operator-note",choices=("none","aim_only_no_swing"),default="none",
+                   help="operator-reported control instruction, NOT automated validation")
     p.add_argument("--data-dir",type=Path,default=ROOT.parent/"Wii-AI-Golf-Data"/"captures")
     p.add_argument("--no-upload",action="store_true")
     args=p.parse_args()
     if not 5 <= args.seconds <= 180 or not .02 <= args.interval <= 10 or not 0 <= args.ready_timeout <= 600:
         p.error("--seconds 5..180 and --interval .02..10 required")
+    if args.phase == "aim_control" and not args.manual_ready:
+        p.error("--phase aim_control requires --manual-ready to exclude menus")
     ensure_intro(args)
     args.data_dir.mkdir(parents=True,exist_ok=True)
     run=make_run_id()
@@ -92,6 +96,7 @@ def main():
             "study_id":"S002-FOCUSED-GOLF-OBJECT-XYZ",
             "captured_utc":datetime.now(timezone.utc).isoformat(),
             "observed_phase":args.phase,
+            "operator_note":args.operator_note,
             "samples":len(samples),"errors":errors,
             "frame_span_min":min((x["frame_span"] for x in samples),default=None),
             "frame_span_max":max((x["frame_span"] for x in samples),default=None),
