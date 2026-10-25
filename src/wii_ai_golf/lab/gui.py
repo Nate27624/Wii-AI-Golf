@@ -14,6 +14,7 @@ import threading
 from .core import ROOT, get_experiment, history, available_experiments, plan, execute
 from .github_sync import sync_merged_main
 from .bridge_ui import inspect_game_bridges
+from .locks import any_lab_job_busy
 
 
 def launch(root: Path = ROOT) -> int:
@@ -38,25 +39,6 @@ def launch(root: Path = ROOT) -> int:
     ttk.Label(outer, text="S000–S005  •  Agent tests pulled from approved GitHub main  •  One canonical Dolphin startup").pack(anchor="w")
     sync_line = tk.StringVar(value="GitHub: checking for newly merged tests...")
     ttk.Label(outer, textvariable=sync_line, wraplength=930).pack(anchor="w", pady=(4, 0))
-    # This task-specific panel is deliberately OUTSIDE the experiment
-    # filter/list: a user should never need PowerShell or know registry IDs
-    # to prepare a historical game test.
-    game_panel = ttk.LabelFrame(
-        outer, text="Game Testing — historical V1 versus installed V2", padding=10)
-    game_panel.pack(fill="x", pady=(8, 0))
-    ttk.Label(game_panel, text=(
-        "1 Inspect bridge → 2 Prepare separate V1 copy → 3 Run ONE shot. "
-        "The first two steps NEVER start Dolphin."), wraplength=900).pack(anchor="w")
-    game_buttons = ttk.Frame(game_panel)
-    game_buttons.pack(fill="x", pady=(7, 4))
-    bridge_status = tk.StringVar(value="Checking local bridge files...")
-    ttk.Label(game_panel, textvariable=bridge_status, wraplength=900).pack(anchor="w", pady=(3, 4))
-    game_details = tk.Text(game_panel, height=4, wrap="word",
-                           font=("Consolas", 9), relief="flat",
-                           padx=10, pady=8, cursor="arrow")
-    game_details.pack(fill="x", pady=(2, 0))
-    game_details.configure(state="disabled")
-
     panes = ttk.PanedWindow(outer, orient="horizontal")
     panes.pack(fill="both", expand=True, pady=12)
     left, right = ttk.Frame(panes), ttk.Frame(panes)
@@ -106,9 +88,28 @@ def launch(root: Path = ROOT) -> int:
     refill_catalog()
     description = tk.StringVar(value="Select an experiment.")
     ttk.Label(right, textvariable=description, wraplength=455, justify="left").pack(fill="x", pady=7)
-    inputs = ttk.LabelFrame(right, text="Optional parameters", padding=8)
+    # Experiment-specific results belong in the selected study's SHOW/detail
+    # area, never as a detached toolbar floating above the experiment list.
+    game_panel = ttk.LabelFrame(right, text="Historical V1 · game test", padding=9)
+    bridge_status = tk.StringVar(value="Inspecting local bridge files...")
+    ttk.Label(game_panel, textvariable=bridge_status,
+              font=("Segoe UI", 10, "bold"), wraplength=470).pack(anchor="w")
+    ttk.Label(game_panel, text=(
+        "One guided run: inspect the installed bridge, prepare a safe V1 "
+        "copy when needed, then ask before launching ONE Dolphin shot."),
+        wraplength=470, justify="left").pack(anchor="w", pady=(3, 7))
+    game_buttons = ttk.Frame(game_panel)
+    game_buttons.pack(fill="x", pady=(0, 6))
+    game_details = tk.Text(game_panel, height=7, wrap="word",
+                           font=("Consolas", 9), relief="flat",
+                           padx=9, pady=7, cursor="arrow")
+    game_details.pack(fill="both", expand=False)
+    game_details.configure(state="disabled")
+
+    inputs = ttk.LabelFrame(right, text="Settings", padding=8)
     inputs.pack(fill="x")
     values = {}
+    field_rows = {}
     for key, label, default in (
         ("input", "Input path", ""), ("second-input", "Second input", ""),
         ("out", "Output path", ""), ("a-prime", "A prime requests", "0"),
@@ -118,6 +119,7 @@ def launch(root: Path = ROOT) -> int:
     ):
         line = ttk.Frame(inputs)
         line.pack(fill="x", pady=2)
+        field_rows[key] = line
         ttk.Label(line, text=label, width=24).pack(side="left")
         v = tk.StringVar(value=default)
         ttk.Entry(line, textvariable=v).pack(side="left", fill="x", expand=True)
@@ -138,7 +140,8 @@ def launch(root: Path = ROOT) -> int:
             preview_frame.pack_forget()
             preview_button.configure(text="Show technical details")
     status = tk.StringVar(value="Ready — select an experiment and choose Run")
-    ttk.Label(right, textvariable=status, wraplength=455).pack(anchor="w", pady=4)
+    status_label = ttk.Label(right, textvariable=status, wraplength=455)
+    status_label.pack(anchor="w", pady=4)
 
     def selection():
         sel = listing.selection()
@@ -185,14 +188,47 @@ def launch(root: Path = ROOT) -> int:
             return
         e = get_experiment(chosen, catalog=catalog)
         description.set(f"{e['id']} | {e['owner']} | {e['mode'].upper()}\n{e['description']}")
+        is_bridge_study = chosen in {
+            "integration.v1-diagnostic", "integration.bridge-audit",
+            "integration.prepare-v1",
+        }
+        if is_bridge_study:
+            if not game_panel.winfo_manager():
+                game_panel.pack(fill="x", pady=(5, 8), before=inputs)
+            refresh_bridge_status()
+        else:
+            game_panel.pack_forget()
+        # No eight-field wall for a test that only accepts A-lead timing.
+        relevant = ({
+            "integration.v1-diagnostic": {"a-lead"},
+            "integration.swing": {"a-prime", "follow-through"},
+            "evaluation.recover": {"input", "out", "contact", "green", "distance"},
+            "evaluation.compare": {"input", "second-input", "out"},
+            "evaluation.audit": {"input", "out"},
+        }).get(chosen, set())
+        for key, widget in field_rows.items():
+            if key in relevant:
+                widget.pack(fill="x", pady=2)
+            else:
+                widget.pack_forget()
+        if relevant:
+            if not inputs.winfo_manager():
+                inputs.pack(fill="x", before=status_label)
+        else:
+            inputs.pack_forget()
         offline_btn.configure(state="normal" if e["mode"] == "offline" else "disabled")
         live_btn.configure(state="normal" if e["mode"] == "live" else "disabled")
+        if chosen == "integration.v1-diagnostic":
+            live_btn.configure(text="Prepare and run V1")
+        else:
+            live_btn.configure(text="Run ONE live")
         preview()
 
     active: list[subprocess.Popen] = []
     active_studies: dict[int, str] = {}
     restart_needed = [False]
     game_job_busy = [False]
+    launch_after_preparation = [False]
     game_job_messages: queue.SimpleQueue = queue.SimpleQueue()
     lab_data = root.parent / "Wii-AI-Golf-Data" / "lab"
 
