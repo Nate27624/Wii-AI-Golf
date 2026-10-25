@@ -31,7 +31,7 @@ def snapshot(rpc):
     if type(start)!=int or type(end)!=int or end<start:raise RuntimeError("Invalid frame bracket")
     return {"frames":[start,end],"pointer":ptr,"hex":data.hex()}
 
-def summary(rows,dispatch):
+def summary(rows,dispatch,condition="swing"):
     phases={}
     for row in rows: phases.setdefault(row["phase"],[]).append(row)
     offsets=set();changes=0;previous=None
@@ -43,8 +43,9 @@ def summary(rows,dispatch):
     return {"schema_version":1,"study_id":"S002-AUTOMATED-MINIMAP-SHOT",
             "utc":datetime.now(timezone.utc).isoformat(),
             "samples":len(rows),"phase_counts":{k:len(v) for k,v in phases.items()},
+            "condition":condition,
             "changed_byte_offsets":sorted(offsets),"adjacent_changes":changes,
-            "swing_dispatch_received":isinstance(dispatch,dict),
+            "swing_dispatch_received":condition=="swing" and isinstance(dispatch,dict),
             "claim":"AUTOMATED_SWING_COMMAND_NOT_VERIFIED_BALL_CONTACT",
             "warning":"Minimap visual effect is not verified physics ball or score"}
 
@@ -53,7 +54,7 @@ def public_summary(result, run):
     public={key:result[key] for key in (
         "schema_version","study_id","utc","samples","phase_counts",
         "changed_byte_offsets","adjacent_changes","swing_dispatch_received",
-        "claim","warning")}
+        "claim","warning","condition")}
     public["id"]=run+"-automated-minimap"
     public["kind"]="automated-minimap-effect"
     return public
@@ -61,23 +62,28 @@ def public_summary(result, run):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--send-live-swing",action="store_true")
+    p.add_argument("--no-swing-control",action="store_true",help="Record idle reference without any motion RPC")
+    p.add_argument("--control-wait",type=float,default=2.0)
     p.add_argument("--no-upload",action="store_true",help="Keep sanitized report local")
     p.add_argument("--port",type=int,default=55355)
     p.add_argument("--before",type=int,default=5)
     p.add_argument("--after",type=int,default=20)
     p.add_argument("--interval",type=float,default=.25)
     args=p.parse_args()
-    if not args.send_live_swing:p.error("Explicit --send-live-swing required")
+    if not args.send_live_swing:p.error("Explicit --send-live-swing required for the approved live capture wrapper")
+    if not .1<=args.control_wait<=15:p.error("--control-wait must be 0.1..15 seconds")
     if not 2<=args.before<=30 or not 2<=args.after<=100 or not .05<=args.interval<=3:
         p.error("invalid bounded collection controls")
     folder=ROOT.parent/"Wii-AI-Golf-Data"/"captures"
     folder.mkdir(parents=True,exist_ok=True)
     run=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    raw=folder/("automated-effect-"+run+"-RAW-PRIVATE.jsonl")
-    report=folder/("automated-effect-"+run+"-summary.json")
-    samples=build_probe("forward",follow_through_frames=30)
+    suffix="-idle" if args.no_swing_control else "-swing"
+    raw=folder/("automated-effect-"+run+suffix+"-RAW-PRIVATE.jsonl")
+    report=folder/("automated-effect-"+run+suffix+"-summary.json")
+    samples=build_probe("forward",follow_through_frames=30) if not args.no_swing_control else []
     rows=[]
-    print("Post-boot S002 capture: one automatic swing, private RAM stays local.",flush=True)
+    condition="idle_control" if args.no_swing_control else "swing"
+    print("Post-boot S002 capture condition:",condition,"private RAM stays local.",flush=True)
     with FelkRPC(port=args.port,timeout_s=15) as rpc,raw.open("x",encoding="utf-8") as out:
         def collect(phase,count):
             for i in range(count):
@@ -87,16 +93,21 @@ def main():
                 time.sleep(args.interval)
         begin=time.monotonic()
         collect("pre",args.before)
-        stroke=SwingTraceClient(rpc,port=0).run(samples)
-        print("Swing dispatched; ball contact UNVERIFIED.",flush=True)
+        if args.no_swing_control:
+            print("Idle control: NO motion or button RPC, waiting",args.control_wait,"seconds.",flush=True)
+            time.sleep(args.control_wait)
+            stroke=None
+        else:
+            stroke=SwingTraceClient(rpc,port=0).run(samples)
+            print("Swing dispatched; ball contact UNVERIFIED.",flush=True)
         collect("post",args.after)
-    result=summary(rows,stroke)
+    result=summary(rows,stroke,condition)
     report.write_text(json.dumps(result,indent=2)+"\n",encoding="utf-8")
     print(json.dumps(result,indent=2))
     print("Private raw:",raw,"Sanitized local summary:",report)
     if not args.no_upload:
         # Explicit allowlist. Never forward raw rows, RAM hex, pointers or local paths.
-        public=public_summary(result,run)
+        public=public_summary(result,run+suffix)
         try:
             from research_cli import publish_summary
             url=publish_summary(public)
