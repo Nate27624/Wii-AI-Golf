@@ -1,0 +1,17 @@
+{
+  "worker": "S003 supporting research - power identifiability",
+  "issue": 117,
+  "branch": "agent/modeling/censored-power-identifiability",
+  "status": "claimed",
+  "date_utc": "2026-10-25",
+  "owned_paths": [
+    "src/wii_ai_golf/research_power_identifiability.py",
+    "tests/test_research_power_identifiability.py",
+    "research/power-identifiability/README.md",
+    "research/claims/power-identifiability.json"
+  ],
+  "interface_change": false,
+  "upstream": ["S001 controller", "S002 annotations", "S000 reviewer PR #105"],
+  "next_owner": "S003/S002 to review measurement gates",
+  "evidence_classification": "sanitized-human and synthetic-offline-only"
+}
