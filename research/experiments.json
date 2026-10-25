@@ -54,7 +54,7 @@
       "id": "integration.v1-diagnostic",
       "owner": "S001",
       "title": "Game test · 3 — Historical V1 contact comparison",
-      "description": "Isolated pre-V2 bridge; operator-adjustable observed A lead (0 or 12 frames). Previous 12-frame attempt worsened club motion. One full fresh-start trial; contact/score NOT verified.",
+      "description": "V1 bridge controlled shot: annotate starting club pose (back/center/forward/unknown) before motion, record start frame and human contact; fixed original trace. Observed pose is not an automatically verified club angle. One fresh-start trial; no automatic score.",
       "mode": "live",
       "kind": "v1_capture"
     },
