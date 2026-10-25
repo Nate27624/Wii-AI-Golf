@@ -99,6 +99,32 @@ class EvidenceReviewTests(unittest.TestCase):
         self.assertEqual(s["duplicate_or_unsupported_records"], 2)
         self.assertEqual(s["v1_by_bridge_trace_and_observed_a_lead"][0]["human_hit_yes"], 1)
 
+    def test_new_s002_power_studies_are_human_only_and_flag_missing_bridge_pose(self):
+        baseline = {
+            "id": "20261025T020001Z-baseline", "kind": "swing-power-calibration",
+            "variant": "baseline", "trace_sha256": "d" * 64, "trace_frames": 89,
+            "parameter_multiplier": 1.0, "contact_human": "yes",
+            "power_percent_human": 72.0,
+            "power_verified_by_memory": False,
+            "contact_verified_by_memory": False,
+        }
+        result = review_public_observations([baseline])
+        cell = result["power_variant_by_waveform"][0]
+        self.assertEqual(cell["human_labeled_trials"], 1)
+        self.assertEqual(cell["human_power_percent"], [72.0])
+        self.assertEqual(cell["missing_bridge_sha256_count"], 1)
+        self.assertEqual(cell["missing_starting_pose_count"], 1)
+        self.assertFalse(result["gates"]["controller_power_calibrated"])
+        self.assertFalse(result["gates"]["power_trials_have_matched_bridge_and_pose_provenance"])
+        self.assertFalse(cell["ball_power_or_score_verified"])
+        baseline["power_percent_human"] = 700.0
+        self.assertEqual(review_public_observations([baseline])["power_records_rejected"], 1)
+        baseline["power_percent_human"] = 72.0
+        baseline["contact_human"] = ["yes", "RAW-PRIVATE-SECRET"]
+        output = review_public_observations([baseline])
+        self.assertEqual(output["power_records_rejected"], 1)
+        self.assertNotIn("RAW-PRIVATE-SECRET", json.dumps(output))
+
     def test_test_pass_and_process_success_are_not_live_results(self):
         ok = {"id": "20261025T012930Z-cf31bc55a7", "kind": "test",
               "outcome": "pass", "process_exit_code": 0}
