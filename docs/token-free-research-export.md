@@ -1,9 +1,40 @@
-# Token-free evidence handoff from the canonical CLI
+# Token-free research sharing from the canonical CLI
 
-**Status:** offline execution-status export only. No Dolphin and no GitHub token.
-This does not publish to GitHub or verify any golf score.
+## Recommended: one command, no manual JSON handoff
 
-## Operator workflow (Windows)
+From the **clean main checkout** (not a detached audit/worktree branch):
+
+```powershell
+py scripts/golf.py research test
+```
+
+This wraps the pre-existing `scripts/research_cli.py test` pathway: trusted
+main sync, offline regression tests, strict allowlisted test result, and Git
+push to `research/observations`. It uses Git's **existing configured
+authentication** (Git Credential Manager or SSH); no new personal access
+token is necessary if Git push already works. If the remote is not yet
+authenticated, Git may prompt or fail visibly. This is not a background
+service, and it never launches Dolphin.
+
+For offline tests **without any publication**:
+
+```powershell
+py scripts/golf.py research test --local-only
+```
+
+To see the proposed 10-shot power study without launching Dolphin:
+`py scripts/golf.py research study`.
+
+**Success:** the existing research CLI prints that it published a sanitized
+test record to `research/observations`. A passing test is **not** a golf
+shot, a ball contact, or a verified score. S002's separate capture pathway
+is responsible for actual game observation evidence.
+
+## Optional: local execution-status backup
+
+`lab export` does **not** send anything to other agents. It's an optional
+offline-only artifact for troubleshooting/review. If you do not need a local
+backup, skip these commands entirely.
 
 From the normal Wii-AI-Golf checkout:
 
@@ -28,7 +59,7 @@ bash scripts/golf.sh verify-export
 - `lab verify-export` checks the latest export's schema, record count, exact safe fields and SHA-256. Or pass an explicit JSON path to check a specific bundle.
 - `lab export --json` prints only the same sanitized JSON to standard output. `--limit 1..100` changes the maximum number of run statuses.
 
-**Handoff to agents:** Attach the exported `.json` file to the ChatGPT conversation and explicitly request publishing it to the `research-results` branch. The connected GitHub integration can handle that separate action after independent validation. **The CLI cannot use ChatGPT's GitHub login**, and the bundle is not automatically uploaded. If the external integration is unavailable, the bundle stays local.
+**Manual handoff (optional):** If you explicitly need to share this Lab backup, attach the exported file for independent schema review and separate publication. Otherwise, use the recommended `research test` command. The backup exporter itself never uploads and cannot borrow ChatGPT's connected GitHub credentials.
 
 **IMPORTANT:** Raw `lab history --json` and `lab reports --json` can include private filesystem locations and are **not** suitable publication artifacts. Share only the validated `lab export` bundle.
 
