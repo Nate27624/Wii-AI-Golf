@@ -11,9 +11,9 @@ import queue
 import subprocess
 import sys
 import threading
-from .core import ROOT, get_experiment, history, available_experiments, plan
+from .core import ROOT, get_experiment, history, available_experiments, plan, execute
 from .github_sync import sync_merged_main
-from ..shared.bridge_provenance import audit_bridge_sources, inspect_bridge_file
+from .bridge_ui import inspect_game_bridges
 
 
 def launch(root: Path = ROOT) -> int:
@@ -49,8 +49,13 @@ def launch(root: Path = ROOT) -> int:
         "The first two steps NEVER start Dolphin."), wraplength=900).pack(anchor="w")
     game_buttons = ttk.Frame(game_panel)
     game_buttons.pack(fill="x", pady=(7, 4))
-    bridge_status = tk.StringVar(value="Checking existing bridge files (offline)...")
-    ttk.Label(game_panel, textvariable=bridge_status, wraplength=900).pack(anchor="w")
+    bridge_status = tk.StringVar(value="Checking local bridge files...")
+    ttk.Label(game_panel, textvariable=bridge_status, wraplength=900).pack(anchor="w", pady=(3, 4))
+    game_details = tk.Text(game_panel, height=8, wrap="word",
+                           font=("Consolas", 9), relief="flat",
+                           padx=10, pady=8, cursor="arrow")
+    game_details.pack(fill="x", pady=(2, 0))
+    game_details.configure(state="disabled")
 
     panes = ttk.PanedWindow(outer, orient="horizontal")
     panes.pack(fill="both", expand=True, pady=12)
@@ -175,36 +180,41 @@ def launch(root: Path = ROOT) -> int:
     active: list[subprocess.Popen] = []
     active_studies: dict[int, str] = {}
     restart_needed = [False]
+    game_job_busy = [False]
+    game_job_messages: queue.SimpleQueue = queue.SimpleQueue()
+    lab_data = root.parent / "Wii-AI-Golf-Data" / "lab"
 
-    def bridge_readiness():
-        current = root.parent / "tools" / "mcp_bridge_swing.py"
-        isolated = root.parent / "tools" / "mcp_bridge_swing_legacy_eval.py"
-        audit = audit_bridge_sources(current)
-        prepared = inspect_bridge_file(isolated)
-        return audit, prepared
+    def show_game_details(message: str):
+        """Single persistent results area, no temporary console or missing-log popup."""
+        game_details.configure(state="normal")
+        game_details.delete("1.0", "end")
+        game_details.insert("1.0", message)
+        game_details.configure(state="disabled")
 
     def refresh_bridge_status():
         try:
-            audit, prepared = bridge_readiness()
-            backup_ok = bool(audit["v1_isolated_trial_possible"])
-            ready = bool(prepared["safe_for_isolated_legacy_copy"])
-            current_version = audit["current"]["revision"]
-            if ready:
-                line = (f"Ready for step 3: isolated V1 bridge prepared. "
-                        f"Installed main bridge: {current_version}.")
-            elif backup_ok:
-                line = (f"Step 2 needed: a usable historical V1 backup exists. "
-                        f"Installed main bridge: {current_version}.")
-            else:
-                line = (f"V1 comparison unavailable: no safe historical backup. "
-                        f"Run step 1 to inspect. Installed bridge: {current_version}.")
-            bridge_status.set(line)
-            prep_button.configure(state="normal" if backup_ok and not ready else "disabled")
-            v1_button.configure(state="normal" if ready else "disabled")
+            view = inspect_game_bridges(root)
+            bridge_status.set(view.title)
+            prep_button.configure(
+                state="normal" if view.can_prepare and not game_job_busy[0] else "disabled")
+            v1_button.configure(
+                state="normal" if view.can_test and not game_job_busy[0] else "disabled")
+            show_game_details(view.as_text())
+            return view
         except (OSError, ValueError, UnicodeError) as exc:
-            bridge_status.set("Cannot inspect local bridge: " + str(exc))
+            bridge_status.set("Bridge inspection failed")
             prep_button.configure(state="disabled")
             v1_button.configure(state="disabled")
+            show_game_details("Unable to inspect bridge files.\\n\\n" + str(exc))
+            return None
+
+    def inspect_bridges():
+        """Read-only local source inspection, rendered instantly INSIDE Lab."""
+        if game_job_busy[0]:
+            bridge_status.set("Bridge preparation is still running.")
+            return
+        refresh_bridge_status()
+
 
     def navigate_study(identifier: str):
         # Game Testing shortcuts always show the intended experiment,
@@ -218,29 +228,100 @@ def launch(root: Path = ROOT) -> int:
         listing.see(identifier)
         selected()
 
-    def launch_game_step(identifier: str, *, live: bool = False):
+    def prepare_historical_v1():
+        """Run the reviewed Lab preparation and record it, without another console."""
+        if game_job_busy[0] or sync_busy[0] or active:
+            bridge_status.set("Finish the current Lab task or GitHub update first.")
+            return
+        view = refresh_bridge_status()
+        if view is None or not view.can_prepare:
+            return
+        if not messagebox.askyesno(
+            "Create isolated historical V1 bridge?",
+            "Create a separate test copy from the VERIFIED pre-V2 backup?\\n\\n"
+            "The active V2 bridge and all Dolphin save states remain untouched. "
+            "If any file differs unexpectedly, preparation will stop."):
+            return
+        game_job_busy[0] = True
+        prep_button.configure(state="disabled")
+        v1_button.configure(state="disabled")
+        bridge_status.set("Preparing historical V1 copy...")
+        show_game_details(
+            "Working in the background using the reviewed Lab runner.\\n"
+            "No Dolphin session is being launched, and your current bridge is untouched.")
+
+        def worker():
+            try:
+                trial = plan("integration.prepare-v1", root=root, python=sys.executable)
+                record = execute(trial, root=root, data=lab_data)
+                game_job_messages.put(("finished", record))
+            except (OSError, ValueError, RuntimeError) as exc:
+                game_job_messages.put(("error", str(exc)))
+        threading.Thread(target=worker, daemon=True,
+                         name="golf-lab-prepare-v1").start()
+
+    def check_game_job():
         try:
-            navigate_study(identifier)
-            if live:
-                _, prepared = bridge_readiness()
-                if not prepared["safe_for_isolated_legacy_copy"]:
-                    raise ValueError("Step 2 has not prepared a safe isolated V1 copy yet.")
-            run_selected(live)
+            while True:
+                kind, payload = game_job_messages.get_nowait()
+                game_job_busy[0] = False
+                view = refresh_bridge_status()
+                if kind == "error":
+                    bridge_status.set("Preparation could not start")
+                    show_game_details("The Lab did not prepare a bridge.\\n\\n" + str(payload))
+                elif payload.get("exit_code") != 0:
+                    bridge_status.set("Preparation failed — no game started")
+                    log_path = payload.get("offline_log")
+                    details = ""
+                    if isinstance(log_path, str):
+                        path = Path(log_path)
+                        if path.is_file() and path.parent.resolve() == (lab_data / "runs").resolve():
+                            details = path.read_text(encoding="utf-8", errors="replace")[-3500:]
+                    show_game_details(
+                        "Bridge preparation did not succeed. Nothing was replaced.\\n\\n" +
+                        (details or str(payload.get("launch_error", "No diagnostic output available."))))
+                elif view is not None and view.can_test:
+                    bridge_status.set("Historical V1 is ready for the single-shot comparison")
+                    show_game_details(view.as_text() + "\\n\\nPreparation recorded in Lab history.")
+                else:
+                    bridge_status.set("Preparation finished; V1 could not be verified")
+                    show_game_details(
+                        (view.as_text() if view else "Bridge check unavailable") +
+                        "\\n\\nThe output did not pass the readiness check. "
+                        "Do not start the live shot.")
+                refresh()
+        except queue.Empty:
+            pass
+        ui.after(350, check_game_job)
+
+    def launch_v1_trial():
+        try:
+            view = inspect_game_bridges(root)
+            if not view.can_test:
+                refresh_bridge_status()
+                return
+            # The top-row quick action is a controlled baseline, not an
+            # accidental reuse of inputs from another selected study.
+            values["a-prime"].set("0")
+            values["a-lead"].set("0")
+            navigate_study("integration.v1-diagnostic")
+            run_selected(True)
         except (OSError, ValueError) as exc:
-            messagebox.showerror("Game Testing", str(exc))
+            bridge_status.set("Could not start V1 comparison")
+            show_game_details(str(exc))
 
     ttk.Button(game_buttons, text="1  Inspect bridges",
-               command=lambda: launch_game_step("integration.bridge-audit")).pack(side="left", padx=(0, 8))
+               command=inspect_bridges).pack(side="left", padx=(0, 8))
     prep_button = ttk.Button(
         game_buttons, text="2  Prepare historical V1", state="disabled",
-        command=lambda: launch_game_step("integration.prepare-v1"))
+        command=prepare_historical_v1)
     prep_button.pack(side="left", padx=(0, 8))
     v1_button = ttk.Button(
         game_buttons, text="3  Run ONE V1 shot", state="disabled",
-        command=lambda: launch_game_step("integration.v1-diagnostic", live=True))
+        command=launch_v1_trial)
     v1_button.pack(side="left", padx=(0, 8))
-    ttk.Button(game_buttons, text="Refresh readiness",
-               command=refresh_bridge_status).pack(side="left")
+    ttk.Button(game_buttons, text="Refresh check",
+               command=inspect_bridges).pack(side="left")
 
     def request_sync(*, manual: bool = False) -> None:
         """Never block Tkinter while fetching GitHub; never run fetched tests."""
