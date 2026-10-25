@@ -6,7 +6,7 @@
 
 | Component | Ownership and contract |
 | --- | --- |
-| `src/wii_ai_golf/evaluation/focused_trace.py` | Evaluation-owned pure Python offline `analyze_trace(path, motion_threshold=.1, reset_threshold=25.) -> dict` |
+| `src/wii_ai_golf/focused_trace.py` | Evaluation-owned pure Python offline `analyze_trace(path, motion_threshold=.1, reset_threshold=25.) -> dict` |
 | `scripts/analyze_focused_trace.py` | Advanced internal adapter; no Dolphin, RPC or GPU |
 | `tests/test_focused_trace.py` | Negative cases: reset not misclassified as flight; null pointers handled; no invented shot counts; no raw address leakage |
 | `src/wii_ai_golf/cli.py` | **Untouched**, coordinator owns future public adapter |
