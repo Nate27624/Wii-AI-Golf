@@ -28,6 +28,15 @@ class SceneSymbolTests(unittest.TestCase):
         self.assertNotIn("RPSysScene", groups)
         self.assertIsNone(report["scene_object_pointer"])
 
+    def test_create_instance_function_is_not_a_static_pointer(self):
+        result = mod.summarize([
+            '"RPSysSceneCreator::createInstance", 0x80184e10',
+            '"RPSysSceneMgr::getCurrentScene", 0x80186100',
+        ])
+        self.assertTrue(all(entry["classification"] == "symbol_location_only"
+                            for entry in result["matched_groups"]))
+        self.assertIsNone(result["scene_object_pointer"])
+
     def test_optional_download_uses_pinned_source_and_cache(self):
         fetcher = load_fetch_module()
         self.assertIn(fetcher.UPSTREAM_COMMIT, fetcher.upstream_url("csv"))
