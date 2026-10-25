@@ -49,13 +49,21 @@ class GolferProbeReviewTests(unittest.TestCase):
         self.assertEqual(out["candidate_offsets"], [])
         self.assertIn("member pointers", out["next_action"])
 
-    def test_wrong_scene_creator_must_reject_even_if_unique(self):
+    def test_previous_creator_scene_id_may_differ_from_golf_id(self):
+        # RPSysScene +0x40 is previous/parent scene, not current Golf ID.
         candidate = report()
         candidate["observed_creator_scene_id_matches_golf"] = False
         out = review_golfer_probe_summaries([candidate])
+        self.assertEqual(out["accepted_sanitized_candidate_reports"], 1)
+        self.assertFalse(out["verified_golfer_instance_identity"])
+
+    def test_nonunique_scene_chain_rejected(self):
+        candidate = report()
+        candidate["matched_scene_chains"] = 2
+        out = review_golfer_probe_summaries([candidate])
         self.assertEqual(out["accepted_sanitized_candidate_reports"], 0)
         self.assertEqual(out["rejection_reasons"],
-                         {"scene_chain_not_fully_gated": 1})
+                         {"scene_chain_not_unique_or_missing_diagnostic": 1})
 
     def test_wrong_game_mode_and_disc_revision_rejected(self):
         a = report("bad-mode")
