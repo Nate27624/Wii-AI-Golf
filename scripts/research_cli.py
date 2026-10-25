@@ -36,7 +36,7 @@ SAFE_LABELS = ("contact_human", "initial_club_pose_human",
                "displayed_power_percent_human")
 SAFE_TRACE = ("trace_sha256", "generated_trace_frames",
               "a_lead_requested_frames", "a_lead_observed_frame_delta",
-              "motion_scale", "speed_scale")
+              "motion_scale", "speed_scale", "backswing_scale")
 _ALLOWED = {"test", "v1"}
 
 
@@ -171,6 +171,8 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--no-upload", action="store_true", help="Keep results local")
     v = commands.add_parser("v1", help="Sync, execute ONE isolated historic V1 shot, publish sanitized report")
     v.add_argument("--a-lead", type=int, default=0)
+    v.add_argument("--backswing-scale", type=float, choices=(0.8, 1.0, 1.2), default=1.0,
+                   help="Scale only backswing travel; all other motion/A unchanged")
     v.add_argument("--speed-scale", type=float, choices=(0.8, 0.9, 1.0, 1.1), default=1.0,
                    help="Change swing speed only; preserve club travel and A timing")
     v.add_argument("--motion-scale", type=float, choices=(0.6, 0.8, 1.0, 1.2), default=1.0,
@@ -191,6 +193,8 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("v1 requires --live and --a-lead between 0 and 90")
         if args.command == "v1" and args.motion_scale != 1.0:
             parser.error("--motion-scale alters travel AND speeds; use --speed-scale for one-variable calibration")
+        if args.command == "v1" and args.backswing_scale != 1.0 and args.speed_scale != 1.0:
+            parser.error("change either --backswing-scale or --speed-scale, not both")
         begin = datetime.now(timezone.utc)
         if args.command == "test":
             exit_code = _run([sys.executable, "-m", "unittest", "discover",
@@ -208,6 +212,7 @@ def main(argv: list[str] | None = None) -> int:
                               "--send-live-swing", "--a-lead-frames", str(args.a_lead),
                               "--observe-start-pose", "--motion-scale", str(args.motion_scale),
                               "--speed-scale", str(args.speed_scale),
+                              "--backswing-scale", str(args.backswing_scale),
                               "--ask-power"])
         summary = {"schema": 1,
                    "id": begin.strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:10],
@@ -221,6 +226,7 @@ def main(argv: list[str] | None = None) -> int:
             summary["requested_a_lead_frames"] = args.a_lead
             summary["requested_motion_scale"] = args.motion_scale
             summary["requested_speed_scale"] = args.speed_scale
+            summary["requested_backswing_scale"] = args.backswing_scale
             summary["bridge_sha256"] = _sha_file(bridge)
             summary.update(_fresh_human_labels(begin))
             if _missing_capture_needs_fallback(summary):

@@ -68,12 +68,29 @@ def publish_record(record: dict, *, token: str | None = None, api=_api) -> dict:
     path = "/contents/research/auto-results/" + clean["run_id"] + ".json"
     content = base64.b64encode(
         (json.dumps(clean, sort_keys=True, indent=2) + "\n").encode()).decode("ascii")
+    # GitHub's Contents API requires an existing file's SHA for updates.
+    # Never overwrite an existing run ID: successful retries are idempotent,
+    # but different content under the same ID is a research-integrity error.
     try:
-        api("PUT", path, token, {
-            "message": "results: sanitized execution " + clean["run_id"],
-            "branch": BRANCH, "content": content})
+        existing = api("GET", path + "?ref=" + BRANCH, token)
     except urllib.error.HTTPError as exc:
-        if exc.code == 422:
-            return {"status": "already_published", "branch": BRANCH, "run_id": clean["run_id"]}
-        raise
+        if exc.code != 404:
+            raise
+        existing = None
+    if existing is not None:
+        if not isinstance(existing, dict) or existing.get("type") != "file":
+            raise ValueError("Result path exists but is not a file")
+        stored = existing.get("content")
+        if not isinstance(stored, str) or existing.get("encoding") != "base64":
+            raise ValueError("Existing result cannot be verified")
+        try:
+            old_bytes = base64.b64decode(stored, validate=False)
+        except (ValueError, base64.binascii.Error) as exc:
+            raise ValueError("Existing result has invalid content encoding") from exc
+        if old_bytes != base64.b64decode(content):
+            raise ValueError("Existing run ID contains different result data")
+        return {"status": "already_published", "branch": BRANCH, "run_id": clean["run_id"]}
+    api("PUT", path, token, {
+        "message": "results: sanitized execution " + clean["run_id"],
+        "branch": BRANCH, "content": content})
     return {"status": "published", "branch": BRANCH, "run_id": clean["run_id"]}
