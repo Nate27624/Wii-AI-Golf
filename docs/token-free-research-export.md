@@ -1,5 +1,33 @@
 # Token-free research sharing from the canonical CLI
 
+## Recover one previously saved scene-root probe without rerunning Dolphin
+
+**Pending integration:** this `golf.py` wrapper depends on the low-level
+`research_cli.py publish-saved-scene-root` command and exact public
+schema in **PR #126**. Do not use the command until PR #126 and this
+wrapper PR have passed Windows targeted/full tests and merged.
+
+From the clean normal `Wii-AI-Golf` main checkout (not a divergent
+`Scene-Root-Pilot` worktree):
+
+```powershell
+py scripts/golf.py research publish-saved-scene-root --id YOUR_RECORD_ID --local-only
+py scripts/golf.py research publish-saved-scene-root --id YOUR_RECORD_ID
+```
+
+The ID is the exact middle part of the private local filename
+`golf-scene-root-<ID>-summary.json`. The first command validates locally;
+the second strictly validates the saved record, then uses your already
+configured Git remote to publish only safe public fields. It uses no new
+token, no user-supplied file path, no Dolphin, no ROM or raw memory read.
+A zero-candidate source probe can still be safely published as a **negative
+result**, not a discovered golf power address.
+
+If a pilot worktree `git pull --ff-only origin main` reports divergence,
+**do not** force-push, reset, merge or automatically stash the pilot.
+Use the separate clean main checkout to access the latest CLI; preserve
+the existing pilot and saved report.
+
 ## Recommended: one command, no manual JSON handoff
 
 From the **clean main checkout** (not a detached audit/worktree branch):
