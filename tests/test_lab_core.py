@@ -78,6 +78,43 @@ class LabTests(unittest.TestCase):
         self.assertTrue(shot.summary()["fresh_canonical_boot"])
         self.assertEqual(shot.summary()["game_outcome"], "not_observed_or_verified")
 
+    def test_ui_registered_v1_diagnostic_is_explicit_and_full_boot_only(self):
+        from wii_ai_golf.shared.bridge_provenance import ATOMIC, SWING_V1
+        bridge = self.root.parent / "tools" / "mcp_bridge_swing_legacy_eval.py"
+        bridge.parent.mkdir(parents=True)
+        bridge.write_text(ATOMIC + "\\n" + SWING_V1 + "\\n", encoding="utf-8")
+        p = self.plan("integration.v1-diagnostic", a_lead=0)
+        cmd = list(p.command)
+        self.assertEqual(Path(cmd[1]).name, "run_golf_experiment.py")
+        self.assertIn("--send-live", cmd)
+        self.assertEqual(cmd[cmd.index("--bridge")+1], str(bridge.resolve()))
+        self.assertEqual(cmd[cmd.index("--a-lead-frames")+1], "0")
+        self.assertEqual(cmd[cmd.index("--a-prime-requests")+1], "0")
+        self.assertEqual(cmd[cmd.index("--script")+1], "collect_outcome_transition.py")
+        self.assertNotIn("--attach-running", cmd)
+        self.assertTrue(p.live)
+        p12 = self.plan("integration.v1-diagnostic", a_lead=12)
+        self.assertEqual(list(p12.command)[list(p12.command).index("--a-lead-frames")+1], "12")
+        for invalid in (-1, 1, 6, 30, 60, 91):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                self.plan("integration.v1-diagnostic", a_lead=invalid)
+        with self.assertRaisesRegex(ValueError, "does not accept --a-prime"):
+            self.plan("integration.v1-diagnostic", a_prime=60)
+        with self.assertRaisesRegex(ValueError, "only supported"):
+            self.plan("evaluation.capture", a_lead=12)
+
+    def test_v1_diagnostic_rejects_missing_wrong_or_autoloaded_bridge(self):
+        from wii_ai_golf.shared.bridge_provenance import ATOMIC, SWING_V1, NEUTRAL_V2, AUTOLOAD
+        bridge = self.root.parent / "tools" / "mcp_bridge_swing_legacy_eval.py"
+        with self.assertRaisesRegex(ValueError, "unavailable/invalid"):
+            self.plan("integration.v1-diagnostic")
+        bridge.parent.mkdir(parents=True, exist_ok=True)
+        for source in ("anything else", ATOMIC + SWING_V1 + NEUTRAL_V2,
+                       ATOMIC + SWING_V1 + AUTOLOAD):
+            with self.subTest(source=source), self.assertRaisesRegex(ValueError, "unavailable/invalid"):
+                bridge.write_text(source)
+                self.plan("integration.v1-diagnostic")
+
     def test_live_swing_is_distinct_diagnostic_not_s002_collector(self):
         p = self.plan("integration.swing", a_prime=60, follow_through=90)
         cmd = list(p.command)
