@@ -95,7 +95,9 @@ class LabTests(unittest.TestCase):
         self.assertTrue(p.live)
         p12 = self.plan("integration.v1-diagnostic", a_lead=12)
         self.assertEqual(list(p12.command)[list(p12.command).index("--a-lead-frames")+1], "12")
-        for invalid in (-1, 1, 6, 30, 60, 91):
+        p45 = self.plan("integration.v1-diagnostic", a_lead=45)
+        self.assertEqual(list(p45.command)[list(p45.command).index("--a-lead-frames")+1], "45")
+        for invalid in (-1, 91, 180, 1.5, True):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 self.plan("integration.v1-diagnostic", a_lead=invalid)
         with self.assertRaisesRegex(ValueError, "does not accept --a-prime"):

@@ -119,8 +119,8 @@ def plan(
         raise ValueError(f"{identifier} is planned, NOT runnable; {exp['description']}")
     if type(a_prime) is not int or not 0 <= a_prime <= 180:
         raise ValueError("--a-prime must be 0..180")
-    if type(a_lead) is not int or a_lead not in (0, 12):
-        raise ValueError("--a-lead is restricted to controlled 0 or 12 observed frames")
+    if type(a_lead) is not int or not 0 <= a_lead <= 90:
+        raise ValueError("--a-lead must be 0..90 observed Dolphin frames")
     if type(follow_through) is not int or not 0 <= follow_through <= 180:
         raise ValueError("--follow-through must be 0..180")
     if input_path is not None and kind not in {"compare", "recover", "motion_audit"}:
