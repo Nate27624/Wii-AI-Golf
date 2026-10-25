@@ -132,46 +132,61 @@ def read_instance(rpc,match,watchlist=()):
     return {"frame_start":frame_start,"frame_end":frame_end,
             "bytes_hex":raw.hex(),"child_windows":child_windows}
 
-def summarize(rows,phase_labels,checks,match,run_id):
+def summarize(rows,phase_labels,checks,match,run_id,child_count=0,child_overflow=False):
     stats=defaultdict(lambda:{"within_stage_changes":0,"between_stage_changes":0,
                                "plausible_float_changes":0})
     prior=None
     for row in rows:
-        data=bytes.fromhex(row["bytes_hex"])
-        if len(data)!=MAIN_BYTES:raise ValueError("Invalid golfer window bytes")
-        words=_words(data)
+        current={"main":bytes.fromhex(row["bytes_hex"])}
+        if len(current["main"])!=MAIN_BYTES:raise ValueError("Invalid golfer window bytes")
+        for parent_offset,raw in row.get("child_windows",{}).items():
+            key="child_at_main"+parent_offset
+            data=bytes.fromhex(raw)
+            if len(data)!=CHILD_BYTES:raise ValueError("Invalid child window")
+            current[key]=data
         if prior:
             stage,old=prior
-            for idx,(a,b) in enumerate(zip(old,words)):
-                if a==b:continue
-                entry=stats[idx*4]
-                key="within_stage_changes" if row["stage"]==stage else "between_stage_changes"
-                entry[key]+=1
-                try:
-                    va,vb=struct.unpack(">f",struct.pack(">I",a))[0],struct.unpack(">f",struct.pack(">I",b))[0]
-                    entry["plausible_float_changes"]+=int(
-                        all(math.isfinite(x) and 1e-6<abs(x)<10000 for x in (va,vb)))
-                except (OverflowError,struct.error):
-                    pass
-        prior=(row["stage"],words)
-    changed=[{"offset":f"+0x{off:03X}",**values} for off,values in stats.items()]
-    changed.sort(key=lambda x:(-x["within_stage_changes"],-x["between_stage_changes"],x["offset"]))
+            for region,data in current.items():
+                if region not in old:continue
+                for idx,(a,b) in enumerate(zip(_words(old[region]),_words(data))):
+                    if a==b:continue
+                    entry=stats[(region,idx*4)]
+                    key="within_stage_changes" if row["stage"]==stage else "between_stage_changes"
+                    entry[key]+=1
+                    try:
+                        va=struct.unpack(">f",struct.pack(">I",a))[0]
+                        vb=struct.unpack(">f",struct.pack(">I",b))[0]
+                        entry["plausible_float_changes"]+=int(
+                            all(math.isfinite(x) and 1e-6<abs(x)<10000 for x in (va,vb)))
+                    except (OverflowError,struct.error):
+                        pass
+        prior=(row["stage"],current)
+    changed=[{"region":region,"offset":f"+0x{off:03X}",**values}
+             for (region,off),values in stats.items()]
+    changed.sort(key=lambda x:(-x["within_stage_changes"],
+                                -x["between_stage_changes"],x["region"],x["offset"]))
     return {
-        "schema_version":1,"kind":"local-golfer-memory-audit","id":run_id,
+        "schema_version":2,"kind":"local-golfer-memory-audit","id":run_id,
         "candidate_only":True,"source_claim":SOURCE_NOTE,
         "game_id":"RSPE01","revision":1,"game_mode":4,
-        "source_global_search_range":"804BF000+1000",
+        "source_global_search_range":"804BF4D8+8",
         "global_pointer_candidates":checks["static_pointer_candidates"],
+        "source_static_slot_count":checks["source_static_slot_count"],
+        "census_frame_span":checks["census_frame_span"],
         "matched_scene_chains":1,
         "manager_slot_relative_offsets":[f"+0x{x:03X}" for x in match["slot_offsets"]],
         "observed_creator_scene_id_matches_golf":match["creator_scene_id"]==SCENE_ID,
+        "creator_scene_id_role":"previous_scene_not_current_scene_id",
+        "actual_scene_id_verified":True,"manager_backlink_verified":True,
         "phase_sample_counts":phase_labels,
         "samples":len(rows),"max_non_atomic_frame_span":max(
             row["frame_end"]-row["frame_start"] for row in rows),
+        "first_level_child_watch_count":child_count,
+        "first_level_child_watch_truncated":child_overflow,
         "changed_candidate_words":len(changed),
-        "top_relative_changes":changed[:64],
+        "top_relative_changes":changed[:100],
         "power_verified":False,"club_rotation_verified":False,
-        "warning":"Read-only RPGolMain* structural candidate, not verified club or power semantics; actual bytes and addresses are PRIVATE."
+        "warning":"Read-only candidate object graph, not identified club or power; bytes and runtime pointers remain PRIVATE."
     }
 
 def capture(rpc,stages,interval,frame_limit,private):
@@ -183,6 +198,8 @@ def capture(rpc,stages,interval,frame_limit,private):
                 "candidate_chains":len(matches),**checks,
                 "note":"No gameplay bytes dereferenced unless exactly one source-gated pointer chain matches."}
     match=matches[0]
+    watchlist,overflow=child_watchlist(rpc,match)
+    print("First-level candidate objects:",len(watchlist), "cap exceeded:",overflow,flush=True)
     count={};rows=[]
     with private.open("x",encoding="utf-8") as stream:
         for stage,(name,n) in enumerate(stages):
@@ -194,18 +211,20 @@ def capture(rpc,stages,interval,frame_limit,private):
             count[name]=count.get(name,0)+n
             for i in range(n):
                 t0=time.monotonic()
-                row=read_instance(rpc,match)
+                row=read_instance(rpc,match,watchlist)
                 if row["frame_end"]-row["frame_start"]>frame_limit:
                     raise RuntimeError("Non-atomic capture too long; partial private evidence retained")
                 row["stage"]=stage;row["phase"]=name
-                private_row={**row,"runtime_scene_address":f"0x{match['scene']:08X}",
+                private_row={**row,"watched_child_addresses":{
+                    f"+0x{x['parent_offset']:03X}":f"0x{x['pointer']:08X}"
+                    for x in watchlist},"runtime_scene_address":f"0x{match['scene']:08X}",
                              "runtime_golf_main_address":f"0x{match['gameplay']:08X}"}
                 stream.write(json.dumps(private_row,separators=(",",":"))+"\n")
                 stream.flush()
                 rows.append(row)
                 time.sleep(max(0,interval-(time.monotonic()-t0)))
                 print(f"{name}: {i+1}/{n} game frames {row['frame_start']}..{row['frame_end']}",flush=True)
-    return summarize(rows,count,checks,match,private.stem)
+    return summarize(rows,count,checks,match,private.stem,len(watchlist),overflow)
 
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
