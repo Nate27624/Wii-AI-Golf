@@ -140,6 +140,40 @@ class GolferNullControlTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "canonical private"):
                 audit.read_private_capture(unauthorized, private_dir=directory)
 
+    def test_missing_private_capture_reports_specific_safe_reason(self):
+        with tempfile.TemporaryDirectory() as td:
+            output = StringIO()
+            with patch.object(audit, "PRIVATE_CAPTURES", Path(td)):
+                with redirect_stderr(output):
+                    status = audit.main(["--latest"])
+            self.assertEqual(status, 1)
+            self.assertIn("no private S002 golfer capture found", output.getvalue())
+            self.assertNotIn(td, output.getvalue())
+
+    def test_incomplete_private_capture_reports_safe_row_count_gate(self):
+        with tempfile.TemporaryDirectory() as td:
+            directory = Path(td)
+            partial = directory / "golfer-20261025T031834Z-85d5b836-RAW-PRIVATE.jsonl"
+            partial.write_text(json.dumps(rows_for()[0]) + "\\n", encoding="utf-8")
+            output = StringIO()
+            with patch.object(audit, "PRIVATE_CAPTURES", directory):
+                with redirect_stderr(output):
+                    status = audit.main(["--latest"])
+            self.assertEqual(status, 1)
+            self.assertIn("need between 4 and 60 captured snapshots", output.getvalue())
+            self.assertNotIn(td, output.getvalue())
+            self.assertNotIn("0x80160000", output.getvalue())
+
+    def test_unknown_value_error_is_never_echoed(self):
+        output = StringIO()
+        with patch.object(audit, "find_latest_private",
+                          side_effect=ValueError("SECRET_PRIVATE_0x81234567")):
+            with redirect_stderr(output):
+                status = audit.main(["--latest"])
+        self.assertEqual(status, 1)
+        self.assertNotIn("SECRET_PRIVATE", output.getvalue())
+        self.assertIn("did not match the reviewed input schema", output.getvalue())
+
     def test_cli_does_not_print_private_paths_or_values(self):
         with tempfile.TemporaryDirectory() as td:
             directory = Path(td)
