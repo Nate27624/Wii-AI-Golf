@@ -88,7 +88,7 @@ def launch(root: Path = ROOT) -> int:
     for key, label, default in (
         ("input", "Input path", ""), ("second-input", "Second input", ""),
         ("out", "Output path", ""), ("a-prime", "A prime requests", "0"),
-        ("a-lead", "Observed A lead frames (V1: 0/12)", "0"),
+        ("a-lead", "Observed A lead frames (V1: 0–90)", "0"),
         ("follow-through", "Follow-through", "30"), ("contact", "Contact yes/no/unknown", ""),
         ("green", "Green yes/no/unknown", ""), ("distance", "Displayed distance", ""),
     ):
