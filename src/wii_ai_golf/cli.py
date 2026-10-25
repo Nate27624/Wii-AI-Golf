@@ -157,6 +157,14 @@ def build_parser() -> argparse.ArgumentParser:
     audit.add_argument("--baseline")
     audit.add_argument("--out")
 
+    shared_tests = r_sub.add_parser(
+        "test", help="Sync main, run offline tests, and publish sanitized status using existing Git login"
+    )
+    shared_tests.add_argument("--pattern", default="test_*.py")
+    shared_tests.add_argument("--local-only", action="store_true",
+                              help="Run tests but do not publish to GitHub")
+    r_sub.add_parser("study", help="Show the preregistered swing-power study (read-only)")
+
     tests = sub.add_parser("test", help="Run project unittest suite against THIS checkout")
     tests.add_argument("--pattern", default="test_*.py")
 
@@ -367,11 +375,13 @@ def execute(args: argparse.Namespace) -> int:
                 print(json.dumps(bundle, sort_keys=True, indent=2))
             else:
                 print(f"Verified local bundle: {path}")
-                print(f"Execution records: {bundle['record_count']} | "
-                      f"Skipped invalid/incomplete: {skipped}")
+                print(f"Saved {bundle['record_count']} completed run statuses locally "
+                      f"({skipped} incomplete/invalid files ignored).")
                 print(f"SHA-256: {bundle['sha256']}")
-                print("NO NETWORK. NO GITHUB TOKEN. PROCESS STATUS ONLY, not golf outcomes.")
-                print("Attach the exported JSON to ChatGPT for separate reviewed GitHub publication.")
+                print("LOCAL BACKUP ONLY: nothing was sent to GitHub or research agents.")
+                print("For one-command offline testing + Git sharing, use:")
+                print("  py scripts/golf.py research test")
+                print("No new token is needed if Git is already authenticated.")
             return 0
         if args.lab_action == "verify-export":
             from .lab.export import latest_export, verify_export_file
@@ -496,6 +506,20 @@ def execute(args: argparse.Namespace) -> int:
                             "--enable-swing"))
         return _run(_script_command("patch_felk_bridge.py", *args.arguments))
     if args.group == "research":
+        if args.research_action == "test":
+            # Reuse the already-established CLI Git transport and strict
+            # research observation sanitizer. No second uploader, API token,
+            # Dolphin startup or manual export handoff.
+            flags = ["test", "--pattern", args.pattern]
+            if args.local_only:
+                flags.append("--no-upload")
+            print("RESEARCH TEST: offline tests; " +
+                  ("LOCAL ONLY, no publication." if args.local_only else
+                   "publishes a sanitized status via configured Git authentication."),
+                  flush=True)
+            return _run(_script_command("research_cli.py", *flags))
+        if args.research_action == "study":
+            return _run(_script_command("research_cli.py", "study"))
         if args.research_action == "studies":
             data = study_summary(args.queue)
         elif args.research_action == "evidence":
