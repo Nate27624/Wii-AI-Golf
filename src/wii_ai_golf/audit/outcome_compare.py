@@ -88,6 +88,14 @@ def _run(doc: dict[str, Any], index: int) -> tuple[dict[str, Any], dict[str, Any
         raise ValueError("A-button prime count must be 0..180 or null")
     if prime_applied is not None and type(prime_applied) is not bool:
         raise ValueError("a_button_prime_applied must be boolean or null")
+    lead_frames = requested.get("a_lead_requested_frames")
+    observed_lead = requested.get("a_lead_observed_frame_delta")
+    if lead_frames is not None and (type(lead_frames) is not int
+                                    or not 0 <= lead_frames <= 90):
+        raise ValueError("a_lead_requested_frames must be integer 0..90 or null")
+    if observed_lead is not None and (type(observed_lead) is not int
+                                      or observed_lead < 0):
+        raise ValueError("a_lead_observed_frame_delta must be a nonnegative integer or null")
     overview = {
         "run_number": index,
         "displayed_distance_human": value,
@@ -99,6 +107,8 @@ def _run(doc: dict[str, Any], index: int) -> tuple[dict[str, Any], dict[str, Any
         "trace_sha256": trace_hash,
         "a_button_only_prime_requests": prime_requests,
         "a_button_prime_applied": prime_applied,
+        "a_lead_requested_frames": lead_frames,
+        "a_lead_observed_frame_delta": observed_lead,
         "candidate_count_in_summary": len(candidates),
         "candidate_list_truncated": bool(ranking.get("candidates_truncated", False)),
         "literal_memory_matches_to_displayed_number": sum(
@@ -160,8 +170,16 @@ def compare_outcome_runs(reports: list[dict[str, Any]]) -> dict[str, Any]:
     complete_prime = all(s["a_button_prime_applied"] is not None
                          and s["a_button_only_prime_requests"] is not None
                          for s in sessions)
-    priming_same = complete_prime and len({
-        (s["a_button_prime_applied"], s["a_button_only_prime_requests"])
+    # Legacy summaries can omit frame-measured A lead altogether. Do not
+    # declare those full programs comparable with frame-observed protocols
+    # just because their waveform SHA and button RPC counts match.
+    complete_lead = all(s["a_lead_requested_frames"] is not None
+                        and (s["a_lead_requested_frames"] == 0
+                             or s["a_lead_observed_frame_delta"] is not None)
+                        for s in sessions)
+    priming_same = complete_prime and complete_lead and len({
+        (s["a_button_prime_applied"], s["a_button_only_prime_requests"],
+         s["a_lead_requested_frames"], s["a_lead_observed_frame_delta"])
         for s in sessions}) == 1
     different_labels = len({(str(s["displayed_distance_human"]),
                              s["displayed_unit_human"], s["finished_on_green_human"])
