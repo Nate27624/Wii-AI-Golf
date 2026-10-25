@@ -145,6 +145,85 @@ def _replace_controller_section(original: str) -> tuple[str, bool, dict[str, str
     return "".join(lines), changed, prior
 
 
+
+# Dolphin's default Win32 Wii Remote controls map mouse movement to the
+# Point/IR axes, mouse clicks to A/B, and middle click to Shake. A/B/shake
+# interference is especially problematic when collecting scripted swings.
+_POINT_AXES = ("IR/Up", "IR/Down", "IR/Left", "IR/Right")
+_CONTROL_ASSIGNMENT = re.compile(
+    r"^(\s*)([^=;#\r\n]+?)(\s*=\s*)([^;#\r\n]*?)(\s*(?:[;#].*)?)$"
+)
+_MOUSE_CONTROL = re.compile(
+    r"\b(?:Cursor\s+[XY]|Click\s+\d+|(?:Left|Right|Middle)\s+Click|"
+    r"Mouse\s+(?:X|Y|Wheel|Button|Left|Right)|Wheel\s+(?:Up|Down|Left|Right))\b",
+    re.IGNORECASE,
+)
+
+
+def _isolate_physical_mouse(original: str) -> tuple[str, bool, list[str]]:
+    """Remove mouse controller bindings in Wii Remote 1, never global OS mouse.
+
+    Force Point IR axes empty, even when not present in the INI: this makes
+    their inactive state explicit across Dolphin defaults/profiles. Disable
+    IMUIR (a second pointing mode). Clear other controls only if they name
+    recognizably mouse-derived inputs (Click, Cursor, Wheel, etc.). Preserve
+    keyboard-only A/B and all other Wii Remote and Dolphin sections.
+    """
+    lines = original.splitlines(keepends=True)
+    spans = [(i, m.group(1).strip()) for i, line in enumerate(lines)
+             if (m := _SECTION.fullmatch(line.rstrip("\r\n")))]
+    wiis = [i for i, name in spans if name.lower() == "wiimote1"]
+    if len(wiis) != 1:
+        raise ControllerConfigError("Cannot isolate mouse without one [Wiimote1] section")
+    start = wiis[0] + 1
+    end = next((i for i, _ in spans if i >= start), len(lines))
+    found: set[str] = set()
+    cleared: list[str] = []
+    changed = False
+    newline = "\r\n" if "\r\n" in original else "\n"
+    for i in range(start, end):
+        raw = lines[i]
+        match = _CONTROL_ASSIGNMENT.fullmatch(raw.rstrip("\r\n"))
+        if match is None:
+            continue
+        key = match.group(2).strip()
+        fold = key.lower()
+        if fold in found:
+            # Duplicate input keys make the effective Dolphin setting ambiguous.
+            # Do not rewrite any file in this case.
+            raise ControllerConfigError(f"Duplicate [Wiimote1] configuration key: {key}")
+        found.add(fold)
+        value = match.group(4)
+        target: str | None = None
+        if fold in (name.lower() for name in _POINT_AXES):
+            target = ""
+        elif fold == "imuir/enabled":
+            target = "False"
+        elif "/" in key and _MOUSE_CONTROL.search(value):
+            # Conservatively disable the entire composite expression rather
+            # than leave a branch that can still read the physical mouse.
+            target = ""
+        if target is not None and value.strip() != target:
+            eol = "\r\n" if raw.endswith("\r\n") else "\n" if raw.endswith("\n") else ""
+            lines[i] = (match.group(1) + match.group(2) + match.group(3) +
+                        target + match.group(5) + eol)
+            changed = True
+            cleared.append(key)
+    # Missing axis keys are explicitly added as blank. When Dolphin loads
+    # the config, an empty control expression means no input bound.
+    to_add = [(key, "") for key in _POINT_AXES if key.lower() not in found]
+    if "imuir/enabled" not in found:
+        to_add.append(("IMUIR/Enabled", "False"))
+    if to_add:
+        if end > 0 and not lines[end - 1].endswith(("\n", "\r")):
+            lines[end - 1] += newline
+        for offset, (key, value) in enumerate(to_add):
+            lines.insert(end + offset, f"{key} = {value}{newline}")
+        changed = True
+        cleared.extend(key for key, _ in to_add)
+    return "".join(lines), changed, cleared
+
+
 def ensure_emulated_controller(dolphin: Path, *, user_dir: Path | None = None,
                                environ: Mapping[str, str] | None = None,
                                home: Path | None = None) -> dict[str, object]:
@@ -156,6 +235,8 @@ def ensure_emulated_controller(dolphin: Path, *, user_dir: Path | None = None,
     except UnicodeDecodeError as exc:
         raise ControllerConfigError(f"Unrecognized encoding in {ini}; no change") from exc
     rewritten, changed, before = _replace_controller_section(original)
+    rewritten, isolated, cleared_mouse_controls = _isolate_physical_mouse(rewritten)
+    changed = changed or isolated
     backup = ini.with_name(ini.name + ".wii-ai-golf.original.bak")
     if changed:
         # Never overwrite the very first backup even on subsequent launches.
@@ -177,5 +258,7 @@ def ensure_emulated_controller(dolphin: Path, *, user_dir: Path | None = None,
         "prior": before,
         "source": "Emulated Wii Remote (1)",
         "extension": "None",
+        "mouse_input_isolated": True,
+        "mouse_controls_cleared": cleared_mouse_controls,
         "backup": str(backup) if backup.exists() else None,
     }
