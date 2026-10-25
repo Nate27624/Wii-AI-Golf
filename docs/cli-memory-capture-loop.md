@@ -26,6 +26,29 @@ Sources: `kiwi515/ogws_info` RPGolConfig.h, RPGolFieldManager.h,
 RPSportsSequenceMgr.h and existing
 `wii_ai_golf.audit.outcome_transition` source gates.
 
+## Zero-live-test first run: reuse your existing outcome RAM
+
+Before collecting any new memory, this separate offline path analyzes source-
+validated `outcome-*-RAW-PRIVATE.jsonl` snapshots already on your PC. It
+treats their original `pre`, `post`, and `settled` markers as recorded,
+without assuming the ball was struck. It requires the legacy broad snapshots
+and never runs Dolphin.
+
+```powershell
+Set-Location "D:\Projects\Wii Golf AI\Wii-AI-Golf"
+$raw = Get-ChildItem "..\Wii-AI-Golf-Data\captures" `
+    -Filter "outcome-*-RAW-PRIVATE.jsonl" |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $raw) { throw "No earlier S002 outcome RAM capture to reprocess." }
+
+py scripts/analyze_existing_golf_capture.py --input "$($raw.FullName)"
+```
+
+This creates a unique sanitized `golf-memory-audit-...-summary.json`
+next to the existing private file and attempts to publish it to
+`research/observations` through the established uploader.
+Use `--no-upload` to inspect first. It does not move or expose raw RAM.
+
 ## First experiment: stillness versus camera movement
 
 **Only after the capture PR is merged into main and tests pass.**
