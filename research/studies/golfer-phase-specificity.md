@@ -45,3 +45,31 @@ The audit reads the local private file, produces a NEW sanitized summary in the 
 - The emitted fields `power_verified=false` and `club_pose_verified=false` cannot be promoted without a NEW separately approved same-shot experiment.
 
 **Next gate:** S002 and S001 need a bounded, validated golfer-related window and frame-timed a_hold/back/forward samples from the SAME stroke, while proving sampling overhead does not break the successful 45-frame A lead. S003 may then join truly distinct human-observed power bins; 100.0ft off-green stays a penalty.
+
+## Preferred integrated offline auto-upload pilot (PR #137)
+
+This is **not** the #135 main-based branch described above: it includes the still-unmerged S000 typed privacy gate from #126 / #136 so the canonical Git-credential uploader can be exercised safely once tests pass. Never force merge or change the canonical working tree.
+
+```powershell
+$repo = "D:\Projects\Wii Golf AI\Wii-AI-Golf"
+$work = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Memory-Controls-137"
+$captures = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures"
+if (Test-Path $work) { throw "Pilot folder exists; do not overwrite it" }
+git -C $repo fetch origin pull/137/head
+if ($LASTEXITCODE -ne 0) { throw "Cannot fetch integrated pilot" }
+git -C $repo worktree add --detach $work FETCH_HEAD
+if ($LASTEXITCODE -ne 0) { throw "Cannot prepare isolated pilot" }
+Set-Location $work
+py -m unittest discover -s tests -p "test_golfer_phase_specificity.py" -v
+if ($LASTEXITCODE -ne 0) { throw "Golfer audit tests failed; stop" }
+py -m unittest discover -s tests -p "test_public_observation.py" -v
+if ($LASTEXITCODE -ne 0) { throw "Publisher privacy tests failed; stop" }
+py -m unittest discover -s tests -v
+if ($LASTEXITCODE -ne 0) { throw "Full suite failed; stop" }
+$raw = Get-ChildItem $captures -Filter "golfer-*-RAW-PRIVATE.jsonl" |
+  Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $raw) { throw "No prior local S002 golfer RAM capture" }
+py scripts/audit_golfer_phase_specificity.py --input "$($raw.FullName)"
+```
+
+Expected: new *sanitized* local summary and, if the publisher trust checks and Git credentials succeed, a **sanitized JSON** file on the separate `research/observations` branch. No Dolphin or new RAM reads. If the script refuses publication, inspect the local sanitized report and error; never pass the RAW-PRIVATE file to `publish_summary`, Git, or ChatGPT. The integrated pilot is not approved for merge until S002/S000 owners review and host tests pass.
