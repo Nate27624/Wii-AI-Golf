@@ -17,6 +17,11 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_DIR = ROOT / "scripts"
+_LOCAL_SRC = str(ROOT / "src")
+if _LOCAL_SRC in sys.path:
+    sys.path.remove(_LOCAL_SRC)
+sys.path.insert(0, _LOCAL_SRC)
+from wii_ai_golf.integration.post_boot import post_boot_action_args
 DEFAULT_PROFILE = "green-pre-start"
 # These scripts bootstrap/reset themselves or administer configuration rather
 # than consume the already booted, ready-to-swing game. Double launch is unsafe.
@@ -89,8 +94,8 @@ def build_commands(*, action: str, action_args: list[str],
     # probe must explicitly consume this running session without relaunching.
     # Keep --attach-running forbidden in user-supplied action_args: only this
     # trusted post-boot handoff may inject it, never a bare user command.
-    handoff_args = ["--attach-running"] if target.name == "probe_swing.py" else []
-    action_command = [python, str(target), *handoff_args, *action_args]
+    child_args = post_boot_action_args(target.name, action_args)
+    action_command = [python, str(target), *child_args]
     if not any(x == "--port" or x.startswith("--port=") for x in action_args):
         action_command.extend(["--port", str(port)])
     return boot, action_command
