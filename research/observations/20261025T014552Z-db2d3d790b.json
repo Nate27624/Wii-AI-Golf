@@ -1,0 +1,27 @@
+{
+  "bridge_sha256": "fe04cb0ba312c559d5cb7edb8d0ac2185aca72046839a903160929ee7c58ca19",
+  "capture_status": "sanitized_human_annotation_only",
+  "controller": {
+    "a_lead_observed_frame_delta": 45,
+    "a_lead_requested_frames": 45,
+    "generated_trace_frames": 89,
+    "trace_sha256": "b63a1818ba5086c64b0fe7338236a498240e4be97bbd111809a772d783699891"
+  },
+  "git_commit": "d72de21d5b42625280b9068ccc8ab9074a3880b3",
+  "human": {
+    "contact_human": "yes",
+    "displayed_distance_human": 100.0,
+    "displayed_unit_human": "ft",
+    "finished_on_green_human": "no",
+    "initial_club_pose_human": "back",
+    "shot_start_frame_before_controller_trace": 2559
+  },
+  "id": "20261025T014552Z-db2d3d790b",
+  "kind": "v1",
+  "process_exit_code": 0,
+  "requested_a_lead_frames": 45,
+  "schema": 1,
+  "settled_screen_observation": "operator_confirmed_before_transition",
+  "started_utc": "2026-10-25T01:45:52.991850+00:00",
+  "verified_game_score": false
+}
