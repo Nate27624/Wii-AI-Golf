@@ -30,6 +30,7 @@ KINDS = {
     "bridge_inspect": "offline", "compare": "offline",
     "motion_audit": "offline", "recover": "offline", "demo": "offline",
     "swing": "live", "capture": "live", "unavailable": "planned",
+    "test_file": "offline",
 }
 
 
@@ -77,6 +78,12 @@ def load_catalog(path: Path = CATALOG) -> list[dict[str, str]]:
     return result
 
 
+def available_experiments(root: Path = ROOT) -> list[dict[str, str]]:
+    """Live registry: reviewed workflows plus merged local tests/test_*.py."""
+    from .agent_tests import combined_catalog
+    return combined_catalog(root, load_catalog(root / "research" / "experiments.json"))
+
+
 def get_experiment(identifier: str, *, catalog: Sequence[dict[str, str]]) -> dict[str, str]:
     for item in catalog:
         if item["id"] == identifier:
@@ -105,7 +112,7 @@ def plan(
     follow_through: int = 30, contact: str | None = None,
     green: str | None = None, distance: str | None = None,
 ) -> Plan:
-    entries = load_catalog(root / "research" / "experiments.json") if catalog is None else catalog
+    entries = available_experiments(root) if catalog is None else catalog
     exp = get_experiment(identifier, catalog=entries)
     kind = exp["kind"]
     if exp["mode"] == "planned":
@@ -135,7 +142,12 @@ def plan(
             raise ValueError(f"{identifier} requires {option}")
         return value
 
-    if kind.startswith("tests_"):
+    if kind == "test_file":
+        from .agent_tests import validated_test_filename
+        filename = validated_test_filename(identifier, root)
+        command = [python, "-m", "unittest", "discover", "-s", "tests",
+                   "-p", filename, "-v"]
+    elif kind.startswith("tests_"):
         patterns = {
             "tests_all": "test_*.py",
             "tests_integration": "test_integration_*.py",
