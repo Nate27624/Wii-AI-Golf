@@ -200,6 +200,7 @@ def plan(
                          "--script", "collect_outcome_transition.py", "--",
                          "--send-live-swing", "--a-prime-requests", "0",
                          "--a-lead-frames", str(a_lead),
+                         "--observe-start-pose",
                          root=root, python=python)
     elif kind == "capture":
         # Must not call collect_outcome_transition.py bare. Exactly one outer
