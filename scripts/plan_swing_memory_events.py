@@ -6,7 +6,6 @@ NONE of the labels implies game-side recognition or ball contact.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
@@ -22,6 +21,9 @@ PHASES = ("a_held_neutral", "backswing", "forward", "followthrough", "a_release"
 LENGTHS = (12, 15, 20, 30, 12)
 TOTAL = sum(LENGTHS)
 PROBE_EVENT_INDICES = (0, 11, 12, 26, 27, 46, 47, 76, 77, 88)
+# Published human-contact baseline, 1.0 speed, 1.0 backswing, A lead 45.
+# research/observations/20261025T023456Z-15d1c97c12.json
+EXPECTED_BASELINE_SHA256 = "b63a1818ba5086c64b0fe7338236a498240e4be97bbd111809a772d783699891"
 
 
 def _phase(sample: SwingSample) -> str:
@@ -86,6 +88,8 @@ def plan(samples: list[SwingSample], *, observed_a_lead_requested: int = 45):
     payload = _payload(samples)
     fingerprint = hashlib.sha256(
         json.dumps(payload, separators=(",", ":")).encode("utf-8")).hexdigest()
+    if fingerprint != EXPECTED_BASELINE_SHA256:
+        raise ValueError("Trace digest differs from approved human-contact V1 baseline")
     return {
         "schema_version": 1,
         "kind": "offline_v1_swing_memory_event_manifest",
