@@ -26,6 +26,7 @@ sys.path.insert(0, _LOCAL_SRC)
 # probe_swing is a sibling script; support an isolated Python -I invocation.
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from wii_ai_golf.operator_dialogs import operator_input
 from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.integration.swing_client import SwingTraceClient
 from wii_ai_golf.integration.button_prime import prime_a_button, release_buttons
@@ -42,6 +43,8 @@ def _answer(prompt: str, *, allowed: set[str],
             input_fn: Callable[[str], str]) -> str:
     while True:
         response = input_fn(prompt).strip().lower()
+        if response == "q":
+            raise RuntimeError("Operator canceled outcome labeling")
         if response in allowed:
             return response
         print("Choose one of: " + ", ".join(sorted(allowed)))
@@ -56,6 +59,8 @@ def _visual_label(input_fn: Callable[[str], str]) -> dict[str, Any]:
     # the game's natural "100.0ft" rather than a bare "100.0".
     while True:
         raw = input_fn("Displayed distance (e.g. 2.1ft, 100.0ft; blank if none): ")
+        if raw.strip().lower() == "q":
+            raise RuntimeError("Operator canceled outcome labeling")
         try:
             distance, suffix_unit = parse_displayed_distance(raw)
             break
@@ -71,7 +76,7 @@ def _visual_label(input_fn: Callable[[str], str]) -> dict[str, Any]:
 
 def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 post_samples: int, settled_samples: int, interval: float,
-                input_fn: Callable[[str], str] = input,
+                input_fn: Callable[[str], str] = operator_input,
                 sleep_fn: Callable[[float], None] = time.sleep,
                 snapshot_fn: Callable[..., dict[str, Any]] = capture_outcome_windows,
                 swing_fn: Callable[[Any], Any] | None = None,

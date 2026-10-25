@@ -20,6 +20,7 @@ if _LOCAL_SRC in sys.path:
     sys.path.remove(_LOCAL_SRC)
 sys.path.insert(0, _LOCAL_SRC)
 
+from wii_ai_golf.operator_dialogs import operator_input
 from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.integration.savestates import StateCatalog, StateManager
 from wii_ai_golf.integration.swing_client import SwingTraceClient
@@ -129,7 +130,7 @@ def main() -> None:
         print("Menu sequence sent. Actual ready-to-swing state is NOT yet verified.")
         if args.swing:
             if args.confirm_before_swing:
-                answer = input("Visually confirm the first ball is ready; ENTER to swing or q to cancel: ")
+                answer = operator_input("Visually confirm the first ball is ready; ENTER to swing or q to cancel: ")
                 if answer.strip():
                     print("Swing canceled; navigation complete.")
                     return
