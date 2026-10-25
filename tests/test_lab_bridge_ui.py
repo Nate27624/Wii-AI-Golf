@@ -103,7 +103,7 @@ class BridgeScreenTests(unittest.TestCase):
 
     def test_gui_prepare_is_background_and_reported_inline(self):
         source = inspect.getsource(gui.launch)
-        prep = source.split("    def prepare_historical_v1():", 1)[1].split(
+        prep = source.split("    def prepare_historical_v1(*, continue_to_live: bool = False):", 1)[1].split(
             "    def check_game_job():", 1)[0]
         self.assertIn('plan("integration.prepare-v1"', prep)
         self.assertIn("execute(trial", prep)
