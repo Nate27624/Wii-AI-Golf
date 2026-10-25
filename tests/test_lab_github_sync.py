@@ -141,6 +141,10 @@ class LabGitSyncTests(unittest.TestCase):
         result = sync_merged_main(self.root, lab_data=self.data, run=injecting_runner)
         self.assertEqual(result.status, "blocked")
         self.assertFalse(fake.merged)
+        # A live task arriving during fetch must halt before even checking
+        # FETCH_HEAD, much less performing a fast-forward merge.
+        self.assertFalse(any(call[1:3] == ["rev-parse", "FETCH_HEAD"]
+                             for call in fake.calls))
 
     def test_new_merged_files_automatically_become_offline_experiments(self):
         tests = self.root / "tests"

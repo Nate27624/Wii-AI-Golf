@@ -92,6 +92,12 @@ def _sync_impl(
             return SyncReport("blocked", note="Working tree has local changes; commit/move them before updating.")
         before = git("rev-parse", "HEAD")
         git("fetch", "--no-tags", REMOTE, BRANCH, timeout=timeout_s)
+        # A live session may begin while fetch is in progress. Check right
+        # after the network operation, before any further Git commands.
+        # Unknown/legacy lock records fail closed through lock_busy().
+        if lab_data is not None and lock_busy(lab_data / "live-session.lock"):
+            return SyncReport("blocked", before=before,
+                              note="Lab live task started during fetch; update deferred.")
         after = git("rev-parse", "FETCH_HEAD")
         if before == after:
             return SyncReport("up_to_date", before, after,
