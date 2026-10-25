@@ -12,13 +12,13 @@ Budget: 0 new game attempts and at most 32 preexisting sanitized S002 reports. N
 
 The new wii_ai_golf.modeling.golfer_probe_review.review_golfer_probe_summaries(reports) parses S002 local-golfer-memory-audit summaries (or no_unique_golfer_pointer_chain diagnostics) and returns only safe counts, relative offsets, frame-span advisories and next action.
 
-Validation requires exact RSPE01 US Rev1 / mode4, singleton-candidate status, creator-scene ID match, two or more idle/aim control snapshots, 4-byte aligned 0x100-window offsets, bounded counts, no duplicate IDs. It always emits estimated_power_percent=null, memory_power_model_ready=false and observed_real_swing_sample_count=0. It NEVER emits raw bytes, absolute RAM addresses, local paths, or caller free-text.
+Validation requires exact RSPE01 US Rev1 / mode4, singleton-candidate status, creator-scene diagnostic presence (true OR false), two or more idle/aim control snapshots, 4-byte aligned 0x100-window offsets, bounded counts, no duplicate IDs. It always emits estimated_power_percent=null, memory_power_model_ready=false and observed_real_swing_sample_count=0. It NEVER emits raw bytes, absolute RAM addresses, local paths, or caller free-text.
 
 Data present during idle/aim is a NEGATIVE CONTROL even if a bit pattern resembles finite f32. The analysis cannot establish a distinct physical power response. Max non-atomic read span >12 frames is advisory for timing invalidity; it cannot support precise swing timing.
 
 ## Live S002 safety review and owner blockers
 
-Code review of PR #129 scripts/capture_golfer_memory.py identified two missing guards: source RPSysScene +0x40 creator ID is only printed, not gated when selecting a unique candidate; and the initial RSPE01 revision + RPGolConfig mode4 gate is not re-run after user prompts/before every read. Please close those gaps or provide reviewed reasons why a different validation is safer before operator live use; S003 cannot mutate S002-owned live code.
+SOURCE CORRECTION: doldecomp/ogws RPSysScene.h says mCreatorSceneID at +0x40 is the PREVIOUS/PARENT scene, not the current scene. It can legitimately differ from current Golf scene ID 5; S002 PR #129 is correct to use it diagnostically and must NOT require creator ID==5. The remaining concern: initial RSPE01 revision + RPGolConfig mode4 gate should be checked again after operator prompts before every candidate memory read; please review and patch that with S002 ownership. S003 cannot mutate S002-owned live code.
 
 The known source links are EGG::SceneManager current scene +0x0C and ID +0x18, RPSportsBaseScene sport +0x54, RPGolScene's RPGolMain* member +0x9C. Map symbol locations are not live instance pointers; RPGolScene+0x9C must NEVER be confused with golf_field+0x9C minimap effect pointer. Source-gated candidate search is not an established gameplay decoder.
 
@@ -27,7 +27,7 @@ The known source links are EGG::SceneManager current scene +0x0C and ID +0x18, R
 | Result | S003 conclusion |
 | --- | --- |
 | No unique candidate / ambiguous static census | Stop. S002 source-investigates singleton, no gameplay power. |
-| Creator scene mismatch or missing revision/mode | Reject; obtain S002 safety fix before any future trial. |
+| Previous/creator scene differs from Golf | Expected/possible: diagnostic only; do NOT reject because of that difference. |
 | Unique gated candidate with zero relative word changes | Negative for sampled 0x100-byte window in idle/aim only; source-inspect inner gameplay member pointers offline. |
 | Unique gated candidate with word changes | Camera/idle confounding, not power. Follow source data ownership and design true same-shot frame capture with negatives. |
 | Slow non-atomic snapshot or no per-stage counts | No fast temporal effect can be inferred. |
