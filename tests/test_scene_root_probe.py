@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from pathlib import Path
 import sys
 import unittest
@@ -55,6 +56,29 @@ class FakeRPC:
 
 
 class SceneRootTests(unittest.TestCase):
+    def test_main_local_sanitized_output_never_contains_pointer_values(self):
+        class Context:
+            def __enter__(self):
+                return FakeRPC()
+            def __exit__(self, typ, value, traceback):
+                return False
+        with tempfile.TemporaryDirectory() as tmp:
+            outfile = Path(tmp) / "scene-summary.json"
+            with patch.object(scene, "FelkRPC", return_value=Context()):
+                self.assertEqual(scene.main(["--attach-running", "--no-upload",
+                                             "--out", str(outfile)]), 0)
+            data = json.loads(outfile.read_text(encoding="utf-8"))
+            self.assertEqual(data["study_id"], "S002-GOLF-SCENE-ROOT-TRIAGE")
+            self.assertEqual(data["stable_slot_indices"], [0])
+            for value in ("90020000", "90030000", "90040000", "804BF4D8"):
+                self.assertNotIn(value, outfile.read_text(encoding="utf-8"))
+
+    def test_main_fails_without_explicit_attach_running(self):
+        with patch.object(scene, "FelkRPC") as bridge:
+            with self.assertRaises(SystemExit):
+                scene.main([])
+            bridge.assert_not_called()
+
     def test_known_golf_candidate_is_stable_but_not_type_verified(self):
         rpc = FakeRPC()
         result = scene.probe(rpc)
