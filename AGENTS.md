@@ -6,6 +6,10 @@ Coordinate separate AI coding/research sessions to develop a scientifically repr
 
 Every session MUST read README, this document, research/ledger.md, research/queue.jsonl, open GitHub Issues/PRs and relevant tests before changing code.
 
+## S000 GUI result-handling rule
+
+The operator reported that **Inspect bridges** opened a blank console and a generic missing-log popup instead of showing any V1/V2 facts. UI diagnostics must render **structured, action-specific results in the application itself**; do not bounce users between short-lived consoles, hidden `*.log` files, and generic message boxes. Read-only inexpensive inspections can run directly; write-capable preparation must use the same reviewed Lab runner and show progress/errors in-window. Continue to record local provenance while keeping raw RAM local and interactive live Dolphin inputs explicitly approved. Add tests covering missing backup, wrong revision, mismatched V1 copy and no missing-log popup.
+
 ## One public CLI (2026-10-24)
 
 The project now has one **user/operator-facing entrypoint**: `py scripts/golf.py`. Use [docs/cli.md](docs/cli.md) for command reference, [research/README.md](research/README.md) for the S001–S005 research program and [docs/milestones.md](docs/milestones.md) for gates.
