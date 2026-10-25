@@ -117,6 +117,18 @@ class LabGitSyncTests(unittest.TestCase):
         self.assertEqual(result.status, "blocked")
         self.assertFalse(fake.calls)
 
+    def test_offline_lab_test_lock_blocks_git_update(self):
+        self.data.mkdir(parents=True)
+        with core.lab_run_lock(self.data):
+            fake = FakeGit()
+            result = sync_merged_main(self.root, lab_data=self.data, run=fake)
+            self.assertEqual(result.status, "blocked")
+            self.assertFalse(fake.calls)
+            with self.assertRaisesRegex(ValueError, "Another Lab test"):
+                with core.lab_run_lock(self.data):
+                    self.fail("must not start a second overlapping Lab run")
+        self.assertFalse((self.data / "run-session.lock").exists())
+
     def test_live_session_started_during_fetch_prevents_merge(self):
         fake = FakeGit()
         def injecting_runner(argv, **kw):
