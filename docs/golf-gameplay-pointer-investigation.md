@@ -58,6 +58,44 @@ The symbol triage reports relative categories and match counts only.
 source map, but calling or tracing it to find a live scene instance
 still requires independent implementation review.
 
+## Updated verified chain — cross-checked with doldecomp/ogws
+
+The second, independent [doldecomp/ogws](https://github.com/doldecomp/ogws)
+source adds the **manager-to-scene** relationship (for its documented
+`RSPE01_01` structures):
+
+| Level | Evidence | Offset / status |
+| --- | --- | --- |
+| `RPSysSceneMgr::spInstance` | Singleton declaration and implementation: `RPSingleton.h`, `RPSysSceneMgr.cpp` | Static **storage address unknown** |
+| `EGG::SceneManager::mCurrentScene` | `include/egg/core/eggSceneManager.h` | `+0x0C` from live manager instance |
+| `EGG::SceneManager::mCurrentSceneID` | Same header; `RPSysSceneCreator.h` scene enumeration | `+0x18`, golf scene ID `5` |
+| `RPGolScene::mGolMain` | `kiwi515/ogws_info/RPGolScene.h` | `+0x9C`; **gameplay type unverified in newer decomp** |
+
+The newer `doldecomp/ogws` `RPGolScene.h` defines
+`unk9C[4]` at `+0x9C`, whereas the older kiwi515 header names it
+`RPGolMain*`. The offset agrees, but **the pointer type is not yet
+independently confirmed**. Do not assume `RPGolMain` is safe to
+dereference until the class/instance is validated on Rev1.
+
+The tool now reports the two additional manager offsets and ID. The
+machine-readable evidence lives in
+`research/reference/golf_scene_layout.json` with all live object
+addresses deliberately `null`.
+
+The logical chain we seek is **static manager storage** ->
+manager instance -> `mCurrentScene` -> validated golf scene ->
+candidate `+0x9C`. We have a valid *layout* but **not** a
+verified address of the initial static manager storage. We will not
+scan arbitrary memory or hardcode an estimated one.
+
+Useful links:
+
+- [RPSingleton.h](https://github.com/doldecomp/ogws/blob/master/include/Pack/RPSingleton.h)
+- [RPSysSceneMgr.cpp](https://github.com/doldecomp/ogws/blob/master/src/Pack/RPSystem/RPSysSceneMgr.cpp)
+- [eggSceneManager.h](https://github.com/doldecomp/ogws/blob/master/include/egg/core/eggSceneManager.h)
+- [RPSysSceneCreator.h](https://github.com/doldecomp/ogws/blob/master/include/Pack/RPSystem/RPSysSceneCreator.h)
+- [Kiwi RPGolScene.h](https://github.com/kiwi515/ogws_info/blob/main/RP/RPSports/RPGolScene/RPGolScene.h)
+
 ## Next evidence gate — do not skip
 
 1. From independently reviewed Rev1 source/decompilation, establish the
