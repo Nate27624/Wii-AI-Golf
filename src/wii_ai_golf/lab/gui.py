@@ -75,9 +75,10 @@ def launch(root: Path = ROOT) -> int:
         if wanted and listing.exists(wanted):
             listing.selection_set(wanted)
             listing.focus(wanted)
-        elif catalog:
-            listing.selection_set(catalog[0]["id"])
-            listing.focus(catalog[0]["id"])
+        elif listing.get_children():
+            first = listing.get_children()[0]
+            listing.selection_set(first)
+            listing.focus(first)
     refill_catalog()
     description = tk.StringVar(value="Select an experiment.")
     ttk.Label(right, textvariable=description, wraplength=455, justify="left").pack(fill="x", pady=7)
