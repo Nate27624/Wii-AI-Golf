@@ -56,6 +56,15 @@ class SingletonCodeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not mapped"):
             mod.analyze(bytes(data))
 
+    def test_data_region_is_not_accepted_as_executable(self):
+        data = bytearray(fixture())
+        struct.pack_into(">I", data, 0x90, 0)          # remove text section
+        struct.pack_into(">I", data, 0x1C, 0x100)      # first data section file offset
+        struct.pack_into(">I", data, 0x64, 0x80184000) # data mapped over symbols
+        struct.pack_into(">I", data, 0xAC, 0x1600)
+        with self.assertRaisesRegex(ValueError, "not mapped"):
+            mod.analyze(bytes(data))
+
     def test_malformed_dol_header_fails_closed(self):
         with self.assertRaises(ValueError):
             mod.analyze(b"not a dol")
