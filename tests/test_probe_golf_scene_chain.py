@@ -42,8 +42,10 @@ class StubRPC:
             addr,size=args
             if addr==0x80000000 and size==8:
                 return (b"RSPE01"+bytes([0,self.revision])).hex()
+            if probe.PAGE_START<=addr and addr+size<=probe.PAGE_START+probe.PAGE_SIZE:
+                off=addr-probe.PAGE_START
+                return bytes(self.globals[off:off+size]).hex()
             content={
-                probe.PAGE_START:self.globals,
                 self.ptr_manager:self.manager,
                 self.ptr_scene:self.scene
             }.get(addr)
