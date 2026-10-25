@@ -18,6 +18,7 @@ TOKENS = ("RPGolScene", "RPGolMain", "RPSysSceneMgr",
 CLASS_PATTERNS = {name: re.compile(r"(?<![A-Za-z0-9_])" + re.escape(name) + r"::")
                   for name in TOKENS}
 DEFAULT_MAP = Path(__file__).resolve().parents[1] / "research" / "reference" / "golf_scene_rev1_symbols.csv"
+DEFAULT_LAYOUT = Path(__file__).resolve().parents[1] / "research" / "reference" / "golf_scene_layout.json"
 ADDRESS = re.compile(r"(?<![0-9A-Fa-f])(?:0x)?[89][0-9A-Fa-f]{7}(?![0-9A-Fa-f])")
 
 def summarize(lines):
@@ -47,7 +48,11 @@ def summarize(lines):
             "matched_groups":sorted(entries.values(), key=lambda e:(e["symbol_group"],e["classification"])),
             "scene_object_pointer":None, "golf_main_object_pointer":None,
             "confirmed_member_offset":"RPGolScene +0x9C",
-            "source":"kiwi515/ogws_info RP/RPSports/RPGolScene/RPGolScene.h",
+            "manager_current_scene_offset":"+0xC",
+            "manager_current_scene_id_offset":"+0x18",
+            "golf_scene_id":5,
+            "manager_singleton_storage_address":None,
+            "source":"kiwi515/ogws_info RPGolScene.h; doldecomp/ogws EGG::SceneManager and RPSysSceneCreator.h",
             "warning":"Map symbol addresses are not live RPGolScene/RPGolMain object pointers. Never dereference without independently verified scene instance and mode/revision gates."}
 
 def main(argv=None):
