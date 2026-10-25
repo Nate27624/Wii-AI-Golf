@@ -17,14 +17,14 @@ After RSPE01 Rev1 / Hitting the Green mode4 validation and manager scene ID 5, i
 
 ## Safe operator commands, once owner review and full Windows tests pass
 
-Use a separate PowerShell session. The following fetches PR #131 into a detached worktree, never overwrites main. Stop if the directory already exists:
+Use a separate PowerShell session. The following fetches PR #132 into a detached worktree, never overwrites main. Stop if the directory already exists:
 
 ~~~powershell
 $root = "D:\Projects\Wii Golf AI"
 $repo = "$root\Wii-AI-Golf"
 $work = "$root\Wii-AI-Golf-Scene-Root-Gated"
 
-git -C $repo fetch origin pull/131/head
+git -C $repo fetch origin pull/132/head
 if ($LASTEXITCODE -ne 0) { throw "Fetch failed" }
 if (Test-Path $work) { throw "Study worktree exists; do not overwrite" }
 git -C $repo worktree add --detach $work FETCH_HEAD
