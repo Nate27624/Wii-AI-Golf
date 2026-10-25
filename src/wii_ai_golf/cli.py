@@ -160,7 +160,7 @@ def build_parser() -> argparse.ArgumentParser:
     tests = sub.add_parser("test", help="Run project unittest suite against THIS checkout")
     tests.add_argument("--pattern", default="test_*.py")
 
-    lab = sub.add_parser("lab", help="One shared S000-S005 experiment registry, runner and Windows desktop app")
+    lab = sub.add_parser("lab", help="One shared S000-S005 experiment registry and script runner")
     actions = lab.add_subparsers(dest="lab_action", required=True)
     ls = actions.add_parser("list", help="All agent experiments and runnable/planned state")
     ls.add_argument("--json", action="store_true")
@@ -193,7 +193,6 @@ def build_parser() -> argparse.ArgumentParser:
     outcomes.add_argument("--json", action="store_true")
     sync = actions.add_parser("sync", help="Safely fast-forward approved GitHub main and discover new agent tests")
     sync.add_argument("--json", action="store_true")
-    actions.add_parser("gui", help="Open local Windows research lab application")
 
     sub.add_parser("demo", help="Run the existing SYNTHETIC toy environment (not Wii Sports)")
     return parser
@@ -368,9 +367,6 @@ def execute(args: argparse.Namespace) -> int:
                           f"green={row['green_human']} distance={row['distance_human']} "
                           f"{row['unit_human']} | game score NOT verified")
             return 0
-        if args.lab_action == "gui":
-            from .lab.gui import launch
-            return launch(ROOT)
     if args.group == "doctor":
         return doctor()
     if args.group in ("play", "swing"):
