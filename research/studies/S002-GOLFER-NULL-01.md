@@ -24,7 +24,7 @@ py scripts/audit_golfer_null_controls.py --latest
 
 The command selects the newest canonical `golfer-*-RAW-PRIVATE.jsonl` from `<checkout-parent>/Wii-AI-Golf-Data/captures`. It reads locally, uses no RPC, launches no Dolphin, makes no filesystem writes, and returns **only** aggregated stage counts/rates and the relative `main+0x74` offset. It will never print private capture file names, paths, heap pointer values, raw bytes, or individual word values. No GitHub publication is initiated; operator may paste only sanitized JSON.
 
-Inputs fail closed if outside sibling private `captures`, symlink, wrong canonical basename, >4MiB, >60 rows, missing scene/main identity, frame reversal, within-snapshot frame span >12, wrong stage order/label, malformed `0x100`-byte main snapshot. The code ignores private first-level child windows, does not dereference them, and reports no verified score/power/pose.
+Inputs fail closed if outside sibling private `captures`, symlink, wrong canonical basename, >4MiB, >60 rows, missing scene/main identity, frame reversal, within-snapshot frame span >240 (flag >12 as timing limited), wrong stage order/label, malformed `0x100`-byte main snapshot. The code ignores private first-level child windows, does not dereference them, and reports no verified score/power/pose.
 
 ## Outcome categories / stop rule
 
@@ -44,3 +44,28 @@ Once data returned, compare counts per *stage*, not independent trials, and inve
 - S000 PR #126 controls automatic public result schemas. This study **does not call that publisher**, preserving raw privacy and avoiding schema bypass.
 
 No power identification or independent shots are claimed.
+
+## 2026-10-25: Operator feedback and duplicate-study reconciliation
+
+The operator reported 369 full-suite PASS on the earlier branch head and 14
+targeted PASS on 162fe393. The `--latest` run initially failed because
+the author's arbitrary 12-frame input limit did not match S002 PR #129's
+bounded live-capture limit of 240 frames. The successful separate
+PR #137 offline analyzer likewise permits 240 while labelling >12 as
+`timing_limited`. Corrected here to permit up to 240 frames, emit
+`max_non_atomic_frame_span`, `timing_limited` and
+`frame_delta_relation_is_exploratory`, with additional synthetic tests
+for 30-frame acceptance and >240-frame rejection. No evidence was
+discarded or raw input published.
+
+IMPORTANT: The operator already ran PR #137 and produced a sanitized
+`golfer-controls-20261025T035036Z-1f045152-summary.json`. Treat that
+study as the **primary general idle/aim specificity analyzer**. This PR
+is a narrow *secondary*, relative-frame-step test solely on
+`main+0x74`; do not merge duplicated analyzers or publish a second
+conflicting schema. If no new insight results, archive this branch and
+reuse PR #137's reviewed public summary instead.
+
+A frame delta matching a u32 increment is not identification of a game
+clock; snapshots are non-atomic, and the stage labels are human-reported.
+Current head still needs fresh Windows targeted/full validation.
