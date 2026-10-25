@@ -182,3 +182,34 @@ py scripts/golf.py outcome record --send-live
 Options include `--pre-samples 3 --post-samples 8 --settled-samples 3 --interval 0.4`, `--game PATH`, and `--data-dir PATH`. Private raw RAM files stay local; only inspect/share sanitized summary if requested. The evaluation collector's UI labeling and V2 bridge compatibility are still being coordinated with its owner—**this route is not yet a certified fixed-shot generator**. For now do not change the S001 main `golf swing` trace just to chase contact and do not ask the operator for additional repetitive missed shots before the working recipe is identified.
 
 **Cross-agent handoff:** [S001 integration issue #2](https://github.com/Nate27624/Wii-AI-Golf/issues/2), [S002 evaluation issue #3](https://github.com/Nate27624/Wii-AI-Golf/issues/3), [evaluation PR #14](https://github.com/Nate27624/Wii-AI-Golf/pull/14). The evaluation owner has been asked to provide exact command, remote mode, bridge revision, waveform SHA, preparation timing and repeated hit evidence, so we can promote one verified common swing route after reproducing it.
+
+## 2026-10-25 — S002 no-prime baseline and precise environment check
+
+**Evidence that changed the plan:** S002's operator recorded two actual ball strikes (2.1 ft GREEN using 122 frames and 100 ft MISS using 89) **without any separately dispatched A-button priming requests**. After S002 started sending 60 standalone A-only presses in PR #40, another user-observed collector trial failed to strike. The evaluation owner restored the last observed striking protocol in merged PR #44: `collect_outcome_transition.py` now defaults to **0** A-only prime requests and invokes `SwingTraceClient.run(samples)` directly. The bridge revision has since changed independently to V2, so this is **not proof of a restored hit on the current emulator**.
+
+The unified CLI `golf outcome record` now **explicitly forwards `--a-prime-requests 0`**, instead of relying on the collector's implicit defaults. It also matches S002's corrected capture defaults: `--pre-samples 3 --post-samples 2 --settled-samples 3 --interval 0.0`. These defaults shorten the delay before the user sees/labels the landing result. Advanced opt-in `--a-prime-requests N` (0..180) changes a REAL controller program and should never be varied at the same time as follow-through, trace waveform, bridge version, or menu sequencing.
+
+Before deciding on another power/hold sweep, inspect the **installed generated bridge** without launching Dolphin:
+
+~~~powershell
+py scripts/golf.py bridge inspect
+py scripts/golf.py outcome record
+~~~
+
+`bridge inspect` reports SHA256 of `../tools/mcp_bridge_swing.py` and labels an on-disk V1/V2 source marker, without connecting to emulator or making input requests. This does **not** prove which script is loaded in an already-running Dolphin session. The `outcome record` command without `--send-live` is a coordinator dry-run and prints the exact full-launch and action commands. Use both outputs to review protocol identity.
+
+**One operator-approved diagnostic shot (ONLY after closing Dolphin fully and passing CLI+S002 tests):**
+
+~~~powershell
+cd "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
+git pull --ff-only
+py scripts/golf.py test --pattern "test_unified_cli.py"
+py scripts/golf.py test --pattern "test_outcome_capture_cli.py"
+py scripts/golf.py bridge inspect
+py scripts/golf.py outcome record
+py scripts/golf.py outcome record --send-live
+~~~
+
+Verify the golfer is actually ready at the tee when prompted. Do NOT use the separate S001 `golf swing` command for this comparison: it currently includes a 60-request primer by default and would confound the test. Label visible **ball contact yes/no**, on-green, and exact displayed distance/unit if visible; no assumption of a hit from bridge ACK. The action saves PRIVATE raw memory in `Wii-AI-Golf-Data/captures` and a distinct sanitized `outcome-...-candidates.json` file; **never share the raw RAM file**. Share the sanitized summary only after inspection, together with the `bridge inspect` version/hash and a brief visible A/button/club/ball sequence. One confirmed hit would motivate identical repetitions; another miss would require comparing the currently generated V2 bridge against the formerly successful S002 execution path before further tuning A timing.
+
+This is a single controlled comparison, not a guarantee of autonomous hitting or verified game score.
