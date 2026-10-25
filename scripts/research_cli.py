@@ -135,6 +135,8 @@ def publish_summary(summary: dict) -> str:
     Uses a temporary shallow clone to keep the operator's code working tree
     untouched. Refuses to create a new branch implicitly or force-push.
     """
+    from wii_ai_golf.shared.public_observation import public_observation
+    clean = public_observation(summary)  # fail closed BEFORE any Git/network access
     with tempfile.TemporaryDirectory(prefix="wii-golf-observation-") as tmp:
         work = Path(tmp)
         # Reuse configured origin URL only after sync_merged_main verified it.
@@ -147,15 +149,15 @@ def publish_summary(summary: dict) -> str:
         repo = work / "repo"
         target = repo / "research" / "observations"
         target.mkdir(parents=True, exist_ok=True)
-        name = summary["id"] + ".json"
+        name = clean["id"] + ".json"
         file = target / name
         with file.open("x", encoding="utf-8") as out:
-            json.dump(summary, out, indent=2, sort_keys=True, allow_nan=False)
+            json.dump(clean, out, indent=2, sort_keys=True, allow_nan=False)
             out.write("\n")
         _git(["add", "--", str(file.relative_to(repo))], cwd=repo)
         _git(["-c", "user.name=Wii Golf Research Worker",
               "-c", "user.email=research-worker@users.noreply.github.com",
-              "commit", "-m", "research: record sanitized " + summary["kind"] + " result"], cwd=repo)
+              "commit", "-m", "research: record sanitized " + clean["kind"] + " result"], cwd=repo)
         # No force. Concurrent writers are never overwritten; operator can
         # retry publish from locally preserved summary if needed.
         _git(["push", "origin", "HEAD:" + OBS_BRANCH], cwd=repo)
