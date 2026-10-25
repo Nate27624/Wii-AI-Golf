@@ -19,6 +19,13 @@ _LOCAL_SRC = str(_REPO_ROOT / "src")
 if _LOCAL_SRC in sys.path:
     sys.path.remove(_LOCAL_SRC)
 sys.path.insert(0, _LOCAL_SRC)
+# Python -I excludes the sibling scripts/ directory from sys.path too.
+# Reuse the actual launcher and probe modules from THIS checkout instead of
+# relying on CWD, PYTHONPATH or a stale editable installation.
+_LOCAL_SCRIPTS = str(_REPO_ROOT / "scripts")
+if _LOCAL_SCRIPTS in sys.path:
+    sys.path.remove(_LOCAL_SCRIPTS)
+sys.path.insert(0, _LOCAL_SCRIPTS)
 
 from wii_ai_golf.operator_dialogs import operator_input
 from wii_ai_golf.integration.rpc import FelkRPC
