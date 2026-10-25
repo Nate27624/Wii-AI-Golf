@@ -87,7 +87,17 @@ def summarize_phase_memory(rows,observations,*,scope,run_id,top=100):
     changes=defaultdict(lambda:{"within_phase_changes":0,
                                  "at_phase_boundary_changes":0,
                                  "pointer_like_changes":0,
-                                 "float_like_changes":0})
+                                 "float_like_changes":0,
+                                 # Only changes between snapshots inside the SAME
+                                 # human-labelled stage count as phase response.
+                                 "phase_change_counts":defaultdict(int),
+                                 # Stage boundaries can include arbitrary
+                                 # operator delay; never count as phase response.
+                                 "boundary_changes_into_phase":defaultdict(int)})
+    # Opportunities count valid same-instance adjacent observations even
+    # when an individual 32-bit word DID NOT change.
+    opportunities=defaultdict(lambda:defaultdict(int))
+    frame_brackets=[]
     phases=[]
     non_atomic=[]
     skipped_relocations=0
@@ -105,15 +115,23 @@ def summarize_phase_memory(rows,observations,*,scope,run_id,top=100):
         counts[phase]+=1
         phases.append(phase)
         non_atomic.append(end-start)
+        frame_brackets.append({"stage":stage,"phase":phase,
+                               "frame_start":start,"frame_end":end})
         current=_windows(row,scope)
         if previous is not None:
-            pstage,pwindows=previous
+            pstage,pphase,pwindows=previous
+            if stage < pstage:
+                raise ValueError("memory stage order went backwards")
+            if stage == pstage and phase != pphase:
+                raise ValueError("phase changed without a stage boundary")
             for name in current.keys() & pwindows.keys():
                 address,raw=current[name]
                 prev_addr,old=pwindows[name]
                 if prev_addr!=address:
                     skipped_relocations+=1
                     continue
+                if stage==pstage:
+                    opportunities[name][phase]+=1
                 for offset in range(0,len(raw),4):
                     a=struct.unpack_from(">I",old,offset)[0]
                     b=struct.unpack_from(">I",raw,offset)[0]
@@ -121,9 +139,13 @@ def summarize_phase_memory(rows,observations,*,scope,run_id,top=100):
                     entry=changes[(name,offset)]
                     key="within_phase_changes" if stage==pstage else "at_phase_boundary_changes"
                     entry[key]+=1
+                    if stage==pstage:
+                        entry["phase_change_counts"][phase]+=1
+                    else:
+                        entry["boundary_changes_into_phase"][phase]+=1
                     entry["pointer_like_changes"]+=int(_pointer_like(a) and _pointer_like(b))
                     entry["float_like_changes"]+=int(_float_like(a) and _float_like(b))
-        previous=(stage,current)
+        previous=(stage,phase,current)
     allowed_obs=[]
     for item in observations:
         if type(item) is not dict or type(item.get("stage")) is not int or item.get("phase") not in ALLOWED_PHASES or item.get("observation") not in ALLOWED_OBSERVATIONS:
@@ -131,8 +153,17 @@ def summarize_phase_memory(rows,observations,*,scope,run_id,top=100):
         allowed_obs.append({k:item[k] for k in ("stage","phase","observation")})
     ranking=[]
     for (name,offset),stat in changes.items():
-        ranking.append({"region":name,"relative_offset":f"+0x{offset:X}",
-                        "documented_role":documented_role(name,offset),**stat})
+        ranking.append({
+            "region":name,"relative_offset":f"+0x{offset:X}",
+            "documented_role":documented_role(name,offset),
+            "within_phase_changes":stat["within_phase_changes"],
+            "at_phase_boundary_changes":stat["at_phase_boundary_changes"],
+            "pointer_like_changes":stat["pointer_like_changes"],
+            "float_like_changes":stat["float_like_changes"],
+            "phase_change_counts":dict(sorted(stat["phase_change_counts"].items())),
+            "boundary_changes_into_phase":dict(sorted(stat["boundary_changes_into_phase"].items())),
+            "phase_observation_opportunities":dict(sorted(opportunities[name].items()))
+        })
     ranking.sort(key=lambda row:(-row["within_phase_changes"],
                                  -row["at_phase_boundary_changes"],
                                  row["region"],int(row["relative_offset"][3:],16)))
@@ -144,6 +175,14 @@ def summarize_phase_memory(rows,observations,*,scope,run_id,top=100):
         "scope":scope,
         "sample_count":len(rows),
         "phase_sample_counts":dict(sorted(counts.items())),
+        # Exact per-sample frame brackets are observational and non-atomic.
+        # They do NOT assert a physical impact timestamp.
+        "phase_frame_brackets":frame_brackets,
+        "within_phase_comparisons_by_region":{
+            name:dict(sorted(phase_counts.items()))
+            for name,phase_counts in sorted(opportunities.items())
+        },
+        "phase_change_count_semantics":"within_stage_only_boundary_counts_separate",
         "max_non_atomic_frame_span":max(non_atomic),
         "mean_non_atomic_frame_span":round(sum(non_atomic)/len(non_atomic),2),
         "skipped_relocated_windows":skipped_relocations,
@@ -153,5 +192,5 @@ def summarize_phase_memory(rows,observations,*,scope,run_id,top=100):
         "confirmed_power_address":False,
         "confirmed_club_pose_address":False,
         "confirmed_ball_position_address":False,
-        "warning":"Exploratory non-atomic snapshots. Relative offsets are not identified gameplay fields; human observations are not verified by RAM."
+        "warning":"Exploratory non-atomic snapshots. Per-offset phase counts are within-stage observations only; boundary changes include human pauses. No club, power, ball or impact identified."
     }
