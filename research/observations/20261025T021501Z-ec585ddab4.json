@@ -1,0 +1,32 @@
+{
+  "bridge_sha256": "fe04cb0ba312c559d5cb7edb8d0ac2185aca72046839a903160929ee7c58ca19",
+  "capture_status": "sanitized_human_annotation_only",
+  "controller": {
+    "a_lead_observed_frame_delta": 45,
+    "a_lead_requested_frames": 45,
+    "generated_trace_frames": 89,
+    "motion_scale": 1.0,
+    "speed_scale": 0.9,
+    "trace_sha256": "d64b903373aa12d04deb65e0a18c10c70dcd89f95d5ab71f146c6f69d0d04bdd"
+  },
+  "git_commit": "a9c3579faa5b3a163387adba986c126000e445e3",
+  "human": {
+    "contact_human": "yes",
+    "displayed_distance_human": 100.0,
+    "displayed_power_percent_human": 75.0,
+    "displayed_unit_human": "ft",
+    "finished_on_green_human": "no",
+    "initial_club_pose_human": "back",
+    "shot_start_frame_before_controller_trace": 2155
+  },
+  "id": "20261025T021501Z-ec585ddab4",
+  "kind": "v1",
+  "process_exit_code": 0,
+  "requested_a_lead_frames": 45,
+  "requested_motion_scale": 1.0,
+  "requested_speed_scale": 0.9,
+  "schema": 1,
+  "settled_screen_observation": "screen_had_already_transitioned_before_settled_samples",
+  "started_utc": "2026-10-25T02:15:01.599545+00:00",
+  "verified_game_score": false
+}
