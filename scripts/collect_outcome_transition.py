@@ -86,6 +86,7 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 a_lead_frames: int = 0,
                 observe_start_pose: bool = False,
                 motion_scale: float = 1.0,
+                speed_scale: float = 1.0,
                 trial_seed: int | None = None,
                 ask_power: bool = False) -> dict[str, Any]:
     """One opted-in forward shot, bounded RAM snapshots and human landing label.
@@ -107,12 +108,16 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
     # collector; do not claim a fixed 89-frame swing in evidence labels.
     if motion_scale not in (0.6, 0.8, 1.0, 1.2):
         raise ValueError("invalid motion scale")
+    if speed_scale not in (0.8, 0.9, 1.0, 1.1) or (motion_scale != 1.0 and speed_scale != 1.0):
+        raise ValueError("speed scale must be 0.8/0.9/1.0/1.1 and vary alone")
     samples = build_probe("forward", follow_through_frames=30)
     if motion_scale != 1.0:
         samples = [replace(s, distance_m=s.distance_m * motion_scale,
                            speed_m_s=s.speed_m_s * motion_scale,
                            return_speed_m_s=s.return_speed_m_s * motion_scale)
                    for s in samples]
+    if speed_scale != 1.0:
+        samples = [replace(s, speed_m_s=s.speed_m_s * speed_scale) for s in samples]
     trace_sha256 = hashlib.sha256(json.dumps(
         [[s.hold_a, *s.direction, s.distance_m, s.speed_m_s,
           s.return_speed_m_s, s.angle_rad] for s in samples],
@@ -222,7 +227,8 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
             "raw_data_created": True, "swing_dispatch": stroke,
             "known_good_swing_request": {
                 "preset": "forward", "follow_through_frames": 30,
-                "motion_scale": motion_scale, "trial_seed": trial_seed,
+                "motion_scale": motion_scale, "speed_scale": speed_scale,
+                "trial_seed": trial_seed,
                 "generated_trace_frames": len(samples),
                 "trace_generator": "probe_swing.build_probe",
                 "trace_sha256": trace_sha256,
@@ -271,6 +277,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--settled-samples", type=int, default=3)
     p.add_argument("--interval", type=float, default=0.0)
     p.add_argument("--motion-scale", type=float, choices=(0.6,0.8,1.0,1.2), default=1.0)
+    p.add_argument("--speed-scale", type=float, choices=(0.8,0.9,1.0,1.1), default=1.0)
     p.add_argument("--trial-seed", type=int, default=None)
     p.add_argument("--ask-power", action="store_true",help="Record the visible game power meter if shown")
     args = p.parse_args(argv)
@@ -304,7 +311,8 @@ def main(argv: list[str] | None = None) -> int:
                              a_prime_requests=args.a_prime_requests,
                              a_lead_frames=args.a_lead_frames,
                              observe_start_pose=args.observe_start_pose,
-                             motion_scale=scale,trial_seed=args.trial_seed,
+                             motion_scale=scale,speed_scale=args.speed_scale,
+                             trial_seed=args.trial_seed,
                              ask_power=args.ask_power)
     if result.get("cancelled"):
         print("Session cancelled:", result)
