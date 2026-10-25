@@ -29,6 +29,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.integration.swing_client import SwingTraceClient
 from wii_ai_golf.integration.button_prime import prime_a_button, release_buttons
+from wii_ai_golf.shared.controller_timing import hold_a_for_observed_frames
 from wii_ai_golf.audit.outcome_transition import (
     capture_outcome_windows, rank_outcome_candidates)
 from wii_ai_golf.audit.outcome_recovery import parse_displayed_distance
@@ -74,7 +75,8 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 sleep_fn: Callable[[float], None] = time.sleep,
                 snapshot_fn: Callable[..., dict[str, Any]] = capture_outcome_windows,
                 swing_fn: Callable[[Any], Any] | None = None,
-                a_prime_requests: int = 0) -> dict[str, Any]:
+                a_prime_requests: int = 0,
+                a_lead_frames: int = 0) -> dict[str, Any]:
     """One opted-in forward shot, bounded RAM snapshots and human landing label.
 
     Write private raw JSONL immediately, exclusively; cancellation preserves
@@ -84,6 +86,10 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         raise ValueError("require >=2 samples per phase, interval between 0 and 5 seconds")
     if type(a_prime_requests) is not int or not 0 <= a_prime_requests <= 180:
         raise ValueError("a_prime_requests must be 0..180")
+    if type(a_lead_frames) is not int or not 0 <= a_lead_frames <= 90:
+        raise ValueError("a_lead_frames must be 0..90")
+    if a_prime_requests and a_lead_frames:
+        raise ValueError("choose either RPC-count A prime OR frame-measured A lead, not both")
 
     # Compute the actual trace length from Worker 1's current waveform.
     # That worker can refine its initial held-A setup without changing this
@@ -94,20 +100,29 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
           s.return_speed_m_s, s.angle_rad] for s in samples],
         separators=(",", ":")).encode()).hexdigest()
     canonical_swing = swing_fn is None
+    a_lead_report: dict[str, Any] | None = None
     if canonical_swing:
         def swing_fn(client):
-            # Restore the S002 method on which the user actually observed TWO
-            # ball strikes (one 122-frame, one 89-frame motion trace). Adding a
-            # 60-request BUTTON-ONLY A prehold in PR #40 preceded a user-reported
-            # miss. Do not silently prime A just because another probe does it.
-            # Leave the controller exactly as the unprimed trace leaves it by
-            # default; the trace includes its own A-release tail.
-            if a_prime_requests == 0:
+            nonlocal a_lead_report
+            # Original, user-confirmed V1 control program stays the default.
+            # A lead is a ONE-variable, opt-in timing experiment; it is NOT a
+            # validated fix and must never silently affect other experiments.
+            if not a_prime_requests and not a_lead_frames:
                 return SwingTraceClient(client, port=0).run(samples)
-            # Explicit opt-in diagnostic ONLY. This is not a proven stronger or
-            # more reliable swing method. Cleanup if priming was requested.
             try:
-                prime_a_button(client, remote=0, requests=a_prime_requests)
+                if a_lead_frames:
+                    print(f"Pressing A BEFORE swing, then observing >= "
+                          f"{a_lead_frames} emulated frames without ANY motion RPC.",
+                          flush=True)
+                    a_lead_report = hold_a_for_observed_frames(
+                        client, frames=a_lead_frames, remote=0)
+                    print(f"A lead achieved: "
+                          f"{a_lead_report['observed_frame_delta']} Dolphin frames "
+                          f"(NOT proof the game registered A).", flush=True)
+                else:
+                    # Historical request-count priming retained only for
+                    # explicit diagnosis; RPC count is NOT frame duration.
+                    prime_a_button(client, remote=0, requests=a_prime_requests)
                 return SwingTraceClient(client, port=0).run(samples)
             finally:
                 release_buttons(client, remote=0)
@@ -161,10 +176,22 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 "generated_trace_frames": len(samples),
                 "trace_generator": "probe_swing.build_probe",
                 "trace_sha256": trace_sha256,
-                "a_button_only_prime_requests": a_prime_requests if canonical_swing else None,
-                "a_button_prime_applied": bool(a_prime_requests) if canonical_swing else None,
+                "a_button_only_prime_requests": (
+                    (1 if a_lead_frames else a_prime_requests) if canonical_swing else None),
+                "a_button_prime_applied": (
+                    bool(a_prime_requests or a_lead_frames) if canonical_swing else None),
+                "a_lead_requested_frames": a_lead_frames if canonical_swing else None,
+                "a_lead_observed_frame_delta": (
+                    a_lead_report["observed_frame_delta"] if a_lead_report else None),
+                "a_lead_start_frame": (
+                    a_lead_report["start_frame_after_a_request"] if a_lead_report else None),
+                "a_lead_last_observed_frame": (
+                    a_lead_report["last_observed_frame"] if a_lead_report else None),
                 "a_priming_evidence": (
-                    "operator_opt_in_unverified" if canonical_swing and a_prime_requests
+                    "frame_observed_A_requested_not_game_verified"
+                    if canonical_swing and a_lead_frames
+                    else "operator_opt_in_unverified_rpc_count"
+                    if canonical_swing and a_prime_requests
                     else "no_separate_button_only_prime" if canonical_swing
                     else "externally_injected_swing_unknown"),
             },
@@ -186,6 +213,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--pre-samples", type=int, default=3)
     p.add_argument("--a-prime-requests", type=int, default=0,
                    help="Optional BUTTON-ONLY A requests before swing (default 0; last observed hits used no separate prime)")
+    p.add_argument("--a-lead-frames", type=int, default=0,
+                   help="Experimental observed Dolphin frames holding A before trace; default 0, use 12 for V1 timing hypothesis")
     p.add_argument("--post-samples", type=int, default=2)
     p.add_argument("--settled-samples", type=int, default=3)
     p.add_argument("--interval", type=float, default=0.0)
@@ -201,6 +230,10 @@ def main(argv: list[str] | None = None) -> int:
         p.error("interval must be finite, 0..5 seconds")
     if not 0 <= args.a_prime_requests <= 180:
         p.error("--a-prime-requests must be between 0 and 180")
+    if not 0 <= args.a_lead_frames <= 90:
+        p.error("--a-lead-frames must be between 0 and 90")
+    if args.a_prime_requests and args.a_lead_frames:
+        p.error("cannot combine --a-prime-requests and --a-lead-frames")
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8]
     raw_file = args.data_dir / f"outcome-{run_id}-RAW-PRIVATE.jsonl"
     summary_file = args.data_dir / f"outcome-{run_id}-candidates.json"
@@ -211,7 +244,8 @@ def main(argv: list[str] | None = None) -> int:
         result = run_session(rpc, raw_path=raw_file, pre_samples=args.pre_samples,
                              post_samples=args.post_samples,
                              settled_samples=args.settled_samples, interval=args.interval,
-                             a_prime_requests=args.a_prime_requests)
+                             a_prime_requests=args.a_prime_requests,
+                             a_lead_frames=args.a_lead_frames)
     if result.get("cancelled"):
         print("Session cancelled:", result)
         return 0
