@@ -39,6 +39,28 @@ The updated probe now gates the controversial scene +0x9C **candidate read** on 
 
 ---
 
+## Latest operator scene-root control: both added identity gates passed
+
+On October 25, 2026 the operator ran the updated two-pass read-only probe **after merging S001's WASD/Nunchuk controller fix** on the canonical launcher. Sanitized local run ID `20261025T035138Z-897dcadb`, Hitting the Green RSPE01 Rev1 mode 4:
+
+| Source-anchored check | Observed sanitized result |
+| --- | --- |
+| Two candidate manager static cells | `candidate_static_cells_checked=2` |
+| Independent passes | `pass_count=2` |
+| Stable unique scene-root candidate | `stable_slot_indices=[0]`, `stable_golf_scene_chain_count=1`, `unique_stable_golf_scene_chain=true` |
+| Manager's current scene ID 5, scene-relative sport ID 2 | `stable_sport_id_match_count=1` |
+| Class/vtable data-range plausibility | `vtable_in_golf_scene_data_count=1` |
+| **Scene object's own ID equals 5** | `stable_scene_own_id_match_count=1` |
+| **Scene's manager backlink matches the same manager** | `stable_manager_backlink_match_count=1` |
+| Candidate scene `+0x9C` RAM pointer shape | `possible_main_pointer_ram_like_count=1` |
+| Largest non-atomic probe frame span | `max_sample_frame_span=10` |
+
+**Interpretation:** This is a **successful real-game positive structural/root control** and a successful live post-WASD canonical launch. It strengthens the earlier operator run `20261025T032952Z-aedfaa3d` which *had not yet included* the own-ID/backlink gates. No raw RAM, pointer values, executable, private file paths, or savestate data entered Git. It is NOT proof of singleton symbol/type, `RPGolMain` class, golfer pose, club motion, numeric power or carry; all three `confirmed_*` flags in the output remain `false`. Source consistency is not a same-shot physical measurement.
+
+**Follow-up:** S002 PR #129 already has a separate read-only candidate object sampler and private control data (reported 20 samples with `main+0x74` changed in idle). Instead of duplicate idle studies, validate this prior dataset offline with S002 #138's negative-control auditor and/or #135/#137's stage-aware summary only after owner/schema review. S001/S002 should then design frame-synchronized tiny gameplay-owned reads integrated with a controlled *same-shot* waveform; S003 should reject counter-like and minimap-effect observations from power calibration. This root probe alone does not authorize arbitrary further pointer dereferences or automated swings.
+
+---
+
 ## Static source-based next object clues (no new memory reads)
 
 The public [doldecomp/ogws RSPE01_01 splits](https://github.com/doldecomp/ogws/blob/master/config/RSPE01_01/splits.txt) include bounded module/class **compilation-unit ranges**:
