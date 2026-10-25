@@ -21,9 +21,13 @@ The pure `wii_ai_golf.shared.public_observation.public_observation` gate now:
   label and controller structures.
 - Drops potentially unbounded local `settled_screen_observation` and fallback
   `warning` text from V1 public records, leaving them intact locally.
-- Validates the proposed S002 phase-differential output (PR #116): region-relative
+- Validates S002 phase-differential output (PR #116): region-relative
   offsets, source-derived role vocabulary, bounded counts and human phase labels.
   It rejects runtime addresses/raw bytes and normalizes the public warning.
+- Recognizes the **already-published S002 24-run cohort** record kind
+  `golf-memory-cohort-relative-words` with a separate exact schema, safe
+  `cohort-` ID, bounded recurrence counts and source-defined warning. A
+  cohort is not an individual shot or verified RAM power address.
 - Rejects unknown kinds rather than silently publishing a private schema.
 - Does **not** change the Git clone/push mechanism, add credentials, start Dolphin,
   or claim unverified ball/club/power variables are known.
