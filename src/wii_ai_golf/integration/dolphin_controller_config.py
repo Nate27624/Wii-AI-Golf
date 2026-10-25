@@ -6,8 +6,8 @@ Wii Remote source is an enum from Dolphin's WiimoteSettings.cpp:
 Dolphin User directory: doing so could hide the operator's savestates.
 
 This code sets Source and Extension in [Wiimote1], clears mouse-driven
-controller bindings and disables local Point/IR axes + IMUIR to isolate
-scripted experiments. Keyboard-only controls and unrelated Dolphin sections
+controller bindings, maps WASD to relative Point/IR movement and disables
+IMUIR to isolate scripted experiments. Nonconflicting keyboard inputs and unrelated Dolphin sections
 are preserved. A one-time original INI backup is retained.
 """
 from __future__ import annotations
@@ -151,7 +151,14 @@ def _replace_controller_section(original: str) -> tuple[str, bool, dict[str, str
 # Dolphin's default Win32 Wii Remote controls map mouse movement to the
 # Point/IR axes, mouse clicks to A/B, and middle click to Shake. A/B/shake
 # interference is especially problematic when collecting scripted swings.
-_POINT_AXES = ("IR/Up", "IR/Down", "IR/Left", "IR/Right")
+# Dolphin Point direction controls accept the same W/A/S/D expressions as its
+# default keyboard controls. Relative Input keeps the pointer at its new
+# position when a direction key is released.
+_WASD_POINT = {"IR/Up": "W", "IR/Down": "S", "IR/Left": "A", "IR/Right": "D"}
+_POINT_AXES = tuple(_WASD_POINT)
+_POINT_SETTINGS = {**_WASD_POINT, "IR/Relative Input": "True",
+                   "IR/Relative Input Hold": "", "IMUIR/Enabled": "False"}
+_WASD_KEY = re.compile(r"(?<![A-Za-z0-9_])[WASD](?![A-Za-z0-9_])", re.IGNORECASE)
 _CONTROL_ASSIGNMENT = re.compile(
     r"^(\s*)([^=;#\r\n]+?)(\s*=\s*)([^;#\r\n]*?)(\s*(?:[;#].*)?)$"
 )
@@ -165,11 +172,13 @@ _MOUSE_CONTROL = re.compile(
 def _isolate_physical_mouse(original: str) -> tuple[str, bool, list[str]]:
     """Remove mouse controller bindings in Wii Remote 1, never global OS mouse.
 
-    Force Point IR axes empty, even when not present in the INI: this makes
-    their inactive state explicit across Dolphin defaults/profiles. Disable
-    IMUIR (a second pointing mode). Clear other controls only if they name
-    recognizably mouse-derived inputs (Click, Cursor, Wheel, etc.). Preserve
-    keyboard-only A/B and all other Wii Remote and Dolphin sections.
+    Replace mouse-driven Point axes with W/S/A/D keyboard controls and turn
+    on relative input so the pointer stays in place after a key is released.
+    Disable IMUIR (a second pointing mode). Clear other controls only if they
+    name recognizably mouse-derived inputs (Click, Cursor, Wheel, etc.).
+    Reject overlapping WASD inputs on unrelated controls or a non-keyboard
+    device rather than silently turning pointer movement into A/motion input.
+    Preserve nonconflicting keyboard A/B and all other Dolphin sections.
     """
     lines = original.splitlines(keepends=True)
     spans = [(i, m.group(1).strip()) for i, line in enumerate(lines)
@@ -181,6 +190,7 @@ def _isolate_physical_mouse(original: str) -> tuple[str, bool, list[str]]:
     end = next((i for i, _ in spans if i >= start), len(lines))
     found: set[str] = set()
     cleared: list[str] = []
+    keyboard_device: str | None = None
     changed = False
     newline = "\r\n" if "\r\n" in original else "\n"
     for i in range(start, end):
@@ -197,25 +207,37 @@ def _isolate_physical_mouse(original: str) -> tuple[str, bool, list[str]]:
         found.add(fold)
         value = match.group(4)
         target: str | None = None
-        if fold in (name.lower() for name in _POINT_AXES):
+        if fold == "device":
+            keyboard_device = value.strip()
+        for setting, mapped in _POINT_SETTINGS.items():
+            if fold == setting.lower():
+                target = mapped
+                break
+        if target is None and "/" in key and _MOUSE_CONTROL.search(value):
+            # A composite mapping containing a mouse control is cleared
+            # entirely, not partially rewritten.
             target = ""
-        elif fold == "imuir/enabled":
-            target = "False"
-        elif "/" in key and _MOUSE_CONTROL.search(value):
-            # Conservatively disable the entire composite expression rather
-            # than leave a branch that can still read the physical mouse.
-            target = ""
+        if target is None and "/" in key and _WASD_KEY.search(value):
+            raise ControllerConfigError(
+                f"WASD pointer key also drives [Wiimote1] {key}; "
+                "resolve that input conflict before launching Dolphin"
+            )
         if target is not None and value.strip() != target:
             eol = "\r\n" if raw.endswith("\r\n") else "\n" if raw.endswith("\n") else ""
             lines[i] = (match.group(1) + match.group(2) + match.group(3) +
                         target + match.group(5) + eol)
             changed = True
             cleared.append(key)
-    # Missing axis keys are explicitly added as blank. When Dolphin loads
-    # the config, an empty control expression means no input bound.
-    to_add = [(key, "") for key in _POINT_AXES if key.lower() not in found]
-    if "imuir/enabled" not in found:
-        to_add.append(("IMUIR/Enabled", "False"))
+    if keyboard_device and "keyboard mouse" not in keyboard_device.lower():
+        raise ControllerConfigError(
+            f"WASD Point requires Dolphin's Keyboard Mouse device, got "
+            f"{keyboard_device!r}; select Keyboard Mouse in Wii Remote 1 "
+            "and retry. No controller INI was changed."
+        )
+    # Add missing settings inside Wiimote1; explicit bindings prevent
+    # stock Cursor X/Y defaults from silently remaining active.
+    to_add = [(key, value) for key, value in _POINT_SETTINGS.items()
+              if key.lower() not in found]
     if to_add:
         if end > 0 and not lines[end - 1].endswith(("\n", "\r")):
             lines[end - 1] += newline
@@ -261,6 +283,8 @@ def ensure_emulated_controller(dolphin: Path, *, user_dir: Path | None = None,
         "source": "Emulated Wii Remote (1)",
         "extension": "None",
         "mouse_pointer_bindings_disabled_in_ini": True,
+        "pointer_keys": dict(_WASD_POINT),
+        "pointer_relative_input": True,
         "mouse_controls_cleared": cleared_mouse_controls,
         "backup": str(backup) if backup.exists() else None,
     }
