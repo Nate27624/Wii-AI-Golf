@@ -23,16 +23,11 @@ dereference guessed scene addresses. `RPGolMapObjBase` has a rotation matrix
 ## Findings from October 25 private automated minimap capture
 
 The 25-sample sequence had 5 pre / 20 post rows, the same minimap
-effect instance at `0x91BF48BC`, and just one memory transition across
-the pre/post boundary; no within-phase changes.
-
-* Effect `+0x78`: `0x0001003E` -> `0x00010045` (+7 in lower byte).
-* Effect `+0x7C`: `0x81659250` -> `0x816596B0` (both valid-looking
-  Wii MEM1 pointers; +`0x460` address delta).
-
-Both are likely rendering/control metadata rather than a power or pose
-float. Pointer-likeness is a hypothesis; no linked-list structure decoded.
-This is not shot-contact evidence. Data remains private.
+visual effect instance, and just one transition across the pre/post
+boundary; no within-phase changes. Only rendering-effect relative words
+`+0x78` and `+0x7C` changed. The latter looks pointer-like, rather than
+an f32 power or pose value. These are hypotheses and not shot-contact
+evidence. Absolute runtime pointers and raw byte values remain private.
 
 ## No new live test: audit existing outcome captures
 
