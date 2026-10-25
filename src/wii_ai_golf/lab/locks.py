@@ -88,6 +88,7 @@ def session_lock(path: Path, *, label: str = "Lab experiment") -> Iterator[None]
             file.seek(0)
             file.write(b"\x00")  # Windows byte-range lock needs a real byte
         acquired = False
+        owns_record = False
         try:
             try:
                 _lock_one_byte(file)
@@ -110,15 +111,18 @@ def session_lock(path: Path, *, label: str = "Lab experiment") -> Iterator[None]
                 "protocol": "os-advisory-v1",
             }).encode("utf-8"))
             file.flush()
+            owns_record = True
             yield
         finally:
-            if acquired:
+            if acquired and owns_record:
                 # Leave a zero-byte sentinel to be safe for subsequent Windows
                 # byte-range acquisitions without an O_EXCL race.
                 file.seek(0)
                 file.write(b"\x00")
                 file.truncate(1)
                 file.flush()
+                _unlock_one_byte(file)
+            elif acquired:
                 _unlock_one_byte(file)
 
 
