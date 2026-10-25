@@ -73,7 +73,8 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 input_fn: Callable[[str], str] = input,
                 sleep_fn: Callable[[float], None] = time.sleep,
                 snapshot_fn: Callable[..., dict[str, Any]] = capture_outcome_windows,
-                swing_fn: Callable[[Any], Any] | None = None) -> dict[str, Any]:
+                swing_fn: Callable[[Any], Any] | None = None,
+                a_prime_requests: int = 0) -> dict[str, Any]:
     """One opted-in forward shot, bounded RAM snapshots and human landing label.
 
     Write private raw JSONL immediately, exclusively; cancellation preserves
@@ -81,6 +82,9 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
     """
     if min(pre_samples, post_samples, settled_samples) < 2 or not 0 <= interval <= 5:
         raise ValueError("require >=2 samples per phase, interval between 0 and 5 seconds")
+    if type(a_prime_requests) is not int or not 0 <= a_prime_requests <= 180:
+        raise ValueError("a_prime_requests must be 0..180")
+
     # Compute the actual trace length from Worker 1's current waveform.
     # That worker can refine its initial held-A setup without changing this
     # collector; do not claim a fixed 89-frame swing in evidence labels.
@@ -92,11 +96,18 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
     canonical_swing = swing_fn is None
     if canonical_swing:
         def swing_fn(client):
-            # Match Worker 1's actual recognized swing contract. The A prehold
-            # is BUTTON-ONLY and occurs before ANY swing API call. It is not
-            # included in generated_trace_frames or swing_dispatch.applied_frames.
+            # Restore the S002 method on which the user actually observed TWO
+            # ball strikes (one 122-frame, one 89-frame motion trace). Adding a
+            # 60-request BUTTON-ONLY A prehold in PR #40 preceded a user-reported
+            # miss. Do not silently prime A just because another probe does it.
+            # Leave the controller exactly as the unprimed trace leaves it by
+            # default; the trace includes its own A-release tail.
+            if a_prime_requests == 0:
+                return SwingTraceClient(client, port=0).run(samples)
+            # Explicit opt-in diagnostic ONLY. This is not a proven stronger or
+            # more reliable swing method. Cleanup if priming was requested.
             try:
-                prime_a_button(client, remote=0, requests=60)
+                prime_a_button(client, remote=0, requests=a_prime_requests)
                 return SwingTraceClient(client, port=0).run(samples)
             finally:
                 release_buttons(client, remote=0)
@@ -150,8 +161,12 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 "generated_trace_frames": len(samples),
                 "trace_generator": "probe_swing.build_probe",
                 "trace_sha256": trace_sha256,
-                "a_button_only_prime_requests": 60 if canonical_swing else None,
-                "a_button_prime_applied": canonical_swing,
+                "a_button_only_prime_requests": a_prime_requests if canonical_swing else None,
+                "a_button_prime_applied": bool(a_prime_requests) if canonical_swing else None,
+                "a_priming_evidence": (
+                    "operator_opt_in_unverified" if canonical_swing and a_prime_requests
+                    else "no_separate_button_only_prime" if canonical_swing
+                    else "externally_injected_swing_unknown"),
             },
             "human_observation": annotation,
             "settled_screen_observation": (
@@ -169,6 +184,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--data-dir", type=Path, default=DATA_DIR,
                    help="PRIVATE local directory; never automatically uploaded")
     p.add_argument("--pre-samples", type=int, default=3)
+    p.add_argument("--a-prime-requests", type=int, default=0,
+                   help="Optional BUTTON-ONLY A requests before swing (default 0; last observed hits used no separate prime)")
     p.add_argument("--post-samples", type=int, default=2)
     p.add_argument("--settled-samples", type=int, default=3)
     p.add_argument("--interval", type=float, default=0.0)
@@ -182,6 +199,8 @@ def main(argv: list[str] | None = None) -> int:
         p.error("pre=2..10, post=2..40, settled=2..10")
     if not math.isfinite(args.interval) or not 0 <= args.interval <= 5:
         p.error("interval must be finite, 0..5 seconds")
+    if not 0 <= args.a_prime_requests <= 180:
+        p.error("--a-prime-requests must be between 0 and 180")
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8]
     raw_file = args.data_dir / f"outcome-{run_id}-RAW-PRIVATE.jsonl"
     summary_file = args.data_dir / f"outcome-{run_id}-candidates.json"
@@ -191,7 +210,8 @@ def main(argv: list[str] | None = None) -> int:
     with FelkRPC(port=args.port, timeout_s=15) as rpc:
         result = run_session(rpc, raw_path=raw_file, pre_samples=args.pre_samples,
                              post_samples=args.post_samples,
-                             settled_samples=args.settled_samples, interval=args.interval)
+                             settled_samples=args.settled_samples, interval=args.interval,
+                             a_prime_requests=args.a_prime_requests)
     if result.get("cancelled"):
         print("Session cancelled:", result)
         return 0

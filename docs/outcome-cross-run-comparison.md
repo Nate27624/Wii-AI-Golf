@@ -14,6 +14,10 @@
 - **Major confound:** The swing traces were different lengths (122 versus 89 frames). The experimental program has changed as the integration agent introduced a separate A-button-only prehold, so outcomes cannot be attributed solely to landing variance and neither memory address has a causal/validated game-score interpretation.
 - **Collector consistency fix:** The outcome collector now calls the same `prime_a_button` (60 button-only A requests) before the existing `build_probe("forward", follow_through_frames=30)` trace and always calls `release_buttons` afterward, matching the standalone successful S001 probe. It also records the exact waveform SHA256, generated frame count, and A-prime metadata. The previous two captures did NOT have this documented prime protocol; both remain exploratory and unchanged. The cross-run tool requires matching waveform hashes AND matching documented prime parameters before marking full controller programs comparable.
 
+## Regression control: controller priming is not yet a proven improvement
+
+The S002 collector temporarily adopted the S001 integrator's **60 separate button-only A requests** before the trace. A user subsequently reported no ball strike from that updated collector. The earlier **2.1 ft GREEN** and **100 ft MISS** reports both involved visibly successful strikes without this additional priming. We therefore restored **no separate A prime** as the S002 default. Opt-in `--a-prime-requests 60` is diagnostic and MUST be treated as a distinct controller program, not a harmless startup convention. This does **not** change the swing waveform, canonical fresh Dolphin intro, or independently evolving local swing-bridge V2; any V2 change remains a separate possible confound.
+
 ## Usage on existing local summaries
 
 ~~~powershell
