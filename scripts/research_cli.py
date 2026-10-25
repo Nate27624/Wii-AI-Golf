@@ -135,6 +135,8 @@ def publish_summary(summary: dict) -> str:
     Uses a temporary shallow clone to keep the operator's code working tree
     untouched. Refuses to create a new branch implicitly or force-push.
     """
+    from wii_ai_golf.shared.public_observation import public_observation
+    clean = public_observation(summary)  # fail closed BEFORE any Git/network access
     with tempfile.TemporaryDirectory(prefix="wii-golf-observation-") as tmp:
         work = Path(tmp)
         # Reuse configured origin URL only after sync_merged_main verified it.
@@ -147,20 +149,49 @@ def publish_summary(summary: dict) -> str:
         repo = work / "repo"
         target = repo / "research" / "observations"
         target.mkdir(parents=True, exist_ok=True)
-        name = summary["id"] + ".json"
+        name = clean["id"] + ".json"
         file = target / name
         with file.open("x", encoding="utf-8") as out:
-            json.dump(summary, out, indent=2, sort_keys=True, allow_nan=False)
+            json.dump(clean, out, indent=2, sort_keys=True, allow_nan=False)
             out.write("\n")
         _git(["add", "--", str(file.relative_to(repo))], cwd=repo)
         _git(["-c", "user.name=Wii Golf Research Worker",
               "-c", "user.email=research-worker@users.noreply.github.com",
-              "commit", "-m", "research: record sanitized " + summary["kind"] + " result"], cwd=repo)
+              "commit", "-m", "research: record sanitized " + clean["kind"] + " result"], cwd=repo)
         # No force. Concurrent writers are never overwritten; operator can
         # retry publish from locally preserved summary if needed.
         _git(["push", "origin", "HEAD:" + OBS_BRANCH], cwd=repo)
     return "https://github.com/Nate27624/Wii-AI-Golf/tree/" + OBS_BRANCH + "/research/observations"
 
+
+
+def publish_saved_scene_root(record_id: str, *, local_only: bool = False) -> str:
+    """Reuse an EXISTING sanitized probe report; no new Dolphin/RPC run.
+
+    Deliberately restrict input to one source-approved report type in the
+    private sibling captures directory. No arbitrary --file arguments.
+    """
+    from wii_ai_golf.shared.public_observation import TRIAL_ID, public_observation
+    if (type(record_id) is not str or not TRIAL_ID.fullmatch(record_id)
+        or record_id.startswith(("cohort-", "offline-"))):
+        raise ValueError("Invalid source-gated scene-root record ID")
+    captures = DATA / "captures"
+    path = captures / ("golf-scene-root-" + record_id + "-summary.json")
+    if (captures.is_symlink() or path.is_symlink() or not path.is_file()
+        or not 0 < path.stat().st_size <= 16_384):
+        raise ValueError("Saved scene-root report missing, linked or oversized")
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise ValueError("Saved scene-root report is not readable JSON") from exc
+    if type(record) is not dict or record.get("id") != record_id:
+        raise ValueError("Saved scene-root report ID mismatch")
+    clean = public_observation(record)  # no raw/private fields or pointers
+    if clean.get("kind") != "golf_scene_root_candidate_triage":
+        raise ValueError("Not an approved scene-root report")
+    if local_only:
+        return "VALID LOCAL-ONLY scene-root report; no upload attempted"
+    return publish_summary(clean)  # same existing reviewed Git authentication
 
 
 POWER_MAP_ID = "S003-POWER-MAP-10-V1"
@@ -194,6 +225,12 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("sync", help="Fast-forward clean trusted main; never start Dolphin")
     commands.add_parser("study", help="Print preregistered 10-shot plan; no Dolphin")
+    saved = commands.add_parser("publish-saved-scene-root",
+                                help="Validate or publish an existing sanitized scene-root report; no Dolphin")
+    saved.add_argument("--id", required=True, help="Record ID printed by source-gated probe")
+    saved.add_argument("--local-only", action="store_true",
+                       help="Validate saved report but do not upload")
+
     t = commands.add_parser("test", help="Sync, run focused offline unittests, publish results")
     t.add_argument("--pattern", default="test_*.py")
     t.add_argument("--no-upload", action="store_true", help="Keep results local")
@@ -220,6 +257,10 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "study":
             show_power_map()
+            return 0
+        if args.command == "publish-saved-scene-root":
+            result = publish_saved_scene_root(args.id, local_only=args.local_only)
+            print("Scene-root saved report:", result, flush=True)
             return 0
         if args.command == "v1" and (not args.live or type(args.a_lead) is not int
                                      or not 0 <= args.a_lead <= 90):
