@@ -55,3 +55,50 @@ Each segment must have a frame event marker and pointer-stable sample. Collect o
 ## Stop/go
 
 **GO for learning power from memory** only after: (a) one validated live golfer-owned memory region; (b) frame-aligned same-shot A/back/forward/contact capture with harmless overhead; (c) idle/A/camera negative controls; (d) two independent clean-boot repeats and >1 observed power level; (e) measured on-green/physical outcome distinct from 100-ft penalty. Until then label outputs `candidate_change`, NOT `measured_power`, `ball_speed`, or `learned_model`.
+
+
+## First operator study: read-only negative-control RAM pilot (STUDY-MEM-CTRL-01)
+
+**This is the first runnable experiment, NOT the swing-power mapping yet.** It determines sample timing, memory-drift control, and response to aiming with **zero swings**. S002's phase recorder currently lives only in pending PR #116 and must pass local targeted AND full tests first. Do not merge this branch or #116 merely to enable the pilot.
+
+**Safety:** one Dolphin boot from the up-to-date trusted MAIN checkout. A separate detached worktree contains PR #116's **read-only action** and cannot modify the running controller. Keep original main checkout clean and loaded savestate unchanged. Use `--no-upload` until PR #126 public-memory privacy validator is reviewed. Never share `RAW-PRIVATE.jsonl`.
+
+PowerShell, commands one block at a time:
+
+```powershell
+$repo = "D:\Projects\Wii Golf AI\Wii-AI-Golf"
+$work = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Memory-Phase-Pilot"
+if (Test-Path $work) { throw "Study worktree already exists. Do not overwrite it." }
+git -C $repo fetch origin pull/116/head
+if ($LASTEXITCODE -ne 0) { throw "Could not fetch S002 study PR" }
+git -C $repo worktree add --detach $work FETCH_HEAD
+if ($LASTEXITCODE -ne 0) { throw "Could not create isolated S002 worktree" }
+Set-Location $work
+py -m unittest discover -s tests -p "test_golf_memory_phase_capture.py" -v
+if ($LASTEXITCODE -ne 0) { throw "Focused phase tests failed: do not launch Dolphin" }
+py -m unittest discover -s tests -v
+if ($LASTEXITCODE -ne 0) { throw "Full offline suite failed: stop" }
+```
+
+Close any Dolphin process, then launch the validated intro FROM THE CANONICAL main checkout:
+
+```powershell
+Set-Location $repo
+py scripts/launch_golf.py
+if ($LASTEXITCODE -ne 0) { throw "Canonical game intro failed" }
+```
+
+Visually confirm Hitting the Green first-ball golfer is ready, and **leave Dolphin running**. From the isolated worktree, attach a read-only memory recorder (does NOT start/restore Dolphin a second time):
+
+```powershell
+Set-Location $work
+py scripts/capture_golf_memory_phases.py --attach-running --scope focused `
+  --phase idle:8 --phase aim_only:12 --phase idle:8 `
+  --interval 0.75 --max-frame-span 30 --no-upload
+```
+
+At each phase prompt: idle means hands off; aim-only means move the configured Wii pointer with WASD while the phase records (~9 seconds); second idle means release all controls. Switching focus from terminal to Dolphin can consume early samples: report that honestly rather than inventing aim activity. No A press, no intentional ball hit, no emulator reset. Mark phase observations accurately. If no actual aim movement was seen, use `unknown` instead of `camera_moved`.
+
+The experiment produces private `golf-memory-phases-...-RAW-PRIVATE.jsonl` and local **sanitized** `golf-memory-phases-...-summary.json` under sibling `Wii-AI-Golf-Data\captures`. Share only the sanitized summary and console frame-span status with S002/S003. The public summary currently reports aggregate within-stage and boundary counts; it **does not yet attribute changes to individual phase transitions**, so raw data should be retained locally for S002's revised phase-specific analyst. All zero changes are meaningful. A span over 30 frames stops the experiment; smaller samples still aren't atomic.
+
+**Pass threshold:** valid RSPE01 Rev1 mode4, monotonic emulator frames, no relocations in compared windows (or explicitly reported), 28 samples, no uncontrolled contact, and a sanitized candidate count/frame latency summary. The follow-on swing-strength experiment needs (1) a source-validated live golfer/swing memory window, (2) per-phase candidate specificity under this negative control, (3) frame-linked S001 events during the SAME shot, and (4) three DISTINCT human-observed meter powers; absent any prerequisite, do not train power or use a 100ft penalty as carry.
