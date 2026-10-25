@@ -9,6 +9,8 @@ cd "D:\Projects\Wii Golf AI\Wii-AI-Golf"
 py scripts/golf.py lab gui
 ~~~
 
+**Game testing is now directly in the UI:** Look for the always-visible **Game Testing — historical V1 versus installed V2** panel above the experiment table. Click **1 Inspect bridges** (read-only), **2 Prepare historical V1** (copies a verified backup to a separate file after asking), then **3 Run ONE V1 shot** (fresh Dolphin and a separate explicit consent). These steps are no longer hidden in PowerShell. If no safe V1 backup exists, the Lab explains why and disables steps 2–3. Use the **Game tests** filter to see the same experiments. After a GitHub update changes Lab code, click **Restart Lab (updated)** to load it.
+
 Or run `py scripts/golf.py lab list`, `lab plan EXPERIMENT_ID`, `lab run EXPERIMENT_ID`, `lab history` and `lab reports` from a terminal. The Lab catalogs S001 control, S002 read-only evaluation, pending S003 modeling, S004 synthetic learning and pending S005 generalization behind **one reviewed experiment registry**. A live run needs explicit `--live` and performs the **canonical single fresh Dolphin/Slot2/A–A+B–A startup**, with human authorization. Execution metadata and offline logs are local, human observations remain distinct from verified scores, and raw RAM is never uploaded.
 
 **Latest observed shot:** the unprimed outcome-collector trial under generated bridge V2 failed to strike with adequate strength; the Lab does **not** label its profile reliable yet. We are standardizing experiments before further uncontrolled A-timing changes.
