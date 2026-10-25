@@ -111,7 +111,8 @@ class LabGitSyncTests(unittest.TestCase):
 
     def test_active_live_lock_never_fetches_or_updates(self):
         self.data.mkdir(parents=True)
-        (self.data / "live-session.lock").write_text('{"pid":123}')
+        (self.data / "live-session.lock").write_text(
+            json.dumps({"pid": __import__("os").getpid()}))
         fake = FakeGit()
         result = sync_merged_main(self.root, lab_data=self.data, run=fake)
         self.assertEqual(result.status, "blocked")
@@ -124,10 +125,10 @@ class LabGitSyncTests(unittest.TestCase):
             result = sync_merged_main(self.root, lab_data=self.data, run=fake)
             self.assertEqual(result.status, "blocked")
             self.assertFalse(fake.calls)
-            with self.assertRaisesRegex(ValueError, "Another Lab test"):
+            with self.assertRaisesRegex(ValueError, "Lab test is already active"):
                 with core.lab_run_lock(self.data):
                     self.fail("must not start a second overlapping Lab run")
-        self.assertFalse((self.data / "run-session.lock").exists())
+        self.assertFalse(core.lock_busy(self.data / "run-session.lock"))
 
     def test_live_session_started_during_fetch_prevents_merge(self):
         fake = FakeGit()
