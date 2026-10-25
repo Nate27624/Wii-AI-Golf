@@ -60,13 +60,21 @@ class ResearchCliTests(unittest.TestCase):
              patch.object(research_cli, "_fallback_human_observation",
                           return_value={"human": {"contact_human": "unknown"}}):
             self.assertEqual(research_cli.main(
-                ["v1", "--live", "--a-lead", "45", "--motion-scale", "0.8"]), 0)
+                ["v1", "--live", "--a-lead", "45", "--speed-scale", "0.9"]), 0)
             command = runner.call_args.args[0]
             self.assertEqual(command[command.index("--a-lead-frames") + 1], "45")
-            self.assertEqual(command[command.index("--motion-scale") + 1], "0.8")
+            self.assertEqual(command[command.index("--motion-scale") + 1], "1.0")
+            self.assertEqual(command[command.index("--speed-scale") + 1], "0.9")
             self.assertIn("--ask-power", command)
             publisher.assert_called_once()
-            self.assertEqual(publisher.call_args.args[0]["requested_motion_scale"], 0.8)
+            self.assertEqual(publisher.call_args.args[0]["requested_motion_scale"], 1.0)
+            self.assertEqual(publisher.call_args.args[0]["requested_speed_scale"], 0.9)
+
+    def test_multidimensional_motion_scale_is_not_allowed_in_v1_cli(self):
+        from wii_ai_golf.lab.github_sync import SyncReport
+        with patch.object(research_cli, "sync_merged_main", return_value=SyncReport("up_to_date")):
+            with self.assertRaises(SystemExit):
+                research_cli.main(["v1", "--live", "--motion-scale", "0.8"])
 
     def test_unapproved_motion_scale_is_rejected(self):
         with self.assertRaises(SystemExit):
