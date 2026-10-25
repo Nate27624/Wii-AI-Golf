@@ -89,6 +89,17 @@ def sync_merged_main(
         changed = git("diff", "--name-only", "HEAD", "FETCH_HEAD", "--", "tests")
         changed_tests = tuple(sorted({x for x in changed.splitlines()
                                       if TEST_DIFF.fullmatch(x)}))
+        # Recheck immediately before filesystem changes; Dolphin/Lab processes
+        # may have begun during the network fetch.
+        if lab_data is not None and (lab_data / "live-session.lock").exists():
+            return SyncReport("blocked", before, after, changed_tests,
+                              note="Lab live session started during fetch; update deferred.")
+        if git("status", "--porcelain", "--untracked-files=normal"):
+            return SyncReport("blocked", before, after, changed_tests,
+                              note="Working tree changed during fetch; update deferred.")
+        if git("branch", "--show-current") != BRANCH:
+            return SyncReport("blocked", before, after, changed_tests,
+                              note="Branch changed during fetch; update deferred.")
         # No reset/stash/force. git merge --ff-only refuses changed/diverged trees.
         git("merge", "--ff-only", "FETCH_HEAD", timeout=timeout_s)
         final = git("rev-parse", "HEAD")
