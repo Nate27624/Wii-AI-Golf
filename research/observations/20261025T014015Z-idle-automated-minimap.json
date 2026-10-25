@@ -1,0 +1,18 @@
+{
+  "adjacent_changes": 0,
+  "changed_byte_offsets": [],
+  "claim": "AUTOMATED_SWING_COMMAND_NOT_VERIFIED_BALL_CONTACT",
+  "condition": "idle_control",
+  "id": "20261025T014015Z-idle-automated-minimap",
+  "kind": "automated-minimap-effect",
+  "phase_counts": {
+    "post": 20,
+    "pre": 5
+  },
+  "samples": 25,
+  "schema_version": 1,
+  "study_id": "S002-AUTOMATED-MINIMAP-SHOT",
+  "swing_dispatch_received": false,
+  "utc": "2026-10-25T01:40:25.546301+00:00",
+  "warning": "Minimap visual effect is not verified physics ball or score"
+}
