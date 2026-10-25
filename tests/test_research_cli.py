@@ -76,6 +76,33 @@ class ResearchCliTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 research_cli.main(["v1", "--live", "--motion-scale", "0.8"])
 
+    def test_backswing_only_is_forwarded_and_reported(self):
+        from wii_ai_golf.lab.github_sync import SyncReport
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(research_cli, "sync_merged_main", return_value=SyncReport("up_to_date")), \
+             patch.object(research_cli, "_run", return_value=0) as runner, \
+             patch.object(research_cli, "DATA", Path(folder)), \
+             patch.object(research_cli, "publish_summary") as publish, \
+             patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
+                   return_value={"revision": "V1-neutral-swing-calls",
+                                 "safe_for_isolated_legacy_copy": True}), \
+             patch.object(research_cli, "_fresh_human_labels",
+                          return_value={"capture_status": "sanitized_human_annotation_only"}):
+            self.assertEqual(research_cli.main(["v1", "--live", "--a-lead", "45",
+                                               "--backswing-scale", "0.8"]), 0)
+            command = runner.call_args.args[0]
+            self.assertEqual(command[command.index("--backswing-scale") + 1], "0.8")
+            self.assertEqual(command[command.index("--speed-scale") + 1], "1.0")
+            self.assertEqual(command[command.index("--a-lead-frames") + 1], "45")
+            self.assertEqual(publish.call_args.args[0]["requested_backswing_scale"], 0.8)
+
+    def test_reject_simultaneous_backswing_and_speed_change(self):
+        from wii_ai_golf.lab.github_sync import SyncReport
+        with patch.object(research_cli, "sync_merged_main", return_value=SyncReport("up_to_date")):
+            with self.assertRaises(SystemExit):
+                research_cli.main(["v1", "--live", "--backswing-scale", "0.8",
+                                   "--speed-scale", "0.9"])
+
     def test_unapproved_motion_scale_is_rejected(self):
         with self.assertRaises(SystemExit):
             research_cli.main(["v1", "--live", "--motion-scale", "0.9"])
