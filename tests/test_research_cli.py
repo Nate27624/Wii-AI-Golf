@@ -15,6 +15,34 @@ import research_cli
 
 
 class ResearchCliTests(unittest.TestCase):
+    def test_ten_trial_plan_has_two_repeats_each_and_no_emulator(self):
+        from collections import Counter
+        from wii_ai_golf.lab.github_sync import SyncReport
+        self.assertEqual(len(research_cli.POWER_MAP_STUDY), 10)
+        self.assertEqual(set(Counter(research_cli.POWER_MAP_STUDY).values()), {2})
+        with patch.object(research_cli, "sync_merged_main",
+                          return_value=SyncReport("up_to_date")), \
+             patch.object(research_cli, "_run") as run, \
+             patch.object(research_cli, "publish_summary") as upload:
+            self.assertEqual(research_cli.main(["study"]), 0)
+            run.assert_not_called()
+            upload.assert_not_called()
+        commands = research_cli.power_map_commands()
+        self.assertEqual(len(commands), 10)
+        self.assertIn("--trial-index 10", commands[-1])
+        self.assertTrue(all("--a-lead 45" in command for command in commands))
+
+    def test_study_rejects_non_preregistered_settings(self):
+        from wii_ai_golf.lab.github_sync import SyncReport
+        with patch.object(research_cli, "sync_merged_main",
+                          return_value=SyncReport("up_to_date")), \
+             patch.object(research_cli, "_run") as run:
+            with self.assertRaises(SystemExit):
+                research_cli.main(["v1", "--live", "--a-lead", "45",
+                    "--study-id", research_cli.POWER_MAP_ID, "--trial-index", "1",
+                    "--speed-scale", "0.8"])
+            run.assert_not_called()
+
     def test_source_sync_only_does_not_start_golf_or_publish(self):
         from wii_ai_golf.lab.github_sync import SyncReport
         with patch.object(research_cli, "sync_merged_main",

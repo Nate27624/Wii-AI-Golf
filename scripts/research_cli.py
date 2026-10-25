@@ -162,10 +162,38 @@ def publish_summary(summary: dict) -> str:
     return "https://github.com/Nate27624/Wii-AI-Golf/tree/" + OBS_BRANCH + "/research/observations"
 
 
+
+POWER_MAP_ID = "S003-POWER-MAP-10-V1"
+# Five conditions twice, same first-ball scenario on independent fresh boots.
+POWER_MAP_STUDY = ((1.0,1.0),(0.8,1.0),(1.0,1.2),(0.9,1.0),(1.0,0.8),
+                   (1.0,1.0),(1.0,0.8),(0.9,1.0),(1.0,1.2),(0.8,1.0))
+
+
+def power_map_commands() -> list[str]:
+    return [("py scripts/research_cli.py v1 --live --a-lead 45 "
+             f"--speed-scale {speed:.1f} --backswing-scale {back:.1f} "
+             f"--study-id {POWER_MAP_ID} --trial-index {i}")
+            for i, (speed, back) in enumerate(POWER_MAP_STUDY, 1)]
+
+
+def show_power_map() -> None:
+    print("S003 10-shot study: 10 fresh-boot FIRST-HOLE trials, NOT ten unique holes.")
+    print("Close Dolphin between trials. Fixed V1 bridge, A lead 45, full forward travel.")
+    print("For each: report contact, starting pose, visible power%, green and score.")
+    print("Use 't' if the game transitions before the settled capture; 100ft off-green is a penalty.")
+    for i, cmd in enumerate(power_map_commands(), 1):
+        speed, back = POWER_MAP_STUDY[i - 1]
+        print(f"\nTrial {i:02d}/10: speed {speed:.1f}x, backwards travel {back:.1f}x")
+        print(cmd)
+    print("Stop on unsafe state, failed button hold or unmatched bridge. No automatic multi-hole navigation.")
+
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("sync", help="Fast-forward clean trusted main; never start Dolphin")
+    commands.add_parser("study", help="Print preregistered 10-shot plan; no Dolphin")
     t = commands.add_parser("test", help="Sync, run focused offline unittests, publish results")
     t.add_argument("--pattern", default="test_*.py")
     t.add_argument("--no-upload", action="store_true", help="Keep results local")
@@ -177,6 +205,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="Change swing speed only; preserve club travel and A timing")
     v.add_argument("--motion-scale", type=float, choices=(0.6, 0.8, 1.0, 1.2), default=1.0,
                    help="Controlled motion calibration; 1.0 exactly reproduces verified baseline")
+    v.add_argument("--study-id", choices=(POWER_MAP_ID,), default=None)
+    v.add_argument("--trial-index", type=int, choices=range(1,11), default=None)
     v.add_argument("--live", action="store_true", help="Explicit consent to launch Dolphin")
     v.add_argument("--no-upload", action="store_true", help="Keep report local")
     args = parser.parse_args(argv)
@@ -188,6 +218,9 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.command == "sync":
             return 0
+        if args.command == "study":
+            show_power_map()
+            return 0
         if args.command == "v1" and (not args.live or type(args.a_lead) is not int
                                      or not 0 <= args.a_lead <= 90):
             parser.error("v1 requires --live and --a-lead between 0 and 90")
@@ -195,6 +228,15 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("--motion-scale alters travel AND speeds; use --speed-scale for one-variable calibration")
         if args.command == "v1" and args.backswing_scale != 1.0 and args.speed_scale != 1.0:
             parser.error("change either --backswing-scale or --speed-scale, not both")
+        if args.command == "v1":
+            if (args.study_id is None) != (args.trial_index is None):
+                parser.error("--study-id and --trial-index must be used together")
+            if args.study_id:
+                expected_speed, expected_back = POWER_MAP_STUDY[args.trial_index - 1]
+                if (args.a_lead != 45 or args.motion_scale != 1.0
+                    or args.speed_scale != expected_speed
+                    or args.backswing_scale != expected_back):
+                    parser.error("Trial settings differ from preregistered plan")
         begin = datetime.now(timezone.utc)
         if args.command == "test":
             exit_code = _run([sys.executable, "-m", "unittest", "discover",
@@ -227,6 +269,10 @@ def main(argv: list[str] | None = None) -> int:
             summary["requested_motion_scale"] = args.motion_scale
             summary["requested_speed_scale"] = args.speed_scale
             summary["requested_backswing_scale"] = args.backswing_scale
+            if args.study_id:
+                summary["study_id"] = args.study_id
+                summary["trial_index"] = args.trial_index
+                summary["trial_count"] = len(POWER_MAP_STUDY)
             summary["bridge_sha256"] = _sha_file(bridge)
             summary.update(_fresh_human_labels(begin))
             if _missing_capture_needs_fallback(summary):
