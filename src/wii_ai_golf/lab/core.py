@@ -255,47 +255,21 @@ def local_bridge_fingerprint(root: Path) -> dict[str, str | None]:
     return {"sha256": hashlib.sha256(p.read_bytes()).hexdigest(), "present": "true"}
 
 
+# Delegate to OS-managed locks; stale legacy PID records are inspected
+# conservatively, without requiring the operator to delete a lock file.
+from .locks import session_lock, lock_busy, any_lab_job_busy
+
+
 @contextmanager
 def lab_run_lock(data: Path = DATA) -> Iterator[None]:
-    """Shared guard for ALL Lab jobs so Git sync cannot replace running code."""
-    data.mkdir(parents=True, exist_ok=True)
-    lock = data / "run-session.lock"
-    try:
-        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    except FileExistsError as exc:
-        raise ValueError("Another Lab test is active or a stale run lock exists: "
-                         f"{lock}. Verify no job is running before clearing it.") from exc
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump({"pid": os.getpid(),
-                       "utc": datetime.now(timezone.utc).isoformat()}, f)
+    with session_lock(Path(data) / "run-session.lock", label="Lab test"):
         yield
-    finally:
-        lock.unlink(missing_ok=True)
 
 
 @contextmanager
 def live_session_lock(data: Path = DATA) -> Iterator[None]:
-    """Fail closed on a parallel lab live session, including stale lockfiles.
-
-    Does not kill Dolphin or unlink someone else's lock. In case of a crash,
-    an operator must inspect that no process is active before clearing it.
-    """
-    data.mkdir(parents=True, exist_ok=True)
-    lock = data / "live-session.lock"
-    try:
-        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    except FileExistsError as exc:
-        raise ValueError(f"Another lab live experiment may be active: {lock}. "
-                         "Do not delete this while Dolphin is running.") from exc
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump({"pid": os.getpid(),
-                       "utc": datetime.now(timezone.utc).isoformat()}, f)
+    with session_lock(Path(data) / "live-session.lock", label="Lab live experiment"):
         yield
-    finally:
-        # Only this process can remove this lock while its context is active.
-        lock.unlink(missing_ok=True)
 
 
 def history(data: Path = DATA, *, limit: int = 20) -> list[dict[str, Any]]:
