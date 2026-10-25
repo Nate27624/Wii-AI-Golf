@@ -1,0 +1,23 @@
+{
+  "worker": "S003 supporting research - memory swing pairing",
+  "issue": 121,
+  "branch": "agent/modeling/memory-swing-join-gates",
+  "status": "claimed",
+  "date_utc": "2026-10-25",
+  "owned_paths": [
+    "src/wii_ai_golf/research_memory_swing_link.py",
+    "tests/test_research_memory_swing_link.py",
+    "research/memory-swing-link/README.md",
+    "research/claims/memory-swing-link.json"
+  ],
+  "cross_domain_schema_change": false,
+  "owner_ack_required_before_integration": true,
+  "upstream": [
+    "S001 PR #112",
+    "S002 PR #116",
+    "S002 PRs #109/#120",
+    "S003 PR #119"
+  ],
+  "next_owner": "S001/S002 agree exact frame join; S003 validates signal specificity",
+  "evidence": "synthetic only; no verified game power"
+}
