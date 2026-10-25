@@ -51,6 +51,7 @@ def summary(rows,dispatch):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--send-live-swing",action="store_true")
+    p.add_argument("--no-upload",action="store_true",help="Keep sanitized report local")
     p.add_argument("--port",type=int,default=55355)
     p.add_argument("--before",type=int,default=5)
     p.add_argument("--after",type=int,default=20)
@@ -83,6 +84,20 @@ def main():
     report.write_text(json.dumps(result,indent=2)+"\n",encoding="utf-8")
     print(json.dumps(result,indent=2))
     print("Private raw:",raw,"Sanitized local summary:",report)
+    if not args.no_upload:
+        # Explicit allowlist. Never forward raw rows, RAM hex, pointers or local paths.
+        public={key:result[key] for key in (
+            "schema_version","study_id","utc","samples","phase_counts",
+            "changed_byte_offsets","adjacent_changes","swing_dispatch_received",
+            "claim","warning")}
+        public["id"]=run+"-automated-minimap"
+        public["kind"]="automated-minimap-effect"
+        try:
+            from research_cli import publish_summary
+            url=publish_summary(public)
+            print("Sanitized GitHub observation:",url,flush=True)
+        except (OSError,RuntimeError,ValueError) as exc:
+            print("GitHub publication failed; sanitized local summary retained:",exc,file=sys.stderr)
     return 0
 if __name__=="__main__":
     try:raise SystemExit(main())
