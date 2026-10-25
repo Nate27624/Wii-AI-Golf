@@ -1,4 +1,8 @@
 # AI agent coordination protocol
+
+## Delegated self-merging
+
+**Agents may merge their own PRs** when every gate in [merging requirements](docs/merging-requirements.md) is met and posted as a `MERGE READY` checklist. S000 is not a routine approval bottleneck; shared interface changes require acknowledgment by canonical owners and S000 before the author self-merges. Draft/conflicted/untested PRs cannot self-merge. Preserve GitHub protection rules and exact test evidence.
 ## Required cross-agent handoff
 
 Read [cross-agent cooperation contract](docs/cross-agent-cooperation.md) before changing a shared interface. Every PR must identify upstream/downstream owners, concrete schemas/commands, collision paths, exact tests and evidence limitations, and the next integration owner. Publish API changes on the affected GitHub PRs/issues before consumers integrate them. S000 coordinates merge order; agent chats are not a shared queue. The retired GUI must not be revived.

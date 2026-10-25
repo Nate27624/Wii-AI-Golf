@@ -1,5 +1,9 @@
 # SPOCOC — Single Point of Control Over Change
 
+## Self-merge authority
+
+The operator allows agents to merge their own domain PRs once they read and satisfy [merging requirements](merging-requirements.md), recording the complete checklist in the PR. SPOCOC ownership remains centralized per shared behavior; cross-domain contract modifications must obtain canonical owner and S000 acknowledgment before author-driven merge. Do not wait for routine S000 approval on an otherwise qualifying independent change.
+
 SPOCOC means **Single Point of Control Over Change**, as defined by the operator. Each shared behavior has **one authoritative implementation and one owner approving modifications to its contract**. Different research agents may propose changes or run competing experiments, but must not create independent production implementations of the same responsibility.
 
 ## Authority matrix: one canonical implementation per responsibility
