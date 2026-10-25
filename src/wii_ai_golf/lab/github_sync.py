@@ -91,7 +91,22 @@ def _sync_impl(
         if git("status", "--porcelain", "--untracked-files=normal"):
             return SyncReport("blocked", note="Working tree has local changes; commit/move them before updating.")
         before = git("rev-parse", "HEAD")
+        # A marker changed during fetch may be released before its advisory
+        # lock is inspected. Still block the update: session state changed.
+        live_marker = lab_data / "live-session.lock" if lab_data is not None else None
+        def marker_stamp():
+            if live_marker is None:
+                return None
+            try:
+                info = live_marker.stat()
+            except FileNotFoundError:
+                return None
+            return (info.st_ino, info.st_size, info.st_mtime_ns)
+        live_before_fetch = marker_stamp()
         git("fetch", "--no-tags", REMOTE, BRANCH, timeout=timeout_s)
+        if marker_stamp() != live_before_fetch:
+            return SyncReport("blocked", before=before,
+                              note="Live-session marker changed during fetch; update deferred.")
         # A live session may begin while fetch is in progress. Check right
         # after the network operation, before any further Git commands.
         # Unknown/legacy lock records fail closed through lock_busy().

@@ -139,7 +139,8 @@ class LabGitSyncTests(unittest.TestCase):
                 (self.data / "live-session.lock").write_text("session")
             return result
         result = sync_merged_main(self.root, lab_data=self.data, run=injecting_runner)
-        self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.status, "blocked", result.note)
+        self.assertIn("marker changed during fetch", result.note)
         self.assertFalse(fake.merged)
         # A live task arriving during fetch must halt before even checking
         # FETCH_HEAD, much less performing a fast-forward merge.
