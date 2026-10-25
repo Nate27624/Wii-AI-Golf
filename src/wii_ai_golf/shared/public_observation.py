@@ -11,12 +11,13 @@ import json
 import math
 import re
 
-TRIAL_ID = re.compile(r"(?:offline-)?[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,12}\Z")
+TRIAL_ID = re.compile(r"(?:offline-|cohort-)?[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,12}\Z")
 SHA = re.compile(r"[a-f0-9]{64}\Z")
 GIT_SHA = re.compile(r"(?:[a-f0-9]{40}|unavailable)\Z")
 OFFSET = re.compile(r"\+0x[0-9A-F]{1,5}\Z")
 PUBLIC_SIZE_LIMIT = 96_000
-KINDS = frozenset({"test", "v1", "golf-memory-phase-differential"})
+KINDS = frozenset({"test", "v1", "golf-memory-phase-differential",
+                  "golf-memory-cohort-relative-words"})
 PHASES = frozenset({"idle", "aim_only", "a_hold", "club_motion",
                     "shot_attempt", "settled", "pre", "post"})
 OBSERVATIONS = frozenset({"unchanged", "camera_moved", "club_moved",
@@ -230,6 +231,73 @@ def _memory_public(record):
     return sanitized
 
 
+COHORT_FIELDS = frozenset({
+    "schema_version", "kind", "study_id", "id", "valid_independent_runs",
+    "shared_changed_words_all_runs", "recurrent_changed_words_2plus_runs",
+    "distinct_changed_words", "regions_with_changes_by_run_count",
+    "recurrent_words", "no_gameplay_variable_verified", "warning",
+    "excluded_invalid_or_incomplete_runs",
+})
+COHORT_WARNING = (
+    "Repeated changes are not identified golf power, club pose, flight or score. "
+    "Only already-recorded phase-aligned statistics are compared; "
+    "frame timing and human labels may differ."
+)
+
+
+def _cohort_public(record):
+    """Review the existing S002 cohort schema; never accept raw RAM/free text."""
+    if (type(record) is not dict or set(record) != COHORT_FIELDS
+        or type(record.get("schema_version")) is not int or record["schema_version"] != 1
+        or record.get("study_id") != "S002-GOLF-MEMORY-COHORT"
+        or record.get("no_gameplay_variable_verified") is not True
+        or record.get("warning") != COHORT_WARNING
+        or not record["id"].startswith("cohort-")):
+        raise ValueError("Unrecognized S002 cohort public schema")
+    count = record.get("valid_independent_runs")
+    if not _integer(count, 2, 25):
+        raise ValueError("Invalid cohort capture count")
+    for name in ("shared_changed_words_all_runs", "recurrent_changed_words_2plus_runs",
+                 "distinct_changed_words", "excluded_invalid_or_incomplete_runs"):
+        if not _integer(record.get(name), 0, 100_000):
+            raise ValueError("Invalid cohort aggregate count")
+    if not (record["shared_changed_words_all_runs"]
+            <= record["recurrent_changed_words_2plus_runs"]
+            <= record["distinct_changed_words"]):
+        raise ValueError("Inconsistent cohort summary counts")
+    regions = record.get("regions_with_changes_by_run_count")
+    if (type(regions) is not dict or not set(regions).issubset(REGIONS)
+        or any(not _integer(v, 1, count) for v in regions.values())):
+        raise ValueError("Invalid cohort region recurrence")
+    rows = record.get("recurrent_words")
+    if type(rows) is not list or len(rows) > 250:
+        raise ValueError("Invalid cohort relative-offset rows")
+    seen = set()
+    for row in rows:
+        if (type(row) is not dict or set(row) != {
+            "region", "relative_offset", "runs_changed", "runs_within_phase",
+            "runs_at_phase_boundary", "within_phase_events", "boundary_events"}
+            or type(row["region"]) is not str or row["region"] not in REGIONS
+            or type(row["relative_offset"]) is not str
+            or not OFFSET.fullmatch(row["relative_offset"])):
+            raise ValueError("Invalid cohort relative-offset entry")
+        key = (row["region"], row["relative_offset"])
+        if key in seen:
+            raise ValueError("Duplicate cohort offset")
+        seen.add(key)
+        for name in ("runs_changed", "runs_within_phase", "runs_at_phase_boundary",
+                     "within_phase_events", "boundary_events"):
+            if not _integer(row[name], 0, 100_000):
+                raise ValueError("Invalid cohort occurrence")
+        if (not 2 <= row["runs_changed"] <= count
+            or row["runs_within_phase"] > row["runs_changed"]
+            or row["runs_at_phase_boundary"] > row["runs_changed"]):
+            raise ValueError("Impossible cohort run recurrence")
+    if len(rows) > record["recurrent_changed_words_2plus_runs"]:
+        raise ValueError("Cohort ranked rows exceed summary count")
+    return dict(record)
+
+
 def public_observation(record):
     """Only known schema and typed public facts may reach the Git writer."""
     if type(record) is not dict or not isinstance(record.get("id"), str):
@@ -239,7 +307,16 @@ def public_observation(record):
     kind = record.get("kind")
     if type(kind) is not str or kind not in KINDS:
         raise ValueError("Unsupported public observation kind")
-    safe = _memory_public(record) if kind == "golf-memory-phase-differential" else _legacy_public(record)
+    if kind == "golf-memory-cohort-relative-words":
+        safe = _cohort_public(record)
+    elif kind == "golf-memory-phase-differential":
+        if record["id"].startswith("cohort-"):
+            raise ValueError("Cohort ID cannot identify an individual capture")
+        safe = _memory_public(record)
+    else:
+        if record["id"].startswith(("cohort-", "offline-")):
+            raise ValueError("Invalid legacy trial identifier prefix")
+        safe = _legacy_public(record)
     encoded = json.dumps(safe, sort_keys=True, allow_nan=False).encode("utf-8")
     if len(encoded) > PUBLIC_SIZE_LIMIT:
         raise ValueError("Public observation exceeds maximum safe size")
