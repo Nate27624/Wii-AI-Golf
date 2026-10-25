@@ -100,3 +100,7 @@ The project now includes one source-local **`py scripts/golf.py lab ...`** exper
 - Distinguish **script exit**, **Felk bridge ACK**, **user-observed ball strike**, **verified game score** and **generalization performance**. The latest S002 unprimed V2 human-reported shot **failed due to insufficient strike strength** and must remain a negative observation; prior 2.1-ft green and 100-ft miss hits are non-equivalent input conditions.
 - Save metadata in local `Wii-AI-Golf-Data/lab`, not GitHub; never upload RAW-PRIVATE RAM. All offline commands may be planned without any Dolphin connection, and only approved live commands can launch it. No unattended batches until measured scoring and safe control gates are passed.
 
+
+## Operator-authorized bounded autonomy
+
+See [docs/agent-autonomy-policy.md](docs/agent-autonomy-policy.md) for the standing authorization: independently propose/test/merge low-risk changes after validation, safely sync reviewed experiments, and run allowlisted offline batches. Live Dolphin/control, destructive writes, large resource use, and private data publication require explicit per-action approval; do not assume broad permission.
