@@ -59,7 +59,7 @@ def launch(root: Path = ROOT) -> int:
     filter_mode = tk.StringVar(value="All")
     ttk.Label(left, text="Show").pack(anchor="w", pady=(0, 3))
     filter_select = ttk.Combobox(left, textvariable=filter_mode,
-                                 values=("All", "Agent tests", "Experiments"),
+                                 values=("All", "Game tests", "Agent tests", "Experiments"),
                                  state="readonly", width=22)
     filter_select.pack(fill="x", padx=(0, 12), pady=(0, 7))
     listing = ttk.Treeview(left, columns=("owner", "mode"), show="tree headings", height=15)
@@ -81,6 +81,9 @@ def launch(root: Path = ROOT) -> int:
             if filter_mode.get() == "Agent tests" and not agent_test:
                 continue
             if filter_mode.get() == "Experiments" and agent_test:
+                continue
+            if filter_mode.get() == "Game tests" and not (
+                e["id"].startswith("integration.") or e["id"] == "evaluation.capture"):
                 continue
             marker = "NEW  " if agent_test and (
                 "tests/" + e["title"]) in last_changes else ""
@@ -205,7 +208,7 @@ def launch(root: Path = ROOT) -> int:
     def navigate_study(identifier: str):
         # Game Testing shortcuts always show the intended experiment,
         # regardless of a previous Agent tests filter or a stale selection.
-        filter_mode.set("Experiments")
+        filter_mode.set("Game tests")
         refill_catalog()
         if not listing.exists(identifier):
             raise ValueError(f"Experiment {identifier} not loaded. Restart the Lab after Sync GitHub.")
@@ -283,9 +286,11 @@ def launch(root: Path = ROOT) -> int:
                     except (OSError, ValueError) as exc:
                         sync_line.set("Updated checkout; restart Lab to read new code: " + str(exc))
                         continue
+                    restart_needed[0] = True
+                    restart_button.configure(state="normal")
                     sync_line.set(
                         f"GitHub: updated main; {len(item.changed_tests)} merged test files "
-                        "added/modified. Select NEW tests to run. Restart app if Lab code changed."
+                        "added/modified. Click RESTART LAB to load new UI features."
                     )
                 else:
                     sync_line.set("GitHub: " + item.status + " — " + item.note)
@@ -411,6 +416,27 @@ def launch(root: Path = ROOT) -> int:
     live_btn.pack(side="left", padx=3)
     ttk.Button(actions, text="Refresh results", command=refresh).pack(side="left", padx=3)
     ttk.Button(actions, text="Sync GitHub", command=request_sync).pack(side="left", padx=3)
+    def restart_lab():
+        if active or sync_busy[0] or any(
+                (root.parent / "Wii-AI-Golf-Data" / "lab" / name).exists()
+                for name in ("live-session.lock", "run-session.lock")):
+            messagebox.showwarning("Restart deferred",
+                                   "Finish current GitHub update or Lab experiment first.")
+            return
+        # Launch a fresh Python process so all newly downloaded UI modules
+        # and registry adapters are actually imported from current main.
+        try:
+            subprocess.Popen(
+                [sys.executable, str(root / "scripts" / "golf_lab.py")],
+                cwd=root, creationflags=subprocess.CREATE_NEW_CONSOLE)
+        except OSError as exc:
+            messagebox.showerror("Lab restart failed", str(exc))
+            return
+        ui.destroy()
+    restart_button = ttk.Button(
+        actions, text="Restart Lab (updated)", state="disabled",
+        command=restart_lab)
+    restart_button.pack(side="left", padx=3)
     ttk.Button(actions, text="Sanitized outcomes", command=show_sanitized_reports).pack(side="left", padx=3)
     ttk.Button(actions, text="Offline log", command=show_last_offline_log).pack(side="left", padx=3)
     listing.bind("<<TreeviewSelect>>", selected)
