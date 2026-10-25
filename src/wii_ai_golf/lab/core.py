@@ -29,7 +29,7 @@ KINDS = {
     "tests_evaluation": "offline", "tests_learning": "offline",
     "bridge_inspect": "offline", "compare": "offline",
     "motion_audit": "offline", "recover": "offline", "demo": "offline",
-    "swing": "live", "capture": "live", "unavailable": "planned",
+    "swing": "live", "capture": "live", "v1_capture": "live", "unavailable": "planned",
 }
 
 
@@ -102,7 +102,7 @@ def plan(
     root: Path = ROOT, python: str = sys.executable,
     input_path: str | None = None, second_input: str | None = None,
     output_path: str | None = None, a_prime: int = 0,
-    follow_through: int = 30, contact: str | None = None,
+    a_lead: int = 0, follow_through: int = 30, contact: str | None = None,
     green: str | None = None, distance: str | None = None,
 ) -> Plan:
     entries = load_catalog(root / "research" / "experiments.json") if catalog is None else catalog
@@ -112,6 +112,8 @@ def plan(
         raise ValueError(f"{identifier} is planned, NOT runnable; {exp['description']}")
     if type(a_prime) is not int or not 0 <= a_prime <= 180:
         raise ValueError("--a-prime must be 0..180")
+    if type(a_lead) is not int or a_lead not in (0, 12):
+        raise ValueError("--a-lead is restricted to controlled 0 or 12 observed frames")
     if type(follow_through) is not int or not 0 <= follow_through <= 180:
         raise ValueError("--follow-through must be 0..180")
     if input_path is not None and kind not in {"compare", "recover", "motion_audit"}:
@@ -125,8 +127,10 @@ def plan(
             raise ValueError("evaluation.recover requires --contact and --green (yes/no/unknown)")
     elif any(x is not None for x in (contact, green, distance)):
         raise ValueError("--contact/--green/--distance are only for evaluation.recover")
-    if a_prime != 0 and kind not in {"capture", "swing"}:
+    if a_prime != 0 and kind not in {"capture", "swing", "v1_capture"}:
         raise ValueError("--a-prime is only for live capture/swing")
+    if a_lead and kind != "v1_capture":
+        raise ValueError("--a-lead is only supported for integration.v1-diagnostic")
     if follow_through != 30 and kind != "swing":
         raise ValueError("--follow-through is only for integration.swing")
 
@@ -155,6 +159,27 @@ def plan(
                          "--a-setup-frames", "12",
                          "--a-prime-frames", str(a_prime),
                          "--follow-through-frames", str(follow_through),
+                         root=root, python=python)
+    elif kind == "v1_capture":
+        # Legacy V1 is an explicit, structurally validated, separately copied
+        # bridge. Do NOT replace installed V2, auto-create backups, or launch
+        # with an unknown/autoloaded bridge source.
+        from wii_ai_golf.shared.bridge_provenance import inspect_bridge_file
+        bridge = root.parent / "tools" / "mcp_bridge_swing_legacy_eval.py"
+        metadata = inspect_bridge_file(bridge)
+        if (metadata["revision"] != "V1-neutral-swing-calls"
+                or not metadata["safe_for_isolated_legacy_copy"]):
+            raise ValueError(
+                "Isolated no-autoload V1 bridge is unavailable/invalid. "
+                "Use the OFFLINE bridge audit --prepare-legacy-trial after "
+                "reviewing the saved V1 backup; no live experiment started.")
+        if a_prime:
+            raise ValueError("V1 diagnostic does not accept --a-prime; select A lead only")
+        command = _child("run_golf_experiment.py", "--send-live",
+                         "--bridge", str(bridge.resolve()),
+                         "--script", "collect_outcome_transition.py", "--",
+                         "--send-live-swing", "--a-prime-requests", "0",
+                         "--a-lead-frames", str(a_lead),
                          root=root, python=python)
     elif kind == "capture":
         # Must not call collect_outcome_transition.py bare. Exactly one outer

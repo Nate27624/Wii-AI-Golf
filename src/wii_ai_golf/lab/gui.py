@@ -52,6 +52,7 @@ def launch(root: Path = ROOT) -> int:
     for key, label, default in (
         ("input", "Input path", ""), ("second-input", "Second input", ""),
         ("out", "Output path", ""), ("a-prime", "A prime requests", "0"),
+        ("a-lead", "Observed A lead frames (V1: 0/12)", "0"),
         ("follow-through", "Follow-through", "30"), ("contact", "Contact yes/no/unknown", ""),
         ("green", "Green yes/no/unknown", ""), ("distance", "Displayed distance", ""),
     ):
@@ -80,7 +81,7 @@ def launch(root: Path = ROOT) -> int:
                 optkey = {"input": "input_path", "out": "output_path",
                           "second-input": "second_input"}.get(key, key)
                 opts[optkey] = x
-        for key, arg in (("a-prime", "a_prime"), ("follow-through", "follow_through")):
+        for key, arg in (("a-prime", "a_prime"), ("a-lead", "a_lead"), ("follow-through", "follow_through")):
             x = int(values[key].get())
             flags += ["--" + key, str(x)]
             opts[arg] = x
@@ -126,7 +127,8 @@ def launch(root: Path = ROOT) -> int:
             if live and not messagebox.askyesno(
                 "Confirm ONE live swing", "Close Dolphin completely before continuing.\n"
                 "Start ONE canonical full-boot Wii Sports trial? The terminal "
-                "will ask you to confirm tee readiness and label ball contact."):
+                "will ask you to confirm tee readiness and label ball contact.\n"
+                "V1/A-lead experiments are UNVERIFIED; previous 12-frame timing made motion worse."):
                 return
             flags, _ = args_and_kwargs()
             cmd = [sys.executable, str(root / "scripts" / "golf.py"),
