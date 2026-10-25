@@ -102,6 +102,7 @@ class GolferNullControlTests(unittest.TestCase):
     def test_fail_closed_on_rollback_or_large_non_atomic_span(self):
         rows = rows_for()
         rows[4]["frame_start"] = 5
+        rows[4]["frame_end"] = 7
         with self.assertRaisesRegex(ValueError, "rollback"):
             audit.analyze_records(rows)
         rows = rows_for()
