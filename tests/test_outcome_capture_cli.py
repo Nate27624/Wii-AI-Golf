@@ -160,6 +160,62 @@ class OutcomeCaptureCliTests(unittest.TestCase):
             self.assertEqual(result["known_good_swing_request"]["a_button_only_prime_requests"], 60)
             self.assertTrue(result["known_good_swing_request"]["a_button_prime_applied"])
 
+    def test_observed_a_lead_happens_before_unchanged_trace_and_cleans_up(self):
+        events = []
+        answers = iter(["", "", "", "yes", "no", "100.0ft"])
+        with tempfile.TemporaryDirectory() as d:
+            with patch("scripts.collect_outcome_transition.hold_a_for_observed_frames") as hold, \
+                 patch("scripts.collect_outcome_transition.SwingTraceClient") as client, \
+                 patch("scripts.collect_outcome_transition.release_buttons") as release, \
+                 patch("scripts.collect_outcome_transition.prime_a_button") as old_prime:
+                def hold_side_effect(_rpc, *, frames, remote):
+                    self.assertEqual((frames, remote), (12, 0))
+                    events.append("hold-a-observed-12")
+                    return {"observed_frame_delta": 13, "start_frame_after_a_request": 120,
+                            "last_observed_frame": 133}
+                hold.side_effect = hold_side_effect
+                def trace(samples):
+                    events.append("trace-unchanged")
+                    self.assertEqual(len(samples),
+                                     len(build_probe("forward", follow_through_frames=30)))
+                    return {"state": "complete", "applied_frames": len(samples)}
+                client.return_value.run.side_effect = trace
+                release.side_effect = lambda *_a, **_k: events.append("release")
+                result = run_session(object(), raw_path=Path(d) / "RAW.jsonl",
+                    pre_samples=2, post_samples=2, settled_samples=2, interval=0,
+                    a_lead_frames=12, input_fn=lambda _q: next(answers),
+                    snapshot_fn=lambda _r, phase: row(phase, {"pre": 0, "post": 1, "settled": 2}[phase]))
+            self.assertEqual(events, ["hold-a-observed-12", "trace-unchanged", "release"])
+            old_prime.assert_not_called()
+            self.assertEqual(result["known_good_swing_request"]["a_lead_requested_frames"], 12)
+            self.assertEqual(result["known_good_swing_request"]["a_lead_observed_frame_delta"], 13)
+            self.assertEqual(result["known_good_swing_request"]["a_button_only_prime_requests"], 1)
+            self.assertTrue(result["known_good_swing_request"]["a_button_prime_applied"])
+            self.assertIn("not_game_verified", result["known_good_swing_request"]["a_priming_evidence"])
+
+    def test_observed_a_lead_fails_before_motion_and_releases(self):
+        answers = iter(["", ""])
+        with tempfile.TemporaryDirectory() as d:
+            with patch("scripts.collect_outcome_transition.hold_a_for_observed_frames") as hold, \
+                 patch("scripts.collect_outcome_transition.SwingTraceClient") as client, \
+                 patch("scripts.collect_outcome_transition.release_buttons") as release:
+                hold.side_effect = TimeoutError("frame counter stalled")
+                with self.assertRaisesRegex(TimeoutError, "stalled"):
+                    run_session(object(), raw_path=Path(d) / "RAW.jsonl",
+                        pre_samples=2, post_samples=2, settled_samples=2,
+                        interval=0, a_lead_frames=12,
+                        input_fn=lambda _q: next(answers),
+                        snapshot_fn=lambda _r, phase: row(phase, 1))
+                client.assert_not_called()
+                release.assert_called_once()
+
+    def test_cannot_mix_unmeasured_a_prime_and_measured_lead(self):
+        with self.assertRaisesRegex(ValueError, "either RPC-count"):
+            run_session(object(), raw_path=Path("unused.jsonl"),
+                pre_samples=2, post_samples=2, settled_samples=2, interval=0,
+                a_prime_requests=60, a_lead_frames=12,
+                input_fn=lambda _q: self.fail("invalid options must not prompt"))
+
     def test_a_prime_validation_fails_before_consuming_user_input(self):
         with self.assertRaisesRegex(ValueError, "a_prime_requests"):
             run_session(object(), raw_path=Path("unused.jsonl"), pre_samples=2,
