@@ -1,0 +1,31 @@
+name: S001 WASD collision regression
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - 'src/wii_ai_golf/integration/dolphin_controller_config.py'
+      - 'tests/test_integration_mouse_isolation.py'
+      - '.github/workflows/s001-wasd-safety-tests.yml'
+  workflow_dispatch:
+jobs:
+  offline-tests:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    # Python tempfile resolves Windows RUNNER~1 8.3 aliases in the default
+    # user temp root; use the runner's canonical temp directory for all tests.
+    env:
+      TEMP: ${{ runner.temp }}
+      TMP: ${{ runner.temp }}
+      TMPDIR: ${{ runner.temp }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Check syntax
+        run: python -m compileall -q src scripts tests
+      - name: Focused S001 mapping and safety tests
+        run: python -m unittest discover -s tests -p "test_integration_mouse_isolation.py" -v
+      - name: Full regression offline
+        run: python -m unittest discover -s tests -v
