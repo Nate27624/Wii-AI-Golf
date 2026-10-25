@@ -6,6 +6,7 @@ RAM, runtime pointers, disc images, local file paths or inferred game power.
 from __future__ import annotations
 from collections import defaultdict
 import math
+import re
 import struct
 
 ALLOWED_PHASES=frozenset({"idle","aim_only","a_hold","club_motion","shot_attempt","settled"})
@@ -65,7 +66,7 @@ def summarize_phase_memory(rows,observations,*,scope,run_id,top=100):
     if scope not in WINDOW_LENGTHS or not 2<=len(rows)<=MAX_CAPTURE_SAMPLES:
         raise ValueError("invalid scope or number of samples")
     if not 1<=top<=300:raise ValueError("invalid top count")
-    if not isinstance(run_id,str) or len(run_id)>90 or not run_id:
+    if not isinstance(run_id,str) or re.fullmatch(r"[A-Za-z0-9_-]{1,90}",run_id) is None:
         raise ValueError("invalid run identifier")
     counts=defaultdict(int)
     changes=defaultdict(lambda:{"within_phase_changes":0,
