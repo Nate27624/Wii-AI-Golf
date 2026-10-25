@@ -5,8 +5,10 @@ Wii Remote source is an enum from Dolphin's WiimoteSettings.cpp:
 <User>/Config/WiimoteNew.ini, section [Wiimote1]. Never create a fresh
 Dolphin User directory: doing so could hide the operator's savestates.
 
-This code changes ONLY Source and Extension in [Wiimote1], retaining all
-other bindings/sections, with a one-time backup of the original INI.
+This code sets Source and Extension in [Wiimote1], clears mouse-driven
+controller bindings and disables local Point/IR axes + IMUIR to isolate
+scripted experiments. Keyboard-only controls and unrelated Dolphin sections
+are preserved. A one-time original INI backup is retained.
 """
 from __future__ import annotations
 
@@ -258,7 +260,7 @@ def ensure_emulated_controller(dolphin: Path, *, user_dir: Path | None = None,
         "prior": before,
         "source": "Emulated Wii Remote (1)",
         "extension": "None",
-        "mouse_input_isolated": True,
+        "mouse_pointer_bindings_disabled_in_ini": True,
         "mouse_controls_cleared": cleared_mouse_controls,
         "backup": str(backup) if backup.exists() else None,
     }
