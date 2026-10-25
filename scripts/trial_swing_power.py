@@ -13,6 +13,7 @@ sys.path[:0]=[str(ROOT/"src"),str(ROOT/"scripts")]
 from probe_swing import build_probe
 from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.integration.swing_client import SwingTraceClient
+from wii_ai_golf.integration.button_prime import prime_a_button, release_buttons
 
 VARIANTS={"baseline":("none",1.0),"shorter":("distance",0.75),
           "slower":("speed",0.75),"faster":("speed",1.15),
@@ -60,7 +61,15 @@ def main():
         print("Dry run: no controller inputs sent");return 0
     with FelkRPC(port=a.port,timeout_s=15) as rpc:
         input("Check ready-to-swing tee, then press ENTER (Ctrl+C cancels): ")
-        dispatched=SwingTraceClient(rpc,port=0).run(trace)
+        capabilities=rpc.call("trace.swing_capabilities",[])
+        if not isinstance(capabilities,dict) or capabilities.get("swing_protocol")!=2 or capabilities.get("neutral_button_only") is not True:
+            raise RuntimeError("Requires swing bridge V2 neutral button-only semantics")
+        print("Holding A with 60 separate button-only requests before trace.",flush=True)
+        try:
+            prime_a_button(rpc,remote=0,requests=60)
+            dispatched=SwingTraceClient(rpc,port=0).run(trace)
+        finally:
+            release_buttons(rpc,remote=0)
     print("Controller trace dispatched; observe game to decide hit and power.")
     while True:
         contact=input("Visible ball contact? [yes/no/unknown]: ").strip().lower()
