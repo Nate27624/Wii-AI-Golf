@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from wii_ai_golf.evaluation.focused_trace import analyze_trace
+from wii_ai_golf.focused_trace import analyze_trace
 
 class TraceTests(unittest.TestCase):
     def test_two_motion_segments_and_reset_are_not_three_swings(self):
