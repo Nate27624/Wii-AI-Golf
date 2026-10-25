@@ -23,7 +23,8 @@ WORD_OFFSET = 0x74
 MAIN_BYTES = 0x100
 MAX_ROWS = 60
 MAX_FILE_BYTES = 4 * 1024 * 1024
-MAX_SNAPSHOT_FRAMES = 12
+MAX_SNAPSHOT_FRAMES = 240  # source #129 and peer #135 capture contract
+HIGH_RES_MAX_FRAMES = 12    # values above this require caution about timing
 # Explicit fixed error vocabulary; never publish private filenames, RAM values,
 # usernames, runtime heap pointers or third-party error strings.
 SAFE_ERROR_REASONS = frozenset({
@@ -173,6 +174,10 @@ def analyze_records(records: list[object]) -> dict:
         "human_pointer_action_verified_by_sensor": False,
         "wii_revision_reverified_from_saved_rows": False,
         "snapshots_bracketed_by_emulator_frames": True,
+        "max_non_atomic_frame_span": max(x["end"] - x["start"] for x in observations),
+        "timing_limited": any(x["end"] - x["start"] > HIGH_RES_MAX_FRAMES
+                              for x in observations),
+        "frame_delta_relation_is_exploratory": True,
         "stage_results": groups,
         "within_stage_total_opportunities": total,
         "within_idle_changed_pairs": idle_changes,
@@ -187,7 +192,9 @@ def analyze_records(records: list[object]) -> dict:
             "capture; not independent swing trials. Changes while idle falsify "
             "exclusive swing-event specificity, not every possible power "
             "encoding. Pointer-only is an operator label, not sensor proof. "
-            "Unlabeled transitions and per-frame counters may confound."
+            "Unlabeled transitions and per-frame counters may confound. "
+            "Non-atomic windows over 12 frames are timing-limited; a "
+            "matching u32 frame delta is never a verified game clock."
         ),
     }
 
