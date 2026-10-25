@@ -87,6 +87,38 @@ def _fresh_human_labels(start_time: datetime) -> dict:
         return {"capture_status": "unreadable_summary"}
 
 
+
+def _fallback_human_observation(*, answer=input) -> dict:
+    """Allow a human to save contact/pose when the normal collector lacks a summary.
+
+    Never infer a hit from process status. A blank answer means unknown.
+    """
+    allowed = {"back", "center", "forward", "unknown"}
+    pose = answer("Starting club pose [back/center/forward/unknown; blank=unknown]: ").strip().lower()
+    if pose not in allowed:
+        pose = "unknown"
+    contact = answer("Did ball visibly make contact? [yes/no/unknown; blank=unknown]: ").strip().lower()
+    if contact not in {"yes", "no", "unknown"}:
+        contact = "unknown"
+    timing = answer("Swing motion looked [early/late/on-time/unknown; blank=unknown]: ").strip().lower()
+    if timing not in {"early", "late", "on-time", "unknown"}:
+        timing = "unknown"
+    return {"capture_status": "human_fallback_after_missing_collector_summary",
+            "human": {"initial_club_pose_human": pose,
+                      "contact_human": contact,
+                      "motion_timing_human": timing},
+            "verified_game_score": False,
+            "warning": "Human memory only; collector did not publish a complete capture"}
+
+
+def _missing_capture_needs_fallback(record: dict) -> bool:
+    return record.get("capture_status") in (None, "none_or_ambiguous",
+                                            "unreadable_summary",
+                                            "unexpected_summary_shape",
+                                            "unexpected_summary_source")
+
+
+
 def _git(args: list[str], *, cwd: Path) -> str:
     p = subprocess.run(["git", *args], cwd=cwd, capture_output=True,
                        text=True, check=False, timeout=60)
@@ -179,6 +211,10 @@ def main(argv: list[str] | None = None) -> int:
             summary["requested_a_lead_frames"] = args.a_lead
             summary["bridge_sha256"] = _sha_file(bridge)
             summary.update(_fresh_human_labels(begin))
+            if _missing_capture_needs_fallback(summary):
+                print("No unambiguous completed collector summary. "
+                      "Recording HUMAN-only observation to avoid losing this trial.", flush=True)
+                summary.update(_fallback_human_observation())
         private = DATA / "research-cli"
         private.mkdir(parents=True, exist_ok=True)
         dest = private / (summary["id"] + ".json")

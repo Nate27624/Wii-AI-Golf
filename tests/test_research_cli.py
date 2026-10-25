@@ -76,6 +76,24 @@ class ResearchCliTests(unittest.TestCase):
             self.assertNotIn("RAW_RAM_NEVER_PUBLISH", published)
             self.assertNotIn("candidate_ranking", published)
 
+    def test_missing_collector_summary_retains_human_miss_without_score(self):
+        values = iter(["back", "no", "late"])
+        result = research_cli._fallback_human_observation(answer=lambda _p: next(values))
+        self.assertEqual(result["capture_status"], "human_fallback_after_missing_collector_summary")
+        self.assertEqual(result["human"]["initial_club_pose_human"], "back")
+        self.assertEqual(result["human"]["contact_human"], "no")
+        self.assertEqual(result["human"]["motion_timing_human"], "late")
+        self.assertFalse(result["verified_game_score"])
+        self.assertTrue(research_cli._missing_capture_needs_fallback(
+            {"capture_status": "none_or_ambiguous"}))
+        self.assertFalse(research_cli._missing_capture_needs_fallback(
+            {"capture_status": "sanitized_human_annotation_only"}))
+
+    def test_invalid_fallback_answers_are_unknown_not_inferred_hit(self):
+        result = research_cli._fallback_human_observation(answer=lambda _p: "")
+        self.assertEqual(result["human"]["contact_human"], "unknown")
+        self.assertEqual(result["human"]["motion_timing_human"], "unknown")
+
     def test_ambiguous_capture_summary_does_not_guess_result(self):
         with tempfile.TemporaryDirectory() as folder:
             caps = Path(folder)
