@@ -28,10 +28,15 @@ def _addr(value):
 def _bytes(value, size):
     if type(value) is not str or len(value) != size * 2:
         raise ValueError("Invalid fixed-size local memory window")
+    if re.fullmatch(r"[0-9A-Fa-f]+", value) is None:
+        raise ValueError("Private RAM window contains non-hex characters")
     try:
-        return bytes.fromhex(value)
+        decoded = bytes.fromhex(value)
     except ValueError as exc:
         raise ValueError("Malformed local memory bytes") from exc
+    if len(decoded) != size:
+        raise ValueError("Truncated local memory window")
+    return decoded
 
 
 def _wordmap(row):
