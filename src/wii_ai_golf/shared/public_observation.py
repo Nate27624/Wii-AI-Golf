@@ -412,7 +412,7 @@ def _golfer_controls_public(record):
         if region == "main":
             extent = 0x100
         elif type(region) is str:
-            match = re.fullmatch(r"child_at_main\\+0x([0-9A-F]{3})", region)
+            match = re.fullmatch(r"child_at_main\+0x([0-9A-F]{3})", region)
             if match is None or int(match.group(1), 16) > 0xFC or int(match.group(1), 16) % 4:
                 raise ValueError("Invalid bounded child region")
             extent = 0x80
@@ -421,7 +421,7 @@ def _golfer_controls_public(record):
         else:
             raise ValueError("Invalid candidate region")
         offset = row.get("relative_offset")
-        if type(offset) is not str or not re.fullmatch(r"\\+0x[0-9A-F]{3}", offset):
+        if type(offset) is not str or not re.fullmatch(r"\+0x[0-9A-F]{3}", offset):
             raise ValueError("Invalid relative candidate offset")
         pos = int(offset[3:], 16)
         if pos >= extent or pos % 4 or (region, pos) in seen:
