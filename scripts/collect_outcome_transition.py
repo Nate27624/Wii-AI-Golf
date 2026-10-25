@@ -43,6 +43,8 @@ def _answer(prompt: str, *, allowed: set[str],
             input_fn: Callable[[str], str]) -> str:
     while True:
         response = input_fn(prompt).strip().lower()
+        if response == "q":
+            raise RuntimeError("Operator canceled outcome labeling")
         if response in allowed:
             return response
         print("Choose one of: " + ", ".join(sorted(allowed)))
@@ -57,6 +59,8 @@ def _visual_label(input_fn: Callable[[str], str]) -> dict[str, Any]:
     # the game's natural "100.0ft" rather than a bare "100.0".
     while True:
         raw = input_fn("Displayed distance (e.g. 2.1ft, 100.0ft; blank if none): ")
+        if raw.strip().lower() == "q":
+            raise RuntimeError("Operator canceled outcome labeling")
         try:
             distance, suffix_unit = parse_displayed_distance(raw)
             break
