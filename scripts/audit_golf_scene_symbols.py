@@ -11,20 +11,25 @@ import re
 import sys
 
 MAX_MAP_BYTES = 32 * 1024 * 1024
-TOKENS = ("RPGolScene", "RPGolMain", "RPSysSceneMgr", "RPSysScene", "RPSportsBaseScene")
+TOKENS = ("RPGolScene", "RPGolMain", "RPSysSceneMgr",
+          "RPSysSceneCreator", "RPSysScene", "RPSportsBaseScene")
+# Match the *exact* qualified class name. Simple substring checks conflate
+# RPSysScene, RPSysSceneMgr, and RPSysSceneCreator in the upstream symbol map.
+CLASS_PATTERNS = {name: re.compile(r"(?<![A-Za-z0-9_])" + re.escape(name) + r"::")
+                  for name in TOKENS}
 DEFAULT_MAP = Path(__file__).resolve().parents[1] / "research" / "reference" / "golf_scene_rev1_symbols.csv"
 ADDRESS = re.compile(r"(?<![0-9A-Fa-f])(?:0x)?[89][0-9A-Fa-f]{7}(?![0-9A-Fa-f])")
 
 def summarize(lines):
     entries = {}
     for line in lines:
-        if not any(token in line for token in TOKENS):
+        if not any(pattern.search(line) for pattern in CLASS_PATTERNS.values()):
             continue
         # Addresses in map/csv/dmap are source-level symbols, not heap objects.
         addresses = [int(s,16) for s in ADDRESS.findall(line)]
         if not addresses:
             continue
-        symbol = next((t for t in TOKENS if t in line), None)
+        symbol = next((t for t in TOKENS if CLASS_PATTERNS[t].search(line)), None)
         if symbol is None:
             continue
         # Exact member-name hints only: createInstance() is a function,
