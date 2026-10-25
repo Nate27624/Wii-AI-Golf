@@ -16,6 +16,40 @@
 - `max_non_atomic_frame_span=18`, `timing_limited=true`, `truncated_changed_words=false`, `power_verified=false`, `club_pose_verified=false`. Eighteen emulator frames per broad snapshot is **not** a per-frame swing event trace.
 - **Effective experimental independence is ONE session**, not 17 independent trials, four independent gameplay variables, or 16 independent physical golfer objects.
 
+## NEW operator-executed S002-GOLFER-NULL-01 result (2026-10-25 UTC)
+
+**Source:** Operator directly pasted the sanitized output of `py scripts/audit_golfer_null_controls.py --latest` from the isolated PR #138 worktree. The command completed and printed valid schema v1 with no private addresses or bytes. The user tested the branch offline; this is not an independently accessed raw file or a new Dolphin run.
+
+| Stage | Human cue | Samples | Within-stage pairs changing `main+0x074` | U32 increment equals observed frame-start gap |
+| --- | --- | ---: | ---: | ---: |
+| 0 | idle | 6 | **5/5** | **5/5** |
+| 1 | aim_only | 8 | **7/7** | **7/7** |
+| 2 | idle | 6 | **5/5** | **5/5** |
+| **Total** | one capture session | **20** | **17/17** | **17/17** |
+
+Other fixed, sanitized result fields: `within_idle_changed_pairs=10`,
+`within_pointer_only_changed_pairs=7`, `within_stage_total_opportunities=17`,
+`max_non_atomic_frame_span=10`, `timing_limited=false` (local >12-frame
+rule), `frame_delta_relation_is_exploratory=true`,
+`candidate_exclusive_swing_event_indicator_supported=false`,
+`game_power_field_verified=false`, `club_pose_verified=false`,
+`human_pointer_action_verified_by_sensor=false`,
+`independent_sessions_verified=false`, and
+`wii_revision_reverified_from_saved_rows=false`.
+
+### Interpretation and exact limits
+
+1. **Confident narrow rejection**: a *change* at `main+0x074` does not require a swing command under these operator-labelled controls, so change-detection alone is not a swing-exclusive event label.
+2. **Strong within-session pattern**: the unsigned modular 32-bit increment exactly matches the emulator frame-start gap for 17/17 adjacent within-stage pairs, across idle and aim-only conditions. This is more specific than merely seeing that it changes every time. It is consistent with a 1-unit-per-frame counter or a direct copy/derived proxy of one.
+3. **Unidentified semantics**: no value type, owner, writer function, frame hook or actual game-internal clock is source-verified. A per-frame animation counter, render update tick or shared central frame value remains plausible. We cannot infer swing power, ball carry, pose, or even that this word is the canonical emulator frame counter.
+4. **Single-session dependence**: 17 pairs share one captured scene and adjacent samples. No independent boot replication, no sensor-proven aim movement, and no statistically independent 17-trial success probability.
+5. **Temporal qualification**: 10 is the *maximum non-atomic per-snapshot frame span*, not a 10-frame elapsed time for each adjacent pair. `timing_limited=false` only means the author's provisional 12-frame flag was not crossed; it is not proof of precise per-frame action attribution. U32/frame-start agreement is exploratory.
+6. **Cross-report independence unresolved**: previous public `golf-golfer-control-specificity` record used a 16-child watchlist and max span 18, while this `--latest` audit reported max span 10. Do NOT merge the two reports as one matched capture or compare their latency without privately verifying source capture lineage and watchlist size.
+
+**Preregistration update for test B:** use *actual observed frame-start gaps* and each existing private word's modulo-u32 difference, not synthetic sample index or repeated change count. The specific hypothesis is that at least two child-word **delta sequences** coincide with `main+0x074` after accounting for the frame gaps in BOTH idle stages and the aim-only stage. Report only safe counts of equal-delta pairs and a lagged/shifted-control comparison; no raw values, addresses, or per-sample traces in GitHub. A constant 1-step/frame across all phases is compatible with multiple background counters, not proof of aliasing. The deterministic shift-control must be checked against the actual varying frame gaps: if gaps are constant, shifting by one row may not discriminate identical counters. If no discriminating frame variability, the negative control is uninformative; do not claim a clean win.
+
+**Next discriminator:** replicate the phase-counter relationship from an **independently booted** source-verified capture with a smaller watchlist and tightly bounded frame spans, then compare whether the U32 difference tracks emulator frame increments through a *controlled non-swing pause/resume or other safely approved change in elapsed emulator frames*. The proposal is conditional and requires S001/S002-approved read-only session + independent operator consent. No new shot and no memory write is authorized here.
+
 ## Immediate falsification decision
 
 Reject the simple hypothesis that *any change at one of these four words is specific to a swing*. Within human-labelled idle blocks, each changed repeatedly while no explicit swing was dispatched by this control protocol. The **null that these are background-dynamic candidates has not been disproven**. Evidence is consistent with background clocks, animation, counters, state bookkeeping or other update-driven changes, but does not identify which.
