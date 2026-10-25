@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "purpose": "Shared, reviewed, local multi-agent experiment catalog. Entries are not jobs queued for unattended execution.",
+  "experiments": [
+    {
+      "id": "core.tests",
+      "owner": "S000",
+      "title": "Project regression suite",
+      "description": "All local unittest regressions; no Dolphin",
+      "mode": "offline",
+      "kind": "tests_all"
+    },
+    {
+      "id": "core.bridge",
+      "owner": "S001",
+      "title": "Bridge environment report",
+      "description": "Read-only generated bridge version and SHA; not the loaded bridge",
+      "mode": "offline",
+      "kind": "bridge_inspect"
+    },
+    {
+      "id": "integration.tests",
+      "owner": "S001",
+      "title": "Controller/launcher regression suite",
+      "description": "Offline Felk, startup and input unit tests",
+      "mode": "offline",
+      "kind": "tests_integration"
+    },
+    {
+      "id": "integration.swing",
+      "owner": "S001",
+      "title": "Guarded controller swing",
+      "description": "ONE fresh-start forward swing; last V2 variants not reliably contacting ball",
+      "mode": "live",
+      "kind": "swing"
+    },
+    {
+      "id": "evaluation.tests",
+      "owner": "S002",
+      "title": "Outcome and RAM audit tests",
+      "description": "Offline score-candidate and local capture unit tests",
+      "mode": "offline",
+      "kind": "tests_evaluation"
+    },
+    {
+      "id": "evaluation.capture",
+      "owner": "S002",
+      "title": "Observed shot and RAM transition",
+      "description": "ONE fresh-start unprimed shot with private RAM and human contact label; not verified score",
+      "mode": "live",
+      "kind": "capture"
+    },
+    {
+      "id": "evaluation.compare",
+      "owner": "S002",
+      "title": "Cross-run outcome comparison",
+      "description": "Compares 2+ sanitized outcome candidate JSON files, no raw dumps",
+      "mode": "offline",
+      "kind": "compare"
+    },
+    {
+      "id": "evaluation.audit",
+      "owner": "S002",
+      "title": "Audit motion candidate report",
+      "description": "Read-only candidate ranking against optional baseline",
+      "mode": "offline",
+      "kind": "motion_audit"
+    },
+    {
+      "id": "evaluation.recover",
+      "owner": "S002",
+      "title": "Recover local capture summary",
+      "description": "Offline recovery from user's local private incomplete capture; never upload raw RAM",
+      "mode": "offline",
+      "kind": "recover"
+    },
+    {
+      "id": "modeling.sweep",
+      "owner": "S003",
+      "title": "Swing sweep study design",
+      "description": "Parameterized motion sweep (awaiting S003 modeling PR integration)",
+      "mode": "planned",
+      "kind": "unavailable"
+    },
+    {
+      "id": "learning.tests",
+      "owner": "S004",
+      "title": "Learning baseline unit tests",
+      "description": "Offline learning unit tests; synthetic evidence only",
+      "mode": "offline",
+      "kind": "tests_learning"
+    },
+    {
+      "id": "learning.demo",
+      "owner": "S004",
+      "title": "Synthetic policy demo",
+      "description": "Toy physics benchmark; NOT scored Wii Sports",
+      "mode": "offline",
+      "kind": "demo"
+    },
+    {
+      "id": "generalization.holdout",
+      "owner": "S005",
+      "title": "Held-out model evaluation",
+      "description": "Blocked until actual outcome extraction/learning is validated",
+      "mode": "planned",
+      "kind": "unavailable"
+    }
+  ]
+}
