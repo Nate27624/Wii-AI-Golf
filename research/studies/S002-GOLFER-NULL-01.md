@@ -131,3 +131,41 @@ CLI/analyzers; retain result in research ledger/handoff, and
 archive or fold the narrow numeric test into #135 when owner approved.
 The report intentionally remains PRIVATE LOCAL + manually shared
 sanitized JSON until S000 typed publisher schema is approved.
+
+
+## Cross-check: separate already-PUBLISHED S002 all-child control study
+
+Reviewed public sanitized record
+`research/observations/20261025T034248Z-7c597d65.json`
+(`kind=golf-golfer-control-specificity`, 20 snapshots, 16 watched first-level child regions,
+`idle_opportunities=10`, `aim_opportunities=7`,
+`max_non_atomic_frame_span=18`, `timing_limited=true`).
+It lists **exactly 4 changing relative words**; **each** changed on
+10/10 same-stage idle pairs and 7/7 pointer-only pairs:
+
+- `main +0x074` (our explicit 17/17 frame-delta match applies to a
+  DIFFERENT private capture; do not transpose its numerical increments).
+- `child_at_main+0x008 +0x050`
+- `child_at_main+0x020 +0x038`
+- `child_at_main+0x044 +0x060`
+
+All were classified `background_dynamic`. The existing public record
+contains *change counts*, not the actual per-pair value/time deltas, so
+it CANNOT prove the three child words track the emulation frame count,
+that they are each other, or that they share a clock. Do not infer
+cross-object numerical equality from matching 10/10 + 7/7 frequencies.
+
+**Best next independent research if scientifically justified:** reuse
+ONLY this already-captured private 16-child raw JSONL for a predeclared,
+bounded comparison of these three explicit child relative words against
+both `main+0x074` and observed `frame_start` deltas **within identical
+stage intervals**, report counts/lag/range summaries only and mark
+`timing_limited` whenever source snapshot span exceeds 12 frames.
+No raw data or addresses in public output, no new swings or pointer sweeps.
+Prefer extending existing owner-reviewed source #135/#137 rather than
+creating another competing general purpose CLI. If a source-backed
+class layout or cross-stage time-matched negative control explains
+the candidates first, skip a new empirical study.
+
+The two 20-sample records should NOT be described as independent
+Dolphin boots unless their per-boot provenance is actually checked.
