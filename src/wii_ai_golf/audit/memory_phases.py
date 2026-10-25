@@ -9,7 +9,7 @@ import math
 import re
 import struct
 
-ALLOWED_PHASES=frozenset({"idle","aim_only","a_hold","club_motion","shot_attempt","settled"})
+ALLOWED_PHASES=frozenset({"idle","aim_only","a_hold","club_motion","shot_attempt","settled","pre","post"})
 ALLOWED_OBSERVATIONS=frozenset({"unchanged","camera_moved","club_moved","ball_hit","no_contact","unknown"})
 WINDOW_LENGTHS={
     "focused":{"golf_config":0xA0,"golf_field":0xA8,"sports_sequence":0xD0},
@@ -17,6 +17,21 @@ WINDOW_LENGTHS={
 }
 OPTIONAL_EFFECTS=frozenset({"minimap_ball_effect","minimap_player_effect","minimap_shot_line_effect"})
 MAX_CAPTURE_SAMPLES=240
+
+def normalize_legacy_outcome_rows(rows):
+    """Preserve old pre/post/settled labels with NO inferred contact/power."""
+    if not isinstance(rows,list) or not 2<=len(rows)<=MAX_CAPTURE_SAMPLES:
+        raise ValueError("require 2..240 source observations")
+    stages={"pre":0,"post":1,"settled":2}
+    result=[]
+    for row in rows:
+        if not isinstance(row,dict) or row.get("source")!="Felk-read-only-US-Rev1-unverified-golf-windows":
+            raise ValueError("not a legacy S002 outcome memory record")
+        phase=row.get("phase")
+        if phase not in stages:raise ValueError("invalid legacy phase")
+        result.append({**row,"stage":stages[phase]})
+    return result
+
 
 def documented_role(name,offset):
     """Source labels are structural facts, not a club/power decoder."""
