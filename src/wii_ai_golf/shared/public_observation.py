@@ -80,7 +80,7 @@ def _valid_human(values):
     }
     for key, value in values.items():
         if key in enumerated:
-            if value is not None and value not in enumerated[key]:
+            if value is not None and (type(value) is not str or value not in enumerated[key]):
                 raise ValueError("Unrecognized human observation label")
         elif key in ("displayed_distance_human", "displayed_power_percent_human"):
             if value is not None and not _number(value, 0, 100_000):
@@ -103,7 +103,7 @@ def _valid_controller(values):
 
 
 def _legacy_public(record):
-    if record.get("schema") != 1 or record.get("verified_game_score") is not False:
+    if type(record.get("schema")) is not int or record["schema"] != 1 or record.get("verified_game_score") is not False:
         raise ValueError("Unverified execution record must not claim a game score")
     if not _integer(record.get("process_exit_code"), 0, 65_535):
         # A process may legitimately exit nonzero; preserve the observed fact.
@@ -196,7 +196,8 @@ def _memory_public(record):
         if type(item) is not dict or set(item) != {"stage", "phase", "observation"}:
             raise ValueError("Unexpected human phase annotation")
         if (not _integer(item["stage"], 0, 7)
-            or item["phase"] not in PHASES or item["observation"] not in OBSERVATIONS):
+            or type(item["phase"]) is not str or item["phase"] not in PHASES
+            or type(item["observation"]) is not str or item["observation"] not in OBSERVATIONS):
             raise ValueError("Unrecognized human phase observation")
     rows = record.get("top_changed_relative_words")
     if type(rows) is not list or len(rows) > 300:
@@ -205,8 +206,10 @@ def _memory_public(record):
         if (type(row) is not dict or set(row) != {
             "region", "relative_offset", "documented_role", "within_phase_changes",
             "at_phase_boundary_changes", "pointer_like_changes", "float_like_changes"}
-            or row["region"] not in REGIONS or type(row["relative_offset"]) is not str
-            or not OFFSET.fullmatch(row["relative_offset"]) or row["documented_role"] not in ROLES):
+            or type(row["region"]) is not str or row["region"] not in REGIONS or type(row["relative_offset"]) is not str
+            or not OFFSET.fullmatch(row["relative_offset"])
+            or type(row["documented_role"]) is not str
+            or row["documented_role"] not in ROLES):
             raise ValueError("Unsafe memory offset row")
         for key in ("within_phase_changes", "at_phase_boundary_changes",
                     "pointer_like_changes", "float_like_changes"):
