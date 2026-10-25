@@ -50,7 +50,7 @@ def main(argv=None):
                 from research_cli import publish_summary
                 print("Published sanitized observations:",publish_summary(report),flush=True)
                 print("Observation record ID:",run,flush=True)
-            print("GitHub JSON: https://github.com/Nate27624/Wii-AI-Golf/blob/research/observations/research/observations/"+run+".json",flush=True)
+                print("GitHub JSON: https://github.com/Nate27624/Wii-AI-Golf/blob/research/observations/research/observations/"+run+".json",flush=True)
             except (OSError,RuntimeError,ValueError) as exc:
                 print("Upload unavailable; local sanitized report retained:",exc,file=sys.stderr)
         return 0
