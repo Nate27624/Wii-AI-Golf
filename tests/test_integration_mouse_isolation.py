@@ -153,6 +153,18 @@ class MouseIsolationTests(unittest.TestCase):
                         self.exe, user_dir=self.ini.parent.parent)
                 self.assertEqual(self.ini.read_text(), original)
 
+    def test_missing_default_click_and_shake_controls_explicitly_unbound(self):
+        self.prepare(
+            "[Wiimote1]\nSource=1\nExtension=None\n"
+            "Buttons/1 = Q\n"
+        )
+        updated = self.ini.read_text()
+        for key in ("Buttons/A", "Buttons/B", "Shake/X", "Shake/Y", "Shake/Z"):
+            self.assertEqual(updated.count(key + " = \n"), 1)
+        self.assertIn("Buttons/1 = Q\n", updated)
+        self.assertFalse(ensure_emulated_controller(
+            self.exe, user_dir=self.ini.parent.parent)["changed"])
+
     def test_non_keyboard_device_fails_without_overwriting_controller_config(self):
         original = "[Wiimote1]\nSource=1\nExtension=None\nDevice = XInput/0/Gamepad\n"
         self.ini.write_text(original)
@@ -164,7 +176,9 @@ class MouseIsolationTests(unittest.TestCase):
         original = ("[Wiimote1]\nSource = 1\nExtension = None\n"
                     "IR/Up = W\nIR/Down = S\nIR/Left = A\nIR/Right = D\n"
                     "IR/Relative Input = True\nIR/Relative Input Hold = \n"
-                    "IMUIR/Enabled = False\n")
+                    "IMUIR/Enabled = False\n"
+                    "Buttons/A = \nButtons/B = \n"
+                    "Shake/X = \nShake/Y = \nShake/Z = \n")
         self.ini.write_text(original)
         report = ensure_emulated_controller(self.exe, user_dir=self.ini.parent.parent)
         self.assertFalse(report["changed"])
