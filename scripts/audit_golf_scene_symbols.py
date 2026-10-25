@@ -11,7 +11,8 @@ import re
 import sys
 
 MAX_MAP_BYTES = 32 * 1024 * 1024
-TOKENS = ("RPGolScene", "RPGolMain", "RPSysScene", "RPSysSceneMgr", "RPSportsBaseScene")
+TOKENS = ("RPGolScene", "RPGolMain", "RPSysSceneMgr", "RPSysScene", "RPSportsBaseScene")
+DEFAULT_MAP = Path(__file__).resolve().parents[1] / "research" / "reference" / "golf_scene_rev1_symbols.csv"
 ADDRESS = re.compile(r"(?<![0-9A-Fa-f])(?:0x)?[89][0-9A-Fa-f]{7}(?![0-9A-Fa-f])")
 
 def summarize(lines):
@@ -43,7 +44,8 @@ def summarize(lines):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--map",type=Path,required=True)
+    parser.add_argument("--map",type=Path,default=DEFAULT_MAP,
+                        help="Local map/CSV; defaults to bundled cited scene symbols")
     parser.add_argument("--out",type=Path)
     args=parser.parse_args(argv)
     try:
