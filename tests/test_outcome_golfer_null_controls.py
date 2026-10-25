@@ -106,9 +106,28 @@ class GolferNullControlTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "rollback"):
             audit.analyze_records(rows)
         rows = rows_for()
-        rows[4]["frame_end"] += 20
+        rows[4]["frame_end"] = rows[4]["frame_start"] + 241
         with self.assertRaisesRegex(ValueError, "span"):
             audit.analyze_records(rows)
+
+    def test_s002_long_snapshot_within_240_is_accepted_but_timing_limited(self):
+        rows = rows_for()
+        # Use 30-frame non-atomic read windows, with 45 frames between
+        # snapshot starts, as permitted by S002's source-gated collector.
+        for i, row in enumerate(rows):
+            row["frame_start"] = 1000 + 45 * i
+            row["frame_end"] = row["frame_start"] + 30
+        report = audit.analyze_records(rows)
+        self.assertEqual(report["max_non_atomic_frame_span"], 30)
+        self.assertTrue(report["timing_limited"])
+        self.assertTrue(report["within_idle_changed_pairs"])
+        self.assertFalse(report["game_power_field_verified"])
+        self.assertTrue(report["frame_delta_relation_is_exploratory"])
+
+    def test_high_resolution_frames_are_not_marked_timing_limited(self):
+        report = audit.analyze_records(rows_for())
+        self.assertEqual(report["max_non_atomic_frame_span"], 2)
+        self.assertFalse(report["timing_limited"])
 
     def test_fail_closed_on_malformed_main_bytes(self):
         rows = rows_for()
