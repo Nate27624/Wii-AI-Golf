@@ -135,7 +135,8 @@ class LabGitSyncTests(unittest.TestCase):
         def injecting_runner(argv, **kw):
             result = fake(argv, **kw)
             if argv[1:3] == ["fetch", "--no-tags"]:
-                self.data.mkdir(parents=True)
+                # The synchronizer already created this directory for its run lock.
+                self.data.mkdir(parents=True, exist_ok=True)
                 (self.data / "live-session.lock").write_text("session")
             return result
         result = sync_merged_main(self.root, lab_data=self.data, run=injecting_runner)
