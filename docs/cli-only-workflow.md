@@ -15,6 +15,16 @@ py scripts/research_cli.py v1 --live --a-lead 0
 
 The V1 command carries out the canonical fresh Dolphin -> named `green-pre-start` savestate restore -> A / A+B / A intro -> existing S002 collector. It requires the separately prepared historical `tools/mcp_bridge_swing_legacy_eval.py`, asks for human initial club pose, prompts once before swing, and preserves human observation of contact versus score. For a different controlled protocol, `--a-lead 45` changes only the stationary A-hold duration before the same trace. No player score is automatically verified.
 
+## Read-only synthesized evidence review
+
+```powershell
+py scripts/research_cli.py review
+```
+
+This action fast-forwards the approved clean source checkout first, then clones ONLY the public `research/observations` branch to an isolated temporary directory for bounded, read-only JSON review. It never launches Dolphin, writes captures, publishes new results, or treats unit-test exits / minimap visual effects as scored ball contact. Matched V1 human observations are counted by exact historical bridge SHA + generated waveform SHA + observed A-lead frames. Incomplete captures and unknown results remain separate from no-hits. Minimap idle and swing effect conditions are reported separately, with a clear n=3 repeatability gate. See [the preregistered follow-up](../research/repeatability-preregistered-20261025.md).
+
+**Latest published evidence (2026-10-25):** two full human-labeled historical V1 attempts with **45 observed A-lead frames**, same bridge and 89-frame trace, visually reported hits, display `100.0 ft`, no green; **n=2**, not verified score or power. The 0-lead process-exit-zero attempt had no usable human label and cannot be counted as a miss. One idle/swing minimap pair showed zero versus one adjacent visual-effect change at offsets 123,126,127; byte identity as ball physics is unverified.
+
 ## How auto-sync works
 
 Each script command runs the existing trusted `lab.github_sync.sync_merged_main` preflight before anything else:
