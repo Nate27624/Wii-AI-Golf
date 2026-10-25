@@ -10,6 +10,7 @@ Source: https://github.com/Nate27624/Wii-AI-Golf/tree/research/observations/rese
 - `20261025T015004Z-17e136d09e`: an additional matched 45-frame V1 human-labeled attempt, **contact yes**, **100.0 ft**, **not green**, pose **back**, same historical V1 bridge SHA and original 89-sample trace SHA. It started from a different Dolphin frame count. Thus there are **2/2 completed human-labeled contacts for this one configuration**; no score, power or distance is game-memory verified.
 - `20261025T013459Z-b6de90e7b2`: 0 A-lead, exit 0, **no unambiguous collector summary**, so contact is **UNKNOWN**, not a miss and not a paired controlled observation. `20261025T012919Z-65b1289dfa` exited 1, also no outcome.
 - `20261025T014015Z-idle-automated-minimap`: 5 pre/20 post, NO swing/button RPC, **zero** adjacent changes across 128-byte visual-effect snapshot.
+- `20261025T020222Z-idle-automated-minimap`: another separately published idle trial, also **zero** changes. Thus idle n=2 and swing n=1, not yet enough to identify physics.
 - `20261025T014057Z-swing-automated-minimap`: 5 pre/20 post, swing dispatch reported, **one** adjacent change at offsets **123,126,127**. This is minimap VISUAL effect memory, not verified physics ball state.
 - Earlier full regression suites failed; the later `20261025T013445Z-0493c7f688` full suite passed. A unit-test pass does not establish an actual golf hit.
 
@@ -35,9 +36,11 @@ Do not vary lead and motion scale, bridge version, or checkpoint in one study. N
 
 ### R3: Replicate minimap effect with genuine no-swing controls
 
-Get **two more independent idle and two more swing** studies (target n=3 each), maintaining 5 pre/20 post reads, same view, interval and matching scenario. Idle does not send any button/motion RPC after game intro. Record pointer and frame-span consistency PRIVATELY. Effects at 123/126/127 are unverified visual-effect data. Reject "ball position" until separate human contact/no-contact, camera-only, and idle controls disagree with animation-only explanations.
+Get **one more independent idle and two more swing** studies (target n=3 each), maintaining 5 pre/20 post reads, same view, interval and matching scenario. Idle does not send any button/motion RPC after game intro. Record pointer and frame-span consistency PRIVATELY. Effects at 123/126/127 are unverified visual-effect data. Reject "ball position" until separate human contact/no-contact, camera-only, and idle controls disagree with animation-only explanations.
 
 ### R4: Scale swing motion AFTER R1 repeatability is established
+
+- `20261025T020329Z--baseline`: S002 single-variable power-study `baseline`, 89-frame trace SHA `b63a...`, controller ACK present, human reported **contact=no**, power unavailable. **Crucial confound:** public record has NO bridge SHA, NO starting club pose and NO observed A-lead frames. This cannot be used as a matched V1 45-frame negative control; it is a distinct protocol awaiting provenance validation.
 
 Merged S002 PR #92 **supersedes treating simultaneously scaled speed/distance/return-speed as physical power**. Its separate, canonical postboot `trial_swing_power.py` study exposes one-variable, explicitly labeled input variants `baseline`, `shorter`, `slower`, `faster`, `longer-backswing` and requests human-observed gauge power/contact; the starting-pose field is being reviewed in PR #96. These are candidate controller-input modifications, NOT calibrated game power or club angle.
 
