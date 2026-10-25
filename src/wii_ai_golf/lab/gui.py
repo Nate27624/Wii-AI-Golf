@@ -146,7 +146,9 @@ def launch(root: Path = ROOT) -> int:
         """Never block Tkinter while fetching GitHub; never run fetched tests."""
         if sync_busy[0]:
             return
-        if active or (root.parent / "Wii-AI-Golf-Data" / "lab" / "live-session.lock").exists():
+        lab_root = root.parent / "Wii-AI-Golf-Data" / "lab"
+        if active or any((lab_root / name).exists()
+                         for name in ("live-session.lock", "run-session.lock")):
             sync_line.set("GitHub: synchronization deferred while an experiment runs.")
             return
         sync_busy[0] = True
