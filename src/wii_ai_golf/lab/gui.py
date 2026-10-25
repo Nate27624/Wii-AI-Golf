@@ -140,6 +140,22 @@ def launch(root: Path = ROOT) -> int:
         except (OSError, ValueError) as exc:
             messagebox.showerror("Experiment not started", str(exc))
 
+    def show_sanitized_reports():
+        from .reports import sanitized_reports
+        reports = sanitized_reports(root=root)
+        window = tk.Toplevel(ui)
+        window.title("Sanitized S002 outcomes — HUMAN OBSERVATIONS ONLY")
+        window.geometry("820x450")
+        box = tk.Text(window, wrap="word", font=("Consolas", 10))
+        box.pack(fill="both", expand=True, padx=14, pady=14)
+        box.insert("end", "These are SANITIZED reports, not validated game scores.\\n"
+                          "RAW-PRIVATE memory files are excluded.\\n\\n")
+        if not reports:
+            box.insert("end", "No sanitized capture summaries yet.\\n")
+        for record in reports:
+            box.insert("end", json.dumps(record, indent=2) + "\\n\\n")
+        box.configure(state="disabled")
+
     history_frame = ttk.LabelFrame(outer, text="Recent execution history (NOT game scores)", padding=7)
     history_frame.pack(fill="x")
     recent = ttk.Treeview(history_frame, columns=("agent", "mode", "execution", "exit"),
@@ -180,6 +196,7 @@ def launch(root: Path = ROOT) -> int:
                           command=lambda: run_selected(True))
     live_btn.pack(side="left", padx=3)
     ttk.Button(actions, text="Refresh results", command=refresh).pack(side="left", padx=3)
+    ttk.Button(actions, text="Sanitized outcomes", command=show_sanitized_reports).pack(side="left", padx=3)
     listing.bind("<<TreeviewSelect>>", selected)
     refresh()
     if catalog:
