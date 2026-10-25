@@ -29,7 +29,8 @@ KINDS = {
     "tests_evaluation": "offline", "tests_learning": "offline",
     "bridge_inspect": "offline", "compare": "offline",
     "motion_audit": "offline", "recover": "offline", "demo": "offline",
-    "swing": "live", "capture": "live", "v1_capture": "live", "unavailable": "planned",
+    "swing": "live", "capture": "live", "v1_capture": "live",
+    "unavailable": "planned", "test_file": "offline",
 }
 
 
@@ -77,6 +78,12 @@ def load_catalog(path: Path = CATALOG) -> list[dict[str, str]]:
     return result
 
 
+def available_experiments(root: Path = ROOT) -> list[dict[str, str]]:
+    """Live registry: reviewed workflows plus merged local tests/test_*.py."""
+    from .agent_tests import combined_catalog
+    return combined_catalog(root, load_catalog(root / "research" / "experiments.json"))
+
+
 def get_experiment(identifier: str, *, catalog: Sequence[dict[str, str]]) -> dict[str, str]:
     for item in catalog:
         if item["id"] == identifier:
@@ -101,11 +108,11 @@ def plan(
     identifier: str, *, catalog: Sequence[dict[str, str]] | None = None,
     root: Path = ROOT, python: str = sys.executable,
     input_path: str | None = None, second_input: str | None = None,
-    output_path: str | None = None, a_prime: int = 0,
-    a_lead: int = 0, follow_through: int = 30, contact: str | None = None,
+    output_path: str | None = None, a_prime: int = 0, a_lead: int = 0,
+    follow_through: int = 30, contact: str | None = None,
     green: str | None = None, distance: str | None = None,
 ) -> Plan:
-    entries = load_catalog(root / "research" / "experiments.json") if catalog is None else catalog
+    entries = available_experiments(root) if catalog is None else catalog
     exp = get_experiment(identifier, catalog=entries)
     kind = exp["kind"]
     if exp["mode"] == "planned":
@@ -139,7 +146,12 @@ def plan(
             raise ValueError(f"{identifier} requires {option}")
         return value
 
-    if kind.startswith("tests_"):
+    if kind == "test_file":
+        from .agent_tests import validated_test_filename
+        filename = validated_test_filename(identifier, root)
+        command = [python, "-m", "unittest", "discover", "-s", "tests",
+                   "-p", filename, "-v"]
+    elif kind.startswith("tests_"):
         patterns = {
             "tests_all": "test_*.py",
             "tests_integration": "test_integration_*.py",
@@ -232,6 +244,25 @@ def local_bridge_fingerprint(root: Path) -> dict[str, str | None]:
         return {"sha256": None, "present": "false"}
     # Limited to a generated local script, not RAM/ROM bytes.
     return {"sha256": hashlib.sha256(p.read_bytes()).hexdigest(), "present": "true"}
+
+
+@contextmanager
+def lab_run_lock(data: Path = DATA) -> Iterator[None]:
+    """Shared guard for ALL Lab jobs so Git sync cannot replace running code."""
+    data.mkdir(parents=True, exist_ok=True)
+    lock = data / "run-session.lock"
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise ValueError("Another Lab test is active or a stale run lock exists: "
+                         f"{lock}. Verify no job is running before clearing it.") from exc
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump({"pid": os.getpid(),
+                       "utc": datetime.now(timezone.utc).isoformat()}, f)
+        yield
+    finally:
+        lock.unlink(missing_ok=True)
 
 
 @contextmanager
@@ -339,9 +370,10 @@ def execute(
             record["utc_finished"] = datetime.now(timezone.utc).isoformat()
             write()
 
-    if trial.live:
-        with live_session_lock(data):
+    with lab_run_lock(data):
+        if trial.live:
+            with live_session_lock(data):
+                do_run()
+        else:
             do_run()
-    else:
-        do_run()
     return record
