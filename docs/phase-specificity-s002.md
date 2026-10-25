@@ -24,7 +24,7 @@ This is a **safe negative-control** and latency study, not power calibration.
 $root = "D:\Projects\Wii Golf AI"
 $repo = "$root\Wii-AI-Golf"
 $work = "$root\Wii-AI-Golf-Memory-Phase-Test"
-git -C $repo fetch origin pull/127/head
+git -C $repo fetch origin pull/128/head
 if ($LASTEXITCODE -ne 0) { throw "Cannot fetch review branch" }
 if (Test-Path $work) { throw "Separate worktree already exists; do not overwrite" }
 git -C $repo worktree add --detach $work FETCH_HEAD
