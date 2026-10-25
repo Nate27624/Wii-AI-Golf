@@ -169,3 +169,101 @@ the candidates first, skip a new empirical study.
 
 The two 20-sample records should NOT be described as independent
 Dolphin boots unless their per-boot provenance is actually checked.
+
+
+## S002-GOLFER-FOUR-CLOCK-02 — four-word *same-capture* comparison (proposed)
+
+Operator approved proceeding after main+0x74 exact frame-step matching 17/17
+in a shorter capture. Independent public #135/#137 summary
+`20261025T034248Z-7c597d65.json` reports exactly four background-dynamic
+words in 20 samples with 16 children: `main+0x074`,
+`child_at_main+0x008 +0x050`, `child_at_main+0x020 +0x038`,
+and `child_at_main+0x044 +0x060` (all 10/10 idle + 7/7 aim).
+**These four have NOT been numerically compared in the same raw capture yet.**
+The 17/17 numerical match at main+0x74 was a *different* 20-sample file;
+it must not be projected onto child words without testing.
+
+`scripts/audit_golfer_null_controls.py --latest-four` now automatically
+selects the newest pre-existing canonical private raw file with all three
+**specified first-level child windows**, without echoing filename or
+addresses. It parses up to 60 rows, checks source collector's fixed
+main/child sizes, stable source-private scene/main/child identities,
+chronological same-stage frames and stage order. **No new capture**.
+Alternatively `--input <canonical private path> --four-clock` selects
+one particular capture. Outputs JSON **only** with relative region/offset
+names, per-stage counts, and safe categorical metadata. No writes/uploads
+or live Dolphin/bridge interactions.
+
+Predeclared tests across adjacent pairs **WITHIN one human-labelled
+stage only**:
+
+1. Child and main modular unsigned 32-bit word increment vs observed
+   `frame_start` increment; count exact matches and changed-pair denominator.
+2. Each child incremental difference vs `main+0x074` *on the same pair*;
+   count identical common-mode changes, no raw values published.
+3. **Shifted-gap negative control:** compare a word's delta for one pair
+   to the following pair's frame gap. Count its false matches.
+4. Count distinct observed frame gaps (sampling cadence diversity).
+   If cadence is constant, a perfect 17/17 delta/frame match is
+   insufficient to distinguish frame-tracking from a fixed-rate
+   sample-index counter, because the shifted control matches as well.
+5. Keep per-stage (idle-before, aim-only, idle-after) opportunities and
+   never treat two transition boundaries as evidence of a response.
+6. Signal `timing_limited` if any non-atomic read window exceeds 12
+   frames; gate out values over 240 per the source collector contract.
+   Relative words in different child windows can have different actual
+   within-snapshot read instants, so equality is exploratory.
+
+**Decision:** Stronger time-candidate evidence requires variable observed
+frame gaps, high correctly aligned matches **and low shifted-control
+matches**, consistent within both idle stages. If gaps are constant,
+`varied_frame_cadence_observed=false` and inference is INCONCLUSIVE.
+Even strong evidence does not source-name an object member or verify
+club pose or power. If a child field fails exact timing equality but
+changes during idle, it is another background nuisance until more
+specific positive/negative tests exist. One capture is not independent
+sessions.
+
+Tests: `tests/test_outcome_golfer_null_controls.py` adds eight
+synthetic tests for variable-frame positive, constant-cadence
+adversarial case, nonclock child, missing/invalid child pointer,
+relocation, bounded slow snapshot, newest compatible private file
+selection and CLI privacy. Windows host validation pending.
+
+### Existing prior art and appropriate reuse
+
+- **redoste, "Modding Wii Sports: Part I" (2020)**
+  https://redoste.xyz/2020/04/21/modding-wii-sports-part-i-identifying-files-and-creating-a-debug-output/
+  is specifically about original Wii Sports **golf**. Uses local
+  main.dol + Ghidra/Dolphin, correctly documents `r13` EABI Small
+  Data Area access and class/xref reconstruction. Its European
+  *revision 2* disassembly locations are NOT compatible with RSPE01 Rev1.
+  Valuable technique to repeat AFTER the numeric falsification:
+  locate writer `stw`/possible `stfs` of a source/behavior-validated
+  word and inspect instruction flow. Do not transplant absolute addresses.
+- **Dolphin Memory Engine**, MIT:
+  https://github.com/aldelaro5/dolphin-memory-engine
+  supplies watchlists and changed/unchanged value scanning; our
+  no-install offline comparison reuses the general method, not code.
+  No extra reader should perturb existing S001/S002 frame sampling.
+- **JackPriceBurns Dolphin GDB debugger MCP**:
+  https://github.com/JackPriceBurns/dolphin-debugger-mcp
+  demonstrates symbol-aware **write watchpoints** that can identify
+  *what instruction modifies* a field. Integration would require S001
+  approval and a verified paused/session-gated debug build, not a
+  replacement input launcher or automated memory modification.
+- **doldecomp/ogws**:
+  https://github.com/doldecomp/ogws
+  is the current matching Wii Sports decomp and source for scene
+  layouts; it does not yet verify a named `RPGolMain+0x074` field
+  or gameplay power word based on the checked sources.
+- **PackProject Caddie**:
+  https://github.com/PackProject/Caddie
+  is GPL-3.0 **Wii Sports Resort** Golf practice mod, not original
+  Wii Sports. Useful precedent that reverse-engineered golf engine
+  hooks exist, but the other game and license make direct copying
+  inappropriate without separate design/license analysis.
+
+No outside project found during this search provides a verified
+drop-in swing-power mapping for our exact US Rev1/Hitting-the-Green
+target. Research and validation should be explicit about that gap.
