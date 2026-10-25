@@ -115,7 +115,7 @@ class EvidenceReviewTests(unittest.TestCase):
         self.assertEqual(cell["missing_bridge_sha256_count"], 1)
         self.assertEqual(cell["missing_starting_pose_count"], 1)
         self.assertFalse(result["gates"]["controller_power_calibrated"])
-        self.assertFalse(result["gates"]["power_trials_have_matched_bridge_and_pose_provenance"])
+        self.assertFalse(result["gates"]["power_trials_have_complete_bridge_and_pose_provenance"])
         self.assertFalse(cell["ball_power_or_score_verified"])
         baseline["power_percent_human"] = 700.0
         self.assertEqual(review_public_observations([baseline])["power_records_rejected"], 1)
