@@ -158,6 +158,10 @@ _WASD_POINT = {"IR/Up": "W", "IR/Down": "S", "IR/Left": "A", "IR/Right": "D"}
 _POINT_AXES = tuple(_WASD_POINT)
 _POINT_SETTINGS = {**_WASD_POINT, "IR/Relative Input": "True",
                    "IR/Relative Input Hold": "", "IMUIR/Enabled": "False"}
+# Dolphin provides mouse-click defaults for these controls. Explicit empty
+# values are needed when their keys are absent; otherwise defaults may survive.
+_DEFAULT_MOUSE_CONTROLS = ("Buttons/A", "Buttons/B",
+                           "Shake/X", "Shake/Y", "Shake/Z")
 _WASD_KEY = re.compile(r"(?<![A-Za-z0-9_])[WASD](?![A-Za-z0-9_])", re.IGNORECASE)
 _CONTROL_ASSIGNMENT = re.compile(
     r"^(\s*)([^=;#\r\n]+?)(\s*=\s*)([^;#\r\n]*?)(\s*(?:[;#].*)?)$"
@@ -238,6 +242,8 @@ def _isolate_physical_mouse(original: str) -> tuple[str, bool, list[str]]:
     # stock Cursor X/Y defaults from silently remaining active.
     to_add = [(key, value) for key, value in _POINT_SETTINGS.items()
               if key.lower() not in found]
+    to_add.extend((key, "") for key in _DEFAULT_MOUSE_CONTROLS
+                  if key.lower() not in found)
     if to_add:
         if end > 0 and not lines[end - 1].endswith(("\n", "\r")):
             lines[end - 1] += newline
