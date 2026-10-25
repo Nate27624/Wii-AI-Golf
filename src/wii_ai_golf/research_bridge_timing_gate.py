@@ -42,7 +42,8 @@ def audit_bridge_timing_fixture(record: dict) -> dict:
     """
     if type(record) is not dict or set(record) != FIELDS:
         raise ValueError("Unreviewed or missing timing fixture fields")
-    if (record["schema_version"] != 1 or record["kind"] != "proposed-bridge-timing-fixture"
+    if (type(record["schema_version"]) is not int or record["schema_version"] != 1
+        or record["kind"] != "proposed-bridge-timing-fixture"
         or record["game_id"] != "RSPE01" or type(record["revision"]) is not int
         or record["revision"] != 1 or type(record["game_mode"]) is not int
         or record["game_mode"] != 4 or not _token(record["boot_id"])
