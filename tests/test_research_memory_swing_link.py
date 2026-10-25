@@ -12,15 +12,24 @@ def fixture():
         'kind':'golf-memory-phase-differential','schema_version':1,
         'id':'mem-A','game_id':'RSPE01','disc_revision':1,'game_mode_raw':4,
         'scope':'focused','max_non_atomic_frame_span':2,
+        'phase_sample_counts':{'idle':2,'aim_only':2,'a_hold':2,
+                               'club_motion':2,'shot_attempt':2},
         'top_changed_relative_words':[
             {'region':'golf_config','relative_offset':'+0x9C','documented_role':'unknown',
              'phase_change_counts':{'idle':0,'aim_only':0,'a_hold':0,'club_motion':2,'shot_attempt':3}},
             {'region':'golf_field','relative_offset':'+0x94','documented_role':'minimap_player_effect_pointer',
              'phase_change_counts':{'idle':0,'aim_only':1,'club_motion':2}},
         ],
-        'phase_frame_brackets':[{'phase':'idle','frame_start':90,'frame_end':91},
+        'phase_frame_brackets':[{'phase':'idle','frame_start':80,'frame_end':81},
+                                {'phase':'idle','frame_start':82,'frame_end':83},
+                                {'phase':'aim_only','frame_start':84,'frame_end':85},
+                                {'phase':'aim_only','frame_start':86,'frame_end':87},
+                                {'phase':'a_hold','frame_start':96,'frame_end':97},
+                                {'phase':'a_hold','frame_start':98,'frame_end':99},
                                 {'phase':'club_motion','frame_start':110,'frame_end':112},
-                                {'phase':'shot_attempt','frame_start':120,'frame_end':121}],
+                                {'phase':'club_motion','frame_start':114,'frame_end':115},
+                                {'phase':'shot_attempt','frame_start':120,'frame_end':121},
+                                {'phase':'shot_attempt','frame_start':130,'frame_end':131}],
         'linkage':{'swing_id':'shot-A','session_id':'boot-A','scene_fingerprint':'tee-A',
                    'bridge_sha256':A,'trace_sha256':B,'shot_start_frame':100,'trace_end_frame':170},
     }
@@ -31,7 +40,7 @@ def fixture():
                        'displayed_distance_human':100,'displayed_unit_human':'ft',
                        'displayed_power_percent_human':75,'finished_on_green_human':'no'},
              'linkage':{'memory_id':'mem-A','session_id':'boot-A','scene_fingerprint':'tee-A',
-                        'bridge_sha256':A,'trace_sha256':B,'shot_start_frame':100}}
+                        'bridge_sha256':A,'trace_sha256':B,'shot_start_frame':100,'trace_end_frame':170}}
     return memory,swing
 
 class LinkGates(unittest.TestCase):
@@ -111,6 +120,73 @@ class LinkGates(unittest.TestCase):
         self.assertFalse(v['physical_ball_carry_verified'])
         self.assertFalse(v['game_power_calibrated'])
         self.assertNotIn('displayed_distance_human',json.dumps(v))
+
+    def test_zero_negative_control_opportunity_must_not_rank(self):
+        m,s=fixture();m.pop('phase_sample_counts')
+        v=assess_memory_swing_link(m,s)
+        self.assertFalse(v['mutually_linked_trial'])
+        self.assertEqual(v['candidate_priorities'],[])
+        self.assertIn('missing_or_under_sampled_negative_positive_controls',v['blockers'])
+
+    def test_single_sample_no_change_is_not_negative_evidence(self):
+        m,s=fixture();m['phase_sample_counts']['idle']=1
+        v=assess_memory_swing_link(m,s)
+        self.assertFalse(v['mutually_linked_trial'])
+        self.assertIn('missing_or_under_sampled_negative_positive_controls',v['blockers'])
+
+    def test_claimed_control_without_frame_samples_rejected(self):
+        m,s=fixture();m['phase_frame_brackets']=[b for b in m['phase_frame_brackets'] if b['phase']!='aim_only']
+        v=assess_memory_swing_link(m,s)
+        self.assertIn('phase_brackets_do_not_match_sample_counts',v['blockers'])
+        self.assertFalse(v['mutually_linked_trial'])
+
+    def test_control_during_motion_is_not_negative(self):
+        m,s=fixture()
+        m['phase_frame_brackets'][5]={'phase':'a_hold','frame_start':101,'frame_end':102}
+        v=assess_memory_swing_link(m,s)
+        self.assertIn('negative_control_overlaps_swing',v['blockers'])
+        self.assertFalse(v['mutually_linked_trial'])
+
+    def test_out_of_order_frame_data_invalidates_pairing(self):
+        m,s=fixture()
+        m['phase_frame_brackets'][1]={'phase':'idle','frame_start':79,'frame_end':80}
+        v=assess_memory_swing_link(m,s)
+        self.assertIn('nonchronological_memory_frame_brackets',v['blockers'])
+        self.assertFalse(v['mutually_linked_trial'])
+
+    def test_under_sampled_positive_phase_not_a_power_signal(self):
+        m,s=fixture();m['phase_sample_counts']['shot_attempt']=1
+        v=assess_memory_swing_link(m,s)
+        self.assertIn('missing_or_under_sampled_negative_positive_controls',v['blockers'])
+
+    def test_256_seeded_invalid_pairings_produce_zero_joins(self):
+        # Deterministic adversarial pairing suite: all 256 are synthetic.
+        import random
+        rng = random.Random(1212026)
+        corruptions = (
+            lambda m,s: m['linkage'].update(session_id='other-boot'),
+            lambda m,s: s['linkage'].update(scene_fingerprint='other-scene'),
+            lambda m,s: s['linkage'].update(trace_sha256='f' * 64),
+            lambda m,s: m['linkage'].update(swing_id='wrong-shot'),
+            lambda m,s: s['linkage'].update(memory_id='wrong-memory'),
+            lambda m,s: s['linkage'].update(shot_start_frame=9999),
+            lambda m,s: m['linkage'].update(trace_end_frame=200),
+            lambda m,s: m.update(max_non_atomic_frame_span=22),
+            lambda m,s: m.update(disc_revision=0),
+            lambda m,s: m.pop('phase_frame_brackets'),
+            lambda m,s: m.pop('phase_sample_counts'),
+            lambda m,s: m['phase_sample_counts'].update(aim_only=1),
+            lambda m,s: s.update(process_exit_code=1),
+            lambda m,s: m.update(game_mode_raw=1),
+        )
+        accepted = 0
+        for _ in range(256):
+            m,s=fixture()
+            corruptions[rng.randrange(len(corruptions))](m,s)
+            result=assess_memory_swing_link(m,s)
+            accepted += bool(result['mutually_linked_trial'])
+            self.assertFalse(result['game_power_calibrated'])
+        self.assertEqual(accepted,0)
 
     def test_bad_revision_refused(self):
         m,s=fixture();m['disc_revision']=0
