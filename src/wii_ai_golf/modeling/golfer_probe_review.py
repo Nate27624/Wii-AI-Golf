@@ -40,10 +40,13 @@ def _accept_sanitized_summary(item: Mapping) -> tuple[list[dict], str | None]:
             or type(item.get("game_mode")) is not int
             or item["game_mode"] != 4):
         return [], "invalid_source_revision_or_mode"
+    # The scene +0x40 mCreatorSceneID is the PRIOR/PARENT scene's ID,
+    # not the active Golf scene ID. False is valid (e.g. Training Menu
+    # created Golf) and must NOT reject a structurally valid candidate.
     if (type(item.get("matched_scene_chains")) is not int
             or item.get("matched_scene_chains") != 1
-            or item.get("observed_creator_scene_id_matches_golf") is not True):
-        return [], "scene_chain_not_fully_gated"
+            or type(item.get("observed_creator_scene_id_matches_golf")) is not bool):
+        return [], "scene_chain_not_unique_or_missing_diagnostic"
     if (not _integer(item.get("global_pointer_candidates"), 1, 512)
             or not _integer(item.get("samples"), 4, 60)
             or not _integer(item.get("changed_candidate_words"), 0, 64)):
