@@ -1,0 +1,21 @@
+{
+  "worker_id": "bayes-hitting-green",
+  "role": "learning",
+  "issue": 5,
+  "claim_comment": "https://github.com/Nate27624/Wii-AI-Golf/issues/5#issuecomment-6380760765",
+  "branch": "agent/learning/bayes-hitting-green-s004",
+  "date_claimed": "2026-10-24",
+  "status": "implementation-on-review-branch; no real-game integration",
+  "owned_paths": [
+    "src/wii_ai_golf/bayes.py",
+    "tests/test_bayes.py",
+    "scripts/benchmark_bayes.py",
+    "docs/bayes-hitting-green.md",
+    "research/claims/bayes-hitting-green.json",
+    "research/bayes-hitting-green/**",
+    "pyproject.toml (optional extra only)"
+  ],
+  "verified_level": "isolated-local-synthetic-unit-and-benchmark",
+  "real_dolphin_tested": false,
+  "gameplay_tested": false
+}
