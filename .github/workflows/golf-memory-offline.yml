@@ -6,11 +6,9 @@ on:
       - "scripts/capture_golf_memory_phases.py"
       - "scripts/analyze_existing_golf_capture.py"
       - "scripts/analyze_golf_memory_cohort.py"
-      - "scripts/probe_golf_scene_chain.py"
       - "src/wii_ai_golf/audit/memory_phases.py"
       - "tests/test_golf_memory_phase_capture.py"
       - "tests/test_golf_memory_cohort.py"
-      - "tests/test_probe_golf_scene_chain.py"
   push:
     branches:
       - agent/evaluation/phase-labelled-memory-capture
@@ -26,12 +24,10 @@ jobs:
         with:
           python-version: "3.13"
       - name: Compile memory modules
-        run: python -m py_compile scripts/capture_golf_memory_phases.py scripts/analyze_existing_golf_capture.py scripts/analyze_golf_memory_cohort.py scripts/probe_golf_scene_chain.py src/wii_ai_golf/audit/memory_phases.py
+        run: python -m py_compile scripts/capture_golf_memory_phases.py scripts/analyze_existing_golf_capture.py scripts/analyze_golf_memory_cohort.py src/wii_ai_golf/audit/memory_phases.py
       - name: Focused offline memory tests
         run: python -m unittest discover -s tests -p 'test_golf_memory_phase_capture.py' -v
       - name: Cohort repeatability tests
         run: python -m unittest discover -s tests -p 'test_golf_memory_cohort.py' -v
-      - name: Golf scene pointer source-gating tests
-        run: python -m unittest discover -s tests -p 'test_probe_golf_scene_chain.py' -v
       - name: Full offline regression suite
         run: python -m unittest discover -s tests -p 'test_*.py' -v
