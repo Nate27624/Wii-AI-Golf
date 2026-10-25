@@ -29,6 +29,7 @@ KINDS = {
     "tests_evaluation": "offline", "tests_learning": "offline",
     "bridge_inspect": "offline", "compare": "offline",
     "motion_audit": "offline", "recover": "offline", "demo": "offline",
+    "focused_trace": "offline",
     "swing": "live", "capture": "live", "unavailable": "planned",
 }
 
@@ -90,7 +91,7 @@ def _child(script: str, *args: str, root: Path = ROOT, python: str = sys.executa
     allowed = {
         "run_golf_experiment.py", "launch_golf.py",
         "compare_outcome_runs.py", "audit_motion_candidates.py",
-        "recover_outcome_capture.py",
+        "recover_outcome_capture.py", "analyze_focused_trace.py",
     }
     if script not in allowed or not (root / "scripts" / script).is_file():
         raise ValueError(f"Unsupported/missing reviewed script: {script}")
@@ -114,11 +115,11 @@ def plan(
         raise ValueError("--a-prime must be 0..180")
     if type(follow_through) is not int or not 0 <= follow_through <= 180:
         raise ValueError("--follow-through must be 0..180")
-    if input_path is not None and kind not in {"compare", "recover", "motion_audit"}:
+    if input_path is not None and kind not in {"compare", "recover", "motion_audit", "focused_trace"}:
         raise ValueError("--input is unsupported for this experiment")
     if second_input is not None and kind != "compare":
         raise ValueError("--second-input is only for evaluation.compare")
-    if output_path is not None and kind not in {"compare", "motion_audit", "recover"}:
+    if output_path is not None and kind not in {"compare", "motion_audit", "recover", "focused_trace"}:
         raise ValueError("--out is unsupported for this experiment")
     if kind == "recover":
         if contact not in {"yes", "no", "unknown"} or green not in {"yes", "no", "unknown"}:
@@ -181,6 +182,11 @@ def plan(
             command += ["--distance", distance]
         if output_path is not None:
             command += ["--out", output_path]
+    elif kind == "focused_trace":
+        command = _child("analyze_focused_trace.py", "--input",
+                         require(input_path, "--input"), root=root, python=python)
+        if output_path:
+            command += ["--output", output_path]
     elif kind == "motion_audit":
         command = _child("audit_motion_candidates.py", "--input",
                          require(input_path, "--input"), root=root, python=python)
