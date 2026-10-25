@@ -91,6 +91,7 @@ class LabTests(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("--a-lead-frames")+1], "0")
         self.assertEqual(cmd[cmd.index("--a-prime-requests")+1], "0")
         self.assertEqual(cmd[cmd.index("--script")+1], "collect_outcome_transition.py")
+        self.assertIn("--observe-start-pose", cmd)
         self.assertNotIn("--attach-running", cmd)
         self.assertTrue(p.live)
         p12 = self.plan("integration.v1-diagnostic", a_lead=12)
