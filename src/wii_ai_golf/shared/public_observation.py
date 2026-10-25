@@ -17,7 +17,8 @@ GIT_SHA = re.compile(r"(?:[a-f0-9]{40}|unavailable)\Z")
 OFFSET = re.compile(r"\+0x[0-9A-F]{1,5}\Z")
 PUBLIC_SIZE_LIMIT = 96_000
 KINDS = frozenset({"test", "v1", "golf-memory-phase-differential",
-                  "golf-memory-cohort-relative-words"})
+                  "golf-memory-cohort-relative-words",
+                  "golf_scene_root_candidate_triage"})
 PHASES = frozenset({"idle", "aim_only", "a_hold", "club_motion",
                     "shot_attempt", "settled", "pre", "post"})
 OBSERVATIONS = frozenset({"unchanged", "camera_moved", "club_moved",
@@ -298,6 +299,55 @@ def _cohort_public(record):
     return dict(record)
 
 
+SCENE_ROOT_FIELDS = frozenset({
+    "schema_version", "kind", "study_id", "id", "game_id", "revision", "game_mode",
+    "candidate_static_cells_checked", "pass_count", "max_sample_frame_span",
+    "stable_golf_scene_chain_count", "stable_slot_indices",
+    "vtable_in_golf_scene_data_count", "possible_main_pointer_ram_like_count",
+    "confirmed_manager_singleton_address", "confirmed_golf_main_type",
+    "confirmed_golf_power_address", "warning",
+})
+SCENE_ROOT_WARNING = (
+    "Source-anchored 8-byte static-storage triage only; pointers were "
+    "NOT type-proven, no game power or player RAM identified. "
+    "No runtime addresses or byte values are included."
+)
+
+
+def _scene_root_public(record):
+    """Approve only source-gated candidate COUNTS, never pointer values."""
+    if (type(record) is not dict or set(record) != SCENE_ROOT_FIELDS
+        or type(record.get("schema_version")) is not int
+        or record["schema_version"] != 1
+        or record.get("study_id") != "S002-GOLF-SCENE-ROOT-TRIAGE"
+        or record.get("game_id") != "RSPE01"
+        or not _integer(record.get("revision"), 1, 1)
+        or not _integer(record.get("game_mode"), 4, 4)
+        or not _integer(record.get("candidate_static_cells_checked"), 2, 2)
+        or not _integer(record.get("pass_count"), 2, 2)
+        or not _integer(record.get("max_sample_frame_span"), 0, 40)
+        or record.get("warning") != SCENE_ROOT_WARNING):
+        raise ValueError("Unrecognized source-gated scene-root public schema")
+    count = record.get("stable_golf_scene_chain_count")
+    if not _integer(count, 0, 2):
+        raise ValueError("Invalid stable scene-root count")
+    indices = record.get("stable_slot_indices")
+    if (type(indices) is not list or len(indices) != count
+        or any(not _integer(index, 0, 1) for index in indices)
+        or len(set(indices)) != len(indices)
+        or indices != sorted(indices)):
+        raise ValueError("Invalid stable scene-root slot indices")
+    for name in ("vtable_in_golf_scene_data_count",
+                 "possible_main_pointer_ram_like_count"):
+        if not _integer(record.get(name), 0, count):
+            raise ValueError("Invalid scene-root candidate support count")
+    for name in ("confirmed_manager_singleton_address", "confirmed_golf_main_type",
+                 "confirmed_golf_power_address"):
+        if record.get(name) is not False:
+            raise ValueError("Scene-root probe cannot claim verified address/type/power")
+    return dict(record)
+
+
 def public_observation(record):
     """Only known schema and typed public facts may reach the Git writer."""
     if type(record) is not dict or not isinstance(record.get("id"), str):
@@ -307,7 +357,11 @@ def public_observation(record):
     kind = record.get("kind")
     if type(kind) is not str or kind not in KINDS:
         raise ValueError("Unsupported public observation kind")
-    if kind == "golf-memory-cohort-relative-words":
+    if kind == "golf_scene_root_candidate_triage":
+        if record["id"].startswith(("cohort-", "offline-")):
+            raise ValueError("Invalid scene-root record identifier")
+        safe = _scene_root_public(record)
+    elif kind == "golf-memory-cohort-relative-words":
         safe = _cohort_public(record)
     elif kind == "golf-memory-phase-differential":
         if record["id"].startswith("cohort-"):
