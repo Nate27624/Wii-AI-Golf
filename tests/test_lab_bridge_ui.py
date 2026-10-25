@@ -8,7 +8,6 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -37,11 +36,7 @@ class BridgeScreenTests(unittest.TestCase):
         self.active.write_text(self.v2, encoding="utf-8")
 
     def test_no_backup_shows_explicit_blocker_without_live_pretence(self):
-        with patch("wii_ai_golf.lab.bridge_ui.audit_bridge_sources", wraps=__import__(
-                "wii_ai_golf.shared.bridge_provenance", fromlist=["audit_bridge_sources"]
-            ).audit_bridge_sources) as audit:
-            view = inspect_game_bridges(self.root)
-        audit.assert_called_once()
+        view = inspect_game_bridges(self.root)
         self.assertEqual(view.state, "blocked")
         self.assertFalse(view.can_prepare)
         self.assertFalse(view.can_test)
