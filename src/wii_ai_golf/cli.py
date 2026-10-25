@@ -149,6 +149,10 @@ def build_parser() -> argparse.ArgumentParser:
     studies = r_sub.add_parser("studies", help="Show S001..S005 hypotheses, ownership and blockers")
     studies.add_argument("--queue", type=Path, default=DEFAULT_QUEUE)
     studies.add_argument("--json", action="store_true")
+    validation = r_sub.add_parser("validation", help="Review falsification-first study gates; planning only")
+    validation.add_argument("--queue", type=Path, default=DEFAULT_QUEUE)
+    validation.add_argument("--study-id", help="Show one preregistered validation study")
+    validation.add_argument("--json", action="store_true")
     evidence = r_sub.add_parser("evidence", help="Summarize local human-observed swing JSONL safely")
     evidence.add_argument("--path", type=Path, default=DEFAULT_EVIDENCE)
     evidence.add_argument("--json", action="store_true")
@@ -520,6 +524,31 @@ def execute(args: argparse.Namespace) -> int:
             return _run(_script_command("research_cli.py", *flags))
         if args.research_action == "study":
             return _run(_script_command("research_cli.py", "study"))
+        if args.research_action == "validation":
+            from .research_validation import validation_report
+            report = validation_report(args.queue)
+            items = report["studies"]
+            if args.study_id:
+                items = [s for s in items if s["study_id"] == args.study_id]
+                if not items:
+                    raise ValueError("Unknown validation study identifier")
+            if args.json:
+                print(json.dumps({**report, "studies": items, "count": len(items)},
+                                 indent=2, sort_keys=True))
+            else:
+                print("FALSIFICATION-FIRST STUDIES: planning only; no experiments executed.")
+                for item in items:
+                    budget = item["budget"]
+                    print(f"{item['study_id']} [priority {item['priority']}] "
+                          f"{item['owner']} | {item['title']}")
+                    print(f"  Mode: {item['mode']} | planned shots: {budget['approved_shots']} "
+                          f"| sessions: {budget['read_only_sessions']}")
+                    print(f"  Blocked by: {item['blocked_by']}")
+                    print(f"  Falsified if: {item['falsification']}")
+                    print(f"  Stop if: {item['stop_rule']}")
+                print("All live shots require separate explicit operator approval. "
+                      "Queue is NOT an unattended worker.")
+            return 0
         if args.research_action == "studies":
             data = study_summary(args.queue)
         elif args.research_action == "evidence":
