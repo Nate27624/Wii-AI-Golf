@@ -17,8 +17,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 PRIVATE_CAPTURES = ROOT.parent / "Wii-AI-Golf-Data" / "captures"
-NAME_PATTERN = re.compile(r"golfer-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}-RAW-PRIVATE[.]jsonl\\Z")
-PRIVATE_POINTER = re.compile(r"0x[89][0-9A-Fa-f]{7}\\Z")
+NAME_PATTERN = re.compile(r"golfer-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}-RAW-PRIVATE[.]jsonl\Z")
+PRIVATE_POINTER = re.compile(r"0x[89][0-9A-Fa-f]{7}\Z")
 WORD_OFFSET = 0x74
 MAIN_BYTES = 0x100
 MAX_ROWS = 60
