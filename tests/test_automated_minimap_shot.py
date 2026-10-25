@@ -22,6 +22,14 @@ class AutomaticMinimapTests(unittest.TestCase):
         self.assertEqual(result["phase_counts"],{"pre":1,"post":1})
         self.assertEqual(result["claim"],"AUTOMATED_SWING_COMMAND_NOT_VERIFIED_BALL_CONTACT")
         self.assertNotIn("hex",result)
+    def test_published_summary_excludes_raw_private_values(self):
+        original=module.summary([{"phase":"pre","pointer":123,"hex":bytes(128).hex()}],{})
+        original.update({"raw_path":"C:/private/location","secret":"must-not-upload"})
+        published=module.public_summary(original,"20261025T013043Z")
+        self.assertEqual(published["kind"],"automated-minimap-effect")
+        self.assertEqual(published["changed_byte_offsets"],[])
+        for prohibited in ("raw_path","secret","hex","pointer"):
+            self.assertNotIn(prohibited,str(published))
     def test_changed_pointer_is_not_compared_as_byte_movement(self):
         a={"phase":"pre","pointer":10,"hex":bytes(128).hex()}
         b={"phase":"post","pointer":20,"hex":(bytes([5])*128).hex()}
