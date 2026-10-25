@@ -1,5 +1,23 @@
 # Wii AI Golf
 
+## Active workflow: automatic GitHub pull → local research → sanitized GitHub push
+
+The **desktop UI is retired**. The Windows operator runs ONE central script against the existing codebase:
+
+```powershell
+cd "D:\Projects\Wii Golf AI\Wii-AI-Golf"
+py scripts/research_cli.py sync
+py scripts/research_cli.py test --pattern test_research_cli.py
+py scripts/research_cli.py v1 --live --a-lead 0
+```
+
+Each `test` or `v1` run first safely fast-forwards trusted `main`, executes locally (live shots require `--live`), saves a tiny allowlisted JSON result under private `Wii-AI-Golf-Data/research-cli`, and **automatically commits/pushes only that sanitized result** to the separate `research/observations` branch for agents to inspect. No ROM, RAW RAM, savestate, generated bridge source or unrestricted file is uploaded. Add `--no-upload` to keep a result local. Results publication is separate from the agent PR/code-merge path and never force-pushes or alters local `main`.
+
+The existing Git Bash wrapper `bash scripts/golf.sh` remains an alternative for `lab list|plan|run|sync`; all commands use the same underlying Python packages and Dolphin launch sequence. See [Script-first workflow and safety](docs/cli-only-workflow.md). The sections further below describe historical experiments and retired GUI behavior.
+
+---
+
+
 ## Current workflow: GitHub + Git Bash + one Python codebase
 
 The **desktop Research Lab GUI is retired**. Use the source-local shell wrapper and unified Python runner instead. Agents commit code/tests and open reviewed GitHub pull requests; merged tests are discovered from the one `main` checkout. The shell wrapper never auto-uploads private game files or runs new tests without a user command.
