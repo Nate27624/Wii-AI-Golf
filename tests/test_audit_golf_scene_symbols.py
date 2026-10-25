@@ -3,13 +3,53 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location("scene_symbols", ROOT/"scripts"/"audit_golf_scene_symbols.py")
 mod=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
+def load_fetch_module():
+    spec = importlib.util.spec_from_file_location(
+        "fetch_scene_symbols", ROOT / "scripts" / "fetch_golf_symbol_map.py")
+    fetched = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fetched)
+    return fetched
+
+
 class SceneSymbolTests(unittest.TestCase):
+    def test_bundled_subset_can_be_scanned_without_network(self):
+        self.assertTrue(mod.DEFAULT_MAP.is_file())
+        with mod.DEFAULT_MAP.open(encoding="utf-8") as handle:
+            report = mod.summarize(handle)
+        groups = [r["symbol_group"] for r in report["matched_groups"]]
+        self.assertIn("RPSysSceneMgr", groups)
+        self.assertNotIn("RPSysScene", groups)
+        self.assertIsNone(report["scene_object_pointer"])
+
+    def test_optional_download_uses_pinned_source_and_cache(self):
+        fetcher = load_fetch_module()
+        self.assertIn(fetcher.UPSTREAM_COMMIT, fetcher.upstream_url("csv"))
+        self.assertTrue(str(fetcher.DEFAULT_CACHE).endswith("Wii-AI-Golf-Data" + str(Path("/symbols"))))
+        with tempfile.TemporaryDirectory() as td:
+            class Response:
+                def __enter__(self):
+                    return self
+                def __exit__(self, *args):
+                    return False
+                def read(self, n):
+                    return b'"RPSysSceneMgr::getCurrentScene", 0x80186100\\n'
+
+            with patch.object(fetcher, "urlopen", return_value=Response()) as mock:
+                target = fetcher.fetch("csv", Path(td))
+                self.assertEqual(target.name, "RSPE_r1.map.csv")
+                self.assertTrue(target.is_file())
+                mock.assert_called_once()
+                with self.assertRaises(FileExistsError):
+                    fetcher.fetch("csv", Path(td))
+                mock.assert_called_once()
+
     def test_function_symbol_not_a_runtime_object(self):
         r=mod.summarize(["8028DFA8 00000004 RPGolScene::OnCalculate()"])
         self.assertIsNone(r["scene_object_pointer"])
