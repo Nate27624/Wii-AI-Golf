@@ -113,6 +113,30 @@
       "description": "Blocked until actual outcome extraction/learning is validated",
       "mode": "planned",
       "kind": "unavailable"
+    },
+    {
+      "id": "evaluation.landmarks",
+      "owner": "S002",
+      "title": "Camera-only landmark control",
+      "description": "Source-defined pin/start/cup positions; operator uses physical Wii Remote and never swings.",
+      "mode": "live",
+      "kind": "s002_landmarks"
+    },
+    {
+      "id": "evaluation.minimap",
+      "owner": "S002",
+      "title": "Minimap camera-only differential",
+      "description": "Monitor visual ball-effect changes while manually rotating camera, no swing.",
+      "mode": "live",
+      "kind": "s002_minimap_camera"
+    },
+    {
+      "id": "evaluation.minimap-swing",
+      "owner": "S002",
+      "title": "Minimap manual-swing differential",
+      "description": "Read-only effect capture while operator performs one physical Wii Remote swing.",
+      "mode": "live",
+      "kind": "s002_minimap_swing"
     }
   ]
 }
