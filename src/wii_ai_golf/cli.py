@@ -186,6 +186,9 @@ def build_parser() -> argparse.ArgumentParser:
     recent = actions.add_parser("history", help="Inspect local per-run execution records, never score claims")
     recent.add_argument("--limit", type=int, default=20)
     recent.add_argument("--json", action="store_true")
+    outcomes = actions.add_parser("reports", help="List ONLY sanitized local S002 human-observed outcome files")
+    outcomes.add_argument("--limit", type=int, default=20)
+    outcomes.add_argument("--json", action="store_true")
     actions.add_parser("gui", help="Open local Windows research lab application")
 
     sub.add_parser("demo", help="Run the existing SYNTHETIC toy environment (not Wii Sports)")
@@ -332,6 +335,19 @@ def execute(args: argparse.Namespace) -> int:
                     print(f"{e.get('run_id')}  {e.get('experiment_id')}  "
                           f"{e.get('execution_status')}  exit={e.get('exit_code')} "
                           "(NOT a game score)")
+            return 0
+        if args.lab_action == "reports":
+            from .lab.reports import sanitized_reports
+            entries = sanitized_reports(root=ROOT, limit=args.limit)
+            if args.json:
+                print(json.dumps(entries, indent=2))
+            else:
+                if not entries:
+                    print("No sanitized outcome reports yet. Raw RAM is not inspected.")
+                for row in entries:
+                    print(f"{row['path']} | USER contact={row['contact_human']} "
+                          f"green={row['green_human']} distance={row['distance_human']} "
+                          f"{row['unit_human']} | game score NOT verified")
             return 0
         if args.lab_action == "gui":
             from .lab.gui import launch
