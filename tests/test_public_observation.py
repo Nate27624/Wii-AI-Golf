@@ -111,6 +111,35 @@ def scene_root_record():
     }
 
 
+
+def golfer_controls_record():
+    row = {
+        "schema_version": 1, "kind": "golf-golfer-control-specificity",
+        "id": "20261025T035500Z-a1b2c3d4",
+        "study_id": "S002-GOLFER-CONTROL-SPECIFICITY",
+        "sample_count": 9, "idle_samples": 6, "aim_samples": 3,
+        "idle_opportunities": 4, "aim_opportunities": 2,
+        "max_non_atomic_frame_span": 2, "timing_limited": False,
+        "candidate_child_regions": 1, "changed_word_count": 2,
+        "truncated_changed_words": False, "power_verified": False,
+        "club_pose_verified": False,
+        "warning": ("Controls only: dynamic offsets are NOT game swing-power, pose or ball "
+                    "decoders; private memory and absolute pointers remain local."),
+        "top_relative_words": [
+            {"region": "child_at_main+0x020", "relative_offset": "+0x000",
+             "idle_changes": 0, "idle_opportunities": 4,
+             "aim_changes": 2, "aim_opportunities": 2,
+             "control_class": "aim_enriched_control_candidate"},
+            {"region": "main", "relative_offset": "+0x074",
+             "idle_changes": 4, "idle_opportunities": 4,
+             "aim_changes": 2, "aim_opportunities": 2,
+             "control_class": "background_dynamic"},
+        ],
+    }
+    return row
+
+
+
 class PublicObservationTests(unittest.TestCase):
     def test_matches_actual_published_test_shape(self):
         self.assertEqual(public_observation(test_record()), test_record())
@@ -284,6 +313,36 @@ class PublicObservationTests(unittest.TestCase):
             self.assertEqual(research_cli.main([
                 "publish-saved-scene-root", "--id", row["id"]]), 2)
             publish.assert_not_called()
+
+    def test_golfer_phase_control_public_schema_allows_only_safe_relative_words(self):
+        row = golfer_controls_record()
+        self.assertEqual(public_observation(row), row)
+        self.assertEqual(row["top_relative_words"][1]["control_class"], "background_dynamic")
+
+    def test_golfer_control_rejects_private_or_false_power_with_zero_git(self):
+        row = golfer_controls_record()
+        corrupted = (
+            {**row, "private_path": "C:/private/RAW-PRIVATE.jsonl"},
+            {**row, "top_relative_words": [{**row["top_relative_words"][0],
+                                          "raw_bytes": "deadbeef"}, row["top_relative_words"][1]]},
+            {**row, "top_relative_words": [{**row["top_relative_words"][0],
+                                          "region": "child_at_main+0xBAD"}, row["top_relative_words"][1]]},
+            {**row, "top_relative_words": [{**row["top_relative_words"][0],
+                                          "relative_offset": "+0xABC"}, row["top_relative_words"][1]]},
+            {**row, "power_verified": True},
+            {**row, "sample_count": 8},
+            {**row, "idle_opportunities": 5},
+            {**row, "changed_word_count": 3},
+            {**row, "top_relative_words": row["top_relative_words"] * 2},
+            {**row, "timing_limited": True},
+            {**row, "warning": "C:/private"},
+            {**row, "id": "../secrets"},
+        )
+        for item in corrupted:
+            with self.subTest(case=str(item)[:80]), patch.object(research_cli, "_git") as git:
+                with self.assertRaises(ValueError):
+                    research_cli.publish_summary(item)
+                git.assert_not_called()
 
     def test_s002_cohort_schema_accepts_safe_existing_shape(self):
         safe = public_observation(cohort_record())
