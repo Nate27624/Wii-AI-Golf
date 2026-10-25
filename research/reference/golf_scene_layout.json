@@ -6,7 +6,7 @@
   "scene_manager": {
     "type": "RPSysSceneMgr",
     "instance_storage_address": null,
-    "instance_storage_status": "unresolved",
+    "instance_storage_status": "no_public_symbol_map_storage_entry; see derived_static_storage_address",
     "singleton_pattern": "RP_SINGLETON_DECL_EX",
     "current_scene_offset_hex": "+0xC",
     "current_scene_offset_status": "source_struct_layout",
@@ -19,7 +19,11 @@
       "https://github.com/doldecomp/ogws/blob/master/include/egg/core/eggSceneManager.h",
       "https://github.com/doldecomp/ogws/blob/master/include/Pack/RPSystem/RPSysSceneCreator.h",
       "https://github.com/doldecomp/ogws/blob/master/src/Pack/RPSystem/RPSysSceneMgr.cpp"
-    ]
+    ],
+    "derived_static_storage_address": "0x804BF4D8",
+    "derived_static_storage_evidence": "Rev1 r13=-0x5EA8 common reads, manager constructor load/store, DOL r13 base 0x804C5380, slot lies in BSS",
+    "derived_static_storage_status": "private_DOL_verified_signature_not_live_pointer_read",
+    "runtime_instance_pointer": null
   },
   "golf_scene": {
     "type": "RPGolScene",
@@ -35,6 +39,7 @@
     "Do not dereference without independently established Rev1 scene-manager singleton storage location",
     "Do not publish absolute captured pointers, raw memory or local file paths",
     "Do not infer ball XYZ, club pose, contact or swing power from these source offsets alone",
-    "After anchor verification, gate read-only capture on Rev1 and Hitting-the-Green mode 4"
+    "After anchor verification, gate read-only capture on Rev1 and Hitting-the-Green mode 4",
+    "The derived storage address is a public static program location, but its runtime pointer value remains unverified and must not be published"
   ]
 }
