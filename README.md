@@ -1,5 +1,9 @@
 # Wii AI Golf
 
+## Game Testing UI result visibility
+
+The **Inspect bridges** button writes the actual V1/V2 inspection into the permanent Game Testing results area. **Prepare historical V1** runs the reviewed recorded Lab preparation in the background and displays progress/errors there. Neither opens a separate terminal or a generic missing-log popup. The one-shot Dolphin swing retains its interactive console and explicit consent. A historical V1 trial can only be enabled if the isolated copy exactly matches the verified pre-V2 backup. See [Research Lab UI guide](docs/research-lab.md).
+
 ## New: one shared Research Lab (S000–S005)
 
 **Instead of chasing agent-specific scripts, launch the Windows app:**
