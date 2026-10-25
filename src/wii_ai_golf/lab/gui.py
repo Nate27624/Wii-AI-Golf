@@ -243,16 +243,17 @@ def launch(root: Path = ROOT) -> int:
         try:
             view = inspect_game_bridges(root)
             bridge_status.set(view.title)
-            prep_button.configure(
-                state="normal" if view.can_prepare and not game_job_busy[0] else "disabled")
-            v1_button.configure(
-                state="normal" if view.can_test and not game_job_busy[0] else "disabled")
+            run_v1_button.configure(
+                state="normal" if (view.can_prepare or view.can_test) and not game_job_busy[0]
+                else "disabled")
+            run_v1_button.configure(text=(
+                "Prepare and run one V1 shot" if view.can_prepare
+                else "Run one V1 shot" if view.can_test else "Unavailable"))
             show_game_details(view.as_text())
             return view
         except (OSError, ValueError, UnicodeError) as exc:
             bridge_status.set("Bridge inspection failed")
-            prep_button.configure(state="disabled")
-            v1_button.configure(state="disabled")
+            run_v1_button.configure(state="disabled")
             show_game_details("Unable to inspect bridge files.\n\n" + str(exc))
             return None
 
@@ -276,7 +277,7 @@ def launch(root: Path = ROOT) -> int:
         listing.see(identifier)
         selected()
 
-    def prepare_historical_v1():
+    def prepare_historical_v1(*, continue_to_live: bool = False):
         """Run the reviewed Lab preparation and record it, without another console."""
         if game_job_busy[0] or sync_busy[0] or active:
             bridge_status.set("Finish the current Lab task or GitHub update first.")
@@ -291,8 +292,8 @@ def launch(root: Path = ROOT) -> int:
             "If any file differs unexpectedly, preparation will stop."):
             return
         game_job_busy[0] = True
-        prep_button.configure(state="disabled")
-        v1_button.configure(state="disabled")
+        launch_after_preparation[0] = continue_to_live
+        run_v1_button.configure(state="disabled")
         bridge_status.set("Preparing historical V1 copy...")
         show_game_details(
             "Working in the background using the reviewed Lab runner.\n"
@@ -331,12 +332,18 @@ def launch(root: Path = ROOT) -> int:
                 elif view is not None and view.can_test:
                     bridge_status.set("Historical V1 is ready for the single-shot comparison")
                     show_game_details(view.as_text() + "\n\nPreparation recorded in Lab history.")
+                    if launch_after_preparation[0]:
+                        launch_after_preparation[0] = False
+                        # Consent to the actual live run is obtained by
+                        # run_selected(True), AFTER successful preparation.
+                        ui.after_idle(launch_v1_trial)
                 else:
                     bridge_status.set("Preparation finished; V1 could not be verified")
                     show_game_details(
                         (view.as_text() if view else "Bridge check unavailable") +
                         "\n\nThe output did not pass the readiness check. "
                         "Do not start the live shot.")
+                launch_after_preparation[0] = False
                 refresh()
         except queue.Empty:
             pass
@@ -353,22 +360,29 @@ def launch(root: Path = ROOT) -> int:
             values["a-prime"].set("0")
             values["a-lead"].set("0")
             navigate_study("integration.v1-diagnostic")
-            run_selected(True)
+            run_selected(True, verified_v1=True)
         except (OSError, ValueError) as exc:
             bridge_status.set("Could not start V1 comparison")
             show_game_details(str(exc))
 
-    ttk.Button(game_buttons, text="1  Inspect bridges",
-               command=inspect_bridges).pack(side="left", padx=(0, 8))
-    prep_button = ttk.Button(
-        game_buttons, text="2  Prepare historical V1", state="disabled",
-        command=prepare_historical_v1)
-    prep_button.pack(side="left", padx=(0, 8))
-    v1_button = ttk.Button(
-        game_buttons, text="3  Run ONE V1 shot", state="disabled",
-        command=launch_v1_trial)
-    v1_button.pack(side="left", padx=(0, 8))
-    ttk.Button(game_buttons, text="Refresh check",
+    def start_v1_workflow():
+        """Single operator action: inspect, prepare if needed, then ONE shot."""
+        if sync_busy[0] or game_job_busy[0] or active:
+            bridge_status.set("Finish the running Lab task before starting another.")
+            return
+        view = refresh_bridge_status()
+        if view is None or not (view.can_prepare or view.can_test):
+            return
+        if view.can_prepare:
+            prepare_historical_v1(continue_to_live=True)
+        else:
+            launch_v1_trial()
+
+    run_v1_button = ttk.Button(
+        game_buttons, text="Inspecting...", state="disabled",
+        command=start_v1_workflow)
+    run_v1_button.pack(side="left", padx=(0, 9))
+    ttk.Button(game_buttons, text="Recheck environment",
                command=inspect_bridges).pack(side="left")
 
     def request_sync(*, manual: bool = False) -> None:
@@ -443,7 +457,7 @@ def launch(root: Path = ROOT) -> int:
         request_sync()
         ui.after(120000, auto_sync_tick)
 
-    def run_selected(live: bool):
+    def run_selected(live: bool, *, verified_v1: bool = False):
         try:
             if sync_busy[0] or game_job_busy[0]:
                 raise ValueError("A Lab task or GitHub update is still running.")
@@ -455,10 +469,14 @@ def launch(root: Path = ROOT) -> int:
                 prepare_historical_v1()
                 return
             if p.experiment["id"] == "integration.v1-diagnostic":
+                # Same one-action workflow for the primary Run button.
+                if not verified_v1:
+                    start_v1_workflow()
+                    return
                 view = inspect_game_bridges(root)
                 if not view.can_test:
                     refresh_bridge_status()
-                    raise ValueError("Historical V1 is not ready. Inspect and prepare a verified backup first.")
+                    raise ValueError("Historical V1 bridge is not verified; the game was not launched.")
             if p.live != live:
                 raise ValueError("Experiment mode does not match this button")
             if live and not messagebox.askyesno(
