@@ -46,7 +46,7 @@ class MouseIsolationTests(unittest.TestCase):
         report = self.prepare(original)
         changed = self.ini.read_bytes().decode()
         self.assertTrue(report["changed"])
-        self.assertTrue(report["mouse_input_isolated"])
+        self.assertTrue(report["mouse_pointer_bindings_disabled_in_ini"])
         self.assertIn("Source = 1\r\nExtension = None\r\n", changed)
         self.assertIn("Device = DInput/0/Keyboard Mouse\r\n", changed)
         for key in ("Buttons/A", "Buttons/B", "Shake/X", "Shake/Y",
