@@ -15,12 +15,14 @@ class TraceLabIntegration(unittest.TestCase):
         studies={x["id"]:x for x in core.load_catalog()}
         self.assertEqual(studies["evaluation.trace"]["mode"],"offline")
         self.assertEqual(studies["evaluation.trace"]["owner"],"S002")
-        self.assertEqual(studies["evaluation.minimap"]["mode"],"planned")
-        self.assertEqual(studies["evaluation.landmarks"]["mode"],"planned")
-    def test_planned_live_actions_cannot_be_executed(self):
-        for x in ("evaluation.minimap","evaluation.landmarks"):
-            with self.assertRaisesRegex(ValueError,"planned, NOT runnable"):
-                core.plan(x)
+        self.assertEqual(studies["evaluation.minimap"]["mode"],"live")
+        self.assertEqual(studies["evaluation.landmarks"]["mode"],"live")
+    def test_live_actions_delegate_to_guarded_fixed_launcher(self):
+        for x in ("evaluation.minimap","evaluation.landmarks","evaluation.minimap-swing"):
+            p=core.plan(x)
+            self.assertTrue(p.live)
+            self.assertEqual(Path(p.command[1]).name,"run_s002_lab_capture.py")
+            self.assertIn("--study",p.command)
     def test_trace_requires_input_and_never_launches_dolphin(self):
         with self.assertRaisesRegex(ValueError,"--input"):
             core.plan("evaluation.trace")
