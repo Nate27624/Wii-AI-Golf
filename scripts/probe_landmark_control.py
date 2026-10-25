@@ -35,6 +35,8 @@ def main():
             print("Finish tee navigation. Press ENTER in PowerShell only when golfer is ready.")
             input("Ready to begin "+a.phase+" capture? ENTER: ")
             observe_landmarks(rpc)
+            print("CAPTURE STARTING NOW:",a.seconds,"seconds; phase:",a.phase,flush=True)
+            print("For aim_only: keep still briefly, then rotate camera without swinging.",flush=True)
             start=time.monotonic()
             raw=a.data_dir/f"landmark-control-{run}.jsonl"
             with raw.open("x",encoding="utf-8") as output:
@@ -45,6 +47,8 @@ def main():
                         row["elapsed_s"]=round(tick-start,3)
                         samples.append(row)
                         output.write(json.dumps(row)+"\n");output.flush()
+                        if len(samples)==1 or len(samples)%10==0:
+                            print("RECORDING",len(samples),"samples; elapsed",round(time.monotonic()-start,1),"s",flush=True)
                     except (ValueError,RuntimeError,OSError) as exc:
                         errors.append(type(exc).__name__)
                         if len(errors)>=3:break
