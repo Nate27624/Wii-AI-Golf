@@ -3,6 +3,12 @@ import base64
 import json
 import urllib.error
 import unittest
+from pathlib import Path
+import sys
+
+# Prefer this worktree's package over an unrelated or stale editable install.
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
 from wii_ai_golf.lab.publish import public_record, publish_record
 
 RECORD = {
