@@ -1,6 +1,6 @@
-"""Focused, source-gated read-only probe for the leading one-hop golf object.
+"""LEGACY diagnostic of source-documented player shadow texture (+0x04).
 
-NOT verified as the ball. No absolute RAM address is hardcoded: resolve
+NOT ball physics. No absolute RAM address is hardcoded: resolve
 golf_field instance and field +0x04 on every observation. No writes.
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ from typing import Any
 from .symbol_probe import probe_rev1, STATIC
 from .physics_pointer_census import valid_mem, read_bytes
 
-OWNER_OFFSET = 0x04  # observed one-hop field on 20261024T232725Z-b034328d
+OWNER_OFFSET = 0x04  # RPGolFieldManager::mPlayerShadowTexture (not the ball)
 VEC_OFFSET = 0x50   # largest dynamic aligned vec3 in that object's first 128B
 
 
