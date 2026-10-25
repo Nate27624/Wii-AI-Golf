@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import math
+import random
+from dataclasses import replace
 from pathlib import Path
 import sys
 import time
@@ -82,7 +84,9 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 swing_fn: Callable[[Any], Any] | None = None,
                 a_prime_requests: int = 0,
                 a_lead_frames: int = 0,
-                observe_start_pose: bool = False) -> dict[str, Any]:
+                observe_start_pose: bool = False,
+                motion_scale: float = 1.0,
+                trial_seed: int | None = None) -> dict[str, Any]:
     """One opted-in forward shot, bounded RAM snapshots and human landing label.
 
     Write private raw JSONL immediately, exclusively; cancellation preserves
@@ -100,7 +104,14 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
     # Compute the actual trace length from Worker 1's current waveform.
     # That worker can refine its initial held-A setup without changing this
     # collector; do not claim a fixed 89-frame swing in evidence labels.
+    if motion_scale not in (0.6, 0.8, 1.0, 1.2):
+        raise ValueError("invalid motion scale")
     samples = build_probe("forward", follow_through_frames=30)
+    if motion_scale != 1.0:
+        samples = [replace(s, distance_m=s.distance_m * motion_scale,
+                           speed_m_s=s.speed_m_s * motion_scale,
+                           return_speed_m_s=s.return_speed_m_s * motion_scale)
+                   for s in samples]
     trace_sha256 = hashlib.sha256(json.dumps(
         [[s.hold_a, *s.direction, s.distance_m, s.speed_m_s,
           s.return_speed_m_s, s.angle_rad] for s in samples],
@@ -195,6 +206,7 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
             "raw_data_created": True, "swing_dispatch": stroke,
             "known_good_swing_request": {
                 "preset": "forward", "follow_through_frames": 30,
+                "motion_scale": motion_scale, "trial_seed": trial_seed,
                 "generated_trace_frames": len(samples),
                 "trace_generator": "probe_swing.build_probe",
                 "trace_sha256": trace_sha256,
@@ -242,6 +254,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--post-samples", type=int, default=2)
     p.add_argument("--settled-samples", type=int, default=3)
     p.add_argument("--interval", type=float, default=0.0)
+    p.add_argument("--motion-scale", type=float, choices=(0.6,0.8,1.0,1.2), default=1.0)
+    p.add_argument("--trial-seed", type=int, default=None)
     args = p.parse_args(argv)
     if not args.send_live_swing:
         p.error("Requires --send-live-swing and the canonical fresh-launch wrapper")
@@ -258,6 +272,8 @@ def main(argv: list[str] | None = None) -> int:
         p.error("--a-lead-frames must be between 0 and 90")
     if args.a_prime_requests and args.a_lead_frames:
         p.error("cannot combine --a-prime-requests and --a-lead-frames")
+    scale = random.Random(args.trial_seed).choice((0.6,0.8,1.0,1.2)) if args.trial_seed is not None else args.motion_scale
+    print(f"Motion scale: {scale}; seed: {args.trial_seed}; power unverified",flush=True)
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8]
     raw_file = args.data_dir / f"outcome-{run_id}-RAW-PRIVATE.jsonl"
     summary_file = args.data_dir / f"outcome-{run_id}-candidates.json"
@@ -270,7 +286,8 @@ def main(argv: list[str] | None = None) -> int:
                              settled_samples=args.settled_samples, interval=args.interval,
                              a_prime_requests=args.a_prime_requests,
                              a_lead_frames=args.a_lead_frames,
-                             observe_start_pose=args.observe_start_pose)
+                             observe_start_pose=args.observe_start_pose,
+                             motion_scale=scale,trial_seed=args.trial_seed)
     if result.get("cancelled"):
         print("Session cancelled:", result)
         return 0
