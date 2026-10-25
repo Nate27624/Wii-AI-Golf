@@ -193,6 +193,11 @@ def build_parser() -> argparse.ArgumentParser:
     outcomes.add_argument("--json", action="store_true")
     sync = actions.add_parser("sync", help="Safely fast-forward approved GitHub main and discover new agent tests")
     sync.add_argument("--json", action="store_true")
+    export = actions.add_parser("export", help="Create verified token-free execution-status bundle; NO GitHub upload")
+    export.add_argument("--limit", type=int, default=20)
+    export.add_argument("--json", action="store_true", help="Print only the safe shareable JSON bundle")
+    validate = actions.add_parser("verify-export", help="Verify latest or specified local evidence bundle")
+    validate.add_argument("path", nargs="?", type=Path, help="Bundle file; defaults to latest")
     actions.add_parser("gui", help="Open the optional Windows Research Lab desktop application")
 
     sub.add_parser("demo", help="Run the existing SYNTHETIC toy environment (not Wii Sports)")
@@ -354,6 +359,27 @@ def execute(args: argparse.Namespace) -> int:
                     print(f"{e.get('run_id')}  {e.get('experiment_id')}  "
                           f"{e.get('execution_status')}  exit={e.get('exit_code')} "
                           "(NOT a game score)")
+            return 0
+        if args.lab_action == "export":
+            from .lab.export import create_export
+            path, bundle, skipped = create_export(DATA_ROOT / "lab", limit=args.limit)
+            if args.json:
+                print(json.dumps(bundle, sort_keys=True, indent=2))
+            else:
+                print(f"Verified local bundle: {path}")
+                print(f"Execution records: {bundle['record_count']} | "
+                      f"Skipped invalid/incomplete: {skipped}")
+                print(f"SHA-256: {bundle['sha256']}")
+                print("NO NETWORK. NO GITHUB TOKEN. PROCESS STATUS ONLY, not golf outcomes.")
+                print("Attach the exported JSON to ChatGPT for separate reviewed GitHub publication.")
+            return 0
+        if args.lab_action == "verify-export":
+            from .lab.export import latest_export, verify_export_file
+            file = args.path if args.path is not None else latest_export(DATA_ROOT / "lab")
+            bundle = verify_export_file(file)
+            print(f"VALID status bundle | records={bundle['record_count']} | "
+                  f"sha256={bundle['sha256']}")
+            print("No network activity or score verification occurred.")
             return 0
         if args.lab_action == "gui":
             from .lab.gui import launch
