@@ -59,7 +59,10 @@ def summarize_cohort(reports,run_id):
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--directory",type=Path,default=ROOT.parent/"Wii-AI-Golf-Data"/"captures")
-    p.add_argument("--no-upload",action="store_true")
+    publish=p.add_mutually_exclusive_group()
+    publish.add_argument("--publish",action="store_true",
+                         help="Opt in only after S000 accepts the cohort public schema")
+    publish.add_argument("--no-upload",action="store_true",help="Explicit offline-only mode (default)")
     a=p.parse_args(argv)
     try:
         if not a.directory.is_dir():raise ValueError("Capture directory missing")
@@ -91,13 +94,15 @@ def main(argv=None):
         print("Valid runs:",report["valid_independent_runs"],
               "recurring offsets:",report["recurrent_changed_words_2plus_runs"],
               "excluded:",invalid,flush=True)
-        if not a.no_upload:
+        if a.publish:
             try:
                 from research_cli import publish_summary
                 publish_summary(report)
                 print("GitHub JSON: https://github.com/Nate27624/Wii-AI-Golf/blob/research/observations/research/observations/"+run+".json",flush=True)
             except (OSError,ValueError,RuntimeError) as exc:
                 print("GitHub upload unavailable; sanitized local file preserved:",exc,file=sys.stderr)
+        else:
+            print("Local-only cohort: S000 public-schema approval pending. No GitHub upload attempted.",flush=True)
         return 0
     except (OSError,TypeError,ValueError,KeyError) as exc:
         print("Golf memory cohort audit failed:",exc,file=sys.stderr)
