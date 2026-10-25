@@ -73,6 +73,11 @@ def _link(memory: Mapping, swing: Mapping) -> list[str]:
         reasons.append("memory_hitting_green_mode_not_explicitly_validated")
     if not _frame(m.get("shot_start_frame")) or m.get("shot_start_frame") != s.get("shot_start_frame"):
         reasons.append("missing_or_mismatched_shot_start_frame")
+    # Requested samples are NOT observed elapsed emulator frames.
+    # The true completion frame must be read from the same live bridge session.
+    end_frame = m.get("trace_end_frame")
+    if not _frame(end_frame) or end_frame < (m.get("shot_start_frame") if _frame(m.get("shot_start_frame")) else 0) or end_frame != s.get("trace_end_frame"):
+        reasons.append("missing_or_mismatched_observed_trace_end_frame")
     human = swing.get("human")
     if not isinstance(human, Mapping) or human.get("shot_start_frame_before_controller_trace") != s.get("shot_start_frame"):
         reasons.append("missing_original_swing_frame_anchor")
@@ -87,9 +92,9 @@ def _link(memory: Mapping, swing: Mapping) -> list[str]:
         reasons.append("no_phase_specific_frame_brackets")
     else:
         start = s.get("shot_start_frame")
-        length = controller.get("generated_trace_frames") if isinstance(controller, Mapping) else None
-        if not _frame(start) or type(length) is not int or not 1 <= length <= 600:
-            reasons.append("missing_swing_trace_frame_budget")
+        end = s.get("trace_end_frame")
+        if not _frame(start) or not _frame(end) or end < start:
+            reasons.append("missing_observed_swing_frame_window")
         else:
             good = set()
             for bracket in brackets:
@@ -100,7 +105,7 @@ def _link(memory: Mapping, swing: Mapping) -> list[str]:
                 if phase not in ALLOWED_PHASES or not _frame(a) or not _frame(b) or b < a or b - a > 3:
                     reasons.append("invalid_phase_frame_bracket")
                     break
-                if phase in POSITIVE_PHASES and a < start + length and b >= start:
+                if phase in POSITIVE_PHASES and a <= end and b >= start:
                     good.add(phase)
             if not good:
                 reasons.append("no_memory_samples_overlap_swing_window")
