@@ -23,12 +23,14 @@ def report(run="test-a", *, changed=True, child=False):
             "global_pointer_candidates": 1, "source_static_slot_count": 2,
             "census_frame_span": 2, "matched_scene_chains": 1,
             "actual_scene_id_verified": True, "manager_backlink_verified": True,
-            "observed_creator_scene_id_matches_golf": False,
+            "creator_scene_id_not_used_for_identity": True,
             "creator_scene_id_role": "previous_scene_not_current_scene_id",
             "samples": 6, "max_non_atomic_frame_span": 4,
             "phase_sample_counts": {"idle": 4, "aim_only": 2},
             "first_level_child_watch_count": 1 if child else 0,
             "first_level_child_watch_truncated": False,
+            "first_level_child_batch_start": 0,
+            "first_level_child_parent_offsets": ["+0x024"] if child else [],
             "changed_candidate_words": len(rows), "top_relative_changes": rows,
             "power_verified": False, "club_rotation_verified": False}
 
@@ -44,7 +46,7 @@ class CandidateReviewTests(unittest.TestCase):
 
     def test_previous_creator_scene_can_differ_from_current_golf(self):
         row = report()
-        self.assertFalse(row["observed_creator_scene_id_matches_golf"])
+        self.assertTrue(row["creator_scene_id_not_used_for_identity"])
         self.assertEqual(review_golfer_probe_summaries([row])["accepted_candidate_reports"], 1)
 
     def test_unique_chain_actual_scene_id_and_backlink_required(self):
@@ -87,7 +89,7 @@ class CandidateReviewTests(unittest.TestCase):
         a["top_relative_changes"][0]["region"] = "child_at_main+0x025"
         z = review_golfer_probe_summaries([a])
         self.assertEqual(z["invalid_report_reasons"],
-                         {"invalid_region_or_offset": 1})
+                         {"invalid_child_batch_provenance": 1})
 
     def test_missing_child_watch_makes_child_unverifiable(self):
         a = report(child=True)
@@ -146,6 +148,55 @@ class CandidateReviewTests(unittest.TestCase):
         x = review_golfer_probe_summaries([a])
         self.assertEqual(x["invalid_report_reasons"],
                          {"missing_idle_or_camera_controls": 1})
+
+    def test_actual_20_snapshot_shape_flags_all_four_as_continuous(self):
+        # S002 first observed source-gated scene graph: 20 snapshots,
+        # 17 within-stage + 2 boundary changes for all four candidate words.
+        a = report("synthetic-live-20")
+        a["samples"] = 20
+        a["phase_sample_counts"] = {"idle": 12, "aim_only": 8}
+        a["max_non_atomic_frame_span"] = 18
+        a["first_level_child_watch_count"] = 3
+        a["first_level_child_watch_truncated"] = True
+        a["first_level_child_parent_offsets"] = [
+            "+0x008", "+0x020", "+0x044"
+        ]
+        a["changed_candidate_words"] = 4
+        a["top_relative_changes"] = [
+            {"region": region, "offset": off, "within_stage_changes": 17,
+             "between_stage_changes": 2, "plausible_float_changes": 0}
+            for region, off in (
+                ("main", "+0x074"), ("child_at_main+0x008", "+0x050"),
+                ("child_at_main+0x020", "+0x038"),
+                ("child_at_main+0x044", "+0x060"))
+        ]
+        review = review_golfer_probe_summaries([a])
+        self.assertEqual(review["accepted_candidate_reports"], 1)
+        self.assertEqual(review["continuous_change_candidates"], 4)
+        self.assertEqual(review["slow_non_atomic_frame_reports"], 1)
+        self.assertEqual(review["candidate_changes_truncated_reports"], 1)
+        self.assertTrue(all(r["candidate_class"] ==
+                            "continuous_idle_aim_clock_like_not_power"
+                            for r in review["candidate_regions"]))
+        self.assertFalse(review["confirmed_game_power"])
+
+    def test_batch_provenance_must_list_each_child_region(self):
+        a = report(child=True)
+        a["first_level_child_parent_offsets"] = ["+0x030"]
+        review = review_golfer_probe_summaries([a])
+        self.assertEqual(review["accepted_candidate_reports"], 0)
+        self.assertEqual(review["invalid_report_reasons"],
+                         {"invalid_region_or_offset": 1})
+
+    def test_missing_provenance_rejected(self):
+        a = report(child=True)
+        del a["creator_scene_id_not_used_for_identity"]
+        b = report("batch", child=True)
+        b["first_level_child_parent_offsets"] = ["+0x025"]
+        result = review_golfer_probe_summaries([a, b])
+        self.assertEqual(result["invalid_report_reasons"],
+                         {"scene_source_or_backlink_not_verified": 1,
+                          "invalid_child_batch_provenance": 1})
 
     def test_infinite_generator_is_bounded(self):
         with self.assertRaises(ValueError):
