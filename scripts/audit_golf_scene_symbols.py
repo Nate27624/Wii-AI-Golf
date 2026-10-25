@@ -27,9 +27,12 @@ def summarize(lines):
         symbol = next((t for t in TOKENS if t in line), None)
         if symbol is None:
             continue
-        category = ("candidate_static_data_symbol" if any(
-            term in line for term in ("singleton", "Instance", "sInstance", "spInstance", "gInstance")
-        ) else "symbol_location_only")
+        # Exact member-name hints only: createInstance() is a function,
+        # NOT evidence of static singleton storage.
+        possible_static = re.search(
+            r"(?<![A-Za-z0-9_])(?:sInstance|spInstance|gInstance|singleton)(?![A-Za-z0-9_])",
+            line)
+        category = "candidate_static_data_symbol" if possible_static else "symbol_location_only"
         key = (symbol, category)
         info = entries.setdefault(key, {"symbol_group":symbol, "classification":category,
                                          "matching_map_lines":0, "code_or_data_locations":0})
