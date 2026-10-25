@@ -1,0 +1,57 @@
+{
+  "aim_opportunities": 7,
+  "aim_samples": 8,
+  "candidate_child_regions": 16,
+  "changed_word_count": 4,
+  "club_pose_verified": false,
+  "id": "20261025T034248Z-7c597d65",
+  "idle_opportunities": 10,
+  "idle_samples": 12,
+  "kind": "golf-golfer-control-specificity",
+  "max_non_atomic_frame_span": 18,
+  "power_verified": false,
+  "sample_count": 20,
+  "schema_version": 1,
+  "study_id": "S002-GOLFER-CONTROL-SPECIFICITY",
+  "timing_limited": true,
+  "top_relative_words": [
+    {
+      "aim_changes": 7,
+      "aim_opportunities": 7,
+      "control_class": "background_dynamic",
+      "idle_changes": 10,
+      "idle_opportunities": 10,
+      "region": "child_at_main+0x008",
+      "relative_offset": "+0x050"
+    },
+    {
+      "aim_changes": 7,
+      "aim_opportunities": 7,
+      "control_class": "background_dynamic",
+      "idle_changes": 10,
+      "idle_opportunities": 10,
+      "region": "child_at_main+0x020",
+      "relative_offset": "+0x038"
+    },
+    {
+      "aim_changes": 7,
+      "aim_opportunities": 7,
+      "control_class": "background_dynamic",
+      "idle_changes": 10,
+      "idle_opportunities": 10,
+      "region": "child_at_main+0x044",
+      "relative_offset": "+0x060"
+    },
+    {
+      "aim_changes": 7,
+      "aim_opportunities": 7,
+      "control_class": "background_dynamic",
+      "idle_changes": 10,
+      "idle_opportunities": 10,
+      "region": "main",
+      "relative_offset": "+0x074"
+    }
+  ],
+  "truncated_changed_words": false,
+  "warning": "Controls only: dynamic offsets are NOT game swing-power, pose or ball decoders; private memory and absolute pointers remain local."
+}
