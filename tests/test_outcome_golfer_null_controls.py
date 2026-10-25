@@ -154,7 +154,7 @@ class GolferNullControlTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             directory = Path(td)
             partial = directory / "golfer-20261025T031834Z-85d5b836-RAW-PRIVATE.jsonl"
-            partial.write_text(json.dumps(rows_for()[0]) + "\\n", encoding="utf-8")
+            partial.write_text(json.dumps(rows_for()[0]) + "\n", encoding="utf-8")
             output = StringIO()
             with patch.object(audit, "PRIVATE_CAPTURES", directory):
                 with redirect_stderr(output):
