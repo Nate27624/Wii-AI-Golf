@@ -16,6 +16,9 @@ MAX_ROWS = 60
 MAX_BYTES = 2 * 1024 * 1024
 MAIN_SIZE = 0x100
 CHILD_SIZE = 0x80
+_SOURCE_NOTE = ("RPSysSceneMgr .sbss 0x804BF4D8..0x804BF4DF; "
+                "EGG::SceneManager +0xC/+0x18; EGG::Scene +0x1C/+0x20; "
+                "RPSportsBaseScene +0x54; RPGolScene +0x9C")
 
 
 def _strict_int(v, low, high):
@@ -61,6 +64,9 @@ def analyze_private_trajectory(rows, report):
             report.get("schema_version") != 2 or
             report.get("kind") != "local-golfer-memory-audit" or
             report.get("candidate_only") is not True or
+            report.get("source_claim") != _SOURCE_NOTE or
+            report.get("source_static_slot_count") != 2 or
+            report.get("global_pointer_candidates") not in (1, 2) or
             report.get("game_id") != "RSPE01" or
             report.get("revision") != 1 or
             report.get("game_mode") != 4 or
@@ -70,6 +76,10 @@ def analyze_private_trajectory(rows, report):
             report.get("matched_scene_chains") != 1 or
             report.get("samples") != len(rows)):
         raise ValueError("Source/revision/mode/scene/capture gate failed")
+    if (not _strict_int(report.get("first_level_child_batch_start"), 0, 63)
+            or report.get("power_verified") is not False
+            or report.get("club_rotation_verified") is not False):
+        raise ValueError("Unverified candidate output must not claim power")
     positions = report.get("first_level_child_parent_offsets")
     if (not isinstance(positions, list) or
             len(positions) != report.get("first_level_child_watch_count") or
