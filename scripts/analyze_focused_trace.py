@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"src"))
-from wii_ai_golf.evaluation.focused_trace import analyze_trace
+from wii_ai_golf.focused_trace import analyze_trace
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
