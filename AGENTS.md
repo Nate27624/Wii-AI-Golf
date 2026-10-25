@@ -6,6 +6,12 @@ Coordinate separate AI coding/research sessions to develop a scientifically repr
 
 Every session MUST read README, this document, research/ledger.md, research/queue.jsonl, open GitHub Issues/PRs and relevant tests before changing code.
 
+## Unified selected-experiment game workflow and crash-safe locking
+
+The operator rejected a separate Game Testing toolbar above the experiment list and a three-stage click-through. UI game diagnostics must be integrated into the selected study's **Show/details pane**. For `integration.v1-diagnostic`, ONE action checks current/source provenance, prepares an isolated V1 backup after explicit approval if needed, and then requests consent for ONE canonical fresh-boot Dolphin shot. S001/S002 keep their owned bridge and outcome scripts; S000 only wraps them. Hide implementation-only audit/prep entries from ordinary GUI catalogs, while preserving typed CLI adapters and unit tests.
+
+The old `os.O_EXCL` PID lockfiles could remain after a process died and force manual intervention. The Lab now uses nonblocking OS process-held file locking, with conservative active-legacy-PID checks; a dead legacy PID does not block, an active/unknown one does. GitHub sync must hold the run lock through fetch and merge. Do not test safety by file existence or suggest blindly deleting `live-session.lock` / `run-session.lock`, resetting the repo, or killing Dolphin. New S000 regressions verify active-vs-stale lock recovery and one-action GUI behavior.
+
 ## S000 GUI result-handling rule
 
 The operator reported that **Inspect bridges** opened a blank console and a generic missing-log popup instead of showing any V1/V2 facts. UI diagnostics must render **structured, action-specific results in the application itself**; do not bounce users between short-lived consoles, hidden `*.log` files, and generic message boxes. Read-only inexpensive inspections can run directly; write-capable preparation must use the same reviewed Lab runner and show progress/errors in-window. Continue to record local provenance while keeping raw RAM local and interactive live Dolphin inputs explicitly approved. Add tests covering missing backup, wrong revision, mismatched V1 copy and no missing-log popup.
