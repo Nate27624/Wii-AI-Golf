@@ -92,13 +92,18 @@ for ($i = 0; $i -lt $counts.Count; $i++) {
     if ($new.Count -ne 1) { throw "Cannot uniquely match new RAW with this capture; stop" }
     if (@(Get-Content $new[0].FullName).Count -ne 14) { throw "Incomplete capture, stop" }
     Set-Location $audit
-    py scripts/audit_golfer_phase_specificity.py --input "$($new[0].FullName)"
+    $auditOutput = @(py scripts/audit_golfer_phase_specificity.py --input "$($new[0].FullName)" 2>&1)
+    $auditOutput | ForEach-Object { Write-Host "$_" }
     if ($LASTEXITCODE -ne 0) { throw "Sanitized audit failed; stop" }
+    $published = @($auditOutput | Where-Object {
+        "$_" -match "^GitHub sanitized observation: https://github.com/Nate27624/Wii-AI-Golf/tree/research/observations"
+    })
+    if ($published.Count -ne 1) { throw "GitHub automatic upload did not confirm; stop" }
     $previous = @($files | ForEach-Object { $_.FullName })
 }
 ~~~
 
-Inspect the displayed "GitHub sanitized observation:" output for EACH run. Because the currently experimental audit CLI catches publish failure and may return process exit 0, a missing GitHub publication line is **not** evidence of success; stop before proceeding and report the local sanitized report/upload failure. Never paste/publish private raw files or runtime addresses.
+The PowerShell wrapper explicitly checks for exactly one confirmed "GitHub sanitized observation:" output after EACH run. Because the currently experimental audit CLI catches publication failure and may return process exit 0, the study stops even when the auditor process succeeded but the Git upload did not. Report the local sanitized report/upload failure if this happens. Never paste/publish private raw files or runtime addresses.
 
 ## Prespecified result interpretation
 
