@@ -80,3 +80,24 @@ py scripts/golf.py lab gui
 ~~~
 
 Tests use fake subprocesses; real Windows GUI/Dolphin behavior must be verified on the operator's machine. Legacy scripts are retained as internal/advanced utilities.
+
+## Automatically download merged agent tests from GitHub
+
+The Lab now **checks GitHub automatically at startup and every two minutes while the Windows app is open**. It safely fast-forwards a clean checked-out **local `main`** from the exact approved `origin` repository `Nate27624/Wii-AI-Golf`. If a GitHub agent merges a new `tests/test_*.py` file, the app discovers it and shows a **NEW** label next to that file; select it and choose **Run offline** to run the exact file's `unittest` suite. The **Agent tests** filter makes new and existing individual agent suites easy to find. The **Sync GitHub** button checks immediately. All fetched tests remain manual to execute — they do not run automatically.
+
+~~~powershell
+# Same safe GitHub synchronization without the GUI:
+py scripts/golf.py lab sync
+py scripts/golf.py lab list
+py scripts/golf.py lab plan agent-tests.test_lab_core
+py scripts/golf.py lab run agent-tests.test_lab_core
+py scripts/golf.py lab history
+~~~
+
+**Preconditions and safeguards:** Auto-sync is permitted only when the local branch is `main`, `origin` exactly matches the approved GitHub URL, the working tree is clean (never stash/reset/force), and no Lab job has an active `run-session.lock` or `live-session.lock`. The updater uses `git fetch origin main`, verifies local HEAD is an ancestor of the fetched commit, and performs a **fast-forward-only** merge. It refuses divergence or a changed working tree. Lab test processes are serialized while the updater is active. If the Lab Python implementation itself changed, **restart the GUI** after the update to use the new code; newly merged test files can already be refreshed and run via fresh Python subprocesses.
+
+Open PR branches and unmerged agent experiments are **NOT automatically downloaded or executed**. They become runnable only after a reviewed merge to main. The interface never executes code received from GitHub as a JSON command. Python tests can execute code, so install/run only tests from the repository and contributors you trust. Local machine must have `git` available and network access to GitHub. `lab sync` reports errors explicitly if offline, dirty, diverged or on an agent branch. The first install of this auto-sync functionality requires one manual `git pull --ff-only`; subsequent refreshes occur while the new Lab UI is open. Updates are not a cloud service and stop when the app closes.
+
+### Requirement for agents
+
+Every S001–S005 agent should commit regression tests under `tests/test_*.py` (unittest-compatible), label its study/owner in the PR, and merge through the normal reviewed PR process. A test file automatically appears as `agent-tests.test_FILENAME_STEM` after merging, **even if the agent did not edit the registry**. Owner tags inferred from filenames are organizational metadata, not permission grants. New live workflows and data exports still require a separately reviewed typed `research/experiments.json` registration and safe Lab adapter. No agent should ask the operator to run tests from divergent experimental worktrees or download arbitrary PR code for live Dolphin.
