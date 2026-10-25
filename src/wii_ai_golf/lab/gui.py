@@ -237,8 +237,15 @@ def launch(root: Path = ROOT) -> int:
         offline_btn.configure(state="normal" if e["mode"] == "offline" else "disabled")
         live_btn.configure(state="normal" if e["mode"] == "live" else "disabled")
         if chosen == "integration.v1-diagnostic":
-            live_btn.configure(text="Prepare and run V1")
+            # ONE primary control lives with the selected study's readiness
+            # report; no second "Run live" action or disabled offline clutter.
+            live_btn.pack_forget()
+            offline_btn.pack_forget()
         else:
+            if not offline_btn.winfo_manager():
+                offline_btn.pack(side="left", padx=3, before=refresh_actions_btn)
+            if not live_btn.winfo_manager():
+                live_btn.pack(side="left", padx=3, before=refresh_actions_btn)
             live_btn.configure(text="Run ONE live")
         preview()
 
@@ -631,7 +638,9 @@ def launch(root: Path = ROOT) -> int:
     live_btn = ttk.Button(primary_actions, text="Run ONE live", state="disabled",
                           command=lambda: run_selected(True))
     live_btn.pack(side="left", padx=3)
-    ttk.Button(primary_actions, text="Refresh results", command=refresh).pack(side="left", padx=3)
+    refresh_actions_btn = ttk.Button(
+        primary_actions, text="Refresh results", command=refresh)
+    refresh_actions_btn.pack(side="left", padx=3)
     ttk.Button(secondary_actions, text="Sync GitHub", command=lambda: request_sync(manual=True)).pack(side="left", padx=3)
     def restart_lab():
         if active or sync_busy[0] or game_job_busy[0] or any_lab_job_busy(lab_data):
