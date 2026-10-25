@@ -13,6 +13,7 @@ import sys
 import threading
 from .core import ROOT, get_experiment, history, available_experiments, plan
 from .github_sync import sync_merged_main
+from ..shared.bridge_provenance import audit_bridge_sources, inspect_bridge_file
 
 
 def launch(root: Path = ROOT) -> int:
@@ -27,8 +28,8 @@ def launch(root: Path = ROOT) -> int:
     last_changes: set[str] = set()
     ui = tk.Tk()
     ui.title("Wii AI Golf — Research Lab")
-    ui.geometry("1020x760")
-    ui.minsize(820, 620)
+    ui.geometry("1100x830")
+    ui.minsize(850, 660)
     outer = ttk.Frame(ui, padding=18)
     outer.pack(fill="both", expand=True)
     ttk.Label(outer, text="Wii AI Golf · Research Lab",
@@ -36,6 +37,20 @@ def launch(root: Path = ROOT) -> int:
     ttk.Label(outer, text="S000–S005  •  Agent tests pulled from approved GitHub main  •  One canonical Dolphin startup").pack(anchor="w")
     sync_line = tk.StringVar(value="GitHub: checking for newly merged tests...")
     ttk.Label(outer, textvariable=sync_line, wraplength=930).pack(anchor="w", pady=(4, 0))
+    # This task-specific panel is deliberately OUTSIDE the experiment
+    # filter/list: a user should never need PowerShell or know registry IDs
+    # to prepare a historical game test.
+    game_panel = ttk.LabelFrame(
+        outer, text="Game Testing — historical V1 versus installed V2", padding=10)
+    game_panel.pack(fill="x", pady=(8, 0))
+    ttk.Label(game_panel, text=(
+        "1 Inspect bridge → 2 Prepare separate V1 copy → 3 Run ONE shot. "
+        "The first two steps NEVER start Dolphin."), wraplength=900).pack(anchor="w")
+    game_buttons = ttk.Frame(game_panel)
+    game_buttons.pack(fill="x", pady=(7, 4))
+    bridge_status = tk.StringVar(value="Checking existing bridge files (offline)...")
+    ttk.Label(game_panel, textvariable=bridge_status, wraplength=900).pack(anchor="w")
+
     panes = ttk.PanedWindow(outer, orient="horizontal")
     panes.pack(fill="both", expand=True, pady=12)
     left, right = ttk.Frame(panes), ttk.Frame(panes)
@@ -44,7 +59,7 @@ def launch(root: Path = ROOT) -> int:
     filter_mode = tk.StringVar(value="All")
     ttk.Label(left, text="Show").pack(anchor="w", pady=(0, 3))
     filter_select = ttk.Combobox(left, textvariable=filter_mode,
-                                 values=("All", "Agent tests", "Experiments"),
+                                 values=("All", "Game tests", "Agent tests", "Experiments"),
                                  state="readonly", width=22)
     filter_select.pack(fill="x", padx=(0, 12), pady=(0, 7))
     listing = ttk.Treeview(left, columns=("owner", "mode"), show="tree headings", height=15)
@@ -66,6 +81,9 @@ def launch(root: Path = ROOT) -> int:
             if filter_mode.get() == "Agent tests" and not agent_test:
                 continue
             if filter_mode.get() == "Experiments" and agent_test:
+                continue
+            if filter_mode.get() == "Game tests" and not (
+                e["id"].startswith("integration.") or e["id"] == "evaluation.capture"):
                 continue
             marker = "NEW  " if agent_test and (
                 "tests/" + e["title"]) in last_changes else ""
@@ -154,6 +172,74 @@ def launch(root: Path = ROOT) -> int:
         preview()
 
     active: list[subprocess.Popen] = []
+    active_studies: dict[int, str] = {}
+    restart_needed = [False]
+
+    def bridge_readiness():
+        current = root.parent / "tools" / "mcp_bridge_swing.py"
+        isolated = root.parent / "tools" / "mcp_bridge_swing_legacy_eval.py"
+        audit = audit_bridge_sources(current)
+        prepared = inspect_bridge_file(isolated)
+        return audit, prepared
+
+    def refresh_bridge_status():
+        try:
+            audit, prepared = bridge_readiness()
+            backup_ok = bool(audit["v1_isolated_trial_possible"])
+            ready = bool(prepared["safe_for_isolated_legacy_copy"])
+            current_version = audit["current"]["revision"]
+            if ready:
+                line = (f"Ready for step 3: isolated V1 bridge prepared. "
+                        f"Installed main bridge: {current_version}.")
+            elif backup_ok:
+                line = (f"Step 2 needed: a usable historical V1 backup exists. "
+                        f"Installed main bridge: {current_version}.")
+            else:
+                line = (f"V1 comparison unavailable: no safe historical backup. "
+                        f"Run step 1 to inspect. Installed bridge: {current_version}.")
+            bridge_status.set(line)
+            prep_button.configure(state="normal" if backup_ok and not ready else "disabled")
+            v1_button.configure(state="normal" if ready else "disabled")
+        except (OSError, ValueError, UnicodeError) as exc:
+            bridge_status.set("Cannot inspect local bridge: " + str(exc))
+            prep_button.configure(state="disabled")
+            v1_button.configure(state="disabled")
+
+    def navigate_study(identifier: str):
+        # Game Testing shortcuts always show the intended experiment,
+        # regardless of a previous Agent tests filter or a stale selection.
+        filter_mode.set("Game tests")
+        refill_catalog()
+        if not listing.exists(identifier):
+            raise ValueError(f"Experiment {identifier} not loaded. Restart the Lab after Sync GitHub.")
+        listing.selection_set(identifier)
+        listing.focus(identifier)
+        listing.see(identifier)
+        selected()
+
+    def launch_game_step(identifier: str, *, live: bool = False):
+        try:
+            navigate_study(identifier)
+            if live:
+                _, prepared = bridge_readiness()
+                if not prepared["safe_for_isolated_legacy_copy"]:
+                    raise ValueError("Step 2 has not prepared a safe isolated V1 copy yet.")
+            run_selected(live)
+        except (OSError, ValueError) as exc:
+            messagebox.showerror("Game Testing", str(exc))
+
+    ttk.Button(game_buttons, text="1  Inspect bridges",
+               command=lambda: launch_game_step("integration.bridge-audit")).pack(side="left", padx=(0, 8))
+    prep_button = ttk.Button(
+        game_buttons, text="2  Prepare historical V1", state="disabled",
+        command=lambda: launch_game_step("integration.prepare-v1"))
+    prep_button.pack(side="left", padx=(0, 8))
+    v1_button = ttk.Button(
+        game_buttons, text="3  Run ONE V1 shot", state="disabled",
+        command=lambda: launch_game_step("integration.v1-diagnostic", live=True))
+    v1_button.pack(side="left", padx=(0, 8))
+    ttk.Button(game_buttons, text="Refresh readiness",
+               command=refresh_bridge_status).pack(side="left")
 
     def request_sync() -> None:
         """Never block Tkinter while fetching GitHub; never run fetched tests."""
@@ -193,9 +279,11 @@ def launch(root: Path = ROOT) -> int:
                     except (OSError, ValueError) as exc:
                         sync_line.set("Updated checkout; restart Lab to read new code: " + str(exc))
                         continue
+                    restart_needed[0] = True
+                    restart_button.configure(state="normal")
                     sync_line.set(
                         f"GitHub: updated main; {len(item.changed_tests)} merged test files "
-                        "added/modified. Select NEW tests to run. Restart app if Lab code changed."
+                        "added/modified. Click RESTART LAB to load new UI features."
                     )
                 else:
                     sync_line.set("GitHub: " + item.status + " — " + item.note)
@@ -214,6 +302,12 @@ def launch(root: Path = ROOT) -> int:
             p = selected_plan()
             if p.live != live:
                 raise ValueError("Experiment mode does not match this button")
+            if p.experiment["id"] == "integration.prepare-v1" and not messagebox.askyesno(
+                "Prepare isolated historical V1 bridge",
+                "Copy the saved V1 bridge into a SEPARATE diagnostic file? "
+                "Your active V2 bridge and savestates will not be overwritten. "
+                "The step will refuse unsafe/mismatched backup files."):
+                return
             if live and not messagebox.askyesno(
                 "Confirm ONE live swing", "Close Dolphin completely before continuing.\n"
                 "Start ONE canonical full-boot Wii Sports trial? The terminal "
@@ -228,6 +322,7 @@ def launch(root: Path = ROOT) -> int:
             process = subprocess.Popen(
                 cmd, cwd=root, creationflags=subprocess.CREATE_NEW_CONSOLE)
             active.append(process)
+            active_studies[process.pid] = p.experiment["id"]
             status.set(f"Process {process.pid} started in an interactive terminal.")
         except (OSError, ValueError) as exc:
             messagebox.showerror("Experiment not started", str(exc))
@@ -297,28 +392,61 @@ def launch(root: Path = ROOT) -> int:
         finished = [p for p in active if p.poll() is not None]
         for p in finished:
             active.remove(p)
-            status.set(f"Process {p.pid} exited ({p.returncode}); inspect game labels separately.")
+            study = active_studies.pop(p.pid, "")
+            status.set(f"{study or 'Experiment'} process {p.pid} exited ({p.returncode}); "
+                       "execution is not a ball hit.")
+            if study in ("integration.bridge-audit", "integration.prepare-v1"):
+                # Show the real audit/error result in the GUI rather than
+                # losing it in a short-lived subprocess console.
+                show_last_offline_log()
         if finished:
             refresh()
+            refresh_bridge_status()
         ui.after(1400, poll)
 
     actions = ttk.Frame(right)
     actions.pack(fill="x")
-    ttk.Button(actions, text="Preview", command=preview).pack(side="left", padx=3)
-    offline_btn = ttk.Button(actions, text="Run offline", state="disabled",
+    primary_actions = ttk.Frame(actions)
+    primary_actions.pack(fill="x", pady=(0, 4))
+    secondary_actions = ttk.Frame(actions)
+    secondary_actions.pack(fill="x")
+    ttk.Button(primary_actions, text="Preview", command=preview).pack(side="left", padx=3)
+    offline_btn = ttk.Button(primary_actions, text="Run offline", state="disabled",
                              command=lambda: run_selected(False))
     offline_btn.pack(side="left", padx=3)
-    live_btn = ttk.Button(actions, text="Run ONE live", state="disabled",
+    live_btn = ttk.Button(primary_actions, text="Run ONE live", state="disabled",
                           command=lambda: run_selected(True))
     live_btn.pack(side="left", padx=3)
-    ttk.Button(actions, text="Refresh results", command=refresh).pack(side="left", padx=3)
-    ttk.Button(actions, text="Sync GitHub", command=request_sync).pack(side="left", padx=3)
-    ttk.Button(actions, text="Sanitized outcomes", command=show_sanitized_reports).pack(side="left", padx=3)
-    ttk.Button(actions, text="Offline log", command=show_last_offline_log).pack(side="left", padx=3)
+    ttk.Button(primary_actions, text="Refresh results", command=refresh).pack(side="left", padx=3)
+    ttk.Button(secondary_actions, text="Sync GitHub", command=request_sync).pack(side="left", padx=3)
+    def restart_lab():
+        if active or sync_busy[0] or any(
+                (root.parent / "Wii-AI-Golf-Data" / "lab" / name).exists()
+                for name in ("live-session.lock", "run-session.lock")):
+            messagebox.showwarning("Restart deferred",
+                                   "Finish current GitHub update or Lab experiment first.")
+            return
+        # Launch a fresh Python process so all newly downloaded UI modules
+        # and registry adapters are actually imported from current main.
+        try:
+            subprocess.Popen(
+                [sys.executable, str(root / "scripts" / "golf_lab.py")],
+                cwd=root, creationflags=subprocess.CREATE_NEW_CONSOLE)
+        except OSError as exc:
+            messagebox.showerror("Lab restart failed", str(exc))
+            return
+        ui.destroy()
+    restart_button = ttk.Button(
+        secondary_actions, text="Restart Lab (updated)", state="disabled",
+        command=restart_lab)
+    restart_button.pack(side="left", padx=3)
+    ttk.Button(secondary_actions, text="Sanitized outcomes", command=show_sanitized_reports).pack(side="left", padx=3)
+    ttk.Button(secondary_actions, text="Offline log", command=show_last_offline_log).pack(side="left", padx=3)
     listing.bind("<<TreeviewSelect>>", selected)
     filter_select.bind("<<ComboboxSelected>>",
                        lambda _event: (refill_catalog(), selected()))
     refresh()
+    refresh_bridge_status()
     if catalog:
         listing.selection_set(catalog[0]["id"])
         selected()
