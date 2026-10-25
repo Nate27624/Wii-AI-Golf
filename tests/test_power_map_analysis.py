@@ -103,6 +103,15 @@ class PowerMapAnalysisTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             analyze_power_map([], ((True, 1.0),), study_id=STUDY, expected_bridge_sha256=BRIDGE)
 
+    def test_malformed_public_json_fields_fail_closed(self):
+        x = trial(1)
+        x["capture_status"] = {"unexpected": "object"}
+        y = trial(2)
+        y["human"]["displayed_distance_human"] = 10 ** 500
+        result = review([x, y])
+        self.assertEqual(result["eligible_attempts"], 1)
+        self.assertEqual(result["conditions"][1]["off_green_penalty_labels"], 0)
+
     def test_missing_and_nonmatching_study_records_are_visible(self):
         outside = trial(1)
         outside["study_id"] = "OTHER"
