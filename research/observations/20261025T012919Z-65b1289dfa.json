@@ -1,0 +1,12 @@
+{
+  "bridge_sha256": "fe04cb0ba312c559d5cb7edb8d0ac2185aca72046839a903160929ee7c58ca19",
+  "capture_status": "none_or_ambiguous",
+  "git_commit": "8b63ff8205bd67854af5cb7efff6b15ba327b05b",
+  "id": "20261025T012919Z-65b1289dfa",
+  "kind": "v1",
+  "process_exit_code": 1,
+  "requested_a_lead_frames": 0,
+  "schema": 1,
+  "started_utc": "2026-10-25T01:29:19.835771+00:00",
+  "verified_game_score": false
+}
