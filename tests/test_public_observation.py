@@ -127,11 +127,10 @@ class PublicObservationTests(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 public_observation({**memory_record(), **change})
 
-    def test_oversized_public_payload_rejected(self):
+    def test_excess_rows_rejected(self):
         row = memory_record()
-        row["top_changed_relative_words"] *= 300
-        row["human_observations"] *= 2
-        with self.assertRaises(ValueError):
+        row["top_changed_relative_words"] *= 301
+        with self.assertRaisesRegex(ValueError, "relative-offset ranking"):
             public_observation(row)
 
 
