@@ -158,7 +158,7 @@ class MouseIsolationTests(unittest.TestCase):
         original = (
             "[Wiimote1]\r\nSource = 2\r\nExtension = Nunchuk\r\n"
             "Device = DInput/0/Keyboard Mouse\r\n"
-            "Nunchuk/Stick/Up = W\r\nNunchuk/Stick/Down = \`S\`\r\n"
+            "Nunchuk/Stick/Up = W\r\nNunchuk/Stick/Down = `S`\r\n"
             "Nunchuk/Stick/Left = A\r\nNunchuk/Stick/Right = D\r\n"
             "Nunchuk/Buttons/C = X\r\nButtons/1 = 1\r\n"
             "[Wiimote2]\r\nNunchuk/Stick/Up = W\r\n"
