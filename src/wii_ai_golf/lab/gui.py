@@ -406,15 +406,19 @@ def launch(root: Path = ROOT) -> int:
 
     actions = ttk.Frame(right)
     actions.pack(fill="x")
-    ttk.Button(actions, text="Preview", command=preview).pack(side="left", padx=3)
-    offline_btn = ttk.Button(actions, text="Run offline", state="disabled",
+    primary_actions = ttk.Frame(actions)
+    primary_actions.pack(fill="x", pady=(0, 4))
+    secondary_actions = ttk.Frame(actions)
+    secondary_actions.pack(fill="x")
+    ttk.Button(primary_actions, text="Preview", command=preview).pack(side="left", padx=3)
+    offline_btn = ttk.Button(primary_actions, text="Run offline", state="disabled",
                              command=lambda: run_selected(False))
     offline_btn.pack(side="left", padx=3)
-    live_btn = ttk.Button(actions, text="Run ONE live", state="disabled",
+    live_btn = ttk.Button(primary_actions, text="Run ONE live", state="disabled",
                           command=lambda: run_selected(True))
     live_btn.pack(side="left", padx=3)
-    ttk.Button(actions, text="Refresh results", command=refresh).pack(side="left", padx=3)
-    ttk.Button(actions, text="Sync GitHub", command=request_sync).pack(side="left", padx=3)
+    ttk.Button(primary_actions, text="Refresh results", command=refresh).pack(side="left", padx=3)
+    ttk.Button(secondary_actions, text="Sync GitHub", command=request_sync).pack(side="left", padx=3)
     def restart_lab():
         if active or sync_busy[0] or any(
                 (root.parent / "Wii-AI-Golf-Data" / "lab" / name).exists()
@@ -433,11 +437,11 @@ def launch(root: Path = ROOT) -> int:
             return
         ui.destroy()
     restart_button = ttk.Button(
-        actions, text="Restart Lab (updated)", state="disabled",
+        secondary_actions, text="Restart Lab (updated)", state="disabled",
         command=restart_lab)
     restart_button.pack(side="left", padx=3)
-    ttk.Button(actions, text="Sanitized outcomes", command=show_sanitized_reports).pack(side="left", padx=3)
-    ttk.Button(actions, text="Offline log", command=show_last_offline_log).pack(side="left", padx=3)
+    ttk.Button(secondary_actions, text="Sanitized outcomes", command=show_sanitized_reports).pack(side="left", padx=3)
+    ttk.Button(secondary_actions, text="Offline log", command=show_last_offline_log).pack(side="left", padx=3)
     listing.bind("<<TreeviewSelect>>", selected)
     filter_select.bind("<<ComboboxSelected>>",
                        lambda _event: (refill_catalog(), selected()))
