@@ -61,7 +61,7 @@ def load_public_observations(directory: Path) -> list[dict[str, Any]]:
             continue
         if not isinstance(data, dict) or data.get("id") != path.stem:
             continue
-        if data.get("kind") not in PUBLIC_KINDS:
+        if type(data.get("kind")) is not str or data["kind"] not in PUBLIC_KINDS:
             continue
         entries.append(data)
     return entries
@@ -95,8 +95,8 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
         if kind == "test":
             status = r.get("outcome")
             exit_code = _int(r.get("process_exit_code"), hi=255)
-            if (status == "pass" and exit_code == 0) or (
-                    status == "fail" and exit_code is not None and exit_code != 0):
+            if type(status) is str and ((status == "pass" and exit_code == 0) or (
+                    status == "fail" and exit_code is not None and exit_code != 0)):
                 tests[status] += 1
             else:
                 malformed += 1
@@ -106,7 +106,7 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
             samples = _int(r.get("samples"), lo=2, hi=1000)
             count = _int(r.get("adjacent_changes"), hi=1000)
             offsets = r.get("changed_byte_offsets")
-            if (condition not in minimap or samples is None or count is None
+            if (type(condition) is not str or condition not in minimap or samples is None or count is None
                 or count >= samples or not isinstance(offsets, list)
                 or len(offsets) > 128 or
                 any(_int(offset, hi=127) is None for offset in offsets)
@@ -130,7 +130,7 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
                 continue
             contact = human.get("contact_human")
             lead = _int(controller.get("a_lead_observed_frame_delta"), hi=90)
-            if contact not in HUMAN_CONTACT or lead is None:
+            if type(contact) is not str or contact not in HUMAN_CONTACT or lead is None:
                 unknown_or_failed_v1 += 1
                 continue
             bridge_sha = _sha(r.get("bridge_sha256"))
@@ -152,7 +152,7 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
                 entry["initial_pose_counts"][pose] = entry["initial_pose_counts"].get(pose, 0) + 1
             distance = _distance(human.get("displayed_distance_human"))
             unit = human.get("displayed_unit_human")
-            if distance is not None and unit in UNITS:
+            if distance is not None and type(unit) is str and unit in UNITS:
                 entry["human_distances"].append({"distance": distance, "unit": unit})
             continue
         ignored += 1
