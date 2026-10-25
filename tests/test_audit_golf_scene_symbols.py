@@ -25,7 +25,15 @@ class SceneSymbolTests(unittest.TestCase):
             report = mod.summarize(handle)
         groups = [r["symbol_group"] for r in report["matched_groups"]]
         self.assertIn("RPSysSceneMgr", groups)
-        self.assertNotIn("RPSysScene", groups)
+        # The bundled data also includes two real RPSysScene methods and
+        # two RPSysSceneCreator methods; neither belongs to the manager.
+        self.assertIn("RPSysScene", groups)
+        self.assertIn("RPSysSceneCreator", groups)
+        counts = {r["symbol_group"]: r["matching_map_lines"]
+                  for r in report["matched_groups"]}
+        self.assertEqual(counts["RPSysSceneMgr"], 4)
+        self.assertEqual(counts["RPSysScene"], 2)
+        self.assertEqual(counts["RPSysSceneCreator"], 2)
         self.assertIsNone(report["scene_object_pointer"])
 
     def test_create_instance_function_is_not_a_static_pointer(self):
@@ -35,7 +43,23 @@ class SceneSymbolTests(unittest.TestCase):
         ])
         self.assertTrue(all(entry["classification"] == "symbol_location_only"
                             for entry in result["matched_groups"]))
+        self.assertEqual({entry["symbol_group"] for entry in result["matched_groups"]},
+                         {"RPSysSceneCreator", "RPSysSceneMgr"})
         self.assertIsNone(result["scene_object_pointer"])
+
+    def test_exact_class_disambiguation_with_similar_prefixes(self):
+        report = mod.summarize([
+            '"RPSysScene::enter", 0x80185304',
+            '"RPSysSceneMgr::getCurrentScene", 0x80186100',
+            '"RPSysSceneCreator::createSportsScene", 0x80184000',
+            '"RPSysSceneManagerFake::notReal", 0x80180000',
+        ])
+        counts = {e["symbol_group"]: e["matching_map_lines"]
+                  for e in report["matched_groups"]}
+        self.assertEqual(counts, {
+            "RPSysScene": 1, "RPSysSceneMgr": 1, "RPSysSceneCreator": 1
+        })
+        self.assertIsNone(report["scene_object_pointer"])
 
     def test_optional_download_uses_pinned_source_and_cache(self):
         fetcher = load_fetch_module()
