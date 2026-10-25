@@ -8,7 +8,8 @@
     "src/wii_ai_golf/research_memory_swing_link.py",
     "tests/test_research_memory_swing_link.py",
     "research/memory-swing-link/README.md",
-    "research/claims/memory-swing-link.json"
+    "research/claims/memory-swing-link.json",
+    "research/memory-swing-link/offline-studies-20261025.md"
   ],
   "cross_domain_schema_change": false,
   "owner_ack_required_before_integration": true,
@@ -19,5 +20,7 @@
     "S003 PR #119"
   ],
   "next_owner": "S001/S002 agree exact frame join; S003 validates signal specificity",
-  "evidence": "synthetic only; no verified game power"
+  "evidence": "synthetic only; no verified game power",
+  "tests": "27/27 isolated focused synthetic passed incl. 256 seeded invalid pairs; 10/10 separate S003 power-identifiability focused tests; full canonical suite not run",
+  "latest_study": "24-run sanitized memory cohort: 84 recurrent offsets, 78 visual effects, 6 non-effect; zero power fields verified"
 }
