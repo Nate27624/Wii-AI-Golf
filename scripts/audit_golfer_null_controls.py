@@ -24,6 +24,33 @@ MAIN_BYTES = 0x100
 MAX_ROWS = 60
 MAX_FILE_BYTES = 4 * 1024 * 1024
 MAX_SNAPSHOT_FRAMES = 12
+# Explicit fixed error vocabulary; never publish private filenames, RAM values,
+# usernames, runtime heap pointers or third-party error strings.
+SAFE_ERROR_REASONS = frozenset({
+    "missing or symbolic-link private capture",
+    "capture must be canonical private S002 golfer JSONL",
+    "capture file outside bounded input size",
+    "invalid private JSONL content",
+    "too many private capture snapshots",
+    "private capture directory missing",
+    "no private S002 golfer capture found",
+    "need between 4 and 60 captured snapshots",
+    "raw capture row must be a JSON object",
+    "invalid capture stage",
+    "unsupported control phase (no live-swing inference)",
+    "invalid or excessive non-atomic frame span",
+    "unexpected candidate main window size",
+    "invalid private snapshot bytes",
+    "invalid main word count",
+    "missing source-capture object identity",
+    "scene or candidate object changed during capture",
+    "control stage must start at zero",
+    "non-contiguous or out-of-order stages",
+    "frame rollback or overlapping observations",
+    "expected idle -> aim_only -> optional idle sequence",
+    "missing repeated or correctly labeled control stages",
+    "non-increasing within-stage frame count",
+})
 
 
 def _row(item: object) -> dict:
@@ -207,9 +234,17 @@ def main(argv=None) -> int:
         print(json.dumps(analyze_records(read_private_capture(path)),
                          indent=2, sort_keys=True, allow_nan=False))
         return 0
-    except (OSError, ValueError):
-        # Never include exception text: may contain private file path/contents.
-        print("Offline null-control audit failed; check local private capture format.",
+    except ValueError as exc:
+        # All emitted diagnostics come from a fixed list of locally authored,
+        # privacy-reviewed strings. Never echo exceptions from file/JSON APIs.
+        reason = str(exc)
+        if reason not in SAFE_ERROR_REASONS:
+            reason = "private capture did not match the reviewed input schema"
+        print("Offline null-control audit failed: " + reason, file=sys.stderr)
+        return 1
+    except OSError:
+        # OS errors can contain real paths, usernames and access details.
+        print("Offline null-control audit failed: private capture inaccessible",
               file=sys.stderr)
         return 1
 
