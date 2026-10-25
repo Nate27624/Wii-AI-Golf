@@ -17,7 +17,7 @@ $repo = "D:\Projects\Wii Golf AI\Wii-AI-Golf"
 $work = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Golfer-Control-Audit"
 $private = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures"
 if (Test-Path $work) { throw "Worktree exists; preserve it" }
-git -C $repo fetch origin pull/NNN/head
+git -C $repo fetch origin pull/135/head
 if ($LASTEXITCODE -ne 0) { throw "Could not fetch auditor PR" }
 git -C $repo worktree add --detach $work FETCH_HEAD
 if ($LASTEXITCODE -ne 0) { throw "Worktree creation failed" }
@@ -32,7 +32,7 @@ if (-not $raw) { throw "No S002 golfer RAW-PRIVATE locally" }
 py scripts/audit_golfer_phase_specificity.py --input "$($raw.FullName)"
 ```
 
-Replace NNN with the PR number. The audit reads the local private file, produces a NEW sanitized summary in the sibling Data/captures folder, and attempts the canonical GitHub publisher. A missing/not-yet-approved typed validator means it **fails closed**, preserving the sanitized local report; do not upload raw files, copy the validator from another worktree or bypass its check. The new output kind **requires S000 PR #126 follow-on allowlist review** before auto-publication can succeed.
+The audit reads the local private file, produces a NEW sanitized summary in the sibling Data/captures folder, and attempts the canonical GitHub publisher. A missing/not-yet-approved typed validator means it **fails closed**, preserving the sanitized local report; do not upload raw files, copy the validator from another worktree or bypass its check. The new output kind **requires S000 PR #126 follow-on allowlist review** before auto-publication can succeed.
 
 ## Algorithm and interpretation
 
