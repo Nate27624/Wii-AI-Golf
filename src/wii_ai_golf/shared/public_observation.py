@@ -18,7 +18,8 @@ OFFSET = re.compile(r"\+0x[0-9A-F]{1,5}\Z")
 PUBLIC_SIZE_LIMIT = 96_000
 KINDS = frozenset({"test", "v1", "golf-memory-phase-differential",
                   "golf-memory-cohort-relative-words",
-                  "golf_scene_root_candidate_triage"})
+                  "golf_scene_root_candidate_triage",
+                  "golf-golfer-control-specificity"})
 PHASES = frozenset({"idle", "aim_only", "a_hold", "club_motion",
                     "shot_attempt", "settled", "pre", "post"})
 OBSERVATIONS = frozenset({"unchanged", "camera_moved", "club_moved",
@@ -348,6 +349,95 @@ def _scene_root_public(record):
     return dict(record)
 
 
+
+# PR #135's OFFLINE projection from local PR #129 RAW-PRIVATE samples.
+# Never accept runtime addresses, RAM hex, arbitrary nested keys or private paths.
+GOLFER_CONTROLS_FIELDS = frozenset({
+    "schema_version", "kind", "id", "study_id", "sample_count",
+    "idle_samples", "aim_samples", "idle_opportunities", "aim_opportunities",
+    "max_non_atomic_frame_span", "timing_limited", "candidate_child_regions",
+    "changed_word_count", "top_relative_words", "truncated_changed_words",
+    "power_verified", "club_pose_verified", "warning",
+})
+GOLFER_CONTROLS_ROW = frozenset({
+    "region", "relative_offset", "idle_changes", "idle_opportunities",
+    "aim_changes", "aim_opportunities", "control_class",
+})
+GOLFER_CONTROLS_WARNING = (
+    "Controls only: dynamic offsets are NOT game swing-power, pose or ball "
+    "decoders; private memory and absolute pointers remain local."
+)
+GOLFER_CONTROL_CLASSES = frozenset({
+    "background_dynamic", "aim_enriched_control_candidate",
+    "aim_only_weak", "idle_dynamic", "mixed_control_change",
+})
+
+
+def _golfer_controls_public(record):
+    """Typed bounded safety gate, no live controller/score claims allowed."""
+    if (type(record) is not dict or set(record) != GOLFER_CONTROLS_FIELDS
+        or record.get("schema_version") != 1
+        or record.get("kind") != "golf-golfer-control-specificity"
+        or record.get("study_id") != "S002-GOLFER-CONTROL-SPECIFICITY"
+        or record.get("warning") != GOLFER_CONTROLS_WARNING
+        or record.get("power_verified") is not False
+        or record.get("club_pose_verified") is not False):
+        raise ValueError("Unknown golfer-control public observation")
+    total = record.get("sample_count")
+    idle = record.get("idle_samples")
+    aim = record.get("aim_samples")
+    no = record.get("idle_opportunities")
+    na = record.get("aim_opportunities")
+    if (not _integer(total, 4, 60) or not _integer(idle, 2, 58)
+        or not _integer(aim, 2, 58) or idle + aim != total
+        or not _integer(no, 1, idle - 1) or no < idle - 2
+        or not _integer(na, 1, aim - 1) or na != aim - 1
+        or not _integer(record.get("max_non_atomic_frame_span"), 0, 240)
+        or type(record.get("timing_limited")) is not bool
+        or record["timing_limited"] != (record["max_non_atomic_frame_span"] > 12)
+        or not _integer(record.get("candidate_child_regions"), 0, 16)
+        or not _integer(record.get("changed_word_count"), 0, 576)
+        or type(record.get("truncated_changed_words")) is not bool):
+        raise ValueError("Invalid golfer-control sampling counts")
+    changed = record["changed_word_count"]
+    rows = record.get("top_relative_words")
+    if (type(rows) is not list or len(rows) != min(changed, 100)
+        or record["truncated_changed_words"] != (changed > 100)):
+        raise ValueError("Golfer-control candidate count inconsistent")
+    seen = set()
+    for row in rows:
+        if type(row) is not dict or set(row) != GOLFER_CONTROLS_ROW:
+            raise ValueError("Unsafe candidate control row")
+        region = row.get("region")
+        if region == "main":
+            extent = 0x100
+        elif type(region) is str:
+            match = re.fullmatch(r"child_at_main\+0x([0-9A-F]{3})", region)
+            if match is None or int(match.group(1), 16) > 0xFC or int(match.group(1), 16) % 4:
+                raise ValueError("Invalid bounded child region")
+            extent = 0x80
+            if record["candidate_child_regions"] == 0:
+                raise ValueError("Missing child region evidence")
+        else:
+            raise ValueError("Invalid candidate region")
+        offset = row.get("relative_offset")
+        if type(offset) is not str or not re.fullmatch(r"\+0x[0-9A-F]{3}", offset):
+            raise ValueError("Invalid relative candidate offset")
+        pos = int(offset[3:], 16)
+        if pos >= extent or pos % 4 or (region, pos) in seen:
+            raise ValueError("Invalid or duplicated candidate word")
+        seen.add((region, pos))
+        if (row.get("idle_opportunities") != no
+            or row.get("aim_opportunities") != na
+            or not _integer(row.get("idle_changes"), 0, no)
+            or not _integer(row.get("aim_changes"), 0, na)
+            or row["idle_changes"] + row["aim_changes"] == 0
+            or row.get("control_class") not in GOLFER_CONTROL_CLASSES):
+            raise ValueError("Invalid golfer-control phase counts/label")
+    return dict(record)
+
+
+
 def public_observation(record):
     """Only known schema and typed public facts may reach the Git writer."""
     if type(record) is not dict or not isinstance(record.get("id"), str):
@@ -357,7 +447,11 @@ def public_observation(record):
     kind = record.get("kind")
     if type(kind) is not str or kind not in KINDS:
         raise ValueError("Unsupported public observation kind")
-    if kind == "golf_scene_root_candidate_triage":
+    if kind == "golf-golfer-control-specificity":
+        if record["id"].startswith(("cohort-", "offline-")):
+            raise ValueError("Invalid control-study record ID")
+        safe = _golfer_controls_public(record)
+    elif kind == "golf_scene_root_candidate_triage":
         if record["id"].startswith(("cohort-", "offline-")):
             raise ValueError("Invalid scene-root record identifier")
         safe = _scene_root_public(record)
