@@ -60,6 +60,24 @@ class PhaseCaptureTests(unittest.TestCase):
         self.assertEqual(result["changed_word_count"],0)
         self.assertEqual(result["skipped_relocated_windows"],1)
 
+    def test_legacy_raw_outcome_can_be_reprocessed_offline(self):
+        from wii_ai_golf.audit.memory_phases import normalize_legacy_outcome_rows
+        rows=[]
+        for phase,value in (("pre",1),("post",2),("settled",2)):
+            rec=row(0,"idle",value)
+            rec["source"]="Felk-read-only-US-Rev1-unverified-golf-windows"
+            rec["phase"]=phase
+            full=bytearray(0x1C74)
+            full[:0xA0]=bytes.fromhex(rec["windows"]["golf_config"]["bytes_hex"])
+            rec["windows"]["golf_config"]["bytes_hex"]=full.hex()
+            rows.append(rec)
+        adapted=normalize_legacy_outcome_rows(rows)
+        self.assertEqual([entry["stage"] for entry in adapted],[0,1,2])
+        result=summarize_phase_memory(adapted,[],scope="broad",run_id="offline-test")
+        self.assertEqual(result["changed_word_count"],1)
+        self.assertEqual(result["phase_sample_counts"],{"post":1,"pre":1,"settled":1})
+        self.assertFalse(result["confirmed_power_address"])
+
     def test_wrong_revision_rejected(self):
         with self.assertRaises(ValueError):
             summarize_phase_memory([row(0,"idle",1,revision=0),
