@@ -27,6 +27,10 @@ GOLF_SCENE_ID = 5
 # RPSportsSequenceMgr.h SPORT_GOLF == 2; independent of scene-manager ID.
 SCENE_SPORT_OFFSET = 0x54
 GOLF_SPORT_ID = 2
+# doldecomp/ogws eggScene.h (RSPE01_01). These are scene OWN identity
+# and the backlink, unlike RPSysScene +0x40 creator/previous scene.
+SCENE_OWN_ID_OFFSET = 0x1C
+SCENE_MANAGER_BACKLINK_OFFSET = 0x20
 # kiwi515/ogws_info RPGolScene.h, newer decomp says unk9C.
 POSSIBLE_GOLF_MAIN_OFFSET = 0x9C
 # doldecomp/ogws RSPE01_01/splits.txt, RPGolScene.cpp .data.
@@ -100,11 +104,18 @@ def _pass(rpc: object) -> tuple[list[dict], tuple[int, int]]:
             # plausibility before even reading the disputed +0x9C member.
             vtable = _u32(rpc, scene)
             sport = _u32(rpc, scene + SCENE_SPORT_OFFSET)
+            own_id = _u32(rpc, scene + SCENE_OWN_ID_OFFSET)
+            backlink = _u32(rpc, scene + SCENE_MANAGER_BACKLINK_OFFSET)
+            result["scene_own_id_match"] = own_id == GOLF_SCENE_ID
+            result["scene_manager_backlink_match"] = backlink == manager
             result["scene_vtable_in_golf_data_region"] = (
                 GOLF_SCENE_DATA_START <= vtable < GOLF_SCENE_DATA_END
                 and vtable % 4 == 0)
             result["scene_sport_id_match"] = sport == GOLF_SPORT_ID
-            if result["scene_sport_id_match"] and result["scene_vtable_in_golf_data_region"]:
+            if (result["scene_sport_id_match"]
+                    and result["scene_vtable_in_golf_data_region"]
+                    and result["scene_own_id_match"]
+                    and result["scene_manager_backlink_match"]):
                 possible_main = _u32(rpc, scene + POSSIBLE_GOLF_MAIN_OFFSET)
                 result["_private_possible_main"] = possible_main
                 result["possible_main_pointer_ram_like"] = _ram(possible_main, 4)
@@ -127,7 +138,9 @@ def probe(rpc: object) -> dict:
               if row == other and row.get("golf_scene_id_match")
               and row.get("scene_pointer_ram_like")
               and row.get("scene_sport_id_match")
-              and row.get("scene_vtable_in_golf_data_region")]
+              and row.get("scene_vtable_in_golf_data_region")
+              and row.get("scene_own_id_match")
+              and row.get("scene_manager_backlink_match")]
     return {
         "schema_version": 1,
         "kind": "golf_scene_root_candidate_triage",
@@ -148,12 +161,17 @@ def probe(rpc: object) -> dict:
             bool(row.get("possible_main_pointer_ram_like")) for row in stable),
         "stable_sport_id_match_count": sum(
             bool(row.get("scene_sport_id_match")) for row in stable),
+        "stable_scene_own_id_match_count": sum(
+            bool(row.get("scene_own_id_match")) for row in stable),
+        "stable_manager_backlink_match_count": sum(
+            bool(row.get("scene_manager_backlink_match")) for row in stable),
         "confirmed_manager_singleton_address": False,
         "confirmed_golf_main_type": False,
         "confirmed_golf_power_address": False,
         "warning": (
             "Source-anchored 8-byte static-storage triage only; pointers were "
-            "NOT type-proven, scene sport/vtable are only plausibility checks; "
+            "NOT type-proven, scene sport/vtable and own-ID/backlink are "
+            "only structural checks; "
             "no game power or player RAM identified. "
             "No runtime addresses or byte values are included.")
     }
