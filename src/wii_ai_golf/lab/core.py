@@ -279,7 +279,31 @@ def execute(
     def do_run() -> None:
         write()
         try:
-            proc = run_command(list(trial.command), cwd=root, check=False)
+            env = os.environ.copy()
+            previous_path = env.get("PYTHONPATH")
+            env["PYTHONPATH"] = os.pathsep.join(
+                [str(root / "src"), str(root)] +
+                ([previous_path] if previous_path else []))
+            # Real Dolphin interaction must keep stdin/stdout connected to the
+            # operator's terminal for ENTER and human observation prompts.
+            # Offline tests can be safely captured and saved for GUI review.
+            if trial.live:
+                proc = run_command(list(trial.command), cwd=root, check=False, env=env)
+            else:
+                proc = run_command(list(trial.command), cwd=root, check=False,
+                                   env=env, capture_output=True, text=True)
+                log = folder / (run_id + ".log")
+                text_out = str(getattr(proc, "stdout", "") or "")
+                text_err = str(getattr(proc, "stderr", "") or "")
+                with log.open("x", encoding="utf-8") as stream:
+                    stream.write(("STDOUT\\n" + text_out[:1_000_000] +
+                                  "\\nSTDERR\\n" + text_err[:1_000_000] + "\\n"))
+                record["offline_log"] = str(log)
+                if text_out:
+                    print(text_out, end="" if text_out.endswith("\n") else "\n")
+                if text_err:
+                    print(text_err, end="" if text_err.endswith("\n") else "\n",
+                          file=sys.stderr)
             record["exit_code"] = int(proc.returncode)
             record["execution_status"] = "finished" if proc.returncode == 0 else "failed"
         except OSError as exc:
