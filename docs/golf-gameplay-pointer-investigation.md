@@ -195,6 +195,49 @@ that it definitely is `RPGolMain`. Record aggregate statuses and relative
 offsets, never raw RAM or live absolute heap addresses in public
 artifacts. Do not infer shot outcome/power from a pointer dereference.
 
+## Next stage: read-only scene-chain observation, NOT an executable live shortcut
+
+PR #122 now includes `src/wii_ai_golf/audit/golf_scene_chain.py` and
+`tests/test_outcome_golf_scene_chain.py`. They implement a **pure injected-RPC**
+read-only observer with no Dolphin startup, no controller writes, no savestate
+calls, and no raw memory persistence or printed heap addresses. The new code
+does **not** create its own live launcher, add a `scripts/golf.py` command,
+or bypass the canonical fresh-boot requirement.
+
+Each of two to five bounded observations must pass, in order:
+
+1. Fresh frame counter and disc header: `RSPE01` revision 1.
+2. Source-anchored config instance pointer and mode 4 (`Hitting the Green`).
+3. Code-verified singleton slot `0x804BF4D8` contains a mapped,
+   aligned manager pointer.
+4. `RPSysSceneMgr +0x18` reports golf scene ID 5.
+5. `RPSysSceneMgr +0x0C` yields a mapped, aligned scene pointer.
+6. Read **only** the word at scene `+0x9C`, *not* the object it might
+   point to. Re-read manager/scene ID/pointer to reject scene transitions.
+7. Require frame-count ordering, a bounded within-snapshot frame span,
+   and identical manager/scene pointers across snapshots.
+
+The returned report includes sampled frame span, boolean consistency,
+and whether the `+0x9C` word resembles an aligned mapped pointer.
+It intentionally includes **no raw pointer values** and sets
+`candidate_type_verified`, `golf_main_verified`,
+`club_pose_verified`, `swing_power_verified`,
+`ball_coordinates_verified`, and `score_verified` to `false`.
+
+Only synthetic tests run until **S001, S002 and S000** have reviewed
+the contract and S000 registers a reviewed typed Lab game diagnostic.
+The canonical fresh boot, known-good named savestate, human approval,
+bounded read-only scope, and GUI result handling remain mandatory. No
+manual attachment to arbitrary Dolphin state; no raw RAM output in the
+Lab or public GitHub artifacts.
+
+**Experiment plan:** Compare idle at-ball before input, A-only
+prehold, human-labeled confirmed contact, and human-labeled miss,
+each with matched initial setup. The initial read-only chain
+experiment needs only at-ball idle, with no swing. A candidate 4-byte
+word change cannot establish physics, power, or hit without the
+independent behavioral labels and separately verified memory types.
+
 ## Next evidence gate — do not skip
 
 1. From independently reviewed Rev1 source/decompilation, establish the
