@@ -1,4 +1,8 @@
 # AI agent coordination protocol
+## Required cross-agent handoff
+
+Read [cross-agent cooperation contract](docs/cross-agent-cooperation.md) before changing a shared interface. Every PR must identify upstream/downstream owners, concrete schemas/commands, collision paths, exact tests and evidence limitations, and the next integration owner. Publish API changes on the affected GitHub PRs/issues before consumers integrate them. S000 coordinates merge order; agent chats are not a shared queue. The retired GUI must not be revived.
+
 
 ## ACTIVE OPERATOR DECISION — SCRIPT-ONLY WORKFLOW (2026-10-24)
 
