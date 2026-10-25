@@ -1,5 +1,14 @@
 """Offline negative controls for commanded (not game-observed) A continuity."""
 import unittest
+from pathlib import Path
+import sys
+
+# Ensure this isolated worktree wins over stale editable installations.
+_ROOT = Path(__file__).resolve().parents[1]
+_SRC = str(_ROOT / 'src')
+if _SRC in sys.path:
+    sys.path.remove(_SRC)
+sys.path.insert(0, _SRC)
 
 from wii_ai_golf.integration.a_continuity_audit import (
     ButtonEvent, audit_a_continuity, expected_v1_events,
