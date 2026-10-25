@@ -18,9 +18,9 @@ The existing Git Bash wrapper `bash scripts/golf.sh` remains an alternative for 
 ---
 
 
-## Current workflow: GitHub + Git Bash + one Python codebase
+## Current workflow: One Lab, desktop and Git Bash
 
-The **desktop Research Lab GUI is retired**. Use the source-local shell wrapper and unified Python runner instead. Agents commit code/tests and open reviewed GitHub pull requests; merged tests are discovered from the one `main` checkout. The shell wrapper never auto-uploads private game files or runs new tests without a user command.
+The Windows Research Lab GUI is supported, with Git Bash and PowerShell as optional interfaces to the SAME reviewed Python runner. Choose a game study from the GUI's list and use its right-hand Show/details pane. Agents commit code/tests and open reviewed GitHub pull requests; merged tests are discovered from the one `main` checkout. The shell wrapper never auto-uploads private game files or runs new tests without a user command.
 
 ```bash
 cd "/d/Projects/Wii Golf AI/Wii-AI-Golf"  # Git Bash; adjust to your checkout
@@ -33,7 +33,9 @@ bash scripts/golf.sh history
 
 To run a live, registered trial only after reviewing its plan: `bash scripts/golf.sh run integration.swing --live`. This still uses canonical Dolphin startup and asks for human confirmation. On Windows PowerShell, use the same underlying `py scripts/golf.py lab ...` commands. No duplicate control or evaluation implementation is introduced.
 
-**GitHub publishing:** Agents push feature branches and PRs; the merge coordinator integrates approved work. Never publish local ROMs, savestates, raw RAM, secrets, personal configuration, or unrestricted run logs. See [script workflow](docs/script-workflow.md). The following historical GUI instructions are archived context only.
+**One guided V1 trial:** select **Game tests → Historical V1 contact comparison** in `py scripts/golf.py lab gui`, then **Prepare and run one V1 shot** in the Show/details pane. A valid old V1 bridge is prepared separately with permission if needed, then a single canonical live trial asks for consent. An old `run-session.lock` from a crashed process is recovered using OS-managed locking and legacy PID checks; active jobs remain protected.
+
+**GitHub publishing:** Agents push feature branches and PRs; the merge coordinator integrates approved work. Never publish local ROMs, savestates, raw RAM, secrets, personal configuration, or unrestricted run logs. See [script workflow](docs/script-workflow.md). The GUI and CLI both remain supported.
 
 ---
 

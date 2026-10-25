@@ -10,6 +10,8 @@ import re
 import subprocess
 from typing import Callable, Any
 
+from .locks import any_lab_job_busy, lock_busy, session_lock
+
 EXPECTED_REPOSITORY = "Nate27624/Wii-AI-Golf"
 REMOTE = "origin"
 BRANCH = "main"
@@ -47,12 +49,26 @@ def sync_merged_main(
     run: Callable[..., Any] = subprocess.run,
     timeout_s: int = 35,
 ) -> SyncReport:
+    """Synchronize from merged main while holding a real cross-process run lock."""
+    if lab_data is None:
+        return _sync_impl(root, lab_data=None, run=run, timeout_s=timeout_s)
+    if any_lab_job_busy(lab_data):
+        return SyncReport("blocked", note="A Lab task is active; no Git changes.")
+    try:
+        with session_lock(lab_data / "run-session.lock", label="GitHub synchronization"):
+            return _sync_impl(root, lab_data=lab_data, run=run, timeout_s=timeout_s)
+    except ValueError as exc:
+        return SyncReport("blocked", note=str(exc))
+
+
+def _sync_impl(
+    root: Path, *, lab_data: Path | None,
+    run: Callable[..., Any], timeout_s: int,
+) -> SyncReport:
     """Fast-forward local clean main only; never run newly fetched code."""
     root = Path(root).resolve()
-    if (lab_data is not None and any(
-            (lab_data / name).exists() for name in
-            ("live-session.lock", "run-session.lock"))):
-        return SyncReport("blocked", note="A Lab experiment may be running; no Git changes.")
+    if lab_data is not None and lock_busy(lab_data / "live-session.lock"):
+        return SyncReport("blocked", note="A Lab live experiment is active; no Git changes.")
     if not (root / ".git").exists():
         return SyncReport("blocked", note="Not an ordinary Git checkout; no automatic updates.")
     def git(*arguments: str, timeout: int = 8) -> str:
@@ -92,11 +108,9 @@ def sync_merged_main(
                                       if TEST_DIFF.fullmatch(x)}))
         # Recheck immediately before filesystem changes; Dolphin/Lab processes
         # may have begun during the network fetch.
-        if lab_data is not None and any(
-                (lab_data / name).exists() for name in
-                ("live-session.lock", "run-session.lock")):
+        if lab_data is not None and lock_busy(lab_data / "live-session.lock"):
             return SyncReport("blocked", before, after, changed_tests,
-                              note="Lab job started during fetch; update deferred.")
+                              note="Lab live task started during fetch; update deferred.")
         if git("status", "--porcelain", "--untracked-files=normal"):
             return SyncReport("blocked", before, after, changed_tests,
                               note="Working tree changed during fetch; update deferred.")

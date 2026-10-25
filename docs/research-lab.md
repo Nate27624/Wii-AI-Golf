@@ -6,6 +6,8 @@ The source code for the old GUI was removed following the operator's script-only
 
 # Wii AI Golf Research Lab
 
+**Current selected-study UI:** `py scripts/golf.py lab gui` → **Game tests → Historical V1 contact comparison** → **Prepare and run one V1 shot** inside the right-hand Show/details pane. That one action safely inspects V2 and historic V1, requests consent for a separate verified V1 copy if needed, then consent for ONE canonical Dolphin trial. No top-of-window three-step toolbar. Active trials still block; abandoned legacy PID lock records can recover safely and new OS-held locks release on crash. Git Bash remains a supported expert interface.
+
 **One local application for S000 coordination, S001 integration, S002 evaluation, S003 modeling, S004 learning and S005 generalization.** All experiments have registered ownership, execution mode, stable IDs, canonical commands, and local records. A process exit is *not* a game score.
 
 ## Launch the Windows desktop application
