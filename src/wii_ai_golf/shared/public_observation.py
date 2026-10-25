@@ -57,7 +57,10 @@ MEMORY_FIELDS = frozenset({"schema_version", "kind", "study_id", "id", "scope",
 
 
 def _number(value, lo=0, hi=1_000_000):
-    return type(value) in (int, float) and math.isfinite(value) and lo <= value <= hi
+    if type(value) not in (int, float) or not lo <= value <= hi:
+        return False
+    # Reject arbitrarily large integers before float conversion.
+    return math.isfinite(float(value))
 
 
 def _integer(value, lo=0, hi=1_000_000):
@@ -83,7 +86,8 @@ def _valid_human(values):
             if value is not None and (type(value) is not str or value not in enumerated[key]):
                 raise ValueError("Unrecognized human observation label")
         elif key in ("displayed_distance_human", "displayed_power_percent_human"):
-            if value is not None and not _number(value, 0, 100_000):
+            ceiling = 100 if key == "displayed_power_percent_human" else 100_000
+            if value is not None and not _number(value, 0, ceiling):
                 raise ValueError("Unrecognized human numeric observation")
         elif value is not None and not _integer(value, 0, 1_000_000):
             raise ValueError("Unrecognized human frame value")
