@@ -83,7 +83,8 @@ def _pass(rpc: object) -> tuple[list[dict], int]:
         scene_id = _u32(rpc, manager + CURRENT_SCENE_ID_OFFSET)
         scene = _u32(rpc, manager + CURRENT_SCENE_OFFSET)
         scene_ram = _ram(scene, POSSIBLE_GOLF_MAIN_OFFSET + 4)
-        result = {"slot": slot, "manager_ram_like": True,
+        result = {"slot": slot, "_private_manager": manager,
+                  "_private_scene": scene, "manager_ram_like": True,
                   "golf_scene_id_match": scene_id == GOLF_SCENE_ID,
                   "scene_pointer_ram_like": scene_ram}
         # Only inspect source-backed scene-member offsets when BOTH gates hold.
@@ -93,6 +94,7 @@ def _pass(rpc: object) -> tuple[list[dict], int]:
             result["scene_vtable_in_golf_data_region"] = (
                 GOLF_SCENE_DATA_START <= vtable < GOLF_SCENE_DATA_END
                 and vtable % 4 == 0)
+            result["_private_possible_main"] = possible_main
             result["possible_main_pointer_ram_like"] = _ram(possible_main, 4)
         candidates.append(result)
     end = _frame(rpc)
