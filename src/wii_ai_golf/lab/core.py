@@ -27,7 +27,8 @@ OWNER_IDS = frozenset({"S000", "S001", "S002", "S003", "S004", "S005"})
 KINDS = {
     "tests_all": "offline", "tests_integration": "offline",
     "tests_evaluation": "offline", "tests_learning": "offline",
-    "bridge_inspect": "offline", "compare": "offline",
+    "bridge_inspect": "offline", "bridge_audit": "offline",
+    "bridge_prepare": "offline", "compare": "offline",
     "motion_audit": "offline", "recover": "offline", "demo": "offline",
     "swing": "live", "capture": "live", "v1_capture": "live",
     "unavailable": "planned", "test_file": "offline",
@@ -97,7 +98,7 @@ def _child(script: str, *args: str, root: Path = ROOT, python: str = sys.executa
     allowed = {
         "run_golf_experiment.py", "launch_golf.py",
         "compare_outcome_runs.py", "audit_motion_candidates.py",
-        "recover_outcome_capture.py",
+        "recover_outcome_capture.py", "audit_local_swing_bridge.py",
     }
     if script not in allowed or not (root / "scripts" / script).is_file():
         raise ValueError(f"Unsupported/missing reviewed script: {script}")
@@ -163,6 +164,13 @@ def plan(
     elif kind == "bridge_inspect":
         # No subprocess RPC. The public CLI reads the generated file.
         command = [python, str(root / "scripts" / "golf.py"), "bridge", "inspect"]
+    elif kind == "bridge_audit":
+        command = _child("audit_local_swing_bridge.py", root=root, python=python)
+    elif kind == "bridge_prepare":
+        # The S001 owned audit refuses unsafe source, autoloaded V1,
+        # overwrite of active bridge, or a conflicting destination file.
+        command = _child("audit_local_swing_bridge.py",
+                         "--prepare-legacy-trial", root=root, python=python)
     elif kind == "demo":
         command = [python, "-m", "wii_ai_golf.demo"]
     elif kind == "swing":
