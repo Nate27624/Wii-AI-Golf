@@ -65,6 +65,10 @@ def launch(root: Path = ROOT) -> int:
         for row in listing.get_children():
             listing.delete(row)
         for e in catalog:
+            # These are implementation details of the ONE guided V1 study;
+            # advanced CLI callers can still run them directly.
+            if e["id"] in {"integration.bridge-audit", "integration.prepare-v1"}:
+                continue
             agent_test = e["id"].startswith("agent-tests.")
             if filter_mode.get() == "Agent tests" and not agent_test:
                 continue
@@ -171,6 +175,19 @@ def launch(root: Path = ROOT) -> int:
 
     def preview():
         try:
+            if selection() == "integration.v1-diagnostic":
+                state = inspect_game_bridges(root)
+                if not state.can_test:
+                    contents = ("The Lab prepares an isolated historical V1 "
+                                "bridge automatically if the verified backup "
+                                "exists. No Dolphin process is launched by Preview.\n\n" +
+                                state.as_text())
+                    status.set(state.title + " — use Prepare and run one V1 shot")
+                    output.configure(state="normal")
+                    output.delete("1.0", "end")
+                    output.insert("1.0", contents)
+                    output.configure(state="disabled")
+                    return
             p = selected_plan()
             contents = json.dumps(p.summary(), indent=2)
             status.set(f"Preview only: {p.experiment['id']} ({p.experiment['mode']})")
@@ -359,7 +376,6 @@ def launch(root: Path = ROOT) -> int:
             # The top-row quick action is a controlled baseline, not an
             # accidental reuse of inputs from another selected study.
             values["a-prime"].set("0")
-            values["a-lead"].set("0")
             navigate_study("integration.v1-diagnostic")
             run_selected(True, verified_v1=True)
         except (OSError, ValueError) as exc:
@@ -368,8 +384,12 @@ def launch(root: Path = ROOT) -> int:
 
     def start_v1_workflow():
         """Single operator action: inspect, prepare if needed, then ONE shot."""
-        if sync_busy[0] or game_job_busy[0] or active:
-            bridge_status.set("Finish the running Lab task before starting another.")
+        if sync_busy[0] or game_job_busy[0] or active or any_lab_job_busy(lab_data):
+            bridge_status.set("A Lab job is already active")
+            show_game_details("Another active Lab process still owns the run lock. "
+                              "An abandoned lock from a stopped process is "
+                              "recovered automatically; no manual deletion "
+                              "is needed. Finish the running job first.")
             return
         view = refresh_bridge_status()
         if view is None or not (view.can_prepare or view.can_test):
