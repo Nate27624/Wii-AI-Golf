@@ -184,18 +184,18 @@ class UnifiedGolfCliTests(unittest.TestCase):
             generated = root.parent / "tools" / "mcp_bridge_swing.py"
             generated.parent.mkdir(parents=True)
             self.assertEqual(cli.inspect_local_bridge(generated)["protocol_on_disk"], "missing")
-            generated.write_text("# WII_AI_GOLF_SWING_TRACE_V1\\n", encoding="utf-8")
+            generated.write_text("# WII_AI_GOLF_SWING_TRACE_V1\n", encoding="utf-8")
             self.assertEqual(cli.inspect_local_bridge(generated)["protocol_on_disk"],
                              "V1-neutral-swing-events")
-            generated.write_text("# WII_AI_GOLF_SWING_TRACE_V1\\n"
-                                 "# WII_AI_GOLF_SWING_NEUTRAL_BUTTON_ONLY_V2\\n",
+            generated.write_text("# WII_AI_GOLF_SWING_TRACE_V1\n"
+                                 "# WII_AI_GOLF_SWING_NEUTRAL_BUTTON_ONLY_V2\n",
                                  encoding="utf-8")
             report = cli.inspect_local_bridge(generated)
             self.assertEqual(report["protocol_on_disk"], "V2-neutral-button-only")
             self.assertEqual(len(report["bridge_sha256"]), 64)
             self.assertTrue(report["read_only"])
-            with patch.object(cli, "ROOT", root), \\
-                 patch.object(cli.socket, "create_connection") as connect, \\
+            with patch.object(cli, "ROOT", root), \
+                 patch.object(cli.socket, "create_connection") as connect, \
                  patch.object(cli, "_run") as run:
                 self.assertEqual(cli.main(["bridge", "inspect"]), 0)
                 connect.assert_not_called()
