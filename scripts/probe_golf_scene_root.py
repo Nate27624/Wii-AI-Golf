@@ -7,8 +7,10 @@ identified. All pointer VALUES remain private and are never output.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import sys
+import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -145,7 +147,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="Explicit opt-in; read-only attach to an existing Dolphin bridge")
     parser.add_argument("--port", type=int, default=55355)
     parser.add_argument("--out", type=Path, default=None,
-                        help="Optional sanitized JSON output file, exclusive create")
+                        help="Override default private-data sibling SANITIZED output file")
+    parser.add_argument("--no-upload", action="store_true",
+                        help="Explicitly keep sanitized result local; raw RAM is never published")
     args = parser.parse_args(argv)
     if not args.attach_running:
         parser.error("Requires --attach-running; does not boot Dolphin or load savestates")
@@ -154,13 +158,24 @@ def main(argv: list[str] | None = None) -> int:
     try:
         with FelkRPC(port=args.port, timeout_s=15) as rpc:
             report = probe(rpc)
+        report["id"] = (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-")
+                        + uuid.uuid4().hex[:8])
+        report["study_id"] = "S002-GOLF-SCENE-ROOT-TRIAGE"
         payload = json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n"
-        if args.out:
-            if not args.out.parent.is_dir():
-                raise ValueError("Output parent directory does not exist")
-            with args.out.open("x", encoding="utf-8") as file:
-                file.write(payload)
+        destination = args.out or (ROOT.parent / "Wii-AI-Golf-Data" / "captures"
+                                   / ("golf-scene-root-" + report["id"] + "-summary.json"))
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with destination.open("x", encoding="utf-8") as file:
+            file.write(payload)
         print(payload, end="")
+        print("SANITIZED local report:", destination, flush=True)
+        if not args.no_upload:
+            try:
+                from research_cli import publish_summary
+                print("Sanitized GitHub observation published:", publish_summary(report), flush=True)
+            except (ValueError, RuntimeError, OSError) as exc:
+                print("GitHub publisher refused or failed; safe report retained locally. "
+                      "S000 privacy schema approval required: " + str(exc), file=sys.stderr)
         return 0
     except (OSError, RuntimeError, ValueError, TimeoutError) as exc:
         print("Scene-root read-only probe stopped: " + str(exc), file=sys.stderr)
