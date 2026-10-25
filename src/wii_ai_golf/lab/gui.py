@@ -462,6 +462,12 @@ def launch(root: Path = ROOT) -> int:
             if sync_busy[0] or game_job_busy[0] or any_lab_job_busy(lab_data):
                 raise ValueError("A Lab task or GitHub update is active. "
                                  "The app will not start an overlapping experiment.")
+            # This workflow may need to CREATE its safe V1 copy before
+            # core.plan() can validate the live command; don't prematurely
+            # reject it while the setup can be handled in this pane.
+            if selection() == "integration.v1-diagnostic" and not verified_v1:
+                start_v1_workflow()
+                return
             p = selected_plan()
             if p.experiment["id"] == "integration.bridge-audit":
                 inspect_bridges()
