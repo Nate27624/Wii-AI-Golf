@@ -222,6 +222,25 @@ def local_bridge_fingerprint(root: Path) -> dict[str, str | None]:
 
 
 @contextmanager
+def lab_run_lock(data: Path = DATA) -> Iterator[None]:
+    """Shared guard for ALL Lab jobs so Git sync cannot replace running code."""
+    data.mkdir(parents=True, exist_ok=True)
+    lock = data / "run-session.lock"
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise ValueError("Another Lab test is active or a stale run lock exists: "
+                         f"{lock}. Verify no job is running before clearing it.") from exc
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump({"pid": os.getpid(),
+                       "utc": datetime.now(timezone.utc).isoformat()}, f)
+        yield
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+@contextmanager
 def live_session_lock(data: Path = DATA) -> Iterator[None]:
     """Fail closed on a parallel lab live session, including stale lockfiles.
 
@@ -326,9 +345,10 @@ def execute(
             record["utc_finished"] = datetime.now(timezone.utc).isoformat()
             write()
 
-    if trial.live:
-        with live_session_lock(data):
+    with lab_run_lock(data):
+        if trial.live:
+            with live_session_lock(data):
+                do_run()
+        else:
             do_run()
-    else:
-        do_run()
     return record
