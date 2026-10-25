@@ -149,6 +149,52 @@ from other globals by examining the function's instruction/register
 flow and independent anchors. Only then can a separately reviewed
 read-only `RPSysSceneMgr` runtime probe be designed.
 
+## Evidence from operator-supplied extracted main.dol (offline)
+
+The operator supplied a private `main.dol` for analysis. **Do not commit,
+share, or reupload the executable**. A private, read-only disassembly
+check of the selected source-backed Rev1 functions found the same
+`lwz ..., -0x5EA8(r13)` reference in all three audited callsites:
+
+- `RPSysSceneCreator::changeSceneAfterFade`
+- `RPSysScene::setSceneFadeColor`
+- `RPSysScene::setFadeColor`
+
+The `RPSysSceneMgr` constructor at `0x80186108` also reads that
+displacement (`lwz r0,-0x5EA8(r13)`) and later stores a constructed
+instance (`stw r30,-0x5EA8(r13)`). The executable initializes `r13`
+as `0x804C5380` in `__init_registers`; signed arithmetic gives
+`0x804C5380 - 0x5EA8 = 0x804BF4D8`.
+That static storage address lies within the supplied DOL's declared
+BSS range. **This is a strong code-verified static singleton storage
+candidate, not the runtime manager pointer value or an active scene.**
+Executable identity alone does not prove the game revision.
+
+The new script `scripts/verify_golf_scene_manager_slot.py` reproduces
+these checks locally and **fails closed** if the independent callsites,
+initializer, constructor read/write or BSS range do not agree:
+
+```powershell
+py scripts/verify_golf_scene_manager_slot.py --dol "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\symbols\main.dol"
+```
+
+The script returns the derived static-storage address, not the contents
+of that memory location. The returned `scene_manager_runtime_pointer`,
+`active_golf_scene_pointer`, and `golf_main_pointer` stay `null`.
+
+### Handoff to S001 / S002
+
+Next implement an explicitly approved, **read-only**, revision- and
+game-state-gated observation in the canonical RAM capture path:
+read just the four-byte word at the derived static storage address;
+check non-null/4-byte aligned mapped RAM; read manager `+0x18` and
+confirm scene ID 5; read manager `+0x0C` as active scene pointer;
+verify pointer identity and scene ID stable across paused/same-game
+snapshots; only then inspect candidate scene `+0x9C`, with no assumption
+that it definitely is `RPGolMain`. Record aggregate statuses and relative
+offsets, never raw RAM or live absolute heap addresses in public
+artifacts. Do not infer shot outcome/power from a pointer dereference.
+
 ## Next evidence gate — do not skip
 
 1. From independently reviewed Rev1 source/decompilation, establish the
