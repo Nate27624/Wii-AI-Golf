@@ -42,7 +42,7 @@ $dol = "D:\PATH\TO\YOUR\EXTRACTED\main.dol"
 if (Test-Path $work) { throw "Study worktree exists; do not overwrite" }
 if (-not (Test-Path $dol)) { throw "No local extracted main.dol; do not rerun Dolphin" }
 
-git -C $repo fetch origin pull/NNN/head
+git -C $repo fetch origin pull/144/head
 if ($LASTEXITCODE -ne 0) { throw "Fetch failed" }
 git -C $repo worktree add --detach $work FETCH_HEAD
 if ($LASTEXITCODE -ne 0) { throw "Worktree failed" }
