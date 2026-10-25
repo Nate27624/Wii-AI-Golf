@@ -210,8 +210,24 @@ def launch(root: Path = ROOT) -> int:
             refresh()
         ui.after(1400, poll)
 
+    def sync_reviewed():
+        from .sync import sync_reviewed_main
+        if active:
+            messagebox.showwarning("Active experiment", "Close active Lab experiments before syncing.")
+            return
+        if not messagebox.askyesno("Sync reviewed experiments",
+            "Fetch and fast-forward origin/main only? Unreviewed PR code will NOT be installed."):
+            return
+        try:
+            result=sync_reviewed_main(root)
+            messagebox.showinfo("Repository sync", ("Updated. " if result["updated"] else "Already current. ") +
+                                "Restart Golf Lab to load the reviewed experiment catalog.")
+        except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
+            messagebox.showerror("Sync refused", str(exc))
+
     actions = ttk.Frame(right)
     actions.pack(fill="x")
+    ttk.Button(actions, text="Sync reviewed", command=sync_reviewed).pack(side="left", padx=3)
     ttk.Button(actions, text="Preview", command=preview).pack(side="left", padx=3)
     offline_btn = ttk.Button(actions, text="Run offline", state="disabled",
                              command=lambda: run_selected(False))
