@@ -13,6 +13,7 @@ import sys
 import threading
 from .core import ROOT, get_experiment, history, available_experiments, plan, execute
 from .github_sync import sync_merged_main
+from .sync_status import lock_blockers
 from .bridge_ui import inspect_game_bridges
 
 
@@ -342,15 +343,23 @@ def launch(root: Path = ROOT) -> int:
             return
         if sync_busy[0]:
             if manual:
-                messagebox.showinfo("GitHub sync", "A GitHub sync is already running.")
+                sync_manual_requested[0] = True
+                sync_line.set("GitHub: sync already in progress; confirmation will appear when it finishes.")
             return
         sync_manual_requested[0] = manual
         lab_root = root.parent / "Wii-AI-Golf-Data" / "lab"
-        if active or any((lab_root / name).exists()
-                         for name in ("live-session.lock", "run-session.lock")):
-            sync_line.set("GitHub: synchronization deferred while an experiment runs.")
+        blockers = lock_blockers(lab_root)
+        if active or blockers:
+            reason = ("Active experiment launched from this Lab window."
+                      if active else "\n".join(blockers))
+            sync_line.set("GitHub: sync blocked by experiment guard; " + reason)
             if manual:
-                messagebox.showwarning("GitHub sync blocked", sync_line.get())
+                messagebox.showwarning("GitHub sync blocked",
+                    "No update was attempted.\n\n" + reason +
+                    "\n\nA prior crashed process can leave stale locks. Close all "
+                    "experiment/Dolphin windows and verify the recorded PID "
+                    "is no longer running before clearing ONLY stale locks. "
+                    "The Lab will not delete these protection files automatically.")
             return
         sync_busy[0] = True
         sync_line.set("GitHub: checking approved origin/main (offline tests NOT auto-run)...")
