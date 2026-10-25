@@ -171,9 +171,13 @@ def main(argv: list[str] | None = None) -> int:
         print("SANITIZED local report:", destination, flush=True)
         if not args.no_upload:
             try:
+                # Fail closed until S000 merges the typed public-observation
+                # validator AND explicitly approves this new kind.
+                from wii_ai_golf.shared.public_observation import public_observation
+                checked = public_observation(report)
                 from research_cli import publish_summary
-                print("Sanitized GitHub observation published:", publish_summary(report), flush=True)
-            except (ValueError, RuntimeError, OSError) as exc:
+                print("Sanitized GitHub observation published:", publish_summary(checked), flush=True)
+            except (ImportError, ValueError, RuntimeError, OSError) as exc:
                 print("GitHub publisher refused or failed; safe report retained locally. "
                       "S000 privacy schema approval required: " + str(exc), file=sys.stderr)
         return 0
