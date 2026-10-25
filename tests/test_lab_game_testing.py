@@ -5,6 +5,7 @@ These tests do not start Dolphin or create a generated bridge.
 from __future__ import annotations
 from pathlib import Path
 import json
+import inspect
 import sys
 import tempfile
 import unittest
@@ -66,6 +67,20 @@ class LabGameTestingTests(unittest.TestCase):
         self.assertNotIn("--send-live", prepare.command)
         self.assertNotIn("launch_golf.py", prepare.command)
         self.assertFalse(prepare.summary()["fresh_canonical_boot"])
+
+    def test_three_steps_appear_in_desktop_ui_with_readiness_and_restart(self):
+        # Tkinter needs Windows/display, but this verifies the UI actually
+        # exposes the registered audit/prep/live flow rather than only CLI.
+        from wii_ai_golf.lab.gui import launch
+        source = inspect.getsource(launch)
+        for label in ("Game Testing", "1  Inspect bridges",
+                      "2  Prepare historical V1", "3  Run ONE V1 shot",
+                      "Refresh readiness", "Game tests", "Restart Lab (updated)"):
+            with self.subTest(label=label):
+                self.assertIn(label, source)
+        for experiment in ("integration.bridge-audit",
+                           "integration.prepare-v1", "integration.v1-diagnostic"):
+            self.assertIn(experiment, source)
 
     def test_valid_backup_preparation_avoids_modifying_installed_bridge(self):
         source = ATOMIC + "\n" + SWING_V1 + "\n"
