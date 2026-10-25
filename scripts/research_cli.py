@@ -141,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--no-upload", action="store_true", help="Keep report local")
     args = parser.parse_args(argv)
     try:
-        report = sync_merged_main(ROOT, lab_data=DATA / "lab")
+        report = sync_merged_main(ROOT)  # CLI workflow does not use retired GUI lockfiles
         print("GitHub main sync:", report.status, report.note, flush=True)
         if report.status not in ("updated", "up_to_date"):
             print("No experiment started; resolve sync blocker first.", file=sys.stderr)
@@ -158,7 +158,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             bridge = ROOT.parent / "tools" / "mcp_bridge_swing_legacy_eval.py"
             from wii_ai_golf.shared.bridge_provenance import inspect_bridge_file
-            if inspect_bridge_file(bridge)["revision"] != "V1-neutral-swing-calls":
+            identity = inspect_bridge_file(bridge)
+            if identity["revision"] != "V1-neutral-swing-calls" or not identity["safe_for_isolated_legacy_copy"]:
                 raise RuntimeError("Verified isolated V1 bridge missing; will not launch Dolphin")
             print("Close existing Dolphin before this ONE live trial.", flush=True)
             exit_code = _run([sys.executable, str(ROOT / "scripts" / "run_golf_experiment.py"),
