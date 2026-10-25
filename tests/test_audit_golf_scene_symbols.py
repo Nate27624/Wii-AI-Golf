@@ -29,9 +29,8 @@ class SceneSymbolTests(unittest.TestCase):
 
     def test_bad_input_rejected(self):
         self.assertEqual(mod.summarize([])["matched_groups"],[])
-        with self.assertRaisesRegex(ValueError,"missing"):
-            with tempfile.TemporaryDirectory() as td:
-                mod.main(["--map",str(Path(td)/"absent.map")])
+        with tempfile.TemporaryDirectory() as td:
+            self.assertEqual(mod.main(["--map",str(Path(td)/"absent.map")]),1)
 
     def test_map_cli(self):
         with tempfile.TemporaryDirectory() as td:
