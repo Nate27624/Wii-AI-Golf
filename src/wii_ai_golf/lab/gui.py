@@ -140,6 +140,30 @@ def launch(root: Path = ROOT) -> int:
         except (OSError, ValueError) as exc:
             messagebox.showerror("Experiment not started", str(exc))
 
+    def show_last_offline_log():
+        items = history(root.parent / "Wii-AI-Golf-Data" / "lab", limit=30)
+        folder = (root.parent / "Wii-AI-Golf-Data" / "lab" / "runs").resolve()
+        for item in items:
+            filename = item.get("offline_log")
+            if not isinstance(filename, str):
+                continue
+            path = Path(filename).resolve()
+            # A local metadata file must never trick the UI into opening an
+            # unrelated filesystem path.
+            if path.parent != folder or path.suffix != ".log" or not path.is_file():
+                continue
+            log = tk.Toplevel(ui)
+            log.title("Last offline execution output — " + str(item.get("experiment_id")))
+            log.geometry("820x500")
+            view = tk.Text(log, wrap="none", font=("Consolas", 9))
+            view.pack(fill="both", expand=True, padx=10, pady=10)
+            view.insert("1.0", path.read_text(encoding="utf-8", errors="replace")[:250000])
+            view.configure(state="disabled")
+            return
+        messagebox.showinfo("No offline run log yet",
+                            "Run an offline experiment and then refresh. "
+                            "Live inputs are displayed in their interactive console.")
+
     def show_sanitized_reports():
         from .reports import sanitized_reports
         reports = sanitized_reports(root=root)
@@ -197,6 +221,7 @@ def launch(root: Path = ROOT) -> int:
     live_btn.pack(side="left", padx=3)
     ttk.Button(actions, text="Refresh results", command=refresh).pack(side="left", padx=3)
     ttk.Button(actions, text="Sanitized outcomes", command=show_sanitized_reports).pack(side="left", padx=3)
+    ttk.Button(actions, text="Offline log", command=show_last_offline_log).pack(side="left", padx=3)
     listing.bind("<<TreeviewSelect>>", selected)
     refresh()
     if catalog:
