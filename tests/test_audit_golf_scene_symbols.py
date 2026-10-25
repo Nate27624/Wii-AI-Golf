@@ -62,7 +62,7 @@ class SceneSymbolTests(unittest.TestCase):
         })
         self.assertIsNone(report["scene_object_pointer"])
 
-    def test_source_anchored_layout_has_no_guessed_anchor(self):
+    def test_source_anchored_layout_distinguishes_static_slot_from_runtime_pointer(self):
         layout = json.loads(mod.DEFAULT_LAYOUT.read_text(encoding="utf-8"))
         self.assertEqual(layout["region"], "RSPE01")
         self.assertEqual(layout["revision"], 1)
@@ -70,8 +70,21 @@ class SceneSymbolTests(unittest.TestCase):
         self.assertEqual(mgr["current_scene_offset_hex"], "+0xC")
         self.assertEqual(mgr["current_scene_id_offset_hex"], "+0x18")
         self.assertEqual(mgr["current_scene_id_golf"], 5)
+        # Public symbol maps do not name the singleton storage slot.
+        # Independent, offline DOL instruction checks established a
+        # *static storage location*, NOT its live pointer contents.
         self.assertIsNone(mgr["instance_storage_address"])
-        self.assertEqual(mgr["instance_storage_status"], "unresolved")
+        self.assertEqual(
+            mgr["instance_storage_status"],
+            "no_public_symbol_map_storage_entry; see derived_static_storage_address",
+        )
+        self.assertEqual(mgr["derived_static_storage_address"], "0x804BF4D8")
+        self.assertEqual(
+            mgr["derived_static_storage_status"],
+            "private_DOL_verified_signature_not_live_pointer_read",
+        )
+        self.assertIn("constructor load/store", mgr["derived_static_storage_evidence"])
+        self.assertIsNone(mgr["runtime_instance_pointer"])
         golf = layout["golf_scene"]
         self.assertEqual(golf["main_member_offset_hex"], "+0x9C")
         self.assertIsNone(golf["scene_object_address"])
