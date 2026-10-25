@@ -16,7 +16,10 @@ ID = re.compile(r"[0-9]{8}T[0-9]{6}Z-[a-z0-9_-]{4,48}\Z")
 SHA = re.compile(r"[a-f0-9]{64}\Z")
 MAX_FILE_BYTES = 32_768
 MAX_FILES = 500
-PUBLIC_KINDS = frozenset(("v1", "test", "automated-minimap-effect"))
+PUBLIC_KINDS = frozenset(("v1", "test", "automated-minimap-effect",
+                          "swing-power-calibration"))
+POWER_VARIANTS = frozenset((
+    "baseline", "shorter", "slower", "faster", "longer-backswing"))
 HUMAN_CONTACT = frozenset(("yes", "no", "unknown"))
 UNITS = frozenset(("ft", "yd", "m", "unknown", "not-visible"))
 
@@ -76,6 +79,8 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
         for key in ("idle_control", "swing")
     }
     tests = {"pass": 0, "fail": 0}
+    power: dict[tuple[str, str], dict[str, Any]] = {}
+    power_rejected = 0
     unknown_or_failed_v1 = 0
     malformed = 0
     ignored = 0
@@ -118,6 +123,44 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
             cell["changes_seen"] += bool(count)
             cell["zero_change_runs"] += count == 0
             cell["offsets"].update(offsets)
+            continue
+        if kind == "swing-power-calibration":
+            variant = r.get("variant")
+            trace_sha = _sha(r.get("trace_sha256"))
+            frames = _int(r.get("trace_frames"), lo=1, hi=500)
+            contact = r.get("contact_human")
+            observed_power = r.get("power_percent_human")
+            scale = _distance(r.get("parameter_multiplier"))
+            if (type(variant) is not str or variant not in POWER_VARIANTS
+                or trace_sha is None or frames is None
+                or type(contact) is not str or contact not in HUMAN_CONTACT
+                or scale is None or not 0 < scale <= 2
+                or (observed_power is not None and
+                    (_distance(observed_power) is None
+                     or _distance(observed_power) > 100))
+                or r.get("power_verified_by_memory") is not False
+                or r.get("contact_verified_by_memory") is not False):
+                power_rejected += 1
+                continue
+            key = (variant, trace_sha)
+            entry = power.setdefault(key, {
+                "variant": variant, "trace_sha256": trace_sha,
+                "human_labeled_trials": 0, "human_hit_yes": 0,
+                "human_hit_no": 0, "human_hit_unknown": 0,
+                "human_power_percent": [],
+                "missing_bridge_sha256_count": 0,
+                "missing_starting_pose_count": 0,
+                "ball_power_or_score_verified": False,
+            })
+            entry["human_labeled_trials"] += 1
+            entry["human_hit_" + contact] += 1
+            if observed_power is not None:
+                entry["human_power_percent"].append(float(observed_power))
+            if _sha(r.get("bridge_sha256")) is None:
+                entry["missing_bridge_sha256_count"] += 1
+            if r.get("initial_club_pose_human") not in (
+                    "back", "center", "forward", "unknown"):
+                entry["missing_starting_pose_count"] += 1
             continue
         if kind == "v1":
             if (_int(r.get("process_exit_code"), hi=255) != 0 or
@@ -165,6 +208,8 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
         "with_no_adjacent_changes": v["zero_change_runs"],
         "changed_byte_offsets_union": sorted(v["offsets"]),
     } for k, v in minimap.items()}
+    power_groups = sorted(power.values(), key=lambda x: (
+        x["variant"], x["trace_sha256"]))
     # A single idle/swing pair can justify replication, not a detector.
     minimap_ready = all(v["runs"] >= 3 for v in minimap.values())
     v1_ready = any(x["human_labeled_trials"] >= 3 for x in groups)
@@ -179,12 +224,19 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
         "offline_unit_test_exits": tests,
         "v1_incomplete_or_failed_runs": unknown_or_failed_v1,
         "v1_by_bridge_trace_and_observed_a_lead": groups,
+        "power_variant_by_waveform": power_groups,
+        "power_records_rejected": power_rejected,
         "minimap_by_condition": changes,
         "gates": {
             "three_matched_human_trials_any_v1_condition": v1_ready,
             "three_independent_runs_each_minimap_condition": minimap_ready,
             "physics_ball_or_score_identity_verified": False,
             "controller_power_calibrated": False,
+            "power_trials_have_matched_bridge_and_pose_provenance": (
+                bool(power_groups) and
+                all(e["missing_bridge_sha256_count"] == 0 and
+                    e["missing_starting_pose_count"] == 0
+                    for e in power_groups)),
         },
         "next_step": (
             "Repeat the human-confirmed historical V1 trace with 45 observed A-lead "
@@ -194,7 +246,9 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
         ),
         "limitations": (
             "Groups are not interchangeable across bridge SHA, waveform SHA, "
-            "or measured A-lead. Minimap byte changes are visual effects, not "
+            "or measured A-lead. New S002 power variants are grouped by trace "
+            "without inventing missing bridge/pose provenance. "
+            "Minimap byte changes are visual effects, not "
             "verified physical ball motion. Human distances are not memory scores."
         ),
     }
