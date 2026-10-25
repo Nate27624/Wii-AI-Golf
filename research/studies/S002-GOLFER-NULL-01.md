@@ -69,3 +69,65 @@ reuse PR #137's reviewed public summary instead.
 A frame delta matching a u32 increment is not identification of a game
 clock; snapshots are non-atomic, and the stage labels are human-reported.
 Current head still needs fresh Windows targeted/full validation.
+
+
+## 2026-10-25 REAL OPERATOR-REPORTED RESULT: FAILS SWING-EXCLUSIVE HYPOTHESIS
+
+**Evidence:** Windows user executed `py scripts/audit_golfer_null_controls.py --latest`
+against locally held S002 golfer candidate raw JSONL. Only sanitized
+report JSON was shared. Synthetic targeted suite passed 16 tests and
+full suite's failure guard did not trigger (full test count not copied
+into the final snippet). Capture analysis **succeeded**.
+
+- `sample_count=20`; stages in order: 6 idle, 8 `aim_only`,
+  6 idle. They belong to one observed capture, NOT twenty independent shots.
+- Within-stage idle stage 0: **5/5 changed** at candidate
+  `main+0x074`, **5/5 u32 increments equaled elapsed frame_start delta**.
+- Pointer-only stage 1: **7/7 changed**, **7/7 frame deltas equal**.
+- Return-to-idle stage 2: **5/5 changed**, **5/5 frame deltas equal**.
+- Total **17/17 changed**, **17/17 modular u32 increments equal sampled
+  start-frame differences**. The two across-stage boundaries are
+  excluded from the 17 comparison denominator.
+- Maximum within-snapshot non-atomic frame span **6 frames**.
+  `timing_limited=false` according to the preregistered >12 threshold.
+- `independent_sessions_verified=false`,
+  `human_pointer_action_verified_by_sensor=false`,
+  `wii_revision_reverified_from_saved_rows=false`,
+  `game_power_field_verified=false`,
+  `club_pose_verified=false`.
+
+**Result / falsification:** Candidate `main+0x074` changes even in
+both human-labelled stationary idle conditions. We can **reject the
+hypothesis that changes to this single word occur exclusively when a
+golf swing event happens**. Perfect agreement with elapsed emulator
+frame differences makes an emulation-frame counter or time-linked
+gameplay bookkeeping a *strong new hypothesis*, not proof of the exact
+underlying type/identity. It does **not** prove the field can never
+contain power information alongside timing, nor does it establish any
+physical power or score decoder.
+
+**Action:** Demote `main+0x074` to **time-varying nuisance / possible
+frame-clock control** in S002 and S003 rankings. Explicitly exclude
+its raw deltas as standalone power labels/features. In subsequent
+calibration design prefer fields that remain quiet during time-matched
+idle and pointer controls but react to human-verified movement,
+subject to same-shot frame/RPC gate (#123) and independent verified
+outcomes. No more repeated idle capture of this exact word is
+warranted merely to reconfirm the 17/17 pattern.
+
+**Source limitation:** Public `kiwi515/ogws_info` names
+`RPGolScene+0x9C` as `RPGolMain*`, but no source-verified member
+name for `RPGolMain+0x74` has been located in the consulted
+upstream data (source map confirms object-code region, not field
+type). We must not label +0x74 `mFrameCounter` in code/docs until a
+separate source-backed or intervention-based validation identifies it.
+
+**Coordination:** The general per-region control study in
+S000/S002 PR #137 (analyzer PR #135) already ran and is the
+canonical idle/aim specificity view. This narrow PR #138 adds only
+the explicit `delta_word == delta_emulated_frame` falsification
+with phase-stage partition. Avoid merging duplicate production
+CLI/analyzers; retain result in research ledger/handoff, and
+archive or fold the narrow numeric test into #135 when owner approved.
+The report intentionally remains PRIVATE LOCAL + manually shared
+sanitized JSON until S000 typed publisher schema is approved.
