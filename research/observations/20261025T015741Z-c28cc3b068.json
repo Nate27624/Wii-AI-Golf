@@ -1,0 +1,11 @@
+{
+  "git_commit": "7073758b6448e65e92d749c4ecd0c8b9d88d1d3f",
+  "id": "20261025T015741Z-c28cc3b068",
+  "kind": "test",
+  "outcome": "fail",
+  "process_exit_code": 1,
+  "schema": 1,
+  "started_utc": "2026-10-25T01:57:41.043383+00:00",
+  "test_pattern": "test_*.py",
+  "verified_game_score": false
+}
