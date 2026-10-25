@@ -194,7 +194,8 @@ def launch(root: Path = ROOT) -> int:
         }
         if is_bridge_study:
             if not game_panel.winfo_manager():
-                game_panel.pack(fill="x", pady=(5, 8), before=inputs)
+                anchor = inputs if inputs.winfo_manager() else status_label
+                game_panel.pack(fill="x", pady=(5, 8), before=anchor)
             refresh_bridge_status()
         else:
             game_panel.pack_forget()
@@ -396,8 +397,7 @@ def launch(root: Path = ROOT) -> int:
             return
         sync_manual_requested[0] = manual
         lab_root = root.parent / "Wii-AI-Golf-Data" / "lab"
-        if active or any((lab_root / name).exists()
-                         for name in ("live-session.lock", "run-session.lock")):
+        if active or game_job_busy[0] or any_lab_job_busy(lab_root):
             sync_line.set("GitHub: synchronization deferred while an experiment runs.")
             if manual:
                 messagebox.showwarning("GitHub sync blocked", sync_line.get())
@@ -459,8 +459,9 @@ def launch(root: Path = ROOT) -> int:
 
     def run_selected(live: bool, *, verified_v1: bool = False):
         try:
-            if sync_busy[0] or game_job_busy[0]:
-                raise ValueError("A Lab task or GitHub update is still running.")
+            if sync_busy[0] or game_job_busy[0] or any_lab_job_busy(lab_data):
+                raise ValueError("A Lab task or GitHub update is active. "
+                                 "The app will not start an overlapping experiment.")
             p = selected_plan()
             if p.experiment["id"] == "integration.bridge-audit":
                 inspect_bridges()
@@ -607,9 +608,7 @@ def launch(root: Path = ROOT) -> int:
     ttk.Button(primary_actions, text="Refresh results", command=refresh).pack(side="left", padx=3)
     ttk.Button(secondary_actions, text="Sync GitHub", command=lambda: request_sync(manual=True)).pack(side="left", padx=3)
     def restart_lab():
-        if active or sync_busy[0] or game_job_busy[0] or any(
-                (root.parent / "Wii-AI-Golf-Data" / "lab" / name).exists()
-                for name in ("live-session.lock", "run-session.lock")):
+        if active or sync_busy[0] or game_job_busy[0] or any_lab_job_busy(lab_data):
             messagebox.showwarning("Restart deferred",
                                    "Finish current GitHub update or Lab experiment first.")
             return
