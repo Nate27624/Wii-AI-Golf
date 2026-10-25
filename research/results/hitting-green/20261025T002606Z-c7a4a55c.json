@@ -1,0 +1,31 @@
+{
+  "captured_utc": "2026-10-25T00:26:54.522584+00:00",
+  "errors": [],
+  "observed_phase": "aim_only",
+  "results": {
+    "claim": "SOURCE_DOCUMENTED_MAP_OBJECT_TRANSLATIONS_NOT_BALL_COORDINATES",
+    "landmarks": {
+      "cup": {
+        "max_adjacent_step_units": 0.0,
+        "moving_steps": 0,
+        "present": 50
+      },
+      "pin": {
+        "max_adjacent_step_units": 0.0,
+        "moving_steps": 0,
+        "present": 50
+      },
+      "start": {
+        "max_adjacent_step_units": 0.0,
+        "moving_steps": 0,
+        "present": 50
+      }
+    },
+    "samples": 50
+  },
+  "run_id": "20261025T002606Z-c7a4a55c",
+  "samples": 50,
+  "schema_version": 1,
+  "study_id": "S002-SOURCE-LANDMARK-CONTROL",
+  "warning": "Pin/start/cup are map-object references, not the physics ball"
+}
