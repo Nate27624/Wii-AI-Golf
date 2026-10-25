@@ -165,7 +165,8 @@ def analyze_records(records: list[object]) -> dict:
     }
 
 
-def read_private_capture(path: Path, *, private_dir: Path = PRIVATE_CAPTURES) -> list[dict]:
+def read_private_capture(path: Path, *, private_dir: Path | None = None) -> list[dict]:
+    private_dir = PRIVATE_CAPTURES if private_dir is None else private_dir
     if path.is_symlink() or not path.is_file():
         raise ValueError("missing or symbolic-link private capture")
     if path.parent.resolve() != private_dir.resolve() or not NAME_PATTERN.fullmatch(path.name):
