@@ -86,7 +86,8 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 a_lead_frames: int = 0,
                 observe_start_pose: bool = False,
                 motion_scale: float = 1.0,
-                trial_seed: int | None = None) -> dict[str, Any]:
+                trial_seed: int | None = None,
+                ask_power: bool = False) -> dict[str, Any]:
     """One opted-in forward shot, bounded RAM snapshots and human landing label.
 
     Write private raw JSONL immediately, exclusively; cancellation preserves
@@ -195,6 +196,21 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         stage_valid = label == ""
         capture_stage("settled", settled_samples)
     annotation = _visual_label(input_fn)
+    if ask_power:
+        while True:
+            value = input_fn("Observed on-screen power percent (0..100; blank if not visible): ").strip()
+            if not value:
+                annotation["displayed_power_percent_human"] = None
+                break
+            try:
+                num = float(value.rstrip("%"))
+                if not math.isfinite(num) or not 0 <= num <= 100:
+                    raise ValueError("outside 0..100")
+                annotation["displayed_power_percent_human"] = num
+                break
+            except ValueError:
+                print("Enter power between 0 and 100 or leave blank.")
+        annotation["displayed_power_verified_by_memory"] = False
     if observe_start_pose:
         annotation["initial_club_pose_human"] = start_pose
         annotation["initial_club_pose_verified_by_memory"] = False
@@ -256,6 +272,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--interval", type=float, default=0.0)
     p.add_argument("--motion-scale", type=float, choices=(0.6,0.8,1.0,1.2), default=1.0)
     p.add_argument("--trial-seed", type=int, default=None)
+    p.add_argument("--ask-power", action="store_true",help="Record the visible game power meter if shown")
     args = p.parse_args(argv)
     if not args.send_live_swing:
         p.error("Requires --send-live-swing and the canonical fresh-launch wrapper")
@@ -287,7 +304,8 @@ def main(argv: list[str] | None = None) -> int:
                              a_prime_requests=args.a_prime_requests,
                              a_lead_frames=args.a_lead_frames,
                              observe_start_pose=args.observe_start_pose,
-                             motion_scale=scale,trial_seed=args.trial_seed)
+                             motion_scale=scale,trial_seed=args.trial_seed,
+                             ask_power=args.ask_power)
     if result.get("cancelled"):
         print("Session cancelled:", result)
         return 0
