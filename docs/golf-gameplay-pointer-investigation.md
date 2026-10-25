@@ -19,12 +19,33 @@ Neither `golf_field` nor `minimap_ball_effect` is a substitute for
 
 ## Read-only offline symbol reconnaissance
 
-Obtain **RSPE_r1.map** (or `RSPE_r1.map.csv`) from the linked public
-source and retain it locally. Then:
+The upstream repo includes three distinct root-level files:
+[`RSPE_r1.map`](https://github.com/kiwi515/ogws_info/blob/main/RSPE_r1.map) (Ghidra map),
+[`RSPE_r1.map.csv`](https://github.com/kiwi515/ogws_info/blob/main/RSPE_r1.map.csv) (CSV), and
+[`RSPE_r1.dmap`](https://github.com/kiwi515/ogws_info/blob/main/RSPE_r1.dmap) (Dolphin map).
+The scanner accepts either the plain map or the CSV. Use the **CSV**
+file below; run these commands in the separate PR #122 worktree, not
+the main checkout:
 
 ```powershell
-py scripts/audit_golf_scene_symbols.py --map "D:\path\to\RSPE_r1.map"
+$work = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Scene-Test"
+if (-not (Test-Path "$work\scripts\audit_golf_scene_symbols.py")) {
+    throw "PR #122 worktree missing; first complete Step 1"
+}
+Set-Location $work
+$map = Join-Path $env:TEMP "RSPE_r1.map.csv"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/kiwi515/ogws_info/main/RSPE_r1.map.csv" -OutFile $map -ErrorAction Stop
+if (-not (Test-Path $map) -or (Get-Item $map).Length -eq 0) {
+    throw "Public symbol map download failed"
+}
+py scripts/audit_golf_scene_symbols.py --map $map
 ```
+
+This downloads only a public symbol map and performs an offline,
+read-only scan afterward; it does not connect to Dolphin. If downloading
+is blocked, download the same CSV through the GitHub file page, save
+it manually, and provide the actual local file path to `--map`.
+Do not copy `D:\path\to\...` literally; it was only a placeholder.
 
 The tool only counts symbol-map lines grouped by scene-related class
 names and possible singleton naming conventions. It never prints memory
