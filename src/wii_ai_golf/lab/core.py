@@ -359,4 +359,16 @@ def execute(
                 do_run()
         else:
             do_run()
+    # Publish only after releasing the session lock. Never hold the emulator
+    # lock through networking, and never fail a completed run on upload errors.
+    if os.environ.get("WII_GOLF_AUTO_PUBLISH") == "1":
+        try:
+            from .publish import publish_record
+            result = publish_record(record)
+            record["publish_status"] = result["status"]
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            record["publish_status"] = "failed"
+            print("Sanitized GitHub result publish failed:", type(exc).__name__,
+                  file=sys.stderr)
+        write()
     return record
