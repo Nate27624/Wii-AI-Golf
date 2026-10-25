@@ -220,13 +220,6 @@ def launch(root: Path = ROOT) -> int:
     def launch_game_step(identifier: str, *, live: bool = False):
         try:
             navigate_study(identifier)
-            if identifier == "integration.prepare-v1":
-                if not messagebox.askyesno(
-                    "Prepare isolated historical V1 bridge",
-                    "Copy the previously saved historical V1 bridge into a separate "
-                    "diagnostic file? This never replaces your active V2 bridge, "
-                    "and refuses to overwrite a different existing file."):
-                    return
             if live:
                 _, prepared = bridge_readiness()
                 if not prepared["safe_for_isolated_legacy_copy"]:
@@ -309,6 +302,12 @@ def launch(root: Path = ROOT) -> int:
             p = selected_plan()
             if p.live != live:
                 raise ValueError("Experiment mode does not match this button")
+            if p.experiment["id"] == "integration.prepare-v1" and not messagebox.askyesno(
+                "Prepare isolated historical V1 bridge",
+                "Copy the saved V1 bridge into a SEPARATE diagnostic file? "
+                "Your active V2 bridge and savestates will not be overwritten. "
+                "The step will refuse unsafe/mismatched backup files."):
+                return
             if live and not messagebox.askyesno(
                 "Confirm ONE live swing", "Close Dolphin completely before continuing.\n"
                 "Start ONE canonical full-boot Wii Sports trial? The terminal "
