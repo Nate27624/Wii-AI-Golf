@@ -175,8 +175,8 @@ def summarize(rows,phase_labels,checks,match,run_id,child_count=0,child_overflow
         "census_frame_span":checks["census_frame_span"],
         "matched_scene_chains":1,
         "manager_slot_relative_offsets":[f"+0x{x:03X}" for x in match["slot_offsets"]],
-        "observed_creator_scene_id_matches_golf":match["creator_scene_id"]==SCENE_ID,
         "creator_scene_id_role":"previous_scene_not_current_scene_id",
+        "creator_scene_id_not_used_for_identity":True,
         "actual_scene_id_verified":True,"manager_backlink_verified":True,
         "phase_sample_counts":phase_labels,
         "samples":len(rows),"max_non_atomic_frame_span":max(
@@ -257,6 +257,7 @@ def main(argv=None):
         with summary_file.open("x",encoding="utf-8") as fp:
             json.dump(result,fp,indent=2,sort_keys=True,allow_nan=False)
             fp.write("\n")
+        print("Private captured game memory:",private if private.exists() else "No gameplay bytes recorded",flush=True)
         print("Local sanitized report:",summary_file,flush=True)
         print(json.dumps(result,indent=2),flush=True)
         print("No RAM uploaded. Paste the printed summary for research.",flush=True)
