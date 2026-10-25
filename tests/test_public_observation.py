@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
+import tempfile
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -233,6 +234,56 @@ class PublicObservationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 research_cli.publish_summary(row)
             git.assert_not_called()
+
+    def test_saved_scene_root_replay_reads_only_allowlisted_report(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp) / "captures"
+            source.mkdir()
+            row = scene_root_record()
+            (source / ("golf-scene-root-" + row["id"] + "-summary.json")).write_text(
+                json.dumps(row), encoding="utf-8"
+            )
+            with patch.object(research_cli, "DATA", Path(temp)), \
+                 patch.object(research_cli, "publish_summary", return_value="GitHub: OK") as push:
+                self.assertIn("VALID LOCAL-ONLY", research_cli.publish_saved_scene_root(
+                    row["id"], local_only=True))
+                push.assert_not_called()
+                self.assertEqual(research_cli.publish_saved_scene_root(row["id"]), "GitHub: OK")
+                push.assert_called_once_with(row)
+
+    def test_saved_replay_fails_closed_on_bad_id_file_or_claim(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp) / "captures"
+            source.mkdir()
+            safe = scene_root_record()
+            path = source / ("golf-scene-root-" + safe["id"] + "-summary.json")
+            with patch.object(research_cli, "DATA", Path(temp)), \
+                 patch.object(research_cli, "publish_summary") as publish:
+                for bad in ("../secret", "cohort-20261025T025308Z-fbda2d0e",
+                            "offline-20261025T024447Z-a37ee401"):
+                    with self.subTest(identifier=bad), self.assertRaises(ValueError):
+                        research_cli.publish_saved_scene_root(bad)
+                with self.assertRaises(ValueError):
+                    research_cli.publish_saved_scene_root(safe["id"])
+                for tampered in (
+                    {**safe, "id": "20261025T111111Z-baddcafe"},
+                    {**safe, "private_pointer": "0x80500000"},
+                    {**safe, "confirmed_golf_power_address": True},
+                ):
+                    path.write_text(json.dumps(tampered), encoding="utf-8")
+                    with self.subTest(tampered=list(tampered)[-1]), self.assertRaises(ValueError):
+                        research_cli.publish_saved_scene_root(safe["id"])
+                publish.assert_not_called()
+
+    def test_replay_cli_keeps_canonical_sync_gate_before_publish(self):
+        from wii_ai_golf.lab.github_sync import SyncReport
+        row = scene_root_record()
+        with patch.object(research_cli, "sync_merged_main",
+                          return_value=SyncReport("blocked", note="Dirty checkout")), \
+             patch.object(research_cli, "publish_saved_scene_root") as publish:
+            self.assertEqual(research_cli.main([
+                "publish-saved-scene-root", "--id", row["id"]]), 2)
+            publish.assert_not_called()
 
     def test_s002_cohort_schema_accepts_safe_existing_shape(self):
         safe = public_observation(cohort_record())
