@@ -29,7 +29,8 @@ KINDS = {
     "tests_evaluation": "offline", "tests_learning": "offline",
     "bridge_inspect": "offline", "compare": "offline",
     "motion_audit": "offline", "recover": "offline", "demo": "offline",
-    "focused_trace": "offline",
+    "focused_trace": "offline", "s002_landmarks":"live",
+    "s002_minimap_camera":"live", "s002_minimap_swing":"live",
     "swing": "live", "capture": "live", "unavailable": "planned",
 }
 
@@ -92,6 +93,7 @@ def _child(script: str, *args: str, root: Path = ROOT, python: str = sys.executa
         "run_golf_experiment.py", "launch_golf.py",
         "compare_outcome_runs.py", "audit_motion_candidates.py",
         "recover_outcome_capture.py", "analyze_focused_trace.py",
+        "run_s002_lab_capture.py",
     }
     if script not in allowed or not (root / "scripts" / script).is_file():
         raise ValueError(f"Unsupported/missing reviewed script: {script}")
@@ -182,6 +184,11 @@ def plan(
             command += ["--distance", distance]
         if output_path is not None:
             command += ["--out", output_path]
+    elif kind in {"s002_landmarks", "s002_minimap_camera", "s002_minimap_swing"}:
+        selected={"s002_landmarks":"landmarks",
+                  "s002_minimap_camera":"minimap_camera",
+                  "s002_minimap_swing":"minimap_swing"}[kind]
+        command=_child("run_s002_lab_capture.py","--study",selected,root=root,python=python)
     elif kind == "focused_trace":
         command = _child("analyze_focused_trace.py", "--input",
                          require(input_path, "--input"), root=root, python=python)
