@@ -1,6 +1,13 @@
 """Golf Lab offline S002 trace integration contract."""
 import unittest
 from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC = str(ROOT / "src")
+if SRC in sys.path:
+    sys.path.remove(SRC)
+sys.path.insert(0, SRC)
 from wii_ai_golf.lab import core
 
 class TraceLabIntegration(unittest.TestCase):
