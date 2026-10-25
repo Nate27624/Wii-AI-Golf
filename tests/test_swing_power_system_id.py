@@ -4,6 +4,14 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/"scripts"),str(ROOT/"src")]
 from trial_swing_power import waveform,public_record
 class CalibrationTests(unittest.TestCase):
+    def test_power_trial_requires_separate_a_prehold(self):
+        import inspect
+        import trial_swing_power
+        src=inspect.getsource(trial_swing_power.main)
+        self.assertIn("prime_a_button(rpc,remote=0,requests=60)",src)
+        self.assertIn("release_buttons(rpc,remote=0)",src)
+        self.assertIn("trace.swing_capabilities",src)
+
     def test_single_variable_only(self):
         original=waveform("baseline")
         for variant in ("shorter","slower","faster","longer-backswing"):
