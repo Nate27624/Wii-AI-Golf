@@ -27,9 +27,14 @@ The pure `wii_ai_golf.shared.public_observation.public_observation` gate now:
 - Allows the S000/S002 PR #130 `golf_scene_root_candidate_triage` **only**
   with its exact source-gated Rev1/mode-4 schema: two static cells, two passes,
   at most 40 emulation frames per read, slot indices 0 or 1, bounded counts,
-  and all `confirmed_*` flags **false**. Any runtime pointer, local path,
-  raw read, unsupported additional field, or verified-power claim is rejected.
+  and all `confirmed_*` flags **false**. The stricter stacked PR #132
+  emits exactly four additional own-scene/backlink/sport/uniqueness fields
+  and a different fixed warning; this is accepted as a **second, exact
+  producer shape**, not arbitrary schema extension. Contradictory booleans,
+  partial add-ons, count/gate mismatches, mixed warnings, pointer values,
+  private paths and unsupported fields are rejected before any Git call.
   A report with **zero candidates is valid and informative**.
+  Two surviving cells remain **ambiguous**, never a confirmed singleton.
 - Recognizes the **already-published S002 24-run cohort** record kind
   `golf-memory-cohort-relative-words` with a separate exact schema, safe
   `cohort-` ID, bounded recurrence counts and source-defined warning. A
