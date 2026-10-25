@@ -12,12 +12,7 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: read
-    # Python tempfile resolves Windows RUNNER~1 8.3 aliases in the default
-    # user temp root; use the runner's canonical temp directory for all tests.
-    env:
-      TEMP: ${{ runner.temp }}
-      TMP: ${{ runner.temp }}
-      TMPDIR: ${{ runner.temp }}
+    # runner.temp is available in step env, not jobs.<job_id>.env.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -27,5 +22,13 @@ jobs:
         run: python -m compileall -q src scripts tests
       - name: Focused S001 mapping and safety tests
         run: python -m unittest discover -s tests -p "test_integration_mouse_isolation.py" -v
+        env:
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+          TMPDIR: ${{ runner.temp }}
       - name: Full regression offline
         run: python -m unittest discover -s tests -v
+        env:
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+          TMPDIR: ${{ runner.temp }}
