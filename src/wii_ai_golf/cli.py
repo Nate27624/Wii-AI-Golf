@@ -104,12 +104,14 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--game", help="Optional game path, else local remembered game")
     record.add_argument("--pre-samples", type=int, default=3,
                         help="Read-only game snapshots BEFORE swing (2..10; default 3)")
-    record.add_argument("--post-samples", type=int, default=8,
-                        help="Read-only game snapshots after swing (2..40; default 8)")
+    record.add_argument("--post-samples", type=int, default=2,
+                        help="Read-only game snapshots after swing (2..40; S002 default 2)")
     record.add_argument("--settled-samples", type=int, default=3,
                         help="Read-only snapshots after human confirms result (2..10)")
-    record.add_argument("--interval", type=float, default=0.4,
-                        help="Delay between RAM captures in seconds (0..5)")
+    record.add_argument("--interval", type=float, default=0.0,
+                        help="Delay between RAM captures in seconds (0..5; S002 default 0)")
+    record.add_argument("--a-prime-requests", type=int, default=0,
+                        help="Separate A-button priming requests BEFORE trace (0..180; default 0 is S002's last observed striking method)")
     record.add_argument("--data-dir", help="Override local PRIVATE output folder, never Git")
     
     experiment = sub.add_parser("experiment", help="Fresh intro then an approved action script")
@@ -252,8 +254,11 @@ def execute(args: argparse.Namespace) -> int:
             raise ValueError("outcome record: pre=2..10, post=2..40, settled=2..10")
         if not math.isfinite(args.interval) or not 0 <= args.interval <= 5:
             raise ValueError("outcome record: --interval must be finite, 0..5 seconds")
+        if not 0 <= args.a_prime_requests <= 180:
+            raise ValueError("outcome record: --a-prime-requests must be 0..180")
         action = [
             "--send-live-swing",
+            "--a-prime-requests", str(args.a_prime_requests),
             "--pre-samples", str(args.pre_samples),
             "--post-samples", str(args.post_samples),
             "--settled-samples", str(args.settled_samples),
@@ -268,8 +273,10 @@ def execute(args: argparse.Namespace) -> int:
             command.append("--send-live")
         # Exactly one canonical boot and one S002 shot collector. The
         # coordinator wraps the already-ready game; do not pass attach flags.
-        print("S002 outcome collector: pre-shot RAM reads and human landing "
-              "labels, NOT a verified automatic score.", flush=True)
+        print("S002 outcome collector: fixed direct unprimed swing by default "
+              "(A primer requests=", args.a_prime_requests,
+              "); pre-shot RAM reads + human labels, NOT a verified score.",
+              flush=True)
         return _run(_script_command("run_golf_experiment.py",
                                    *command, "--", *action))
     if args.group == "experiment":
