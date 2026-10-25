@@ -129,7 +129,7 @@ class GolferNullControlTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             directory = Path(td)
             allowed = directory / "golfer-20261025T031834Z-85d5b836-RAW-PRIVATE.jsonl"
-            allowed.write_text("".join(json.dumps(r) + "\\n" for r in rows_for()),
+            allowed.write_text("".join(json.dumps(r) + "\n" for r in rows_for()),
                                encoding="utf-8")
             result = audit.read_private_capture(allowed, private_dir=directory)
             self.assertEqual(len(result), 20)
@@ -143,7 +143,7 @@ class GolferNullControlTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             directory = Path(td)
             allowed = directory / "golfer-20261025T031834Z-85d5b836-RAW-PRIVATE.jsonl"
-            allowed.write_text("".join(json.dumps(r) + "\\n" for r in rows_for()),
+            allowed.write_text("".join(json.dumps(r) + "\n" for r in rows_for()),
                                encoding="utf-8")
             stdout, stderr = StringIO(), StringIO()
             with patch.object(audit, "PRIVATE_CAPTURES", directory):
