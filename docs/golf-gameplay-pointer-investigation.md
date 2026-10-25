@@ -96,6 +96,59 @@ Useful links:
 - [RPSysSceneCreator.h](https://github.com/doldecomp/ogws/blob/master/include/Pack/RPSystem/RPSysSceneCreator.h)
 - [Kiwi RPGolScene.h](https://github.com/kiwi515/ogws_info/blob/main/RP/RPSports/RPGolScene/RPGolScene.h)
 
+
+## Offline follow-up: bounded DOL code-reference triage (no live Dolphin actions)
+
+The upstream `RSPE_r1.map`, `RSPE_r1.dmap`, and CSV files contain
+**function addresses, not a named `RPSysSceneMgr::spInstance` storage
+symbol**. We checked the map: it does not contain a literal `spInstance`
+or `sInstance` entry. Therefore no public map alone currently identifies
+the singleton storage address.
+
+To narrow it without guessing game RAM, PR #122 also includes
+`scripts/audit_golf_singleton_code.py`. It reads **only** a locally
+extracted `main.dol`, maps DOL executable sections, and inspects three
+source-anchored function ranges for PowerPC `lwz` instructions using the
+`r13` mutable small-data-area base:
+
+- `RPSysSceneCreator::changeSceneAfterFade`, 0x80184BA4, 0x26C bytes
+- `RPSysScene::setSceneFadeColor`, 0x80185484, 0x48 bytes
+- `RPSysScene::setFadeColor`, 0x801854CC, 0x48 bytes
+
+The starting addresses and sizes are from the public **Rev1**
+`kiwi515/ogws_info/RSPE_r1.map`; the newer source
+`doldecomp/ogws/src/Pack/RPSystem/RPSysSceneMgr.cpp` shows multiple
+`RP_GET_INSTANCE(RPSysSceneMgr)` callsites. The tool reports shared
+**signed r13-relative displacements**, never guesses a RAM address.
+Multiple callsites could still reference other shared globals. It
+does **not** identify the manager singleton without disassembly review.
+
+To extract the executable from the user's own local Wii Sports USA Rev1
+image, use Dolphin's game list: right-click Wii Sports, choose
+**Properties > Filesystem**, locate and extract `main.dol` (or choose
+**Extract System Data** / **Extract Entire Disc** and find
+`DATA/sys/main.dol`). Save it somewhere private under
+`Wii-AI-Golf-Data`, never in the Git checkout or uploads.
+
+Then from the PR #122 worktree run:
+
+```powershell
+py scripts/audit_golf_singleton_code.py --dol "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\symbols\main.dol"
+```
+
+This is local, offline, read-only and never controls Dolphin. The DOL
+alone has no authoritative disc revision header; the script **cannot**
+verify the input is Rev1. If mapped function ranges are missing, it
+fails closed instead of searching unknown bytes. Never publish/upload
+the extracted executable or its raw bytes. The only useful output for
+peer review is the sanitized JSON report with callsite counts and
+relative offsets, not absolute object addresses.
+
+**Next gate:** distinguish the candidate `spInstance` loading instruction
+from other globals by examining the function's instruction/register
+flow and independent anchors. Only then can a separately reviewed
+read-only `RPSysSceneMgr` runtime probe be designed.
+
 ## Next evidence gate — do not skip
 
 1. From independently reviewed Rev1 source/decompilation, establish the
