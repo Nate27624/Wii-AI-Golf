@@ -1,5 +1,11 @@
 # Wii AI Golf
 
+## Guided V1 game testing and recoverable Lab sessions
+
+The Lab's historical V1 comparison is now **one experiment in the normal Show/detail pane**, not a separate multi-step toolbar above the catalog. Select **Game tests → Historical V1 contact comparison → Prepare and run one V1 shot**. The UI checks provenance, prepares an isolated verified V1 file if needed, and asks before starting a real shot. Failed prerequisites stay in the detail pane with an explanation.
+
+Lab sessions now use OS-released locks rather than treating a leftover `*.lock` file as evidence of an active test. The legacy PID is checked conservatively; a dead owner is recovered without manual deletion and a live or unverifiable owner is not bypassed. GitHub sync and the UI use the same check. See [Research Lab guide](docs/research-lab.md).
+
 ## Game Testing UI result visibility
 
 The **Inspect bridges** button writes the actual V1/V2 inspection into the permanent Game Testing results area. **Prepare historical V1** runs the reviewed recorded Lab preparation in the background and displays progress/errors there. Neither opens a separate terminal or a generic missing-log popup. The one-shot Dolphin swing retains its interactive console and explicit consent. A historical V1 trial can only be enabled if the isolated copy exactly matches the verified pre-V2 backup. See [Research Lab UI guide](docs/research-lab.md).
