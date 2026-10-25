@@ -87,6 +87,20 @@ def _link(memory: Mapping, swing: Mapping) -> list[str]:
     if not _frame(span) or span > 3:
         reasons.append("slow_or_unknown_non_atomic_ram_read")
 
+    # Zero changes imply specificity only if control phases were sampled.
+    # At least two snapshots per phase are required to detect within-stage
+    # changes; an unsampled control is never evidence of no variation.
+    phase_counts = memory.get("phase_sample_counts")
+    required = (*NEGATIVE_PHASES, *POSITIVE_PHASES)
+    sampled = {}
+    if not isinstance(phase_counts, Mapping) or any(
+        type(phase_counts.get(phase)) is not int or
+        not 2 <= phase_counts[phase] <= 240 for phase in required
+    ):
+        reasons.append("missing_or_under_sampled_negative_positive_controls")
+    else:
+        sampled = {phase: phase_counts[phase] for phase in required}
+
     brackets = memory.get("phase_frame_brackets")
     if not isinstance(brackets, list) or not brackets or len(brackets) > 240:
         reasons.append("no_phase_specific_frame_brackets")
@@ -97,6 +111,8 @@ def _link(memory: Mapping, swing: Mapping) -> list[str]:
             reasons.append("missing_observed_swing_frame_window")
         else:
             good = set()
+            observed = {phase: 0 for phase in required}
+            previous_start = -1
             for bracket in brackets:
                 if not isinstance(bracket, Mapping):
                     reasons.append("invalid_phase_frame_bracket")
@@ -105,8 +121,18 @@ def _link(memory: Mapping, swing: Mapping) -> list[str]:
                 if phase not in ALLOWED_PHASES or not _frame(a) or not _frame(b) or b < a or b - a > 3:
                     reasons.append("invalid_phase_frame_bracket")
                     break
+                if a < previous_start:
+                    reasons.append("nonchronological_memory_frame_brackets")
+                    break
+                previous_start = a
+                if phase in observed:
+                    observed[phase] += 1
+                if phase in NEGATIVE_PHASES and b > start:
+                    reasons.append("negative_control_overlaps_swing")
                 if phase in POSITIVE_PHASES and a <= end and b >= start:
                     good.add(phase)
+            if sampled and any(observed[p] != sampled[p] for p in required):
+                reasons.append("phase_brackets_do_not_match_sample_counts")
             if not good:
                 reasons.append("no_memory_samples_overlap_swing_window")
     return reasons
