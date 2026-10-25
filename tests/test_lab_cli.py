@@ -26,14 +26,12 @@ class LabCliTests(unittest.TestCase):
         self.assertIn("generalization.holdout", output.getvalue())
         self.assertIn("planned", output.getvalue())
 
-    def test_v1_diagnostic_listed_in_shared_cli_registry(self):
+    def test_v1_diagnostic_listed_in_single_lab_ui_registry(self):
         entries = core.load_catalog(core.CATALOG)
         diagnostic = next(e for e in entries if e["id"] == "integration.v1-diagnostic")
         self.assertEqual(diagnostic["mode"], "live")
         self.assertEqual(diagnostic["kind"], "v1_capture")
-        self.assertIn("initial", diagnostic["description"].lower())
-        self.assertIn("club pose", diagnostic["description"].lower())
-        self.assertIn("no automatic score", diagnostic["description"].lower())
+        self.assertIn("previous 12-frame", diagnostic["description"].lower())
         with redirect_stdout(io.StringIO()) as out:
             self.assertEqual(cli.main(["lab", "list"]), 0)
         self.assertIn("integration.v1-diagnostic", out.getvalue())
