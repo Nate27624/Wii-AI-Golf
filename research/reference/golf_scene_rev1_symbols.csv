@@ -1,0 +1,13 @@
+# Curated *symbol locations* for Wii Sports USA Rev1, not live RAM pointers.
+# Facts selected from kiwi515/ogws_info RSPE_r1.map.csv at upstream commit
+# bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81, plus RPGolScene.h:
+# https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RSPE_r1.map.csv
+# These are executable function addresses; they do not identify the scene object.
+"RPSysSceneMgr::getCurrentScene", 0x80186100
+"RPSysSceneMgr::calcCurrentScene", 0x80185868
+"RPSysSceneMgr::updateState", 0x801856d0
+"RPSysSceneMgr::RPSysSceneMgr", 0x80186108
+"RPSysSceneCreator::createInstance", 0x80184e10
+"RPSysSceneCreator::createSportsScene", 0x80184000
+"RPSysScene::do_calc", 0x80185164
+"RPSysScene::enter", 0x80185304
