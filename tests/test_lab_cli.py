@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from wii_ai_golf import cli
 from wii_ai_golf.lab import core
+from wii_ai_golf.lab.github_sync import SyncReport
 
 
 class LabCliTests(unittest.TestCase):
@@ -52,6 +53,30 @@ class LabCliTests(unittest.TestCase):
         with patch.object(cli, "_run") as run:
             self.assertEqual(cli.main(["lab", "plan", "modeling.sweep"]), 2)
             run.assert_not_called()
+
+    def test_github_sync_cli_shows_updated_tests_but_does_not_run_them(self):
+        updated = SyncReport("updated", "before", "after",
+                             ("tests/test_outcome_more.py",),
+                             "Fast-forwarded approved main.")
+        with patch("wii_ai_golf.lab.github_sync.sync_merged_main",
+                   return_value=updated) as sync, \
+             patch.object(core, "execute") as execute, \
+             redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(cli.main(["lab", "sync"]), 0)
+            sync.assert_called_once_with(cli.ROOT, lab_data=cli.DATA_ROOT / "lab")
+            execute.assert_not_called()
+        self.assertIn("tests/test_outcome_more.py", out.getvalue())
+        self.assertIn("Run 'py scripts/golf.py lab list'", out.getvalue())
+
+    def test_github_sync_refuses_an_untrusted_or_dirty_checkout(self):
+        blocked = SyncReport("blocked", note="Working tree has local changes.")
+        with patch("wii_ai_golf.lab.github_sync.sync_merged_main",
+                   return_value=blocked), \
+             patch.object(cli, "_run") as run, \
+             redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(cli.main(["lab", "sync"]), 1)
+            run.assert_not_called()
+        self.assertIn("blocked", out.getvalue())
 
     def test_synthetic_learning_plan_is_not_real_game(self):
         with redirect_stdout(io.StringIO()) as out:
