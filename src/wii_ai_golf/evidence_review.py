@@ -94,7 +94,9 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
         kind = r.get("kind")
         if kind == "test":
             status = r.get("outcome")
-            if status in tests and _int(r.get("process_exit_code"), hi=255) is not None:
+            exit_code = _int(r.get("process_exit_code"), hi=255)
+            if (status == "pass" and exit_code == 0) or (
+                    status == "fail" and exit_code is not None and exit_code != 0):
                 tests[status] += 1
             else:
                 malformed += 1
