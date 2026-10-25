@@ -32,7 +32,8 @@ REPO_URL = "https://github.com/Nate27624/Wii-AI-Golf.git"
 CAPTURES = DATA / "captures"
 SAFE_LABELS = ("contact_human", "initial_club_pose_human",
                "finished_on_green_human", "displayed_distance_human",
-               "displayed_unit_human", "shot_start_frame_before_controller_trace")
+               "displayed_unit_human", "shot_start_frame_before_controller_trace",
+               "displayed_power_percent_human")
 SAFE_TRACE = ("trace_sha256", "generated_trace_frames",
               "a_lead_requested_frames", "a_lead_observed_frame_delta",
               "motion_scale")
