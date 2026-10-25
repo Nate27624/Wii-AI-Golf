@@ -108,20 +108,13 @@ observation label. Wrong mode, disconnected bridge, frame counter reset
 or excessively long non-atomic sample fails safely. A partial private file
 can remain on failure, with no false success report.
 
-If you need **only a read-only baseline** under the canonical
-emulated-controller launcher rather than attaching to a physical
-session:
-
-```powershell
-py scripts/run_golf_experiment.py --send-live `
-  --script capture_golf_memory_phases.py -- `
-  --attach-running --scope focused `
-  --phase idle:6 --phase idle:6
-```
-
-This outer wrapper launches Dolphin **once** and navigates to the tee.
-The inner recorder never boots again. Two idle stages do not measure swing
-power, but test capture stability and negative-control drift.
+**Canonical launch limitation:** the current S001 `run_golf_experiment.py`
+rejects user-supplied `--attach-running`; `post_boot_action_args`
+injects that flag ONLY for `probe_swing.py`. Do not attempt to pass
+`--attach-running` through that wrapper for this recorder: it will
+reject the command. The recorder only works directly against an
+**already running** Felk RPC / tee session. A fresh-boot integration
+requires an S001-owned handoff change and tests, not a second launcher.
 
 Do **not** request an automatic shot through this recorder. A future
 S001/S003-owned actuator should be wired into a separately reviewed
@@ -201,24 +194,20 @@ identity before publishing the validated slot **relative offsets** only.
 No raw addresses, bytes or screenshots are uploaded. It never invokes a
 controller, savestate, or game-memory write.
 
-Once PR #116 is validated and merged, a canonical fresh-Dolphin session
-can execute this source survey after navigating to the first tee:
+Once PR #116 passes review, the source survey can run DIRECTLY against a
+pre-existing, ready-to-play Felk Dolphin session on the canonical main
+checkout:
 
 ```powershell
-Set-Location "D:\Projects\Wii Golf AI\Wii-AI-Golf"
-py scripts/run_golf_experiment.py --send-live `
-    --script probe_golf_scene_chain.py -- --attach-running
+Set-Location "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
+py scripts/probe_golf_scene_chain.py --attach-running
 ```
 
-Only run this after the canonical owner confirms the wrapper supports
-this read-only action. Do **not** use a noncanonical worktree for Dolphin
-startup. The outcome is a GitHub `golf-scene-chain-census` observation:
-count of candidate pointers, number matching the expected scene chain,
-and candidate global-slot *relative* offsets. It does NOT identify club
-rotation or power. Any time the frame span is excessive, treat the
-sample as invalid; an empty scan does not prove object absence.
+Do not launch a second Dolphin from the probe and do not pass the
+attach flag through `run_golf_experiment.py`; the outer runner
+explicitly forbids it. If a fresh-boot automated survey is desired,
+S001 must review and implement the post-boot action handoff contract.
 
-If the owner does not approve the fresh launcher route, run
-`py scripts/probe_golf_scene_chain.py --attach-running --no-upload`
-ONLY when the exact active Dolphin bridge/session are already verified
-by S001. No new session is started.
+Use `--no-upload` to keep the sanitized report local during the first
+read-only live test. Only use this tool when the exact active Dolphin
+bridge/session has already been verified by S001; no new session starts.
