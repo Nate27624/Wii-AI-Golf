@@ -170,7 +170,7 @@ _DISABLED_NUNCHUK_STICK = frozenset({
     "nunchuk/stick/up", "nunchuk/stick/down",
     "nunchuk/stick/left", "nunchuk/stick/right",
 })
-_SIMPLE_WASD_BINDING = re.compile(r"`?[WASD]`?", re.IGNORECASE)
+_SIMPLE_WASD_BINDING = re.compile(r"(?:[WASD]|`[WASD]`)", re.IGNORECASE)
 _CONTROL_ASSIGNMENT = re.compile(
     r"^(\s*)([^=;#\r\n]+?)(\s*=\s*)([^;#\r\n]*?)(\s*(?:[;#].*)?)$"
 )
