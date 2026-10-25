@@ -296,8 +296,8 @@ def execute(
                 text_out = str(getattr(proc, "stdout", "") or "")
                 text_err = str(getattr(proc, "stderr", "") or "")
                 with log.open("x", encoding="utf-8") as stream:
-                    stream.write(("STDOUT\\n" + text_out[:1_000_000] +
-                                  "\\nSTDERR\\n" + text_err[:1_000_000] + "\\n"))
+                    stream.write(("STDOUT\n" + text_out[:1_000_000] +
+                                  "\nSTDERR\n" + text_err[:1_000_000] + "\n"))
                 record["offline_log"] = str(log)
                 if text_out:
                     print(text_out, end="" if text_out.endswith("\n") else "\n")
