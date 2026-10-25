@@ -1,5 +1,12 @@
 # AI agent coordination protocol
 
+## ACTIVE OPERATOR DECISION — SCRIPT-ONLY WORKFLOW (2026-10-24)
+
+Retire the Windows Research Lab GUI: do not add Tkinter buttons, launch popups, or make GUI integration a merge gate. Use the single source-local `scripts/golf.py` CLI through `scripts/golf.sh` for Git Bash, preserving `lab list|plan|run|sync|history|reports`, study IDs, scientific provenance, fresh Dolphin startup, and explicit approval for live swings. Contributors must add offline `tests/test_*.py` with each new feature and use GitHub PRs for reviewed merges. The coordinator merges by default when safe. Local run metadata stays local; **do not auto-upload private evidence**. Any public report must be explicitly sanitized/allowlisted with provenance. No blanket process killing. Old GUI-related instructions below are superseded.
+
+---
+
+
 ## Mission and trust model
 
 Coordinate separate AI coding/research sessions to develop a scientifically reproducible agent for Wii Sports Golf's Hitting the Green. **Roles are logical responsibilities, not persistent autonomous processes.** No agent should claim a run happened unless logs show it.
