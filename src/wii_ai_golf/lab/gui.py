@@ -41,6 +41,12 @@ def launch(root: Path = ROOT) -> int:
     left, right = ttk.Frame(panes), ttk.Frame(panes)
     panes.add(left, weight=2)
     panes.add(right, weight=3)
+    filter_mode = tk.StringVar(value="All")
+    ttk.Label(left, text="Show").pack(anchor="w", pady=(0, 3))
+    filter_select = ttk.Combobox(left, textvariable=filter_mode,
+                                 values=("All", "Agent tests", "Experiments"),
+                                 state="readonly", width=22)
+    filter_select.pack(fill="x", padx=(0, 12), pady=(0, 7))
     listing = ttk.Treeview(left, columns=("owner", "mode"), show="tree headings", height=15)
     listing.heading("#0", text="Experiment")
     listing.heading("owner", text="Agent")
@@ -56,7 +62,12 @@ def launch(root: Path = ROOT) -> int:
         for row in listing.get_children():
             listing.delete(row)
         for e in catalog:
-            marker = "NEW  " if e["id"].startswith("agent-tests.") and (
+            agent_test = e["id"].startswith("agent-tests.")
+            if filter_mode.get() == "Agent tests" and not agent_test:
+                continue
+            if filter_mode.get() == "Experiments" and agent_test:
+                continue
+            marker = "NEW  " if agent_test and (
                 "tests/" + e["title"]) in last_changes else ""
             label = marker + e["title"]
             listing.insert("", "end", iid=e["id"], text=label,
@@ -302,6 +313,8 @@ def launch(root: Path = ROOT) -> int:
     ttk.Button(actions, text="Sanitized outcomes", command=show_sanitized_reports).pack(side="left", padx=3)
     ttk.Button(actions, text="Offline log", command=show_last_offline_log).pack(side="left", padx=3)
     listing.bind("<<TreeviewSelect>>", selected)
+    filter_select.bind("<<ComboboxSelected>>",
+                       lambda _event: (refill_catalog(), selected()))
     refresh()
     if catalog:
         listing.selection_set(catalog[0]["id"])
