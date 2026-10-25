@@ -238,7 +238,7 @@ def launch(root: Path = ROOT) -> int:
             return
         if not messagebox.askyesno(
             "Create isolated historical V1 bridge?",
-            "Create a separate test copy from the VERIFIED pre-V2 backup?\\n\\n"
+            "Create a separate test copy from the VERIFIED pre-V2 backup?\n\n"
             "The active V2 bridge and all Dolphin save states remain untouched. "
             "If any file differs unexpectedly, preparation will stop."):
             return
@@ -247,7 +247,7 @@ def launch(root: Path = ROOT) -> int:
         v1_button.configure(state="disabled")
         bridge_status.set("Preparing historical V1 copy...")
         show_game_details(
-            "Working in the background using the reviewed Lab runner.\\n"
+            "Working in the background using the reviewed Lab runner.\n"
             "No Dolphin session is being launched, and your current bridge is untouched.")
 
         def worker():
@@ -413,7 +413,7 @@ def launch(root: Path = ROOT) -> int:
                     raise ValueError("Historical V1 is not ready. Inspect and prepare a verified backup first.")
             if p.live != live:
                 raise ValueError("Experiment mode does not match this button")
-"            if live and not messagebox.askyesno(
+            if live and not messagebox.askyesno(
                 "Confirm ONE live swing", "Close Dolphin completely before continuing.\n"
                 "Start ONE canonical full-boot Wii Sports trial? The terminal "
                 "will ask you to confirm tee readiness and label ball contact.\n"
