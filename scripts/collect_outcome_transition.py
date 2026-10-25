@@ -32,6 +32,7 @@ from wii_ai_golf.operator_dialogs import operator_input
 from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.integration.swing_client import SwingTraceClient
 from wii_ai_golf.integration.button_prime import prime_a_button, release_buttons
+from wii_ai_golf.integration.a_command_journal import ACommandJournal
 from wii_ai_golf.shared.controller_timing import hold_a_for_observed_frames
 from wii_ai_golf.audit.outcome_transition import (
     capture_outcome_windows, rank_outcome_candidates)
@@ -181,7 +182,15 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
             if type(frame) is not int or frame < 0:
                 raise RuntimeError("invalid frame count before swing")
             shot_start_frame = frame
-        stroke = swing_fn(rpc)
+        journal = ACommandJournal(rpc)
+        try:
+            stroke = swing_fn(journal)
+        finally:
+            # Private local diagnostics: no new RPCs, no raw data publication.
+            try:
+                journal.save_private(raw_path.with_name(raw_path.stem + "-a-commands.json"))
+            except OSError as exc:
+                print(f"WARNING: could not save private A-command journal: {exc}", flush=True)
         if not isinstance(stroke, dict):
             raise RuntimeError("Swing scheduler did not return a status dict")
         print("Swing dispatch finished; this does NOT establish ball contact.", flush=True)
