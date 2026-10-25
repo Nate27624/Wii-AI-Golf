@@ -1,5 +1,6 @@
 """Offline symbolic scene lookup must never mistake functions for instances."""
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -60,6 +61,33 @@ class SceneSymbolTests(unittest.TestCase):
             "RPSysScene": 1, "RPSysSceneMgr": 1, "RPSysSceneCreator": 1
         })
         self.assertIsNone(report["scene_object_pointer"])
+
+    def test_source_anchored_layout_has_no_guessed_anchor(self):
+        layout = json.loads(mod.DEFAULT_LAYOUT.read_text(encoding="utf-8"))
+        self.assertEqual(layout["region"], "RSPE01")
+        self.assertEqual(layout["revision"], 1)
+        mgr = layout["scene_manager"]
+        self.assertEqual(mgr["current_scene_offset_hex"], "+0xC")
+        self.assertEqual(mgr["current_scene_id_offset_hex"], "+0x18")
+        self.assertEqual(mgr["current_scene_id_golf"], 5)
+        self.assertIsNone(mgr["instance_storage_address"])
+        self.assertEqual(mgr["instance_storage_status"], "unresolved")
+        golf = layout["golf_scene"]
+        self.assertEqual(golf["main_member_offset_hex"], "+0x9C")
+        self.assertIsNone(golf["scene_object_address"])
+        self.assertIsNone(golf["golf_main_object_address"])
+
+    def test_symbol_summary_never_promotes_a_runtime_pointer(self):
+        summary = mod.summarize([
+            '"RPSysSceneMgr::getCurrentScene", 0x80186100',
+            '"RPGolScene::OnCalculate", 0x8028DFA8',
+        ])
+        self.assertEqual(summary["manager_current_scene_offset"], "+0xC")
+        self.assertEqual(summary["manager_current_scene_id_offset"], "+0x18")
+        self.assertEqual(summary["golf_scene_id"], 5)
+        self.assertIsNone(summary["manager_singleton_storage_address"])
+        self.assertIsNone(summary["scene_object_pointer"])
+        self.assertIsNone(summary["golf_main_object_pointer"])
 
     def test_optional_download_uses_pinned_source_and_cache(self):
         fetcher = load_fetch_module()
