@@ -1,3 +1,9 @@
+# ARCHIVED: desktop Research Lab GUI retired
+
+The source code for the old GUI was removed following the operator's script-only decision. This page is historical; the active commands and GitHub publication instructions are in [cli-only-workflow.md](cli-only-workflow.md). Do not implement new GUI variants.
+
+---
+
 # Wii AI Golf Research Lab
 
 **One local application for S000 coordination, S001 integration, S002 evaluation, S003 modeling, S004 learning and S005 generalization.** All experiments have registered ownership, execution mode, stable IDs, canonical commands, and local records. A process exit is *not* a game score.
