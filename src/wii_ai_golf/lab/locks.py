@@ -116,7 +116,8 @@ def session_lock(path: Path, *, label: str = "Lab experiment") -> Iterator[None]
                 file.seek(0)
                 file.write(b"\x00")  # Windows locking requires an existing byte
         except PermissionError as exc:
-            raise ValueError(f"{label} may be active (Windows lock denied access). "
+            raise ValueError(f"{label} is already active or may be active "
+                             "(Windows lock denied access). "
                              "The Lab will not start a second job.") from exc
         acquired = False
         owns_record = False
