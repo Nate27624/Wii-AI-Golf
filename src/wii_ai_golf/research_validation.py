@@ -50,7 +50,8 @@ def validation_studies(path: Path) -> list[dict[str, Any]]:
             continue
         if not ID.fullmatch(name) or set(item) != REQUIRED:
             raise ValueError(f"Invalid or incomplete validation-study schema: {name}")
-        if item["status"] not in STATES or item["mode"] not in MODES:
+        if (type(item["status"]) is not str or item["status"] not in STATES
+            or type(item["mode"]) is not str or item["mode"] not in MODES):
             raise ValueError(f"Unrecognized study state/mode: {name}")
         if type(item["priority"]) is not int or not 0 <= item["priority"] <= 9:
             raise ValueError(f"Invalid study priority: {name}")
@@ -61,8 +62,9 @@ def validation_studies(path: Path) -> list[dict[str, Any]]:
         if (type(controls) is not list or len(controls) < 2 or
             any(type(v) is not str or not v.strip() or len(v) > 500 for v in controls)):
             raise ValueError(f"Study lacks distinct negative controls: {name}")
-        if (type(deps) is not list or len(deps) != len(set(deps))
+        if (type(deps) is not list
             or any(type(d) is not str or not ID.fullmatch(d) for d in deps)
+            or len(deps) != len(set(deps))
             or name in deps):
             raise ValueError(f"Invalid dependency edge: {name}")
         if type(budget) is not dict or set(budget) != BUDGET_FIELDS:
