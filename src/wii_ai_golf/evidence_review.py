@@ -79,7 +79,7 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
         for key in ("idle_control", "swing")
     }
     tests = {"pass": 0, "fail": 0}
-    power: dict[tuple[str, str], dict[str, Any]] = {}
+    power: dict[tuple[str, str, str, str], dict[str, Any]] = {}
     power_rejected = 0
     unknown_or_failed_v1 = 0
     malformed = 0
@@ -142,9 +142,15 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
                 or r.get("contact_verified_by_memory") is not False):
                 power_rejected += 1
                 continue
-            key = (variant, trace_sha)
+            bridge_sha = _sha(r.get("bridge_sha256"))
+            pose = r.get("initial_club_pose_human")
+            pose = pose if type(pose) is str and pose in (
+                "back", "center", "forward", "unknown") else "unrecorded"
+            key = (variant, trace_sha, bridge_sha or "missing", pose)
             entry = power.setdefault(key, {
                 "variant": variant, "trace_sha256": trace_sha,
+                "bridge_sha256": bridge_sha,
+                "initial_club_pose_human": pose,
                 "human_labeled_trials": 0, "human_hit_yes": 0,
                 "human_hit_no": 0, "human_hit_unknown": 0,
                 "human_power_percent": [],
@@ -156,10 +162,9 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
             entry["human_hit_" + contact] += 1
             if observed_power is not None:
                 entry["human_power_percent"].append(float(observed_power))
-            if _sha(r.get("bridge_sha256")) is None:
+            if bridge_sha is None:
                 entry["missing_bridge_sha256_count"] += 1
-            if r.get("initial_club_pose_human") not in (
-                    "back", "center", "forward", "unknown"):
+            if pose == "unrecorded":
                 entry["missing_starting_pose_count"] += 1
             continue
         if kind == "v1":
@@ -209,7 +214,8 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
         "changed_byte_offsets_union": sorted(v["offsets"]),
     } for k, v in minimap.items()}
     power_groups = sorted(power.values(), key=lambda x: (
-        x["variant"], x["trace_sha256"]))
+        x["variant"], x["trace_sha256"],
+        x["bridge_sha256"] or "", x["initial_club_pose_human"]))
     # A single idle/swing pair can justify replication, not a detector.
     minimap_ready = all(v["runs"] >= 3 for v in minimap.values())
     v1_ready = any(x["human_labeled_trials"] >= 3 for x in groups)
@@ -232,7 +238,7 @@ def review_public_observations(records: Iterable[Mapping[str, Any]]) -> dict[str
             "three_independent_runs_each_minimap_condition": minimap_ready,
             "physics_ball_or_score_identity_verified": False,
             "controller_power_calibrated": False,
-            "power_trials_have_matched_bridge_and_pose_provenance": (
+            "power_trials_have_complete_bridge_and_pose_provenance": (
                 bool(power_groups) and
                 all(e["missing_bridge_sha256_count"] == 0 and
                     e["missing_starting_pose_count"] == 0
