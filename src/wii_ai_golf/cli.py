@@ -189,6 +189,8 @@ def build_parser() -> argparse.ArgumentParser:
     outcomes = actions.add_parser("reports", help="List ONLY sanitized local S002 human-observed outcome files")
     outcomes.add_argument("--limit", type=int, default=20)
     outcomes.add_argument("--json", action="store_true")
+    sync = actions.add_parser("sync", help="Safely fast-forward approved GitHub main and discover new agent tests")
+    sync.add_argument("--json", action="store_true")
     actions.add_parser("gui", help="Open local Windows research lab application")
 
     sub.add_parser("demo", help="Run the existing SYNTHETIC toy environment (not Wii Sports)")
@@ -293,7 +295,7 @@ def execute(args: argparse.Namespace) -> int:
     if args.group == "lab":
         from .lab import core
         if args.lab_action == "list":
-            entries = core.load_catalog(ROOT / "research" / "experiments.json")
+            entries = core.available_experiments(ROOT)
             if args.json:
                 print(json.dumps(entries, indent=2))
             else:
@@ -303,7 +305,7 @@ def execute(args: argparse.Namespace) -> int:
             return 0
         if args.lab_action == "show":
             e = core.get_experiment(args.experiment_id,
-                                    catalog=core.load_catalog(ROOT / "research" / "experiments.json"))
+                                    catalog=core.available_experiments(ROOT))
             print(json.dumps(e, indent=2, sort_keys=True))
             return 0
         if args.lab_action in ("plan", "run"):
@@ -324,6 +326,21 @@ def execute(args: argparse.Namespace) -> int:
             print("Local run:", record["run_id"], "status:",
                   record["execution_status"], "exit:", record.get("exit_code"), flush=True)
             return 0 if record.get("exit_code") == 0 else 1
+        if args.lab_action == "sync":
+            from .lab.github_sync import sync_merged_main
+            result = sync_merged_main(ROOT, lab_data=DATA_ROOT / "lab")
+            if args.json:
+                print(json.dumps(result.to_dict(), indent=2))
+            else:
+                print("GitHub sync:", result.status, "|", result.note)
+                if result.changed_tests:
+                    for test_path in result.changed_tests:
+                        print("  updated agent test:", test_path)
+                print("Run 'py scripts/golf.py lab list' to see the merged tests.")
+                if result.status == "updated":
+                    print("If the Lab app is already open, restart it to load changes "
+                          "to its own Python modules.")
+            return 0 if result.status in ("updated", "up_to_date") else 1
         if args.lab_action == "history":
             entries = core.history(DATA_ROOT / "lab", limit=args.limit)
             if args.json:
