@@ -312,12 +312,35 @@ SCENE_ROOT_WARNING = (
     "NOT type-proven, no game power or player RAM identified. "
     "No runtime addresses or byte values are included."
 )
+# PR #132 preserves the same source-root kind and schema_version=1 but adds
+# independently checked scene-own ID, manager backlink, sport, and uniqueness.
+# These two *exact* historical producer shapes are accepted; unknown
+# schema variants or mixing their fields must fail closed.
+SCENE_ROOT_GATED_FIELDS = SCENE_ROOT_FIELDS | frozenset({
+    "unique_stable_golf_scene_chain",
+    "stable_sport_id_match_count",
+    "stable_scene_own_id_match_count",
+    "stable_manager_backlink_match_count",
+})
+SCENE_ROOT_GATED_WARNING = (
+    "Source-anchored 8-byte static-storage triage only; pointers were "
+    "NOT type-proven, scene sport/vtable and own-ID/backlink are "
+    "only structural checks; "
+    "no game power or player RAM identified. "
+    "No runtime addresses or byte values are included."
+)
 
 
 def _scene_root_public(record):
     """Approve only source-gated candidate COUNTS, never pointer values."""
-    if (type(record) is not dict or set(record) != SCENE_ROOT_FIELDS
-        or type(record.get("schema_version")) is not int
+    if type(record) is not dict:
+        raise ValueError("Invalid source-gated scene-root record")
+    old_shape = set(record) == SCENE_ROOT_FIELDS
+    gated_shape = set(record) == SCENE_ROOT_GATED_FIELDS
+    if not (old_shape or gated_shape):
+        raise ValueError("Unrecognized source-gated scene-root field set")
+    expected_warning = SCENE_ROOT_GATED_WARNING if gated_shape else SCENE_ROOT_WARNING
+    if (type(record.get("schema_version")) is not int
         or record["schema_version"] != 1
         or record.get("study_id") != "S002-GOLF-SCENE-ROOT-TRIAGE"
         or record.get("game_id") != "RSPE01"
@@ -326,7 +349,7 @@ def _scene_root_public(record):
         or not _integer(record.get("candidate_static_cells_checked"), 2, 2)
         or not _integer(record.get("pass_count"), 2, 2)
         or not _integer(record.get("max_sample_frame_span"), 0, 40)
-        or record.get("warning") != SCENE_ROOT_WARNING):
+        or record.get("warning") != expected_warning):
         raise ValueError("Unrecognized source-gated scene-root public schema")
     count = record.get("stable_golf_scene_chain_count")
     if not _integer(count, 0, 2):
@@ -341,6 +364,18 @@ def _scene_root_public(record):
                  "possible_main_pointer_ram_like_count"):
         if not _integer(record.get(name), 0, count):
             raise ValueError("Invalid scene-root candidate support count")
+    if gated_shape:
+        if record.get("unique_stable_golf_scene_chain") is not (count == 1):
+            raise ValueError("Scene-root uniqueness does not agree with stable slots")
+        # The producer promotes a 'stable' candidate only after each of
+        # these independent scene identity/source gates has passed.
+        for name in ("stable_sport_id_match_count",
+                     "stable_scene_own_id_match_count",
+                     "stable_manager_backlink_match_count"):
+            if not _integer(record.get(name), count, count):
+                raise ValueError("Scene-root identity gate count contradicts stable slots")
+        if record.get("vtable_in_golf_scene_data_count") != count:
+            raise ValueError("Source-gated stable scene cannot lack vtable support")
     for name in ("confirmed_manager_singleton_address", "confirmed_golf_main_type",
                  "confirmed_golf_power_address"):
         if record.get(name) is not False:
