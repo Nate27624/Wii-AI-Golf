@@ -72,6 +72,8 @@ class OfflineGolfPlayerAccessTests(unittest.TestCase):
         self.assertIn(("RPGolPlayerManager", "r3", "+0x09C", "load"), patterns)
         self.assertNotIn(("RPGolMain", "r1", "+0x074", "store"), patterns)
         self.assertEqual(result["r13_static_pattern_count"], 1)
+        self.assertEqual(result["float_store_candidate_count"], 1)
+        self.assertEqual(result["float_store_candidates"][0]["opcode_mnemonic"], "stfs")
         self.assertEqual(result["r13_static_patterns"][0]["r13_signed_displacement"],
                          "-0x0020")
         edges = {(r["from_source_unit"], r["to_source_unit"]):
