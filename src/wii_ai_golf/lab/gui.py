@@ -436,8 +436,8 @@ def launch(root: Path = ROOT) -> int:
                 raise ValueError("Experiment mode does not match this button")
             if live and not messagebox.askyesno(
                 "Confirm ONE live swing", "Close Dolphin completely before continuing.\n"
-                "Start ONE canonical full-boot Wii Sports trial? The terminal "
-                "will ask you to confirm tee readiness and label ball contact.\n"
+                "Start ONE canonical full-boot Wii Sports trial? Popup dialogs "
+                "will request tee readiness and human observations.\n"
                 "V1/A-lead experiments are UNVERIFIED; previous 12-frame timing made motion worse."):
                 return
             flags, _ = args_and_kwargs()
@@ -451,8 +451,15 @@ def launch(root: Path = ROOT) -> int:
             observed_command = [sys.executable,
                                 str(root / "scripts" / "lab_interactive_console.py"),
                                 "--", *cmd]
+            # Only GUI-approved LIVE sessions request modal operator dialogs.
+            # Console/CLI usage retains its existing interactive prompts.
+            child_env = os.environ.copy()
+            if live:
+                child_env["WII_GOLF_DIALOGS"] = "1"
+            else:
+                child_env.pop("WII_GOLF_DIALOGS", None)
             process = subprocess.Popen(
-                observed_command, cwd=root,
+                observed_command, cwd=root, env=child_env,
                 creationflags=subprocess.CREATE_NEW_CONSOLE)
             active.append(process)
             active_studies[process.pid] = p.experiment["id"]
