@@ -70,8 +70,11 @@ py scripts/analyze_golf_memory_cohort.py `
 ```
 
 The script creates one local `golf-memory-cohort-...-summary.json`
-and auto-publishes a single sanitized aggregate to
-`research/observations`. It counts how many independent runs saw each
+and retains it locally by default, pending S000 schema approval.
+Earlier cohort reports were already published before the new strict
+observation gate. `--publish` is explicitly opt-in and must not be used
+until S000 allows the typed cohort schema; future cohort runs do not
+silently bypass the validator. It counts how many independent runs saw each
 changed region-relative word, and how often changes were within stages
 versus on stage boundaries. Identical rendering-effect metadata may be
 highly repeatable yet still **not** be the physical ball or club.
