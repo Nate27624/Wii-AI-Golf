@@ -31,7 +31,7 @@ class LabCliTests(unittest.TestCase):
         diagnostic = next(e for e in entries if e["id"] == "integration.v1-diagnostic")
         self.assertEqual(diagnostic["mode"], "live")
         self.assertEqual(diagnostic["kind"], "v1_capture")
-        self.assertIn("initial", diagnostic["description"].lower())
+        self.assertIn("starting club pose", diagnostic["description"].lower())
         self.assertIn("club pose", diagnostic["description"].lower())
         self.assertIn("no automatic score", diagnostic["description"].lower())
         with redirect_stdout(io.StringIO()) as out:
