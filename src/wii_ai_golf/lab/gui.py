@@ -268,7 +268,7 @@ def launch(root: Path = ROOT) -> int:
                 view = refresh_bridge_status()
                 if kind == "error":
                     bridge_status.set("Preparation could not start")
-                    show_game_details("The Lab did not prepare a bridge.\\n\\n" + str(payload))
+                    show_game_details("The Lab did not prepare a bridge.\n\n" + str(payload))
                 elif payload.get("exit_code") != 0:
                     bridge_status.set("Preparation failed — no game started")
                     log_path = payload.get("offline_log")
@@ -278,16 +278,16 @@ def launch(root: Path = ROOT) -> int:
                         if path.is_file() and path.parent.resolve() == (lab_data / "runs").resolve():
                             details = path.read_text(encoding="utf-8", errors="replace")[-3500:]
                     show_game_details(
-                        "Bridge preparation did not succeed. Nothing was replaced.\\n\\n" +
+                        "Bridge preparation did not succeed. Nothing was replaced.\n\n" +
                         (details or str(payload.get("launch_error", "No diagnostic output available."))))
                 elif view is not None and view.can_test:
                     bridge_status.set("Historical V1 is ready for the single-shot comparison")
-                    show_game_details(view.as_text() + "\\n\\nPreparation recorded in Lab history.")
+                    show_game_details(view.as_text() + "\n\nPreparation recorded in Lab history.")
                 else:
                     bridge_status.set("Preparation finished; V1 could not be verified")
                     show_game_details(
                         (view.as_text() if view else "Bridge check unavailable") +
-                        "\\n\\nThe output did not pass the readiness check. "
+                        "\n\nThe output did not pass the readiness check. "
                         "Do not start the live shot.")
                 refresh()
         except queue.Empty:
@@ -325,6 +325,9 @@ def launch(root: Path = ROOT) -> int:
 
     def request_sync(*, manual: bool = False) -> None:
         """Never block Tkinter while fetching GitHub; never run fetched tests."""
+        if game_job_busy[0]:
+            sync_line.set("GitHub: deferred while bridge preparation is running.")
+            return
         if sync_busy[0]:
             if manual:
                 messagebox.showinfo("GitHub sync", "A GitHub sync is already running.")
@@ -394,18 +397,23 @@ def launch(root: Path = ROOT) -> int:
 
     def run_selected(live: bool):
         try:
-            if sync_busy[0]:
-                raise ValueError("GitHub update is in progress; start this test after it finishes.")
+            if sync_busy[0] or game_job_busy[0]:
+                raise ValueError("A Lab task or GitHub update is still running.")
             p = selected_plan()
+            if p.experiment["id"] == "integration.bridge-audit":
+                inspect_bridges()
+                return
+            if p.experiment["id"] == "integration.prepare-v1":
+                prepare_historical_v1()
+                return
+            if p.experiment["id"] == "integration.v1-diagnostic":
+                view = inspect_game_bridges(root)
+                if not view.can_test:
+                    refresh_bridge_status()
+                    raise ValueError("Historical V1 is not ready. Inspect and prepare a verified backup first.")
             if p.live != live:
                 raise ValueError("Experiment mode does not match this button")
-            if p.experiment["id"] == "integration.prepare-v1" and not messagebox.askyesno(
-                "Prepare isolated historical V1 bridge",
-                "Copy the saved V1 bridge into a SEPARATE diagnostic file? "
-                "Your active V2 bridge and savestates will not be overwritten. "
-                "The step will refuse unsafe/mismatched backup files."):
-                return
-            if live and not messagebox.askyesno(
+"            if live and not messagebox.askyesno(
                 "Confirm ONE live swing", "Close Dolphin completely before continuing.\n"
                 "Start ONE canonical full-boot Wii Sports trial? The terminal "
                 "will ask you to confirm tee readiness and label ball contact.\n"
@@ -451,9 +459,13 @@ def launch(root: Path = ROOT) -> int:
             view.insert("1.0", path.read_text(encoding="utf-8", errors="replace")[:250000])
             view.configure(state="disabled")
             return
-        messagebox.showinfo("No offline run log yet",
-                            "Run an offline experiment and then refresh. "
-                            "Live inputs are displayed in their interactive console.")
+        status.set("No completed offline execution log is available yet.")
+        output.configure(state="normal")
+        output.delete("1.0", "end")
+        output.insert("1.0", "No completed offline execution log is available. "
+                     "Offline errors and bridge inspection are shown directly "
+                     "inside the Game Testing panel; you do not need a console.")
+        output.configure(state="disabled")
 
     def show_sanitized_reports():
         from .reports import sanitized_reports
@@ -505,9 +517,7 @@ def launch(root: Path = ROOT) -> int:
                     "The interactive terminal should display the exact error. "
                     "Exit 2 often indicates command validation; do not record a swing.")
             if study in ("integration.bridge-audit", "integration.prepare-v1"):
-                # Show the real audit/error result in the GUI rather than
-                # losing it in a short-lived subprocess console.
-                show_last_offline_log()
+                refresh_bridge_status()
         if finished:
             refresh()
             refresh_bridge_status()
@@ -529,7 +539,7 @@ def launch(root: Path = ROOT) -> int:
     ttk.Button(primary_actions, text="Refresh results", command=refresh).pack(side="left", padx=3)
     ttk.Button(secondary_actions, text="Sync GitHub", command=lambda: request_sync(manual=True)).pack(side="left", padx=3)
     def restart_lab():
-        if active or sync_busy[0] or any(
+        if active or sync_busy[0] or game_job_busy[0] or any(
                 (root.parent / "Wii-AI-Golf-Data" / "lab" / name).exists()
                 for name in ("live-session.lock", "run-session.lock")):
             messagebox.showwarning("Restart deferred",
@@ -561,6 +571,7 @@ def launch(root: Path = ROOT) -> int:
         selected()
     sync_messages_poll()
     auto_sync_tick()
+    check_game_job()
     ui.after(1400, poll)
     ui.mainloop()
     return 0
