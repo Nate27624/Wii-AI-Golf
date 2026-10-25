@@ -22,7 +22,7 @@ def fixture():
                                 {'phase':'club_motion','frame_start':110,'frame_end':112},
                                 {'phase':'shot_attempt','frame_start':120,'frame_end':121}],
         'linkage':{'swing_id':'shot-A','session_id':'boot-A','scene_fingerprint':'tee-A',
-                   'bridge_sha256':A,'trace_sha256':B,'shot_start_frame':100},
+                   'bridge_sha256':A,'trace_sha256':B,'shot_start_frame':100,'trace_end_frame':170},
     }
     swing = {'kind':'v1','schema':1,'id':'shot-A','process_exit_code':0,
              'bridge_sha256':A,'controller':{'trace_sha256':B,'generated_trace_frames':89},
@@ -64,6 +64,17 @@ class LinkGates(unittest.TestCase):
     def test_swing_start_frame_conflict(self):
         m,s=fixture();s['human']['shot_start_frame_before_controller_trace']=999
         self.assertIn('missing_original_swing_frame_anchor',assess_memory_swing_link(m,s)['blockers'])
+
+    def test_observed_trace_end_missing_is_blocker(self):
+        m,s=fixture();m['linkage'].pop('trace_end_frame');s['linkage'].pop('trace_end_frame')
+        self.assertIn('missing_or_mismatched_observed_trace_end_frame',
+                      assess_memory_swing_link(m,s)['blockers'])
+
+    def test_requested_samples_not_assumed_elapsed_emulator_frames(self):
+        m,s=fixture()
+        m['linkage']['trace_end_frame']=104;s['linkage']['trace_end_frame']=104
+        self.assertIn('no_memory_samples_overlap_swing_window',
+                      assess_memory_swing_link(m,s)['blockers'])
 
     def test_absent_frame_brackets(self):
         m,s=fixture(); m.pop('phase_frame_brackets')
