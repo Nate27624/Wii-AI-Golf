@@ -48,6 +48,16 @@ def summary(rows,dispatch):
             "claim":"AUTOMATED_SWING_COMMAND_NOT_VERIFIED_BALL_CONTACT",
             "warning":"Minimap visual effect is not verified physics ball or score"}
 
+def public_summary(result, run):
+    """Strict sanitized allowlist: no raw RAM, pointers, or local paths."""
+    public={key:result[key] for key in (
+        "schema_version","study_id","utc","samples","phase_counts",
+        "changed_byte_offsets","adjacent_changes","swing_dispatch_received",
+        "claim","warning")}
+    public["id"]=run+"-automated-minimap"
+    public["kind"]="automated-minimap-effect"
+    return public
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--send-live-swing",action="store_true")
@@ -86,12 +96,7 @@ def main():
     print("Private raw:",raw,"Sanitized local summary:",report)
     if not args.no_upload:
         # Explicit allowlist. Never forward raw rows, RAM hex, pointers or local paths.
-        public={key:result[key] for key in (
-            "schema_version","study_id","utc","samples","phase_counts",
-            "changed_byte_offsets","adjacent_changes","swing_dispatch_received",
-            "claim","warning")}
-        public["id"]=run+"-automated-minimap"
-        public["kind"]="automated-minimap-effect"
+        public=public_summary(result,run)
         try:
             from research_cli import publish_summary
             url=publish_summary(public)
