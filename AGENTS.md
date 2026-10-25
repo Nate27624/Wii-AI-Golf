@@ -1,3 +1,7 @@
+# Current operating model: command-line-first (2026-10-24)
+
+**The user scrapped the entire Wii AI Golf desktop UI.** Do not add Tkinter controls or GUI-only study PRs. All S001–S005 agents coordinate in this single GitHub repository. Maintain one canonical operator entrypoint: `py scripts/research_cli.py` (safe auto-pull -> one requested local test/shot -> sanitized GitHub results upload). Preserve existing S001 Dolphin/savestate/menu boot and S002 evaluation modules. Agent PRs go to `main`; local observations go to independent `research/observations` branch. Never upload RAW-PRIVATE RAM, ROMs, savestates or generated bridges. Live shots require explicit operator `--live`; agent changes never auto-run Dolphin on the user PC. See [docs/cli-only-workflow.md](docs/cli-only-workflow.md).
+
 # AI agent coordination protocol
 
 ## Mission and trust model
