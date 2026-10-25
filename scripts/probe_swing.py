@@ -24,6 +24,7 @@ if _LOCAL_SRC in sys.path:
     sys.path.remove(_LOCAL_SRC)
 sys.path.insert(0, _LOCAL_SRC)
 
+from wii_ai_golf.operator_dialogs import operator_input
 from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.integration.savestates import StateCatalog, StateManager
 from wii_ai_golf.integration.swing_client import SwingSample, SwingTraceClient
@@ -172,7 +173,7 @@ def main() -> None:
             profile = StateCatalog(args.catalog).get(args.reset_profile)
             print("State load:", json.dumps(StateManager(rpc).request_load(profile)))
             print("Visually verify the checkpoint loaded at the FIRST SHOT; don't fire on pre-Start.")
-        answer = input("When Nueron is standing at the first ball, press ENTER to send ONE swing (or type q to cancel): ")
+        answer = operator_input("When Nueron is standing at the first ball, press ENTER to send ONE swing (or type q to cancel): ")
         if answer.strip().lower() != "":
             print("Canceled without sending a swing.")
             return
@@ -193,18 +194,18 @@ def main() -> None:
     print(json.dumps({"source": "live-Felk-swing-dispatch-only",
                       "button_prehold": prime_report, "trace": result}, indent=2))
     print("Observe the game before labeling. A complete trace is NOT proof of ball contact.")
-    label = input("What happened? hit / club-only / menu / none / other: ").strip().lower()
+    label = operator_input("What happened? hit / club-only / menu / none / other: ").strip().lower()
     if label not in OBSERVATIONS:
         label = "other"
     # These fields are intentionally HUMAN observations, never inferred from
     # a successful bridge ACK. Blank means unknown, not zero or a miss.
-    contact = input("Did the ball visibly move? yes / no / unknown [unknown]: ").strip().lower() or "unknown"
+    contact = operator_input("Did the ball visibly move? yes / no / unknown [unknown]: ").strip().lower() or "unknown"
     if contact not in ("yes", "no", "unknown"):
         contact = "unknown"
-    green = input("Did the ball land on the green? yes / no / unknown [unknown]: ").strip().lower() or "unknown"
+    green = operator_input("Did the ball land on the green? yes / no / unknown [unknown]: ").strip().lower() or "unknown"
     if green not in ("yes", "no", "unknown"):
         green = "unknown"
-    distance_text = input("Displayed landing distance to target (number, blank if unknown): ").strip()
+    distance_text = operator_input("Displayed landing distance to target (number, blank if unknown): ").strip()
     units = None
     distance = None
     if distance_text:
@@ -212,13 +213,13 @@ def main() -> None:
             parsed = float(distance_text)
             if not math.isfinite(parsed) or parsed < 0:
                 raise ValueError("distance must be nonnegative")
-            units = input("Distance unit shown in game (e.g. ft, yd, m): ").strip() or None
+            units = operator_input("Distance unit shown in game (e.g. ft, yd, m): ").strip() or None
             if not units:
                 print("Unit unknown: retaining distance as UNVERIFIED rather than a scored value.")
             distance = parsed
         except ValueError:
             print("Distance not numeric/nonnegative; recording it as unknown.")
-    power_text = input("Visual power gauge estimate 0..100 (blank if unknown): ").strip()
+    power_text = operator_input("Visual power gauge estimate 0..100 (blank if unknown): ").strip()
     power_estimate = None
     if power_text:
         try:
