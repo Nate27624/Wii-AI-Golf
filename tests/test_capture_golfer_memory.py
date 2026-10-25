@@ -13,13 +13,14 @@ class FakeRPC:
         self.calls=[];self.frame=100;self.rev=rev;self.mode=mode
         self.config=0x80010000;self.manager=0x80020000;self.scene=0x80030000
         self.globals=bytearray(m.GLOBALS_SIZE)
-        word(self.globals,0x320,self.manager)
-        word(self.globals,0x8C4,self.config)
+        word(self.globals,0,self.manager)
         self.objects={self.config:bytearray(0xA0),self.manager:bytearray(0x40),
                       self.scene:bytearray(0xA0),golf_main:bytearray(m.MAIN_BYTES)}
         word(self.objects[self.manager],0x18,scene_id)
         word(self.objects[self.manager],0x0C,self.scene)
-        word(self.objects[self.scene],0x40,5)
+        word(self.objects[self.scene],0x1C,scene_id)
+        word(self.objects[self.scene],0x20,self.manager)
+        word(self.objects[self.scene],0x40,10)
         word(self.objects[self.scene],0x54,sport_id)
         word(self.objects[self.scene],0x9C,golf_main)
         word(self.objects[golf_main],0x30,0x3F800000)
@@ -52,8 +53,9 @@ class GameplayCaptureTests(unittest.TestCase):
         rpc=FakeRPC()
         matches,checks=m.find_golfer(rpc)
         self.assertEqual(len(matches),1)
-        self.assertEqual(matches[0]["slot_offsets"],[0x320])
+        self.assertEqual(matches[0]["slot_offsets"],[0x4D8])
         self.assertEqual(checks["golf_scene_id_candidates"],1)
+        self.assertEqual(checks["validated_scene_identity_candidates"],1)
         one=m.read_instance(rpc,matches[0])
         self.assertEqual(len(bytes.fromhex(one["bytes_hex"])),m.MAIN_BYTES)
         self.assertTrue(all(x in ("frame.get_count","memory.read_u32","memory.read_bytes") for x in rpc.calls))
@@ -61,6 +63,45 @@ class GameplayCaptureTests(unittest.TestCase):
         a,b=m.find_golfer(FakeRPC(scene_id=6))
         self.assertEqual(a,[])
         self.assertEqual(b["golf_scene_id_candidates"],0)
+    def test_wrong_scene_backlink_not_accepted(self):
+        rpc=FakeRPC()
+        word(rpc.objects[rpc.scene],0x20,0x80060000)
+        self.assertEqual(m.find_golfer(rpc)[0],[])
+
+    def test_valid_previous_scene_creator_is_not_current_scene_id(self):
+        rpc=FakeRPC()
+        match=m.find_golfer(rpc)[0]
+        self.assertEqual(len(match),1)
+        self.assertEqual(match[0]["creator_scene_id"],10)
+
+    def test_child_watch_and_report_no_private_values(self):
+        rpc=FakeRPC()
+        ptr=0x80050000
+        word(rpc.objects[0x80040000],0x34,ptr)
+        rpc.objects[ptr]=bytearray(m.CHILD_BYTES)
+        match,checks=m.find_golfer(rpc)
+        watch,over=m.child_watchlist(rpc,match[0])
+        self.assertEqual(len(watch),1)
+        self.assertFalse(over)
+        before=m.read_instance(rpc,match[0],watch)
+        before.update(stage=0,phase="idle")
+        word(rpc.objects[ptr],0x20,0x3F800000)
+        after=m.read_instance(rpc,match[0],watch)
+        after.update(stage=1,phase="aim_only")
+        report=m.summarize([before,after],{"idle":1,"aim_only":1},checks,match[0],"test",1,False)
+        self.assertEqual(report["changed_candidate_words"],1)
+        self.assertEqual(report["top_relative_changes"][0]["region"],"child_at_main+0x034")
+        self.assertEqual(report["top_relative_changes"][0]["offset"],"+0x020")
+        encoded=json.dumps(report)
+        self.assertNotIn("80050000",encoded)
+        self.assertNotIn("3F800000",encoded)
+
+    def test_mode_switch_during_capture_aborts(self):
+        rpc=FakeRPC()
+        match=m.find_golfer(rpc)[0][0]
+        rpc.mode=2
+        with self.assertRaises(RuntimeError):m.read_instance(rpc,match)
+
     def test_wrong_sport_is_not_golf_main(self):
         a,b=m.find_golfer(FakeRPC(sport_id=1))
         self.assertEqual(a,[])
@@ -83,6 +124,9 @@ class GameplayCaptureTests(unittest.TestCase):
         out=m.summarize([r0,r1],{"idle":1,"aim_only":1},check,match[0],"synthetic")
         self.assertEqual(out["changed_candidate_words"],1)
         self.assertEqual(out["top_relative_changes"][0]["offset"],"+0x030")
+        self.assertEqual(out["top_relative_changes"][0]["region"],"main")
+        self.assertFalse(out["observed_creator_scene_id_matches_golf"])
+        self.assertTrue(out["actual_scene_id_verified"])
         self.assertFalse(out["power_verified"])
         for value in ("80040000","80030000","3F800000","40000000","bytes_hex"):
             self.assertNotIn(value,json.dumps(out))
