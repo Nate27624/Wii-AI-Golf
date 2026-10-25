@@ -81,7 +81,8 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 snapshot_fn: Callable[..., dict[str, Any]] = capture_outcome_windows,
                 swing_fn: Callable[[Any], Any] | None = None,
                 a_prime_requests: int = 0,
-                a_lead_frames: int = 0) -> dict[str, Any]:
+                a_lead_frames: int = 0,
+                observe_start_pose: bool = False) -> dict[str, Any]:
     """One opted-in forward shot, bounded RAM snapshots and human landing label.
 
     Write private raw JSONL immediately, exclusively; cancellation preserves
@@ -134,6 +135,12 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
     ready = input_fn("Visually verify golfer is ready. ENTER starts capture; type q to cancel: ")
     if ready.strip():
         return {"cancelled": True, "raw_data_created": False}
+    start_pose = None
+    if observe_start_pose:
+        # Human visual annotation is not an inferred controller angle.
+        start_pose = _answer(
+            "BEFORE pressing A, initial club position [back/center/forward/unknown]: ",
+            allowed={"back", "center", "forward", "unknown"}, input_fn=input_fn)
     rows: list[dict[str, Any]] = []
     raw_path.parent.mkdir(parents=True, exist_ok=True)
     with raw_path.open("x", encoding="utf-8") as stream:
@@ -151,6 +158,12 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         approval = input_fn(f"Press ENTER to execute ONE {len(samples)}-frame forward swing; q cancels: ")
         if approval.strip():
             return {"cancelled": True, "raw_data_created": True, "partial_samples": len(rows)}
+        shot_start_frame = None
+        if observe_start_pose:
+            frame = rpc.call("frame.get_count", [])
+            if type(frame) is not int or frame < 0:
+                raise RuntimeError("invalid frame count before swing")
+            shot_start_frame = frame
         stroke = swing_fn(rpc)
         if not isinstance(stroke, dict):
             raise RuntimeError("Swing scheduler did not return a status dict")
@@ -171,6 +184,10 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         stage_valid = label == ""
         capture_stage("settled", settled_samples)
     annotation = _visual_label(input_fn)
+    if observe_start_pose:
+        annotation["initial_club_pose_human"] = start_pose
+        annotation["initial_club_pose_verified_by_memory"] = False
+        annotation["shot_start_frame_before_controller_trace"] = shot_start_frame
     ranked = rank_outcome_candidates(rows, human_distance=annotation["displayed_distance_human"])
     return {"schema_version": 1, "source": "live-emulator-read-only-US-Rev1+human-result-label",
             "utc": datetime.now(timezone.utc).isoformat(),
@@ -218,6 +235,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--pre-samples", type=int, default=3)
     p.add_argument("--a-prime-requests", type=int, default=0,
                    help="Optional BUTTON-ONLY A requests before swing (default 0; last observed hits used no separate prime)")
+    p.add_argument("--observe-start-pose", action="store_true",
+                   help="Ask the operator to label visible initial club pose before swing; V1 repeatability study")
     p.add_argument("--a-lead-frames", type=int, default=0,
                    help="Experimental observed Dolphin frames holding A before trace; default 0, use 12 for V1 timing hypothesis")
     p.add_argument("--post-samples", type=int, default=2)
@@ -250,7 +269,8 @@ def main(argv: list[str] | None = None) -> int:
                              post_samples=args.post_samples,
                              settled_samples=args.settled_samples, interval=args.interval,
                              a_prime_requests=args.a_prime_requests,
-                             a_lead_frames=args.a_lead_frames)
+                             a_lead_frames=args.a_lead_frames,
+                             observe_start_pose=args.observe_start_pose)
     if result.get("cancelled"):
         print("Session cancelled:", result)
         return 0
