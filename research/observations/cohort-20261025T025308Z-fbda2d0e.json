@@ -1,0 +1,778 @@
+{
+  "distinct_changed_words": 84,
+  "excluded_invalid_or_incomplete_runs": 0,
+  "id": "cohort-20261025T025308Z-fbda2d0e",
+  "kind": "golf-memory-cohort-relative-words",
+  "no_gameplay_variable_verified": true,
+  "recurrent_changed_words_2plus_runs": 84,
+  "recurrent_words": [
+    {
+      "boundary_events": 28,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x78",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x7C",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x108",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x10C",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x78",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x7C",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x108",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x10C",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x198",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x19C",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x78",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x7C",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x108",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x10C",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x198",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 28,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x19C",
+      "runs_at_phase_boundary": 24,
+      "runs_changed": 24,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 18,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x1EC",
+      "runs_at_phase_boundary": 11,
+      "runs_changed": 12,
+      "runs_within_phase": 12,
+      "within_phase_events": 21
+    },
+    {
+      "boundary_events": 18,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x1F0",
+      "runs_at_phase_boundary": 11,
+      "runs_changed": 12,
+      "runs_within_phase": 12,
+      "within_phase_events": 21
+    },
+    {
+      "boundary_events": 18,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x1F4",
+      "runs_at_phase_boundary": 11,
+      "runs_changed": 12,
+      "runs_within_phase": 12,
+      "within_phase_events": 21
+    },
+    {
+      "boundary_events": 18,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x1F8",
+      "runs_at_phase_boundary": 11,
+      "runs_changed": 12,
+      "runs_within_phase": 12,
+      "within_phase_events": 21
+    },
+    {
+      "boundary_events": 18,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x1FC",
+      "runs_at_phase_boundary": 11,
+      "runs_changed": 12,
+      "runs_within_phase": 12,
+      "within_phase_events": 21
+    },
+    {
+      "boundary_events": 4,
+      "region": "golf_config",
+      "relative_offset": "+0xBC",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 7,
+      "runs_within_phase": 3,
+      "within_phase_events": 3
+    },
+    {
+      "boundary_events": 4,
+      "region": "golf_config",
+      "relative_offset": "+0xC0",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 7,
+      "runs_within_phase": 3,
+      "within_phase_events": 3
+    },
+    {
+      "boundary_events": 4,
+      "region": "golf_field",
+      "relative_offset": "+0x44",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 7,
+      "runs_within_phase": 3,
+      "within_phase_events": 3
+    },
+    {
+      "boundary_events": 4,
+      "region": "golf_field",
+      "relative_offset": "+0x50",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 7,
+      "runs_within_phase": 3,
+      "within_phase_events": 3
+    },
+    {
+      "boundary_events": 4,
+      "region": "golf_field",
+      "relative_offset": "+0x6C",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 4,
+      "within_phase_events": 4
+    },
+    {
+      "boundary_events": 4,
+      "region": "golf_field",
+      "relative_offset": "+0x88",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 4,
+      "within_phase_events": 4
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x48",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x50",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x54",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x64",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x68",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x70",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x74",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0xD8",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0xE0",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0xE4",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0xF4",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0xF8",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x100",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_ball_effect",
+      "relative_offset": "+0x104",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x48",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x50",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x54",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x64",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x68",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x70",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x74",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0xD8",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0xE0",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0xE4",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0xF4",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0xF8",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x100",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x104",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x168",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x170",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x174",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x184",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x188",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x190",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x194",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_player_effect",
+      "relative_offset": "+0x1F8",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x48",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x50",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x54",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x64",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x68",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x70",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x74",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0xD8",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0xE0",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0xE4",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0xF4",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0xF8",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x100",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x104",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x168",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x170",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x174",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x184",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x188",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x190",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    },
+    {
+      "boundary_events": 4,
+      "region": "minimap_shot_line_effect",
+      "relative_offset": "+0x194",
+      "runs_at_phase_boundary": 4,
+      "runs_changed": 5,
+      "runs_within_phase": 1,
+      "within_phase_events": 1
+    }
+  ],
+  "regions_with_changes_by_run_count": {
+    "golf_config": 7,
+    "golf_field": 7,
+    "minimap_ball_effect": 24,
+    "minimap_player_effect": 24,
+    "minimap_shot_line_effect": 24
+  },
+  "schema_version": 1,
+  "shared_changed_words_all_runs": 16,
+  "study_id": "S002-GOLF-MEMORY-COHORT",
+  "valid_independent_runs": 24,
+  "warning": "Repeated changes are not identified golf power, club pose, flight or score. Only already-recorded phase-aligned statistics are compared; frame timing and human labels may differ."
+}
