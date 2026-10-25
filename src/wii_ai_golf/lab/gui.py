@@ -194,6 +194,8 @@ def launch(root: Path = ROOT) -> int:
 
     def run_selected(live: bool):
         try:
+            if sync_busy[0]:
+                raise ValueError("GitHub update is in progress; start this test after it finishes.")
             p = selected_plan()
             if p.live != live:
                 raise ValueError("Experiment mode does not match this button")
