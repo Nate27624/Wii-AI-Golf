@@ -16,6 +16,20 @@ The interface lists all studies with **OFFLINE / LIVE / PLANNED** classification
 
 **PLANNED entries cannot run** until the corresponding agent's reviewed work is merged. Do not assume pending S003/S005 studies work merely because they are catalogued.
 
+## Test a real golf swing — everything in the UI
+
+The historical V1 vs installed V2 experiment previously required a separate shell command to create the V1 bridge. **That is now a fully visible guided workflow** above the Lab's experiment list:
+
+1. **1 Inspect bridges** — runs a registered, read-only S001 audit inside the Lab. You see the backup/current revision and an offline execution log. No Dolphin starts.
+2. **2 Prepare historical V1** — available only when the saved before-V2 bridge is structurally safe (V1 swing, atomic trace, **no** savestate autoload). Requires your explicit confirmation, copies the backed-up bytes to a separate `tools/mcp_bridge_swing_legacy_eval.py`, never replaces the installed V2 bridge and refuses to overwrite an unrelated existing file. If backup is absent/unsafe, the UI disables this button and explains why.
+3. **3 Run ONE V1 shot** — enabled only when the isolated V1 file exists and meets the expected structural gate. **Close Dolphin first.** Launches exactly one canonical fresh-boot Hitting the Green session, with **A prime 0** and **observed A lead 0** by default; confirms tee-ready and contact through the existing S002 outcome collector. A process exit is not a hit or score.
+
+Clicking steps 1–2 runs an offline Lab job and displays the saved diagnostic output automatically; the **Offline log** button also opens the most recent offline output. Step 3 uses the existing explicitly approved live-test terminal and writes the human observation to the private S002 sanitized candidate summary. There is no automatic series of real shots.
+
+The **Game tests** dropdown filter keeps these actions and other actual Dolphin tests together. A GitHub auto-update of the Lab source does not replace already-imported Python code inside an open GUI. When the sync status says updated, use the new **Restart Lab (updated)** button; it restarts only when no active Lab job or Git update is running. For the FIRST installation of the guided UI, close the older window, `git pull --ff-only`, and reopen `py scripts/golf.py lab gui` once. Subsequent GUI updates have an in-application restart control.
+
+The equivalent terminal experiment IDs, for automated/mock tests and expert debugging only, are `integration.bridge-audit` (offline), `integration.prepare-v1` (offline explicit file creation), and `integration.v1-diagnostic` (live). For normal gameplay testing, prefer the visible three-step panel, not individual PowerShell commands. If the backup isn't valid, do not substitute arbitrary code or overwrite the current bridge; contact/score conclusions must wait until a safe comparison is possible.
+
 ## Same functions via one CLI
 
 ~~~powershell
