@@ -154,6 +154,15 @@ def analyze_private_trajectory(rows, report):
         if (within != entry.get("within_stage_changes")
                 or boundary != entry.get("between_stage_changes")):
             raise ValueError("Private RAM changes differ from sanitized S002 evidence")
+        # Distinguish stage-matched negative controls. S002's public
+        # within_stage_changes counter combines both idle and aim-only, so
+        # only the local private stage-tagged data can recover this contrast.
+        phase_pairs = {"idle": [0, 0], "aim_only": [0, 0]}
+        for i in range(1, len(parsed)):
+            if parsed[i][1] == parsed[i-1][1]:
+                phase = parsed[i][0]["phase"]
+                phase_pairs[phase][1] += 1
+                phase_pairs[phase][0] += int(signed_deltas[i-1] != 0)
         frame_deltas = [parsed[i][2] - parsed[i-1][2]
                         for i in range(1, len(parsed))]
         same_frame_ratio = bool(signed_deltas) and all(
@@ -168,6 +177,15 @@ def analyze_private_trajectory(rows, report):
                                       and signed_deltas[0] != 0,
             "one_direction_monotonic": positive or negative,
             "integer_step_proportional_to_frame_gap": same_frame_ratio,
+            "idle_changed_pairs": phase_pairs["idle"][0],
+            "idle_comparable_pairs": phase_pairs["idle"][1],
+            "aim_changed_pairs": phase_pairs["aim_only"][0],
+            "aim_comparable_pairs": phase_pairs["aim_only"][1],
+            "boundary_changed_pairs": boundary,
+            "aim_changes_with_no_idle_changes": (
+                phase_pairs["idle"][0] == 0 and
+                phase_pairs["aim_only"][0] > 0),
+            "aim_selectivity_is_unverified_human_phase_label": True,
             # Pure equivalence class: no signed deltas or raw bits leave memory.
             "_delta_signature": tuple(signed_deltas),
             "candidate_interpretation": "idle_camera_continuous_control_not_power"
