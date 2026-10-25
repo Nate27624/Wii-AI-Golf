@@ -81,11 +81,15 @@ py scripts/probe_golf_scene_root.py --attach-running
 \`\`\`
 
 Replace NNN with this PR number once published; do not use this prototype
-against mismatched ROM/revisions or a different game state. This script
-intentionally does **not** auto-publish until S000's privacy/provenance
-gate (PR #126) explicitly allows this new type of sanitized record.
-S000 must integrate it with the canonical uploader after schema review;
-never send raw RAM or pointers to GitHub.
+against mismatched ROM/revisions or a different game state. The script **attempts automatic GitHub publication by default** via the
+existing canonical publisher, but **fails closed** unless S000's typed
+privacy/provenance gate (PR #126) is merged AND explicitly recognizes the
+new scene-root record kind. Until that review finishes, it retains a local,
+sanitary `golf-scene-root-...-summary.json` under the sibling Data/captures
+folder and prints a clear publication-blocked message. `--no-upload` skips
+publication when explicitly requested. This is the user's preferred
+future auto-upload behavior without bypassing the privacy gate. Never send
+raw RAM or pointers to GitHub.
 
 ## Success versus identification
 
