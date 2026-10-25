@@ -49,9 +49,10 @@ def sync_merged_main(
 ) -> SyncReport:
     """Fast-forward local clean main only; never run newly fetched code."""
     root = Path(root).resolve()
-    if (lab_data is not None and
-            (lab_data / "live-session.lock").exists()):
-        return SyncReport("blocked", note="A Lab live game session may be active; no Git changes.")
+    if (lab_data is not None and any(
+            (lab_data / name).exists() for name in
+            ("live-session.lock", "run-session.lock"))):
+        return SyncReport("blocked", note="A Lab experiment may be running; no Git changes.")
     if not (root / ".git").exists():
         return SyncReport("blocked", note="Not an ordinary Git checkout; no automatic updates.")
     def git(*arguments: str, timeout: int = 8) -> str:
@@ -91,9 +92,11 @@ def sync_merged_main(
                                       if TEST_DIFF.fullmatch(x)}))
         # Recheck immediately before filesystem changes; Dolphin/Lab processes
         # may have begun during the network fetch.
-        if lab_data is not None and (lab_data / "live-session.lock").exists():
+        if lab_data is not None and any(
+                (lab_data / name).exists() for name in
+                ("live-session.lock", "run-session.lock")):
             return SyncReport("blocked", before, after, changed_tests,
-                              note="Lab live session started during fetch; update deferred.")
+                              note="Lab job started during fetch; update deferred.")
         if git("status", "--porcelain", "--untracked-files=normal"):
             return SyncReport("blocked", before, after, changed_tests,
                               note="Working tree changed during fetch; update deferred.")
