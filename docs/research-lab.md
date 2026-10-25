@@ -1,3 +1,9 @@
+# ARCHIVED — desktop UI retired
+
+The user replaced this GUI-based workflow with one centralized script-first repository and automatic safe pull/publish. **Do not launch, extend or reinstall the Lab GUI.** The active commands and publication protocol are in [cli-only-workflow.md](cli-only-workflow.md). The remainder of this document is retained only to understand older run records and experiment architecture.
+
+---
+
 # Wii AI Golf Research Lab
 
 **One local application for S000 coordination, S001 integration, S002 evaluation, S003 modeling, S004 learning and S005 generalization.** All experiments have registered ownership, execution mode, stable IDs, canonical commands, and local records. A process exit is *not* a game score.
