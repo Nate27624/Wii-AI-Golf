@@ -165,6 +165,35 @@ def publish_summary(summary: dict) -> str:
 
 
 
+def publish_saved_scene_root(record_id: str, *, local_only: bool = False) -> str:
+    """Reuse an EXISTING sanitized probe report; no new Dolphin/RPC run.
+
+    Deliberately restrict input to one source-approved report type in the
+    private sibling captures directory. No arbitrary --file arguments.
+    """
+    from wii_ai_golf.shared.public_observation import TRIAL_ID, public_observation
+    if (type(record_id) is not str or not TRIAL_ID.fullmatch(record_id)
+        or record_id.startswith(("cohort-", "offline-"))):
+        raise ValueError("Invalid source-gated scene-root record ID")
+    captures = DATA / "captures"
+    path = captures / ("golf-scene-root-" + record_id + "-summary.json")
+    if (captures.is_symlink() or path.is_symlink() or not path.is_file()
+        or not 0 < path.stat().st_size <= 16_384):
+        raise ValueError("Saved scene-root report missing, linked or oversized")
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise ValueError("Saved scene-root report is not readable JSON") from exc
+    if type(record) is not dict or record.get("id") != record_id:
+        raise ValueError("Saved scene-root report ID mismatch")
+    clean = public_observation(record)  # no raw/private fields or pointers
+    if clean.get("kind") != "golf_scene_root_candidate_triage":
+        raise ValueError("Not an approved scene-root report")
+    if local_only:
+        return "VALID LOCAL-ONLY scene-root report; no upload attempted"
+    return publish_summary(clean)  # same existing reviewed Git authentication
+
+
 POWER_MAP_ID = "S003-POWER-MAP-10-V1"
 # Five conditions twice, same first-ball scenario on independent fresh boots.
 POWER_MAP_STUDY = ((1.0,1.0),(0.8,1.0),(1.0,1.2),(0.9,1.0),(1.0,0.8),
@@ -196,6 +225,12 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("sync", help="Fast-forward clean trusted main; never start Dolphin")
     commands.add_parser("study", help="Print preregistered 10-shot plan; no Dolphin")
+    saved = commands.add_parser("publish-saved-scene-root",
+                                help="Validate or publish an existing sanitized scene-root report; no Dolphin")
+    saved.add_argument("--id", required=True, help="Record ID printed by source-gated probe")
+    saved.add_argument("--local-only", action="store_true",
+                       help="Validate saved report but do not upload")
+
     t = commands.add_parser("test", help="Sync, run focused offline unittests, publish results")
     t.add_argument("--pattern", default="test_*.py")
     t.add_argument("--no-upload", action="store_true", help="Keep results local")
@@ -222,6 +257,10 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "study":
             show_power_map()
+            return 0
+        if args.command == "publish-saved-scene-root":
+            result = publish_saved_scene_root(args.id, local_only=args.local_only)
+            print("Scene-root saved report:", result, flush=True)
             return 0
         if args.command == "v1" and (not args.live or type(args.a_lead) is not int
                                      or not 0 <= args.a_lead <= 90):
