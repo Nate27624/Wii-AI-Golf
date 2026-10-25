@@ -20,6 +20,28 @@ def pid_running(pid: int) -> bool:
         return True
     if pid == os.getpid():
         return True
+    if os.name == "nt":
+        # Windows process checks should never send signals or terminate a
+        # process. Synchronize-only access lets us check liveness safely.
+        import ctypes
+        import ctypes.wintypes
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.OpenProcess.argtypes = [
+            ctypes.wintypes.DWORD, ctypes.wintypes.BOOL, ctypes.wintypes.DWORD]
+        kernel.OpenProcess.restype = ctypes.wintypes.HANDLE
+        kernel.WaitForSingleObject.argtypes = [
+            ctypes.wintypes.HANDLE, ctypes.wintypes.DWORD]
+        kernel.WaitForSingleObject.restype = ctypes.wintypes.DWORD
+        kernel.CloseHandle.argtypes = [ctypes.wintypes.HANDLE]
+        kernel.CloseHandle.restype = ctypes.wintypes.BOOL
+        handle = kernel.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+        if not handle:
+            return ctypes.get_last_error() != 87  # absent vs denied/unknown
+        try:
+            status = kernel.WaitForSingleObject(handle, 0)
+            return status != 0  # WAIT_OBJECT_0 (terminated) vs still running
+        finally:
+            kernel.CloseHandle(handle)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
