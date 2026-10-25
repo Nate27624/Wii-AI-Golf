@@ -17,40 +17,46 @@ The expected RPGolMain header is not present at the checked source path.
 Neither `golf_field` nor `minimap_ball_effect` is a substitute for
 `RPGolScene`.
 
-## Read-only offline symbol reconnaissance
+## Included source-verified symbols (no download necessary)
 
-The upstream repo includes three distinct root-level files:
-[`RSPE_r1.map`](https://github.com/kiwi515/ogws_info/blob/main/RSPE_r1.map) (Ghidra map),
-[`RSPE_r1.map.csv`](https://github.com/kiwi515/ogws_info/blob/main/RSPE_r1.map.csv) (CSV), and
-[`RSPE_r1.dmap`](https://github.com/kiwi515/ogws_info/blob/main/RSPE_r1.dmap) (Dolphin map).
-The scanner accepts either the plain map or the CSV. Use the **CSV**
-file below; run these commands in the separate PR #122 worktree, not
-the main checkout:
+The repository includes
+`research/reference/golf_scene_rev1_symbols.csv`: a **small, attributed
+selection of symbol facts** from
+[`kiwi515/ogws_info/RSPE_r1.map.csv`](https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RSPE_r1.map.csv).
+From the PR #122 checkout, run:
 
 ```powershell
-$work = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Scene-Test"
-if (-not (Test-Path "$work\scripts\audit_golf_scene_symbols.py")) {
-    throw "PR #122 worktree missing; first complete Step 1"
-}
-Set-Location $work
-$map = Join-Path $env:TEMP "RSPE_r1.map.csv"
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/kiwi515/ogws_info/main/RSPE_r1.map.csv" -OutFile $map -ErrorAction Stop
-if (-not (Test-Path $map) -or (Get-Item $map).Length -eq 0) {
-    throw "Public symbol map download failed"
-}
-py scripts/audit_golf_scene_symbols.py --map $map
+py scripts/audit_golf_scene_symbols.py
 ```
 
-This downloads only a public symbol map and performs an offline,
-read-only scan afterward; it does not connect to Dolphin. If downloading
-is blocked, download the same CSV through the GitHub file page, save
-it manually, and provide the actual local file path to `--map`.
-Do not copy `D:\path\to\...` literally; it was only a placeholder.
+That default command is **fully offline**. There is no Dolphin action,
+no manual download, and no raw memory output.
 
-The tool only counts symbol-map lines grouped by scene-related class
-names and possible singleton naming conventions. It never prints memory
-pointers, symbol addresses, or raw local map lines. A map entry
-named `RPGolScene` is NOT evidence of a runtime instance address.
+## Optional complete upstream maps, cached locally
+
+The upstream project has no license file granting wholesale
+redistribution of its symbol maps, so the full maps are **not committed
+into this repository**. A version-pinned helper fetches them unchanged
+into the *sibling* `Wii-AI-Golf-Data/symbols` directory rather than Git:
+
+```powershell
+# Get all three from upstream: Ghidra map, CSV, Dolphin map
+py scripts/fetch_golf_symbol_map.py --format all
+
+# Analyze the cached complete CSV
+py scripts/audit_golf_scene_symbols.py --map "..\\Wii-AI-Golf-Data\\symbols\\RSPE_r1.map.csv"
+```
+
+The optional fetch needs internet access to GitHub and refuses to
+overwrite an existing local file. For offline work, use the bundled
+source-verified subset above. The three verified upstream filenames
+are `RSPE_r1.map`, `RSPE_r1.map.csv`, and `RSPE_r1.dmap`.
+
+The symbol triage reports relative categories and match counts only.
+**Function addresses do not equal runtime instance pointers**:
+`RPSysSceneMgr::getCurrentScene` has a Rev1 function entry in the
+source map, but calling or tracing it to find a live scene instance
+still requires independent implementation review.
 
 ## Next evidence gate — do not skip
 
