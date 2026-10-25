@@ -1,5 +1,8 @@
 # Wii AI Golf Research Lab
 
+**Current selected-study workflow:** Pick **Game tests → Historical V1 contact comparison** and use its right-hand **Show/details pane → Prepare and run one V1 shot**. This ONE action inspects the V2/old V1 state, requests approval for a safe separate V1 copy if required, verifies it, and asks before one canonical Dolphin live trial. The old top-of-window 1/2/3 toolbar is obsolete. New OS-held Lab locks release on process death and conservatively migrate an old recorded dead PID without requiring manual lockfile deletion. Active/unknown owners still block; GitHub sync uses the same lock. Both desktop and Git Bash share one core.
+
+
 **One local application for S000 coordination, S001 integration, S002 evaluation, S003 modeling, S004 learning and S005 generalization.** All experiments have registered ownership, execution mode, stable IDs, canonical commands, and local records. A process exit is *not* a game score.
 
 ## Launch the Windows desktop application
