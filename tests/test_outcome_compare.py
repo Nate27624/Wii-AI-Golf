@@ -99,12 +99,32 @@ class OutcomeComparisonTests(unittest.TestCase):
         for d in docs:
             d["known_good_swing_request"]["a_button_prime_applied"] = True
             d["known_good_swing_request"]["a_button_only_prime_requests"] = 60
+            d["known_good_swing_request"]["a_lead_requested_frames"] = 0
+            d["known_good_swing_request"]["a_lead_observed_frame_delta"] = None
         self.assertTrue(compare_outcome_runs(docs)["full_controller_program_comparable"])
         docs[1]["known_good_swing_request"]["a_button_only_prime_requests"] = 0
         self.assertFalse(compare_outcome_runs(docs)["full_controller_program_comparable"])
         docs[1]["known_good_swing_request"]["a_button_only_prime_requests"] = 60
         docs[1]["known_good_swing_request"]["trace_sha256"] = "b" * 64
         self.assertFalse(compare_outcome_runs(docs)["waveforms_proven_identical"])
+
+    def test_frame_observed_a_lead_is_a_distinct_controller_program(self):
+        docs = [make_report(frames=89), make_report(frames=89)]
+        for d in docs:
+            req = d["known_good_swing_request"]
+            req["trace_sha256"] = "a" * 64
+            req["a_button_prime_applied"] = True
+            req["a_button_only_prime_requests"] = 1
+            req["a_lead_requested_frames"] = 12
+            req["a_lead_observed_frame_delta"] = 12
+        self.assertTrue(compare_outcome_runs(docs)["full_controller_program_comparable"])
+        docs[1]["known_good_swing_request"]["a_lead_observed_frame_delta"] = 13
+        self.assertFalse(compare_outcome_runs(docs)["full_controller_program_comparable"])
+        docs[1]["known_good_swing_request"]["a_lead_observed_frame_delta"] = 12
+        docs[1]["known_good_swing_request"]["a_lead_requested_frames"] = 0
+        self.assertFalse(compare_outcome_runs(docs)["full_controller_program_comparable"])
+        docs[1]["known_good_swing_request"]["a_lead_requested_frames"] = None
+        self.assertFalse(compare_outcome_runs(docs)["full_controller_program_comparable"])
 
     def test_reject_duplicate_invalid_addresses_or_bad_telemetry(self):
         same = make_report()
