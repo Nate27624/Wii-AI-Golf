@@ -85,18 +85,18 @@
     {
       "id": "evaluation.minimap",
       "owner": "S002",
-      "title": "Minimap-effect camera versus swing",
-      "description": "Planned camera/swing differential pending evaluation capture review; minimap effect is not ball physics",
-      "mode": "planned",
-      "kind": "unavailable"
+      "title": "Minimap camera-only capture",
+      "description": "One fresh physical Wii Remote session; manually rotate camera without swing. Requires sibling S002 checkout.",
+      "mode": "live",
+      "kind": "s002_minimap_camera"
     },
     {
       "id": "evaluation.landmarks",
       "owner": "S002",
       "title": "Pin/start/cup landmark controls",
-      "description": "Planned GUI-backed live recorder pending integration of physical-controller startup and manual-ready gate",
-      "mode": "planned",
-      "kind": "unavailable"
+      "description": "One fresh physical Wii Remote camera-only landmark run; requires sibling S002 checkout.",
+      "mode": "live",
+      "kind": "s002_landmarks"
     },
     {
       "id": "modeling.sweep",
@@ -129,6 +129,14 @@
       "description": "Blocked until actual outcome extraction/learning is validated",
       "mode": "planned",
       "kind": "unavailable"
+    },
+    {
+      "id": "evaluation.minimap-swing",
+      "owner": "S002",
+      "title": "Minimap one-swing differential",
+      "description": "One fresh physical Wii Remote capture; operator manually swings after tee-ready confirmation.",
+      "mode": "live",
+      "kind": "s002_minimap_swing"
     }
   ]
 }
