@@ -23,6 +23,10 @@ ROOT_STORAGE_CELLS = (0x804BF4D8, 0x804BF4DC)
 CURRENT_SCENE_OFFSET = 0xC
 CURRENT_SCENE_ID_OFFSET = 0x18
 GOLF_SCENE_ID = 5
+# kiwi515/ogws_info RPSportsBaseScene.h +0x54 and
+# RPSportsSequenceMgr.h SPORT_GOLF == 2; independent of scene-manager ID.
+SCENE_SPORT_OFFSET = 0x54
+GOLF_SPORT_ID = 2
 # kiwi515/ogws_info RPGolScene.h, newer decomp says unk9C.
 POSSIBLE_GOLF_MAIN_OFFSET = 0x9C
 # doldecomp/ogws RSPE01_01/splits.txt, RPGolScene.cpp .data.
@@ -91,13 +95,19 @@ def _pass(rpc: object) -> tuple[list[dict], tuple[int, int]]:
                   "scene_pointer_ram_like": scene_ram}
         # Only inspect source-backed scene-member offsets when BOTH gates hold.
         if scene_id == GOLF_SCENE_ID and scene_ram:
+            # Do not treat a generic scene-ID match as the golf scene:
+            # verify a *separate* source-backed sport member and vtable
+            # plausibility before even reading the disputed +0x9C member.
             vtable = _u32(rpc, scene)
-            possible_main = _u32(rpc, scene + POSSIBLE_GOLF_MAIN_OFFSET)
+            sport = _u32(rpc, scene + SCENE_SPORT_OFFSET)
             result["scene_vtable_in_golf_data_region"] = (
                 GOLF_SCENE_DATA_START <= vtable < GOLF_SCENE_DATA_END
                 and vtable % 4 == 0)
-            result["_private_possible_main"] = possible_main
-            result["possible_main_pointer_ram_like"] = _ram(possible_main, 4)
+            result["scene_sport_id_match"] = sport == GOLF_SPORT_ID
+            if result["scene_sport_id_match"] and result["scene_vtable_in_golf_data_region"]:
+                possible_main = _u32(rpc, scene + POSSIBLE_GOLF_MAIN_OFFSET)
+                result["_private_possible_main"] = possible_main
+                result["possible_main_pointer_ram_like"] = _ram(possible_main, 4)
         candidates.append(result)
     end = _frame(rpc)
     if end < begin or end - begin > MAX_SPAN_FRAMES:
@@ -115,7 +125,9 @@ def probe(rpc: object) -> dict:
         raise RuntimeError("Emulation frame counter rolled backwards between passes")
     stable = [row for row, other in zip(first, second)
               if row == other and row.get("golf_scene_id_match")
-              and row.get("scene_pointer_ram_like")]
+              and row.get("scene_pointer_ram_like")
+              and row.get("scene_sport_id_match")
+              and row.get("scene_vtable_in_golf_data_region")]
     return {
         "schema_version": 1,
         "kind": "golf_scene_root_candidate_triage",
@@ -127,16 +139,22 @@ def probe(rpc: object) -> dict:
         "max_sample_frame_span": max(end1 - start1, end2 - start2),
         "stable_golf_scene_chain_count": len(stable),
         "stable_slot_indices": [row["slot"] for row in stable],
+        # Two valid-looking static cells are ambiguous, even if they
+        # point to the same manager; do not auto-select either.
+        "unique_stable_golf_scene_chain": len(stable) == 1,
         "vtable_in_golf_scene_data_count": sum(
             bool(row.get("scene_vtable_in_golf_data_region")) for row in stable),
         "possible_main_pointer_ram_like_count": sum(
             bool(row.get("possible_main_pointer_ram_like")) for row in stable),
+        "stable_sport_id_match_count": sum(
+            bool(row.get("scene_sport_id_match")) for row in stable),
         "confirmed_manager_singleton_address": False,
         "confirmed_golf_main_type": False,
         "confirmed_golf_power_address": False,
         "warning": (
             "Source-anchored 8-byte static-storage triage only; pointers were "
-            "NOT type-proven, no game power or player RAM identified. "
+            "NOT type-proven, scene sport/vtable are only plausibility checks; "
+            "no game power or player RAM identified. "
             "No runtime addresses or byte values are included.")
     }
 
