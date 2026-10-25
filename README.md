@@ -128,3 +128,10 @@ py scripts/golf.py swing --slot 2 --a-prime-frames 0
 ~~~
 
 The standard CLI uses `--a-prime-frames 60`, `--a-setup-frames 12`, and `--follow-through-frames 30`. Both normal commands retain the canonical fresh Felk startup, Emulated Wii Remote 1/Extension None, Slot 2 restore, A/A+B/A intro and human ready-screen confirmation. See [timing experiment](docs/first-swing-experiment.md) and [CLI guide](docs/cli.md). In-game button acceptance is still human-observed, not automatically verified.
+
+
+## Agent tests automatically appear from GitHub
+
+The Windows Research Lab GUI now checks the approved repository's **merged `main`** when it opens and every **two minutes**, safely fast-forwarding a clean local checkout and discovering new `tests/test_*.py` files. In the UI choose **Agent tests**, select a newly merged **NEW** test, preview, and **Run offline**; or press **Sync GitHub** for an immediate check. No tests or live golf actions run without your approval. Unmerged agent PRs remain pending and are not automatically executed.
+
+CLI equivalents: `py scripts/golf.py lab sync`, `lab list`, `lab plan agent-tests.test_lab_core`, `lab run agent-tests.test_lab_core`. Local changes, unexpected Git remotes and parallel Lab jobs stop the sync instead of being overwritten. See [Lab guide](docs/research-lab.md) for details.
