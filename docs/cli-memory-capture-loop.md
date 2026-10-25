@@ -171,3 +171,54 @@ measure exact power or club rotation. The documented `RPGolScene`
 `mGolMain` member at scene `+0x9C` is a promising *future* pointer
 chain, but the scene object's live address and gameplay substructures
 have not been verified. Do not dereference fabricated addresses.
+
+## Next-source experiment: inspect the ACTIVE golf scene chain
+
+The 24-run cohort report `cohort-20261025T025308Z-fbda2d0e` shows
+16 universal offsets, all belonging to minimap effects. The documented
+course configuration and manager fields provide no identified club/power
+signal. The next target is the source-documented pointer chain:
+
+```text
+candidate EGG::SceneManager instance
+   +0x0C -> current scene
+       +0x40 -> scene ID (expected RP_GOL_SCENE = 5)
+       +0x54 -> sport ID (expected golf = 2)
+       +0x9C -> RPGolMain* (required RAM-like pointer; NOT yet decoded)
+```
+
+References: `doldecomp/ogws/include/egg/core/eggSceneManager.h`,
+`kiwi515/ogws_info/RP/RPSports/RPSportsBaseScene.h`,
+`kiwi515/ogws_info/RP/RPSports/RPGolScene/RPGolScene.h`.
+
+The survey searches only a bounded 4 KiB page of candidate global
+singleton pointers near source-documented golf-instance statics. This
+page is a **heuristic search region**, not a confirmed static manager
+slot. It is safe to get zero matches; the chain may be stored elsewhere
+or scene timing could differ. The survey validates RSPE01 Rev1 and mode 4
+before dereferencing any candidate, then checks RAM bounds and scene
+identity before publishing the validated slot **relative offsets** only.
+No raw addresses, bytes or screenshots are uploaded. It never invokes a
+controller, savestate, or game-memory write.
+
+Once PR #116 is validated and merged, a canonical fresh-Dolphin session
+can execute this source survey after navigating to the first tee:
+
+```powershell
+Set-Location "D:\Projects\Wii Golf AI\Wii-AI-Golf"
+py scripts/run_golf_experiment.py --send-live `
+    --script probe_golf_scene_chain.py -- --attach-running
+```
+
+Only run this after the canonical owner confirms the wrapper supports
+this read-only action. Do **not** use a noncanonical worktree for Dolphin
+startup. The outcome is a GitHub `golf-scene-chain-census` observation:
+count of candidate pointers, number matching the expected scene chain,
+and candidate global-slot *relative* offsets. It does NOT identify club
+rotation or power. Any time the frame span is excessive, treat the
+sample as invalid; an empty scan does not prove object absence.
+
+If the owner does not approve the fresh launcher route, run
+`py scripts/probe_golf_scene_chain.py --attach-running --no-upload`
+ONLY when the exact active Dolphin bridge/session are already verified
+by S001. No new session is started.
