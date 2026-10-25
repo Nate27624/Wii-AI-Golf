@@ -13,6 +13,8 @@ Usage: bash scripts/golf.sh <command> [arguments]
   run ID [flags]       Run one offline test; live requires --live and human consent
   history              Inspect local run metadata (not game scores)
   reports              Show sanitized local observations
+  export               Create a private, shareable sanitized status bundle (no token/network)
+  verify-export        Verify the latest exported bundle without network
   test [flags]         Run offline regression tests
   doctor               Diagnose local setup, without opening Dolphin
   <other> [flags]      Forward to canonical scripts/golf.py CLI
@@ -24,6 +26,6 @@ case "${1:-help}" in
   help|-h|--help) usage;;
   sync) shift; exec "${PY[@]}" scripts/golf.py lab sync "$@";;
   list) shift; exec "${PY[@]}" scripts/golf.py lab list "$@";;
-  plan|run|history|reports) cmd="$1"; shift; exec "${PY[@]}" scripts/golf.py lab "$cmd" "$@";;
+  plan|run|history|reports|export|verify-export) cmd="$1"; shift; exec "${PY[@]}" scripts/golf.py lab "$cmd" "$@";;
   *) exec "${PY[@]}" scripts/golf.py "$@";;
 esac
