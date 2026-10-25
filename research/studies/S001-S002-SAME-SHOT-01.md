@@ -24,7 +24,7 @@
 $repo = "D:\Projects\Wii Golf AI\Wii-AI-Golf"
 $work = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Swing-Memory-Plan"
 if (Test-Path $work) { throw "Worktree exists; do not overwrite" }
-git -C $repo fetch origin pull/NNN/head
+git -C $repo fetch origin pull/147/head
 if ($LASTEXITCODE -ne 0) { throw "Fetch failed" }
 git -C $repo worktree add --detach $work FETCH_HEAD
 if ($LASTEXITCODE -ne 0) { throw "Worktree failed" }
