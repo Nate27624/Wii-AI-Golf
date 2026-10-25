@@ -4,6 +4,7 @@ Commands:
     py scripts/research_cli.py test
     py scripts/research_cli.py v1 --a-lead 0
     py scripts/research_cli.py sync
+    py scripts/research_cli.py review   # read-only summary of published evidence
 
 Safe sequence: clean main fast-forward -> local experiment -> sanitized
 result commit/push to the dedicated research/observations branch. Never
@@ -164,6 +165,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("sync", help="Fast-forward clean trusted main; never start Dolphin")
+    commands.add_parser("review", help="Read-only synthesis of trusted PUBLIC GitHub observations; no Dolphin or upload")
     t = commands.add_parser("test", help="Sync, run focused offline unittests, publish results")
     t.add_argument("--pattern", default="test_*.py")
     t.add_argument("--no-upload", action="store_true", help="Keep results local")
@@ -179,6 +181,25 @@ def main(argv: list[str] | None = None) -> int:
             print("No experiment started; resolve sync blocker first.", file=sys.stderr)
             return 2
         if args.command == "sync":
+            return 0
+        if args.command == "review":
+            from wii_ai_golf.evidence_review import (
+                load_public_observations, review_public_observations)
+            from wii_ai_golf.lab.github_sync import _trusted_url
+            origin = _git(["remote", "get-url", "origin"], cwd=ROOT)
+            if not _trusted_url(origin):
+                raise RuntimeError("Refusing to read observations from unapproved GitHub remote")
+            # Temporary clone keeps research/observations distinct from main,
+            # never checks out a branch into the operator's code or runs content.
+            with tempfile.TemporaryDirectory(prefix="wii-golf-review-") as folder:
+                target = Path(folder) / "repo"
+                _git(["clone", "--quiet", "--single-branch", "--branch",
+                      OBS_BRANCH, "--depth", "1", origin, str(target)],
+                     cwd=Path(folder))
+                report_data = load_public_observations(
+                    target / "research" / "observations")
+                report = review_public_observations(report_data)
+            print(json.dumps(report, indent=2, sort_keys=True, allow_nan=False))
             return 0
         if args.command == "v1" and (not args.live or type(args.a_lead) is not int
                                      or not 0 <= args.a_lead <= 90):
