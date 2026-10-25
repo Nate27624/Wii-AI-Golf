@@ -30,6 +30,16 @@ The **Game tests** dropdown filter keeps these actions and other actual Dolphin 
 
 The equivalent terminal experiment IDs, for automated/mock tests and expert debugging only, are `integration.bridge-audit` (offline), `integration.prepare-v1` (offline explicit file creation), and `integration.v1-diagnostic` (live). For normal gameplay testing, prefer the visible three-step panel, not individual PowerShell commands. If the backup isn't valid, do not substitute arbitrary code or overwrite the current bridge; contact/score conclusions must wait until a safe comparison is possible.
 
+## A clear in-window bridge inspection (UI repair)
+
+The Lab's **Inspect bridges** button now reads local V1/V2 provenance directly in the window and immediately displays the installed bridge revision, shortened SHA-256 fingerprint, historical backup, separate V1 test copy and what to do next. It neither opens Dolphin nor starts another console, and it never relies on an offline log existing first. **No more empty “Run an offline experiment and then refresh” popup.** The bridge inspection remains read-only.
+
+**Prepare historical V1** first asks for consent, then runs the already-reviewed `integration.prepare-v1` offline Lab action in a background worker, recording the real run and locally retained stdout/stderr. Progress, verification success, and any failure are shown inside the same Game Testing results panel. It refuses missing/unsafe/autoloaded backups and mismatched existing copies, and never replaces the installed V2 generated bridge or Dolphin savestate. The V1 shot button is enabled only when the current bridge is recognizable V2 **and** the isolated V1 copy's SHA matches the verified before-V2 backup.
+
+Other offline study runners remain available from the catalog. The **Offline log** button now displays a clear in-window message if no completed log exists, rather than popping up an unhelpful dialog. An actual one-shot Dolphin experiment still opens an interactive console for the current collector's human readiness/contact prompts, after explicit consent. Its process exit must not be mistaken for a hit or official score.
+
+After first receiving this UI change, close the existing window once and update the checkout; then reopen `py scripts/golf.py lab gui`. GitHub auto-sync can fetch later UI updates, but the current running Python process must use **Restart Lab (updated)** to reload newly merged code.
+
 ## Same functions via one CLI
 
 ~~~powershell
