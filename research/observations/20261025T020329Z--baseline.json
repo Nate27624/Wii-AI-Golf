@@ -1,0 +1,17 @@
+{
+  "changed_parameter": "none",
+  "contact_human": "no",
+  "contact_verified_by_memory": false,
+  "dispatch_acknowledged": true,
+  "id": "20261025T020329Z--baseline",
+  "kind": "swing-power-calibration",
+  "parameter_multiplier": 1.0,
+  "power_percent_human": null,
+  "power_verified_by_memory": false,
+  "schema_version": 1,
+  "study_id": "S002-POWER-INPUT-OUTPUT",
+  "trace_frames": 89,
+  "trace_sha256": "b63a1818ba5086c64b0fe7338236a498240e4be97bbd111809a772d783699891",
+  "utc": "2026-10-25T02:03:29.878654+00:00",
+  "variant": "baseline"
+}
