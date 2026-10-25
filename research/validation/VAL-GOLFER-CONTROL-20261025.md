@@ -61,17 +61,32 @@ Do **not**:
 4. Compare `max_non_atomic_frame_span=18` from the 16-child watchlist against the earlier **2-frame** candidate-main-only capture as though the probes had identical size or phase timing. Probe width is a possible confound, not established cause.
 5. Upload private RAW-PRIVATE captures to GitHub or ChatGPT. Public aggregate counts only.
 
-## Next test A — S002-GOLFER-NULL-01 (OFFLINE, zero Dolphin)
+## Test A — S002-GOLFER-NULL-01 (OFFLINE, EXECUTED by operator)
 
-Use **existing private 20-row source-gated snapshots** with the S002-owned [PR #138](https://github.com/Nate27624/Wii-AI-Golf/pull/138) null-control analyzer. Test whether main `+0x074` u32 word steps in same-stage *idle* relate to actual observed emulator-frame deltas, while keeping stage boundaries and private values out of the public output.
+**Executed by operator:** The S002-owned [PR #138](https://github.com/Nate27624/Wii-AI-Golf/pull/138) analyzer consumed an existing private 20-row capture and produced the sanitized stage/table result reproduced above: **17/17 within-stage increment equalities**, including idle **10/10**. Private rows remain inaccessible here. This satisfies the narrow exploratory frame-step hypothesis inside this **single capture**, but does not identify a clock or a power encoding.
 
 **Preregistered checks**: frame brackets nondecreasing, exact run/scenes stable, no presumed 89-emulator-frame waveform from outgoing samples, repeated idle phase comparisons, classify `within_idle_changed_pairs`, `frame_step_equal_pairs`, and strict `game_power_field_verified=false`. A delta-versus-frame correlation suggests timer-like behavior **only**, not a type proof.
 
 **Resolved implementation compatibility gate, but latest operator result pending:** S002 PR #138 initially required `MAX_SNAPSHOT_FRAMES=12` and therefore rejected the actual wider capture (public 16-child report has maximum 18); the operator confirmed that exact error on the original branch. S002 has since expanded the offline input cap to source PR #129's existing 240-frame contract and added `timing_limited` for spans >12 and `frame_delta_relation_is_exploratory`. This preserves descriptive no-shot comparisons while explicitly disallowing precise per-frame clock conclusions from broad non-atomic reads. **The latest PR #138 head is not yet Windows-tested or run on private capture after this correction**. A fresh targeted/full offline regression and `--latest` are the next operator task; never auto-relaunch Dolphin if local files mismatch.
 
-**Decision rule**: if `within_idle_changed_pairs>0`, classify `main+0x074` as *not swing-exclusive*. If its u32 step repeatedly equals emulator-frame start gaps, rank it timer-like *hypothesis only*. Otherwise leave as unknown background-dynamic. Any missing/inconsistent provenance blocks interpretability.
+**Decision reached:** `within_idle_changed_pairs=10` and `frame_step_equal_pairs=17/17`. Classify `main+0x074` as **not swing-exclusive** and as a **frame-linked background timing candidate**, with no verified internal type. The S002 collector obtains `frame_start` from an independent Dolphin RPC `frame.get_count` *before* reading candidate `bytes_hex`; the public analyzer compares the stored count with the private RAM word, rather than constructing one from the other. They still share emulator time and non-atomic sampling, so exact match alone cannot prove ownership or semantics.
 
-## Next test B — four-word common-mode counter test (OFFLINE, after A)
+## Next test B — common-mode plus cross-boundary counter test (OFFLINE, not yet executed)
+
+**First, finish an already-captured two-pair control (cheapest discriminating check).**
+PR #138 deliberately omits the two adjacent pairs where human stage changes
+0→1 and 1→2 from swing-event **specificity**. S002 can still separately
+test their *arithmetic* delta-versus-observed-frame relationship without
+calling them verified input events. Publish `stage_boundary_pair_count=2`,
+`stage_boundary_equal_frame_gap_pairs` in 0..2, and
+`same_additive_offset_across_all_stages` (boolean) only. Never publish
+the additive offset itself. If both also match, the same single-session
+frame-linked equation spans all 19 adjacent pairs; if either differs,
+report a stage-boundary discontinuity and investigate offset timing rather
+than automatically attributing it to the pointer. Validate source identity,
+frame monotonicity and the 10-frame bracket caveat before computing any count.
+
+## Part B — four-word common-mode counter test (OFFLINE, after A)
 
 Within the **same existing private capture**, compare the **per-sample change/not-change sequences** and modulo u32 deltas of the three child candidates to `main+0x074`. Preregister before viewing trajectories:
 
