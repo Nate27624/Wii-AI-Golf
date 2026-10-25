@@ -210,6 +210,21 @@ def launch(root: Path = ROOT) -> int:
             refresh()
         ui.after(1400, poll)
 
+    def run_safe_batch():
+        if any(p.poll() is None for p in active):
+            messagebox.showwarning("Experiment active", "Finish the current Lab run first.")
+            return
+        if not messagebox.askyesno("Run approved offline batch",
+            "Run all registered zero-input, allowlisted OFFLINE tests and demos? No Dolphin actions."):
+            return
+        try:
+            proc=subprocess.Popen([sys.executable,str(root/"scripts"/"run_lab_offline_batch.py")],
+                                  cwd=root,creationflags=subprocess.CREATE_NEW_CONSOLE)
+            active.append(proc)
+            status.set(f"Offline batch started in console {proc.pid}; see run history.")
+        except OSError as exc:
+            messagebox.showerror("Batch failed to launch",str(exc))
+
     def sync_reviewed():
         from .sync import sync_reviewed_main
         if active:
@@ -228,6 +243,7 @@ def launch(root: Path = ROOT) -> int:
     actions = ttk.Frame(right)
     actions.pack(fill="x")
     ttk.Button(actions, text="Sync reviewed", command=sync_reviewed).pack(side="left", padx=3)
+    ttk.Button(actions, text="Run safe batch", command=run_safe_batch).pack(side="left", padx=3)
     ttk.Button(actions, text="Preview", command=preview).pack(side="left", padx=3)
     offline_btn = ttk.Button(actions, text="Run offline", state="disabled",
                              command=lambda: run_selected(False))
