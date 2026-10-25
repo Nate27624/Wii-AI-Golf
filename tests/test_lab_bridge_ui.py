@@ -41,7 +41,7 @@ class BridgeScreenTests(unittest.TestCase):
         self.assertFalse(view.can_prepare)
         self.assertFalse(view.can_test)
         self.assertIn("unavailable", view.title.lower())
-        self.assertIn("installed bridge: V2", view.as_text())
+        self.assertIn("installed bridge: v2", view.as_text().lower())
         self.assertIn("do not verify", view.as_text().lower())
 
     def test_backup_found_enables_only_prepare_and_describes_next_action(self):
