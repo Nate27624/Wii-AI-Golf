@@ -18,9 +18,9 @@ The existing Git Bash wrapper `bash scripts/golf.sh` remains an alternative for 
 ---
 
 
-## Current workflow: GitHub + Git Bash + one Python codebase
+## Current workflow: One Research Lab, GUI and Git Bash
 
-The **desktop Research Lab GUI is retired**. Use the source-local shell wrapper and unified Python runner instead. Agents commit code/tests and open reviewed GitHub pull requests; merged tests are discovered from the one `main` checkout. The shell wrapper never auto-uploads private game files or runs new tests without a user command.
+The **Windows Research Lab GUI is supported** alongside the source-local Git Bash and PowerShell CLI. They share the same reviewed Python runner. For game testing, select the study in the desktop app and use its guided Show/details pane. Agents commit code/tests and open reviewed GitHub pull requests; merged tests are discovered from the one `main` checkout. The shell wrapper never auto-uploads private game files or runs new tests without a user command.
 
 ```bash
 cd "/d/Projects/Wii Golf AI/Wii-AI-Golf"  # Git Bash; adjust to your checkout
@@ -33,7 +33,9 @@ bash scripts/golf.sh history
 
 To run a live, registered trial only after reviewing its plan: `bash scripts/golf.sh run integration.swing --live`. This still uses canonical Dolphin startup and asks for human confirmation. On Windows PowerShell, use the same underlying `py scripts/golf.py lab ...` commands. No duplicate control or evaluation implementation is introduced.
 
-**GitHub publishing:** Agents push feature branches and PRs; the merge coordinator integrates approved work. Never publish local ROMs, savestates, raw RAM, secrets, personal configuration, or unrestricted run logs. See [script workflow](docs/script-workflow.md). The following historical GUI instructions are archived context only.
+**Single guided historical V1 test:** Close the previous Lab before the first update, then launch `py scripts/golf.py lab gui`. Select **Game tests → Historical V1 contact comparison**. The right-hand Show/details pane has **Prepare and run one V1 shot**; the app inspects the files, obtains consent before safe isolated V1 preparation, and asks again before starting ONE Dolphin trial. No separate three-button toolbar. New OS-released Lab locks prevent a dead process from leaving a permanent lockfile blocker, while active sessions remain protected.
+
+**GitHub publishing:** Agents push feature branches and PRs; the merge coordinator integrates approved work. Never publish local ROMs, savestates, raw RAM, secrets, personal configuration, or unrestricted run logs. See [script workflow](docs/script-workflow.md). Both GUI and script instructions below remain supported ways to use the one Lab.
 
 ---
 
