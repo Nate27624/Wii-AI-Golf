@@ -13,8 +13,8 @@ import sys
 import threading
 from .core import ROOT, get_experiment, history, available_experiments, plan, execute
 from .github_sync import sync_merged_main
-from .sync_status import lock_blockers
 from .bridge_ui import inspect_game_bridges
+from .locks import any_lab_job_busy
 
 
 def launch(root: Path = ROOT) -> int:
@@ -39,25 +39,6 @@ def launch(root: Path = ROOT) -> int:
     ttk.Label(outer, text="S000–S005  •  Agent tests pulled from approved GitHub main  •  One canonical Dolphin startup").pack(anchor="w")
     sync_line = tk.StringVar(value="GitHub: checking for newly merged tests...")
     ttk.Label(outer, textvariable=sync_line, wraplength=930).pack(anchor="w", pady=(4, 0))
-    # This task-specific panel is deliberately OUTSIDE the experiment
-    # filter/list: a user should never need PowerShell or know registry IDs
-    # to prepare a historical game test.
-    game_panel = ttk.LabelFrame(
-        outer, text="Game Testing — historical V1 versus installed V2", padding=10)
-    game_panel.pack(fill="x", pady=(8, 0))
-    ttk.Label(game_panel, text=(
-        "1 Inspect bridge → 2 Prepare separate V1 copy → 3 Run ONE shot. "
-        "The first two steps NEVER start Dolphin."), wraplength=900).pack(anchor="w")
-    game_buttons = ttk.Frame(game_panel)
-    game_buttons.pack(fill="x", pady=(7, 4))
-    bridge_status = tk.StringVar(value="Checking local bridge files...")
-    ttk.Label(game_panel, textvariable=bridge_status, wraplength=900).pack(anchor="w", pady=(3, 4))
-    game_details = tk.Text(game_panel, height=4, wrap="word",
-                           font=("Consolas", 9), relief="flat",
-                           padx=10, pady=8, cursor="arrow")
-    game_details.pack(fill="x", pady=(2, 0))
-    game_details.configure(state="disabled")
-
     panes = ttk.PanedWindow(outer, orient="horizontal")
     panes.pack(fill="both", expand=True, pady=12)
     left, right = ttk.Frame(panes), ttk.Frame(panes)
@@ -84,6 +65,10 @@ def launch(root: Path = ROOT) -> int:
         for row in listing.get_children():
             listing.delete(row)
         for e in catalog:
+            # These are implementation details of the ONE guided V1 study;
+            # advanced CLI callers can still run them directly.
+            if e["id"] in {"integration.bridge-audit", "integration.prepare-v1"}:
+                continue
             agent_test = e["id"].startswith("agent-tests.")
             if filter_mode.get() == "Agent tests" and not agent_test:
                 continue
@@ -107,9 +92,28 @@ def launch(root: Path = ROOT) -> int:
     refill_catalog()
     description = tk.StringVar(value="Select an experiment.")
     ttk.Label(right, textvariable=description, wraplength=455, justify="left").pack(fill="x", pady=7)
-    inputs = ttk.LabelFrame(right, text="Optional parameters", padding=8)
+    # Experiment-specific results belong in the selected study's SHOW/detail
+    # area, never as a detached toolbar floating above the experiment list.
+    game_panel = ttk.LabelFrame(right, text="Historical V1 · game test", padding=9)
+    bridge_status = tk.StringVar(value="Inspecting local bridge files...")
+    ttk.Label(game_panel, textvariable=bridge_status,
+              font=("Segoe UI", 10, "bold"), wraplength=470).pack(anchor="w")
+    ttk.Label(game_panel, text=(
+        "One guided run: inspect the installed bridge, prepare a safe V1 "
+        "copy when needed, then ask before launching ONE Dolphin shot."),
+        wraplength=470, justify="left").pack(anchor="w", pady=(3, 7))
+    game_buttons = ttk.Frame(game_panel)
+    game_buttons.pack(fill="x", pady=(0, 6))
+    game_details = tk.Text(game_panel, height=7, wrap="word",
+                           font=("Consolas", 9), relief="flat",
+                           padx=9, pady=7, cursor="arrow")
+    game_details.pack(fill="both", expand=False)
+    game_details.configure(state="disabled")
+
+    inputs = ttk.LabelFrame(right, text="Settings", padding=8)
     inputs.pack(fill="x")
     values = {}
+    field_rows = {}
     for key, label, default in (
         ("input", "Input path", ""), ("second-input", "Second input", ""),
         ("out", "Output path", ""), ("a-prime", "A prime requests", "0"),
@@ -119,6 +123,7 @@ def launch(root: Path = ROOT) -> int:
     ):
         line = ttk.Frame(inputs)
         line.pack(fill="x", pady=2)
+        field_rows[key] = line
         ttk.Label(line, text=label, width=24).pack(side="left")
         v = tk.StringVar(value=default)
         ttk.Entry(line, textvariable=v).pack(side="left", fill="x", expand=True)
@@ -139,7 +144,8 @@ def launch(root: Path = ROOT) -> int:
             preview_frame.pack_forget()
             preview_button.configure(text="Show technical details")
     status = tk.StringVar(value="Ready — select an experiment and choose Run")
-    ttk.Label(right, textvariable=status, wraplength=455).pack(anchor="w", pady=4)
+    status_label = ttk.Label(right, textvariable=status, wraplength=455)
+    status_label.pack(anchor="w", pady=4)
 
     def selection():
         sel = listing.selection()
@@ -169,6 +175,19 @@ def launch(root: Path = ROOT) -> int:
 
     def preview():
         try:
+            if selection() == "integration.v1-diagnostic":
+                state = inspect_game_bridges(root)
+                if not state.can_test:
+                    contents = ("The Lab prepares an isolated historical V1 "
+                                "bridge automatically if the verified backup "
+                                "exists. No Dolphin process is launched by Preview.\n\n" +
+                                state.as_text())
+                    status.set(state.title + " — use Prepare and run one V1 shot")
+                    output.configure(state="normal")
+                    output.delete("1.0", "end")
+                    output.insert("1.0", contents)
+                    output.configure(state="disabled")
+                    return
             p = selected_plan()
             contents = json.dumps(p.summary(), indent=2)
             status.set(f"Preview only: {p.experiment['id']} ({p.experiment['mode']})")
@@ -186,14 +205,55 @@ def launch(root: Path = ROOT) -> int:
             return
         e = get_experiment(chosen, catalog=catalog)
         description.set(f"{e['id']} | {e['owner']} | {e['mode'].upper()}\n{e['description']}")
+        is_bridge_study = chosen in {
+            "integration.v1-diagnostic", "integration.bridge-audit",
+            "integration.prepare-v1",
+        }
+        if is_bridge_study:
+            if not game_panel.winfo_manager():
+                anchor = inputs if inputs.winfo_manager() else status_label
+                game_panel.pack(fill="x", pady=(5, 8), before=anchor)
+            refresh_bridge_status()
+        else:
+            game_panel.pack_forget()
+        # No eight-field wall for a test that only accepts A-lead timing.
+        relevant = ({
+            "integration.v1-diagnostic": {"a-lead"},
+            "integration.swing": {"a-prime", "follow-through"},
+            "evaluation.recover": {"input", "out", "contact", "green", "distance"},
+            "evaluation.compare": {"input", "second-input", "out"},
+            "evaluation.audit": {"input", "out"},
+        }).get(chosen, set())
+        for key, widget in field_rows.items():
+            if key in relevant:
+                widget.pack(fill="x", pady=2)
+            else:
+                widget.pack_forget()
+        if relevant:
+            if not inputs.winfo_manager():
+                inputs.pack(fill="x", before=status_label)
+        else:
+            inputs.pack_forget()
         offline_btn.configure(state="normal" if e["mode"] == "offline" else "disabled")
         live_btn.configure(state="normal" if e["mode"] == "live" else "disabled")
+        if chosen == "integration.v1-diagnostic":
+            # ONE primary control lives with the selected study's readiness
+            # report; no second "Run live" action or disabled offline clutter.
+            live_btn.pack_forget()
+            offline_btn.pack_forget()
+        else:
+            if not offline_btn.winfo_manager():
+                offline_btn.pack(side="left", padx=3, before=refresh_actions_btn)
+            if not live_btn.winfo_manager():
+                live_btn.pack(side="left", padx=3, before=refresh_actions_btn)
+            live_btn.configure(text="Run ONE live")
         preview()
 
     active: list[subprocess.Popen] = []
     active_studies: dict[int, str] = {}
     restart_needed = [False]
     game_job_busy = [False]
+    launch_after_preparation = [False]
     game_job_messages: queue.SimpleQueue = queue.SimpleQueue()
     lab_data = root.parent / "Wii-AI-Golf-Data" / "lab"
 
@@ -208,16 +268,17 @@ def launch(root: Path = ROOT) -> int:
         try:
             view = inspect_game_bridges(root)
             bridge_status.set(view.title)
-            prep_button.configure(
-                state="normal" if view.can_prepare and not game_job_busy[0] else "disabled")
-            v1_button.configure(
-                state="normal" if view.can_test and not game_job_busy[0] else "disabled")
+            run_v1_button.configure(
+                state="normal" if (view.can_prepare or view.can_test) and not game_job_busy[0]
+                else "disabled")
+            run_v1_button.configure(text=(
+                "Prepare and run one V1 shot" if view.can_prepare
+                else "Run one V1 shot" if view.can_test else "Unavailable"))
             show_game_details(view.as_text())
             return view
         except (OSError, ValueError, UnicodeError) as exc:
             bridge_status.set("Bridge inspection failed")
-            prep_button.configure(state="disabled")
-            v1_button.configure(state="disabled")
+            run_v1_button.configure(state="disabled")
             show_game_details("Unable to inspect bridge files.\n\n" + str(exc))
             return None
 
@@ -241,7 +302,7 @@ def launch(root: Path = ROOT) -> int:
         listing.see(identifier)
         selected()
 
-    def prepare_historical_v1():
+    def prepare_historical_v1(*, continue_to_live: bool = False):
         """Run the reviewed Lab preparation and record it, without another console."""
         if game_job_busy[0] or sync_busy[0] or active:
             bridge_status.set("Finish the current Lab task or GitHub update first.")
@@ -256,8 +317,8 @@ def launch(root: Path = ROOT) -> int:
             "If any file differs unexpectedly, preparation will stop."):
             return
         game_job_busy[0] = True
-        prep_button.configure(state="disabled")
-        v1_button.configure(state="disabled")
+        launch_after_preparation[0] = continue_to_live
+        run_v1_button.configure(state="disabled")
         bridge_status.set("Preparing historical V1 copy...")
         show_game_details(
             "Working in the background using the reviewed Lab runner.\n"
@@ -296,12 +357,18 @@ def launch(root: Path = ROOT) -> int:
                 elif view is not None and view.can_test:
                     bridge_status.set("Historical V1 is ready for the single-shot comparison")
                     show_game_details(view.as_text() + "\n\nPreparation recorded in Lab history.")
+                    if launch_after_preparation[0]:
+                        launch_after_preparation[0] = False
+                        # Consent to the actual live run is obtained by
+                        # run_selected(True), AFTER successful preparation.
+                        ui.after_idle(launch_v1_trial)
                 else:
                     bridge_status.set("Preparation finished; V1 could not be verified")
                     show_game_details(
                         (view.as_text() if view else "Bridge check unavailable") +
                         "\n\nThe output did not pass the readiness check. "
                         "Do not start the live shot.")
+                launch_after_preparation[0] = False
                 refresh()
         except queue.Empty:
             pass
@@ -316,24 +383,34 @@ def launch(root: Path = ROOT) -> int:
             # The top-row quick action is a controlled baseline, not an
             # accidental reuse of inputs from another selected study.
             values["a-prime"].set("0")
-            values["a-lead"].set("0")
             navigate_study("integration.v1-diagnostic")
-            run_selected(True)
+            run_selected(True, verified_v1=True)
         except (OSError, ValueError) as exc:
             bridge_status.set("Could not start V1 comparison")
             show_game_details(str(exc))
 
-    ttk.Button(game_buttons, text="1  Inspect bridges",
-               command=inspect_bridges).pack(side="left", padx=(0, 8))
-    prep_button = ttk.Button(
-        game_buttons, text="2  Prepare historical V1", state="disabled",
-        command=prepare_historical_v1)
-    prep_button.pack(side="left", padx=(0, 8))
-    v1_button = ttk.Button(
-        game_buttons, text="3  Run ONE V1 shot", state="disabled",
-        command=launch_v1_trial)
-    v1_button.pack(side="left", padx=(0, 8))
-    ttk.Button(game_buttons, text="Refresh check",
+    def start_v1_workflow():
+        """Single operator action: inspect, prepare if needed, then ONE shot."""
+        if sync_busy[0] or game_job_busy[0] or active or any_lab_job_busy(lab_data):
+            bridge_status.set("A Lab job is already active")
+            show_game_details("Another active Lab process still owns the run lock. "
+                              "An abandoned lock from a stopped process is "
+                              "recovered automatically; no manual deletion "
+                              "is needed. Finish the running job first.")
+            return
+        view = refresh_bridge_status()
+        if view is None or not (view.can_prepare or view.can_test):
+            return
+        if view.can_prepare:
+            prepare_historical_v1(continue_to_live=True)
+        else:
+            launch_v1_trial()
+
+    run_v1_button = ttk.Button(
+        game_buttons, text="Inspecting...", state="disabled",
+        command=start_v1_workflow)
+    run_v1_button.pack(side="left", padx=(0, 9))
+    ttk.Button(game_buttons, text="Recheck environment",
                command=inspect_bridges).pack(side="left")
 
     def request_sync(*, manual: bool = False) -> None:
@@ -344,22 +421,17 @@ def launch(root: Path = ROOT) -> int:
         if sync_busy[0]:
             if manual:
                 sync_manual_requested[0] = True
-                sync_line.set("GitHub: sync already in progress; confirmation will appear when it finishes.")
+                sync_line.set("GitHub: check already in progress; details will appear when it finishes.")
             return
         sync_manual_requested[0] = manual
         lab_root = root.parent / "Wii-AI-Golf-Data" / "lab"
-        blockers = lock_blockers(lab_root)
-        if active or blockers:
-            reason = ("Active experiment launched from this Lab window."
-                      if active else "\n".join(blockers))
-            sync_line.set("GitHub: sync blocked by experiment guard; " + reason)
+        if active or game_job_busy[0] or any_lab_job_busy(lab_root):
+            reason = "An active Lab experiment holds its process lock; no files were changed."
+            sync_line.set("GitHub: synchronization deferred. " + reason)
             if manual:
-                messagebox.showwarning("GitHub sync blocked",
-                    "No update was attempted.\n\n" + reason +
-                    "\n\nA prior crashed process can leave stale locks. Close all "
-                    "experiment/Dolphin windows and verify the recorded PID "
-                    "is no longer running before clearing ONLY stale locks. "
-                    "The Lab will not delete these protection files automatically.")
+                messagebox.showwarning("GitHub sync blocked", reason +
+                    "\n\nAbandoned locks from stopped processes recover automatically. "
+                    "Close an actually running experiment before syncing.")
             return
         sync_busy[0] = True
         sync_line.set("GitHub: checking approved origin/main (offline tests NOT auto-run)...")
@@ -416,10 +488,17 @@ def launch(root: Path = ROOT) -> int:
         request_sync()
         ui.after(120000, auto_sync_tick)
 
-    def run_selected(live: bool):
+    def run_selected(live: bool, *, verified_v1: bool = False):
         try:
-            if sync_busy[0] or game_job_busy[0]:
-                raise ValueError("A Lab task or GitHub update is still running.")
+            if sync_busy[0] or game_job_busy[0] or any_lab_job_busy(lab_data):
+                raise ValueError("A Lab task or GitHub update is active. "
+                                 "The app will not start an overlapping experiment.")
+            # This workflow may need to CREATE its safe V1 copy before
+            # core.plan() can validate the live command; don't prematurely
+            # reject it while the setup can be handled in this pane.
+            if selection() == "integration.v1-diagnostic" and not verified_v1:
+                start_v1_workflow()
+                return
             p = selected_plan()
             if p.experiment["id"] == "integration.bridge-audit":
                 inspect_bridges()
@@ -428,16 +507,20 @@ def launch(root: Path = ROOT) -> int:
                 prepare_historical_v1()
                 return
             if p.experiment["id"] == "integration.v1-diagnostic":
+                # Same one-action workflow for the primary Run button.
+                if not verified_v1:
+                    start_v1_workflow()
+                    return
                 view = inspect_game_bridges(root)
                 if not view.can_test:
                     refresh_bridge_status()
-                    raise ValueError("Historical V1 is not ready. Inspect and prepare a verified backup first.")
+                    raise ValueError("Historical V1 bridge is not verified; the game was not launched.")
             if p.live != live:
                 raise ValueError("Experiment mode does not match this button")
             if live and not messagebox.askyesno(
                 "Confirm ONE live swing", "Close Dolphin completely before continuing.\n"
                 "Start ONE canonical full-boot Wii Sports trial? Popup dialogs "
-                "will request tee readiness and human observations.\n"
+                "will ask you to confirm tee readiness and label ball contact.\n"
                 "V1/A-lead experiments are UNVERIFIED; previous 12-frame timing made motion worse."):
                 return
             flags, _ = args_and_kwargs()
@@ -451,8 +534,8 @@ def launch(root: Path = ROOT) -> int:
             observed_command = [sys.executable,
                                 str(root / "scripts" / "lab_interactive_console.py"),
                                 "--", *cmd]
-            # Only GUI-approved LIVE sessions request modal operator dialogs.
-            # Console/CLI usage retains its existing interactive prompts.
+            # GUI-approved LIVE runs request modal human prompts; the
+            # Git Bash/PowerShell CLI remains terminal-first.
             child_env = os.environ.copy()
             if live:
                 child_env["WII_GOLF_DIALOGS"] = "1"
@@ -566,12 +649,12 @@ def launch(root: Path = ROOT) -> int:
     live_btn = ttk.Button(primary_actions, text="Run ONE live", state="disabled",
                           command=lambda: run_selected(True))
     live_btn.pack(side="left", padx=3)
-    ttk.Button(primary_actions, text="Refresh results", command=refresh).pack(side="left", padx=3)
+    refresh_actions_btn = ttk.Button(
+        primary_actions, text="Refresh results", command=refresh)
+    refresh_actions_btn.pack(side="left", padx=3)
     ttk.Button(secondary_actions, text="Sync GitHub", command=lambda: request_sync(manual=True)).pack(side="left", padx=3)
     def restart_lab():
-        if active or sync_busy[0] or game_job_busy[0] or any(
-                (root.parent / "Wii-AI-Golf-Data" / "lab" / name).exists()
-                for name in ("live-session.lock", "run-session.lock")):
+        if active or sync_busy[0] or game_job_busy[0] or any_lab_job_busy(lab_data):
             messagebox.showwarning("Restart deferred",
                                    "Finish current GitHub update or Lab experiment first.")
             return
