@@ -154,6 +154,51 @@ class MouseIsolationTests(unittest.TestCase):
                         self.exe, user_dir=self.ini.parent.parent)
                 self.assertEqual(self.ini.read_text(), original)
 
+    def test_inactive_nunchuk_stick_wasd_is_cleared_instead_of_blocking_boot(self):
+        original = (
+            "[Wiimote1]\r\nSource = 2\r\nExtension = Nunchuk\r\n"
+            "Device = DInput/0/Keyboard Mouse\r\n"
+            "Nunchuk/Stick/Up = W\r\nNunchuk/Stick/Down = \`S\`\r\n"
+            "Nunchuk/Stick/Left = A\r\nNunchuk/Stick/Right = D\r\n"
+            "Nunchuk/Buttons/C = X\r\nButtons/1 = 1\r\n"
+            "[Wiimote2]\r\nNunchuk/Stick/Up = W\r\n"
+        )
+        first = self.prepare(original)
+        changed = self.ini.read_text()
+        self.assertTrue(first["changed"])
+        self.assertIn("Source = 1\nExtension = None\n", changed)
+        for direction in ("Up", "Down", "Left", "Right"):
+            self.assertIn(f"Nunchuk/Stick/{direction} = \n", changed)
+        self.assertIn("Nunchuk/Buttons/C = X\n", changed)
+        self.assertIn("Buttons/1 = 1\n", changed)
+        self.assertIn("[Wiimote2]\nNunchuk/Stick/Up = W\n", changed)
+        self.assertEqual(Path(str(self.ini) + ".wii-ai-golf.original.bak").read_bytes(),
+                         original.encode())
+        self.assertFalse(ensure_emulated_controller(
+            self.exe, user_dir=self.ini.parent.parent)["changed"])
+
+    def test_composite_nunchuk_binding_remains_fail_closed(self):
+        original = ("[Wiimote1]\nSource = 1\nExtension = None\n"
+                    "Nunchuk/Stick/Up = if(W,Q,R)\n")
+        self.ini.write_text(original)
+        with self.assertRaisesRegex(ControllerConfigError, "WASD pointer"):
+            ensure_emulated_controller(self.exe, user_dir=self.ini.parent.parent)
+        self.assertEqual(self.ini.read_text(), original)
+
+    def test_active_nunchuk_binding_not_silently_cleared_by_isolation(self):
+        original = ("[Wiimote1]\nSource = 1\nExtension = Nunchuk\n"
+                    "Nunchuk/Stick/Up = W\n")
+        with self.assertRaisesRegex(ControllerConfigError, "WASD pointer"):
+            _isolate_physical_mouse(original)
+
+    def test_other_nunchuk_button_collision_still_fails_closed(self):
+        original = ("[Wiimote1]\nSource = 1\nExtension = None\n"
+                    "Nunchuk/Buttons/C = W\n")
+        self.ini.write_text(original)
+        with self.assertRaisesRegex(ControllerConfigError, "WASD pointer"):
+            ensure_emulated_controller(self.exe, user_dir=self.ini.parent.parent)
+        self.assertEqual(self.ini.read_text(), original)
+
     def test_missing_default_click_and_shake_controls_explicitly_unbound(self):
         self.prepare(
             "[Wiimote1]\nSource=1\nExtension=None\n"
