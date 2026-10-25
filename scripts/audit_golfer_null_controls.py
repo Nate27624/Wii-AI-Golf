@@ -51,6 +51,11 @@ SAFE_ERROR_REASONS = frozenset({
     "expected idle -> aim_only -> optional idle sequence",
     "missing repeated or correctly labeled control stages",
     "non-increasing within-stage frame count",
+    "missing required candidate child windows",
+    "invalid child window provenance",
+    "invalid candidate child bytes",
+    "candidate child identity changed during capture",
+    "no compatible private four-child capture found",
 })
 
 
@@ -199,6 +204,197 @@ def analyze_records(records: list[object]) -> dict:
     }
 
 
+
+# Four PREDECLARED words identified independently by the public #135/#137
+# control study. Parent-child addresses come only from private raw captures.
+# These keys are structure-relative labels; NOT absolute runtime pointers.
+FOUR_WORDS = (
+    ("main", None, 0x74),
+    ("child_at_main+0x008", "+0x008", 0x50),
+    ("child_at_main+0x020", "+0x020", 0x38),
+    ("child_at_main+0x044", "+0x044", 0x60),
+)
+
+
+def _four_word_row(raw: object) -> dict:
+    base = _row(raw)
+    assert isinstance(raw, dict)  # _row has already validated
+    windows = raw.get("child_windows")
+    pointers = raw.get("watched_child_addresses")
+    if not isinstance(windows, dict) or not isinstance(pointers, dict):
+        raise ValueError("missing required candidate child windows")
+    if len(windows) > 16 or len(pointers) > 16 or set(windows) != set(pointers):
+        raise ValueError("invalid child window provenance")
+    words = {"main": base["candidate_word"]}
+    identities = {}
+    for label, key, offset in FOUR_WORDS[1:]:
+        encoded = windows.get(key)
+        pointer = pointers.get(key)
+        if not isinstance(encoded, str) or len(encoded) != 0x80 * 2:
+            raise ValueError("missing required candidate child windows")
+        if not isinstance(pointer, str) or PRIVATE_POINTER.fullmatch(pointer) is None:
+            raise ValueError("invalid child window provenance")
+        try:
+            window = bytes.fromhex(encoded)
+        except ValueError:
+            raise ValueError("invalid candidate child bytes") from None
+        if len(window) != 0x80:
+            raise ValueError("invalid candidate child bytes")
+        words[label] = struct.unpack_from(">I", window, offset)[0]
+        identities[label] = pointer
+    base["words"] = words
+    base["child_identity"] = identities
+    return base
+
+
+def analyze_four_word_clock(records: list[object]) -> dict:
+    """Compare exact predeclared child/main u32 deltas with observed frame gaps.
+
+    Pair comparisons NEVER cross human-labelled stage boundaries.
+    A matching value/frame difference is exploratory, not source proof
+    of time or power; sampling-cadence lag control guards false certainty.
+    """
+    parent = analyze_records(records)  # independent privacy/sequence gates
+    values = [_four_word_row(row) for row in records]
+    identity = values[0]["child_identity"]
+    if any(row["child_identity"] != identity for row in values):
+        raise ValueError("candidate child identity changed during capture")
+
+    by_stage = defaultdict(list)
+    for v in values:
+        by_stage[v["stage"]].append(v)
+
+    # Private intermediate arithmetic is never returned or logged.
+    all_gaps = []
+    stage_results = {}
+    totals = {name: {"changed_pairs": 0, "matches_elapsed_frames": 0,
+                     "matches_main_delta": 0, "matches_shifted_frame_gaps": 0,
+                     "shifted_control_opportunities": 0}
+              for name, _, _ in FOUR_WORDS}
+    all_four_changed = 0
+    all_four_followed_frames = 0
+    for stage, rows in sorted(by_stage.items()):
+        comparisons = []
+        for early, late in zip(rows, rows[1:]):
+            gap = late["start"] - early["start"]
+            if gap <= 0:
+                raise ValueError("non-increasing within-stage frame count")
+            deltas = {
+                name: (late["words"][name] - early["words"][name]) & 0xFFFFFFFF
+                for name, _, _ in FOUR_WORDS
+            }
+            comparisons.append((gap, deltas))
+            all_gaps.append(gap)
+            if all(x != 0 for x in deltas.values()):
+                all_four_changed += 1
+            if all(delta == gap for delta in deltas.values()):
+                all_four_followed_frames += 1
+        stage_fields = {}
+        for name, _, _ in FOUR_WORDS:
+            changed = sum(d[name] != 0 for _, d in comparisons)
+            exact_frame = sum(d[name] == gap for gap, d in comparisons)
+            main_equal = sum(d[name] == d["main"] for _, d in comparisons)
+            # Adjacent-next interval is a NEGATIVE alignment control. When
+            # every frame gap is identical, it matches as well (uninformative).
+            shifted = sum(d[name] == next_gap for (_, d), (next_gap, _) in
+                          zip(comparisons, comparisons[1:]))
+            shifted_n = max(0, len(comparisons) - 1)
+            stage_fields[name] = {
+                "changed_pairs": changed,
+                "matches_elapsed_frames": exact_frame,
+                "matches_main_delta": main_equal if name != "main" else None,
+                "matches_shifted_frame_gaps": shifted,
+                "shifted_control_opportunities": shifted_n,
+            }
+            acc = totals[name]
+            acc["changed_pairs"] += changed
+            acc["matches_elapsed_frames"] += exact_frame
+            acc["matches_main_delta"] += main_equal if name != "main" else 0
+            acc["matches_shifted_frame_gaps"] += shifted
+            acc["shifted_control_opportunities"] += shifted_n
+        stage_results[str(stage)] = {
+            "phase": rows[0]["phase"],
+            "samples": len(rows),
+            "within_stage_comparisons": len(comparisons),
+            "distinct_frame_step_values": len({gap for gap, _ in comparisons}),
+            "fields": stage_fields,
+        }
+    gaps_vary = len(set(all_gaps)) >= 2
+    total_pairs = parent["within_stage_total_opportunities"]
+    return {
+        "schema_version": 1,
+        "kind": "offline_four_golfer_words_vs_emulated_frames",
+        "study_id": "S002-GOLFER-FOUR-CLOCK-02",
+        "sample_count": len(values),
+        "within_stage_comparison_opportunities": total_pairs,
+        "distinct_observed_frame_step_values": len(set(all_gaps)),
+        "varied_frame_cadence_observed": gaps_vary,
+        "all_four_fields_changed_pairs": all_four_changed,
+        "all_four_fields_match_elapsed_frames_pairs": all_four_followed_frames,
+        "max_non_atomic_frame_span": parent["max_non_atomic_frame_span"],
+        "timing_limited": parent["timing_limited"],
+        "fields": [{
+            "region": name,
+            "relative_offset": f"+0x{offset:03X}",
+            "within_stage_opportunities": total_pairs,
+            "changed_pairs": totals[name]["changed_pairs"],
+            "matches_elapsed_frames": totals[name]["matches_elapsed_frames"],
+            "matches_main_delta": (
+                totals[name]["matches_main_delta"] if name != "main" else None),
+            "matches_shifted_frame_gaps": totals[name]["matches_shifted_frame_gaps"],
+            "shifted_control_opportunities": totals[name]["shifted_control_opportunities"],
+            "field_identity_verified": False,
+            "power_verified": False,
+        } for name, _, offset in FOUR_WORDS],
+        "stage_results": stage_results,
+        "raw_input_kept_private": True,
+        "independent_sessions_verified": False,
+        "runtime_scene_and_child_identity_stable_in_saved_rows": True,
+        "wii_revision_reverified_from_saved_rows": False,
+        "club_pose_verified": False,
+        "game_power_field_verified": False,
+        "ball_state_verified": False,
+        "warning": (
+            "Offline comparisons of one candidate capture; NOT independent "
+            "swings or confirmed counters. Identical fixed sampling cadence "
+            "can make both correct and shifted-frame matches high; varying "
+            "frame gaps and negative alignment controls are essential. "
+            "Child windows are non-atomic; sensor labels and class meanings "
+            "are not independently verified. No private RAM is published."
+        ),
+    }
+
+
+def find_latest_four_private(private_dir: Path) -> Path:
+    """Select latest existing canonical file containing all three child windows.
+
+    Bounded private inspection of first line only. File names and contents
+    are never printed; full capture gates still apply once selected.
+    """
+    if not private_dir.is_dir():
+        raise ValueError("private capture directory missing")
+    files = sorted((p for p in private_dir.glob("golfer-*-RAW-PRIVATE.jsonl")
+                    if p.is_file() and not p.is_symlink()
+                    and NAME_PATTERN.fullmatch(p.name)), reverse=True)
+    for path in files[:100]:
+        if not 0 < path.stat().st_size <= MAX_FILE_BYTES:
+            continue
+        try:
+            with path.open("r", encoding="utf-8") as stream:
+                line = stream.readline(32769)
+            if len(line) > 32768:
+                continue
+            row = json.loads(line)
+            windows = row.get("child_windows") if isinstance(row, dict) else None
+            if isinstance(windows, dict) and all(
+                    key in windows for _, key, _ in FOUR_WORDS[1:]):
+                return path
+        except (UnicodeError, ValueError, OSError):
+            continue
+    raise ValueError("no compatible private four-child capture found")
+
+
+
 def read_private_capture(path: Path, *, private_dir: Path | None = None) -> list[dict]:
     private_dir = PRIVATE_CAPTURES if private_dir is None else private_dir
     if path.is_symlink() or not path.is_file():
@@ -233,12 +429,23 @@ def main(argv=None) -> int:
     paths = parser.add_mutually_exclusive_group(required=True)
     paths.add_argument("--latest", action="store_true",
                        help="Use newest private S002 golfer capture (offline, no game)")
+    paths.add_argument("--latest-four", action="store_true",
+                       help="Use newest private capture with all three pinned child windows")
     paths.add_argument("--input", type=Path,
                        help="Canonical private S002 golfer JSONL in sibling Data/captures")
+    parser.add_argument("--four-clock", action="store_true",
+                        help="Compare four predeclared words with observed frames")
     args = parser.parse_args(argv)
     try:
-        path = find_latest_private(PRIVATE_CAPTURES) if args.latest else args.input
-        print(json.dumps(analyze_records(read_private_capture(path)),
+        if args.latest_four:
+            path = find_latest_four_private(PRIVATE_CAPTURES)
+        else:
+            path = find_latest_private(PRIVATE_CAPTURES) if args.latest else args.input
+        if args.latest_four or args.four_clock:
+            report = analyze_four_word_clock(read_private_capture(path))
+        else:
+            report = analyze_records(read_private_capture(path))
+        print(json.dumps(report,
                          indent=2, sort_keys=True, allow_nan=False))
         return 0
     except ValueError as exc:
