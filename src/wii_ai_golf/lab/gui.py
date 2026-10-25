@@ -25,6 +25,7 @@ def launch(root: Path = ROOT) -> int:
     catalog = available_experiments(root)
     sync_messages: queue.SimpleQueue = queue.SimpleQueue()
     sync_busy = [False]
+    sync_manual_requested = [False]
     last_changes: set[str] = set()
     ui = tk.Tk()
     ui.title("Wii AI Golf — Research Lab")
@@ -241,14 +242,19 @@ def launch(root: Path = ROOT) -> int:
     ttk.Button(game_buttons, text="Refresh readiness",
                command=refresh_bridge_status).pack(side="left")
 
-    def request_sync() -> None:
+    def request_sync(*, manual: bool = False) -> None:
         """Never block Tkinter while fetching GitHub; never run fetched tests."""
         if sync_busy[0]:
+            if manual:
+                messagebox.showinfo("GitHub sync", "A GitHub sync is already running.")
             return
+        sync_manual_requested[0] = manual
         lab_root = root.parent / "Wii-AI-Golf-Data" / "lab"
         if active or any((lab_root / name).exists()
                          for name in ("live-session.lock", "run-session.lock")):
             sync_line.set("GitHub: synchronization deferred while an experiment runs.")
+            if manual:
+                messagebox.showwarning("GitHub sync blocked", sync_line.get())
             return
         sync_busy[0] = True
         sync_line.set("GitHub: checking approved origin/main (offline tests NOT auto-run)...")
@@ -267,8 +273,12 @@ def launch(root: Path = ROOT) -> int:
             while True:
                 item = sync_messages.get_nowait()
                 sync_busy[0] = False
+                manual = sync_manual_requested[0]
+                sync_manual_requested[0] = False
                 if isinstance(item, tuple):
                     sync_line.set("GitHub update error: " + str(item[1])[:200])
+                    if manual:
+                        messagebox.showerror("GitHub sync failed", sync_line.get())
                     continue
                 if item.status == "updated":
                     last_changes.clear()
@@ -287,6 +297,12 @@ def launch(root: Path = ROOT) -> int:
                     )
                 else:
                     sync_line.set("GitHub: " + item.status + " — " + item.note)
+                if manual:
+                    details = sync_line.get()
+                    if item.status in ("updated", "up_to_date"):
+                        messagebox.showinfo("GitHub sync confirmed", details)
+                    else:
+                        messagebox.showwarning("GitHub sync blocked", details)
         except queue.Empty:
             pass
         ui.after(800, sync_messages_poll)
@@ -319,8 +335,15 @@ def launch(root: Path = ROOT) -> int:
                    "lab", "run", p.experiment["id"], *flags]
             if live:
                 cmd.append("--live")
+            # A separate console remains interactive for Dolphin/menu prompts.
+            # Keep it open on nonzero exits so failures like argparse code 2
+            # do not vanish before the operator can read the actual exception.
+            observed_command = [sys.executable,
+                                str(root / "scripts" / "lab_interactive_console.py"),
+                                "--", *cmd]
             process = subprocess.Popen(
-                cmd, cwd=root, creationflags=subprocess.CREATE_NEW_CONSOLE)
+                observed_command, cwd=root,
+                creationflags=subprocess.CREATE_NEW_CONSOLE)
             active.append(process)
             active_studies[process.pid] = p.experiment["id"]
             status.set(f"Process {process.pid} started in an interactive terminal.")
@@ -395,6 +418,11 @@ def launch(root: Path = ROOT) -> int:
             study = active_studies.pop(p.pid, "")
             status.set(f"{study or 'Experiment'} process {p.pid} exited ({p.returncode}); "
                        "execution is not a ball hit.")
+            if p.returncode != 0:
+                messagebox.showwarning("Experiment failed — not a golf result",
+                    f"{study or 'Experiment'} exited with code {p.returncode}. "
+                    "The interactive terminal should display the exact error. "
+                    "Exit 2 often indicates command validation; do not record a swing.")
             if study in ("integration.bridge-audit", "integration.prepare-v1"):
                 # Show the real audit/error result in the GUI rather than
                 # losing it in a short-lived subprocess console.
@@ -418,7 +446,7 @@ def launch(root: Path = ROOT) -> int:
                           command=lambda: run_selected(True))
     live_btn.pack(side="left", padx=3)
     ttk.Button(primary_actions, text="Refresh results", command=refresh).pack(side="left", padx=3)
-    ttk.Button(secondary_actions, text="Sync GitHub", command=request_sync).pack(side="left", padx=3)
+    ttk.Button(secondary_actions, text="Sync GitHub", command=lambda: request_sync(manual=True)).pack(side="left", padx=3)
     def restart_lab():
         if active or sync_busy[0] or any(
                 (root.parent / "Wii-AI-Golf-Data" / "lab" / name).exists()
