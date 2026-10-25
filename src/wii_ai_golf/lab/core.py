@@ -102,7 +102,8 @@ def plan(
     root: Path = ROOT, python: str = sys.executable,
     input_path: str | None = None, second_input: str | None = None,
     output_path: str | None = None, a_prime: int = 0,
-    follow_through: int = 30,
+    follow_through: int = 30, contact: str | None = None,
+    green: str | None = None, distance: str | None = None,
 ) -> Plan:
     entries = load_catalog(root / "research" / "experiments.json") if catalog is None else catalog
     exp = get_experiment(identifier, catalog=entries)
@@ -117,8 +118,13 @@ def plan(
         raise ValueError("--input is unsupported for this experiment")
     if second_input is not None and kind != "compare":
         raise ValueError("--second-input is only for evaluation.compare")
-    if output_path is not None and kind not in {"compare", "motion_audit"}:
+    if output_path is not None and kind not in {"compare", "motion_audit", "recover"}:
         raise ValueError("--out is unsupported for this experiment")
+    if kind == "recover":
+        if contact not in {"yes", "no", "unknown"} or green not in {"yes", "no", "unknown"}:
+            raise ValueError("evaluation.recover requires --contact and --green (yes/no/unknown)")
+    elif any(x is not None for x in (contact, green, distance)):
+        raise ValueError("--contact/--green/--distance are only for evaluation.recover")
     if a_prime != 0 and kind not in {"capture", "swing"}:
         raise ValueError("--a-prime is only for live capture/swing")
     if follow_through != 30 and kind != "swing":
@@ -169,11 +175,12 @@ def plan(
     elif kind == "recover":
         command = _child("recover_outcome_capture.py",
                          "--raw", require(input_path, "--input"),
+                         "--contact", str(contact), "--green", str(green),
                          root=root, python=python)
-        # Recovery requires labels (contact/green) not supplied by lab yet.
-        raise ValueError("evaluation.recover requires human contact/green labels; "
-                         "use the agent's dedicated recovery command until a "
-                         "reviewed lab adapter supports those inputs")
+        if distance is not None:
+            command += ["--distance", distance]
+        if output_path is not None:
+            command += ["--out", output_path]
     elif kind == "motion_audit":
         command = _child("audit_motion_candidates.py", "--input",
                          require(input_path, "--input"), root=root, python=python)
