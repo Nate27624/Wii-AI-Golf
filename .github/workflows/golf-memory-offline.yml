@@ -1,0 +1,29 @@
+name: Golf Memory Capture Offline Tests
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/golf-memory-offline.yml"
+      - "scripts/capture_golf_memory_phases.py"
+      - "scripts/analyze_existing_golf_capture.py"
+      - "src/wii_ai_golf/audit/memory_phases.py"
+      - "tests/test_golf_memory_phase_capture.py"
+  push:
+    branches:
+      - agent/evaluation/phase-labelled-memory-capture
+permissions:
+  contents: read
+jobs:
+  memory-offline:
+    name: Python 3.13 read-only RAM tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Compile memory modules
+        run: python -m py_compile scripts/capture_golf_memory_phases.py scripts/analyze_existing_golf_capture.py src/wii_ai_golf/audit/memory_phases.py
+      - name: Focused offline memory tests
+        run: python -m unittest discover -s tests -p 'test_golf_memory_phase_capture.py' -v
+      - name: Full offline regression suite
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
