@@ -1,0 +1,38 @@
+{
+  "changed_word_count": 0,
+  "confirmed_ball_position_address": false,
+  "confirmed_club_pose_address": false,
+  "confirmed_power_address": false,
+  "human_observations": [
+    {
+      "observation": "unchanged",
+      "phase": "idle",
+      "stage": 0
+    },
+    {
+      "observation": "camera_moved",
+      "phase": "aim_only",
+      "stage": 1
+    },
+    {
+      "observation": "unchanged",
+      "phase": "idle",
+      "stage": 2
+    }
+  ],
+  "id": "20261025T030124Z-9dab7f37",
+  "kind": "golf-memory-phase-differential",
+  "max_non_atomic_frame_span": 9,
+  "mean_non_atomic_frame_span": 9,
+  "phase_sample_counts": {
+    "aim_only": 12,
+    "idle": 16
+  },
+  "sample_count": 28,
+  "schema_version": 1,
+  "scope": "focused",
+  "skipped_relocated_windows": 0,
+  "study_id": "S002-GOLF-MEMORY-PHASES",
+  "top_changed_relative_words": [],
+  "warning": "Exploratory non-atomic snapshots. Relative offsets are not identified gameplay fields; human observations are not verified by RAM."
+}
