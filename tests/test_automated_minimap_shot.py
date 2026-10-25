@@ -22,6 +22,15 @@ class AutomaticMinimapTests(unittest.TestCase):
         self.assertEqual(result["phase_counts"],{"pre":1,"post":1})
         self.assertEqual(result["claim"],"AUTOMATED_SWING_COMMAND_NOT_VERIFIED_BALL_CONTACT")
         self.assertNotIn("hex",result)
+    def test_idle_control_has_no_swing_dispatch(self):
+        raw=bytes(128).hex()
+        result=module.summary([{"phase":"pre","pointer":10,"hex":raw},
+                               {"phase":"post","pointer":10,"hex":raw}],None,"idle_control")
+        self.assertEqual(result["condition"],"idle_control")
+        self.assertFalse(result["swing_dispatch_received"])
+        self.assertEqual(result["adjacent_changes"],0)
+        public=module.public_summary(result,"test-idle")
+        self.assertEqual(public["condition"],"idle_control")
     def test_published_summary_excludes_raw_private_values(self):
         original=module.summary([{"phase":"pre","pointer":123,"hex":bytes(128).hex()}],{})
         original.update({"raw_path":"C:/private/location","secret":"must-not-upload"})
