@@ -89,7 +89,7 @@ class CandidateReviewTests(unittest.TestCase):
         a["top_relative_changes"][0]["region"] = "child_at_main+0x025"
         z = review_golfer_probe_summaries([a])
         self.assertEqual(z["invalid_report_reasons"],
-                         {"invalid_child_batch_provenance": 1})
+                         {"invalid_region_or_offset": 1})
 
     def test_missing_child_watch_makes_child_unverifiable(self):
         a = report(child=True)
