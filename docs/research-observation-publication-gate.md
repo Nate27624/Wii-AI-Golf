@@ -72,3 +72,31 @@ The operator should run `py scripts/golf.py research validation` from the
 separate canonical clean `Wii-AI-Golf` main checkout (which includes merged
 PR #127), not from the historical detached/diverged Scene-Root-Pilot branch.
 Do not `git pull` into the pilot merely to get an unrelated CLI command.
+
+## Publish a SAVED scene-root result, without repeating a Dolphin test
+
+After PR #126 is reviewed, Windows tested and merged, use the **clean canonical
+main** checkout with the existing research CLI (Git's configured credentials,
+no new PAT). This reads exactly one sanitized scene-root summary from the
+private sibling `Wii-AI-Golf-Data/captures` directory by validated ID:
+
+```powershell
+cd "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
+git pull --ff-only origin main
+py scripts/research_cli.py publish-saved-scene-root --id YOUR_FULL_RECORD_ID --local-only
+py scripts/research_cli.py publish-saved-scene-root --id YOUR_FULL_RECORD_ID
+```
+
+The first call validates without network access. The second publishes only
+after the built-in clean-main sync, exact source schema/type check, file size,
+ID match and pre-Git privacy sanitizer all pass. It never attaches to Dolphin
+and cannot choose an arbitrary raw file. The ID is the middle token in the
+existing local filename `golf-scene-root-<ID>-summary.json`. Do not copy
+or upload `RAW-PRIVATE.jsonl`. The original report need not be re-captured.
+
+From a divergent experimental worktree do **not** `git pull origin main`
+just to use this command. Use the canonical clean main checkout. If main is
+dirty, stop and inspect status; never force-reset, merge or stash automatically.
+
+The replay command is **in pending PR #126 only**, not currently available
+in merged main. Check that it passes tests/owner review before using it.
