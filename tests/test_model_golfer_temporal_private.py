@@ -39,6 +39,11 @@ def synthetic():
         "schema_version": 2, "kind": "local-golfer-memory-audit",
         "id": "golfer-synthetic-RAW-PRIVATE",
         "candidate_only": True,
+        "source_claim": ("RPSysSceneMgr .sbss 0x804BF4D8..0x804BF4DF; "
+                         "EGG::SceneManager +0xC/+0x18; EGG::Scene +0x1C/+0x20; "
+                         "RPSportsBaseScene +0x54; RPGolScene +0x9C"),
+        "source_static_slot_count": 2,
+        "global_pointer_candidates": 1,
         "game_id": "RSPE01", "revision": 1, "game_mode": 4,
         "actual_scene_id_verified": True,
         "manager_backlink_verified": True,
@@ -49,6 +54,9 @@ def synthetic():
         "first_level_child_parent_offsets": ["+0x008"],
         "first_level_child_watch_count": 1,
         "first_level_child_watch_truncated": True,
+        "first_level_child_batch_start": 0,
+        "power_verified": False,
+        "club_rotation_verified": False,
         "changed_candidate_words": 2,
         "top_relative_changes": fields,
     }
