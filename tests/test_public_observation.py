@@ -203,6 +203,69 @@ class PublicObservationTests(unittest.TestCase):
                      "possible_main_pointer_ram_like_count": 1}
         self.assertEqual(public_observation(candidate), candidate)
 
+    def test_strict_scene_root_132_matches_only_source_gate_producer(self):
+        # Matches PR #132's current emitted keys, version and fixed warning.
+        old = scene_root_record()
+        gated = {
+            **old,
+            "stable_golf_scene_chain_count": 1,
+            "stable_slot_indices": [0],
+            "vtable_in_golf_scene_data_count": 1,
+            "possible_main_pointer_ram_like_count": 1,
+            "unique_stable_golf_scene_chain": True,
+            "stable_sport_id_match_count": 1,
+            "stable_scene_own_id_match_count": 1,
+            "stable_manager_backlink_match_count": 1,
+            "warning": (
+                "Source-anchored 8-byte static-storage triage only; pointers were "
+                "NOT type-proven, scene sport/vtable and own-ID/backlink are "
+                "only structural checks; "
+                "no game power or player RAM identified. "
+                "No runtime addresses or byte values are included."
+            ),
+        }
+        self.assertEqual(public_observation(gated), gated)
+        self.assertEqual(public_observation({
+            **gated,
+            "stable_golf_scene_chain_count": 0,
+            "stable_slot_indices": [],
+            "unique_stable_golf_scene_chain": False,
+            "stable_sport_id_match_count": 0,
+            "stable_scene_own_id_match_count": 0,
+            "stable_manager_backlink_match_count": 0,
+            "vtable_in_golf_scene_data_count": 0,
+            "possible_main_pointer_ram_like_count": 0,
+        })["stable_golf_scene_chain_count"], 0)
+        # Two matching singleton candidates are reported as AMBIGUOUS.
+        ambiguous = {
+            **gated,
+            "stable_golf_scene_chain_count": 2,
+            "stable_slot_indices": [0, 1],
+            "unique_stable_golf_scene_chain": False,
+            "stable_sport_id_match_count": 2,
+            "stable_scene_own_id_match_count": 2,
+            "stable_manager_backlink_match_count": 2,
+            "vtable_in_golf_scene_data_count": 2,
+            "possible_main_pointer_ram_like_count": 2,
+        }
+        self.assertEqual(public_observation(ambiguous), ambiguous)
+
+        for bad in (
+            {**gated, "unique_stable_golf_scene_chain": False},
+            {**gated, "stable_scene_own_id_match_count": 0},
+            {**gated, "stable_manager_backlink_match_count": 2},
+            {**gated, "stable_sport_id_match_count": 0},
+            {**gated, "vtable_in_golf_scene_data_count": 0},
+            {**gated, "actual_scene_address": "0x80500000"},
+            {**gated, "private_scene_address": 0x80500000},
+            {**gated, "confirmed_golf_main_type": True},
+            {**gated, "warning": old["warning"]},
+            {**old, "unique_stable_golf_scene_chain": True},
+            {**old, "warning": gated["warning"]},
+        ):
+            with self.subTest(keys=sorted(bad), warning=bad.get("warning")), self.assertRaises(ValueError):
+                public_observation(bad)
+
     def test_scene_root_cannot_publish_runtime_addresses_or_unsafe_claims(self):
         good = scene_root_record()
         bad = (
