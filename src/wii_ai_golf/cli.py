@@ -179,6 +179,8 @@ def build_parser() -> argparse.ArgumentParser:
         subcommand.add_argument("--green", choices=("yes", "no", "unknown"))
         subcommand.add_argument("--distance")
         subcommand.add_argument("--a-prime", type=int, default=0)
+        subcommand.add_argument("--a-lead", type=int, default=0,
+                                help="Experimental V1 A lead: 0 or 12 observed frames (12 previously failed)")
         subcommand.add_argument("--follow-through", type=int, default=30)
         if name == "run":
             subcommand.add_argument("--live", action="store_true",
@@ -311,7 +313,7 @@ def execute(args: argparse.Namespace) -> int:
                 args.experiment_id, root=ROOT, python=sys.executable,
                 input_path=args.input_path, second_input=args.second_input,
                 output_path=args.output_path, a_prime=args.a_prime,
-                follow_through=args.follow_through, contact=args.contact,
+                a_lead=args.a_lead, follow_through=args.follow_through, contact=args.contact,
                 green=args.green, distance=args.distance
             )
             if args.lab_action == "plan":
