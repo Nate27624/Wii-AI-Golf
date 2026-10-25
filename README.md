@@ -1,5 +1,20 @@
 # Wii AI Golf
 
+## Optional token-free Lab evidence bundle
+
+```powershell
+py scripts/golf.py lab run core.tests
+py scripts/golf.py lab export
+py scripts/golf.py lab verify-export
+```
+
+This creates a **local, verified, strictly allowlisted execution-status JSON** under
+the private sibling `Wii-AI-Golf-Data/lab/exports/` folder. It never connects to
+GitHub or requests a new token. Attach the exported JSON in ChatGPT when
+you want the connected GitHub integration to publish it after review.
+A passing process is **not** proof of ball contact or a game score.
+See [Token-free evidence handoff](docs/token-free-research-export.md).
+
 ## Active workflow: automatic GitHub pull → local research → sanitized GitHub push
 
 The **desktop UI is retired**. The Windows operator runs ONE central script against the existing codebase:
