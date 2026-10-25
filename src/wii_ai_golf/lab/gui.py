@@ -124,9 +124,9 @@ def launch(root: Path = ROOT) -> int:
             if p.live != live:
                 raise ValueError("Experiment mode does not match this button")
             if live and not messagebox.askyesno(
-                "Confirm ONE live swing", "Close Dolphin completely before continuing.\n"
-                "Start ONE canonical full-boot Wii Sports trial? The terminal "
-                "will ask you to confirm tee readiness and label ball contact."):
+                "Confirm ONE live experiment", "Close Dolphin completely before continuing.\n"
+                "Start ONE fresh Dolphin session? S002 physical captures ask for "
+                "the tee-ready confirmation in a console; no automatic swing is sent."):
                 return
             flags, _ = args_and_kwargs()
             cmd = [sys.executable, str(root / "scripts" / "golf.py"),
