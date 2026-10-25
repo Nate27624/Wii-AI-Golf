@@ -75,6 +75,30 @@
       "kind": "recover"
     },
     {
+      "id": "evaluation.trace",
+      "owner": "S002",
+      "title": "Focused XYZ local trace analysis",
+      "description": "Offline segmentation of raw local candidate motion; no ball identity, score, or live Dolphin access",
+      "mode": "offline",
+      "kind": "focused_trace"
+    },
+    {
+      "id": "evaluation.minimap",
+      "owner": "S002",
+      "title": "Minimap-effect camera versus swing",
+      "description": "Planned camera/swing differential pending evaluation capture review; minimap effect is not ball physics",
+      "mode": "planned",
+      "kind": "unavailable"
+    },
+    {
+      "id": "evaluation.landmarks",
+      "owner": "S002",
+      "title": "Pin/start/cup landmark controls",
+      "description": "Planned GUI-backed live recorder pending integration of physical-controller startup and manual-ready gate",
+      "mode": "planned",
+      "kind": "unavailable"
+    },
+    {
       "id": "modeling.sweep",
       "owner": "S003",
       "title": "Swing sweep study design",
