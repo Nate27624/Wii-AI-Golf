@@ -87,6 +87,29 @@ def cohort_record():
     }
 
 
+def scene_root_record():
+    # Matches the public-only result from PR #130; zero candidates is valid.
+    return {
+        "schema_version": 1, "kind": "golf_scene_root_candidate_triage",
+        "id": "20261025T032225Z-720fcc31",
+        "study_id": "S002-GOLF-SCENE-ROOT-TRIAGE",
+        "game_id": "RSPE01", "revision": 1, "game_mode": 4,
+        "candidate_static_cells_checked": 2, "pass_count": 2,
+        "max_sample_frame_span": 9,
+        "stable_golf_scene_chain_count": 0, "stable_slot_indices": [],
+        "vtable_in_golf_scene_data_count": 0,
+        "possible_main_pointer_ram_like_count": 0,
+        "confirmed_manager_singleton_address": False,
+        "confirmed_golf_main_type": False,
+        "confirmed_golf_power_address": False,
+        "warning": (
+            "Source-anchored 8-byte static-storage triage only; pointers were "
+            "NOT type-proven, no game power or player RAM identified. "
+            "No runtime addresses or byte values are included."
+        ),
+    }
+
+
 class PublicObservationTests(unittest.TestCase):
     def test_matches_actual_published_test_shape(self):
         self.assertEqual(public_observation(test_record()), test_record())
@@ -169,6 +192,47 @@ class PublicObservationTests(unittest.TestCase):
         ):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 public_observation({**memory_record(), **change})
+
+    def test_two_cell_scene_root_accepts_zero_and_one_source_validated_candidate(self):
+        data = scene_root_record()
+        self.assertEqual(public_observation(data), data)
+        candidate = {**data, "stable_golf_scene_chain_count": 1,
+                     "stable_slot_indices": [0],
+                     "vtable_in_golf_scene_data_count": 1,
+                     "possible_main_pointer_ram_like_count": 1}
+        self.assertEqual(public_observation(candidate), candidate)
+
+    def test_scene_root_cannot_publish_runtime_addresses_or_unsafe_claims(self):
+        good = scene_root_record()
+        bad = (
+            {**good, "private_scene_address": 0x80500000},
+            {**good, "stable_slot_indices": [0]},
+            {**good, "stable_golf_scene_chain_count": 1,
+             "stable_slot_indices": [0, 1]},
+            {**good, "stable_golf_scene_chain_count": 1,
+             "stable_slot_indices": [1],
+             "vtable_in_golf_scene_data_count": 2},
+            {**good, "stable_golf_scene_chain_count": 2,
+             "stable_slot_indices": [0, 0]},
+            {**good, "confirmed_manager_singleton_address": True},
+            {**good, "confirmed_golf_power_address": True},
+            {**good, "candidate_static_cells_checked": 4096},
+            {**good, "max_sample_frame_span": 41},
+            {**good, "game_mode": 3},
+            {**good, "warning": "C:/Users/private/capture"},
+            {**good, "id": "../private"},
+        )
+        for row in bad:
+            with self.subTest(row=str(row)[:100]), self.assertRaises(ValueError):
+                public_observation(row)
+
+    def test_scene_root_unsupported_kind_rejects_before_git(self):
+        row = scene_root_record()
+        row["kind"] = "golf_unknown_private"
+        with patch.object(research_cli, "_git") as git:
+            with self.assertRaises(ValueError):
+                research_cli.publish_summary(row)
+            git.assert_not_called()
 
     def test_s002_cohort_schema_accepts_safe_existing_shape(self):
         safe = public_observation(cohort_record())
