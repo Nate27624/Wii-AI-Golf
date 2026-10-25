@@ -49,6 +49,33 @@ next to the existing private file and attempts to publish it to
 `research/observations` through the established uploader.
 Use `--no-upload` to inspect first. It does not move or expose raw RAM.
 
+## Repeated-offset cohort analysis (no Dolphin)
+
+After processing at least two existing outcome captures, compare *all*
+eligible local private outcome sessions with a single aggregate report.
+Use this step to eliminate changes seen only once. Incomplete or
+unsupported source files are counted as exclusions, not treated as misses
+or zero-power shots. At most 25 files, and no private bytes, original
+absolute addresses or local filenames are published.
+
+```powershell
+Set-Location "D:\Projects\Wii Golf AI\Wii-AI-Golf-Memory-Offline-116"
+git fetch origin
+git switch --detach origin/agent/evaluation/phase-labelled-memory-capture
+py -m unittest discover -s tests -p "test_golf_memory_cohort.py" -v
+if ($LASTEXITCODE -ne 0) { throw "Cohort tests failed." }
+
+py scripts/analyze_golf_memory_cohort.py `
+  --directory "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures"
+```
+
+The script creates one local `golf-memory-cohort-...-summary.json`
+and auto-publishes a single sanitized aggregate to
+`research/observations`. It counts how many independent runs saw each
+changed region-relative word, and how often changes were within stages
+versus on stage boundaries. Identical rendering-effect metadata may be
+highly repeatable yet still **not** be the physical ball or club.
+
 ## First experiment: stillness versus camera movement
 
 **Only after the capture PR is merged into main and tests pass.**
