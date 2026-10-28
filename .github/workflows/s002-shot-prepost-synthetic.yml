@@ -7,6 +7,7 @@ on:
     paths:
       - scripts/audit_selected_ball_prepost_shot_private.py
       - scripts/prepare_golf_prepost_manifest_private.ps1
+      - scripts/preserve_golf_paused_pair_private.ps1
       - tests/test_selected_ball_prepost_shot_private.py
       - .github/workflows/s002-shot-prepost-synthetic.yml
   workflow_dispatch:
@@ -90,3 +91,73 @@ jobs:
           $script = "import sys;from pathlib import Path;sys.path.insert(0,'scripts');import audit_selected_ball_prepost_shot_private as a;a._manifest(Path(sys.argv[1]));print('Synthetic manifest accepted by Python checker')"
           python -c $script $session
           if ($LASTEXITCODE -ne 0) { throw 'Python typed manifest validation failed' }
+
+      - name: Parse PRE/POST pausing preservation PowerShell
+        shell: pwsh
+        run: |
+          $tokens = $null; $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'scripts/preserve_golf_paused_pair_private.ps1'), [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) { throw 'Paired bank staging parser failure' }
+      - name: Preserve PRE and POST synthetic paused native exports with overwrite and stale guards
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $run = Join-Path $env:RUNNER_TEMP 'private-paired-stage-test'
+          $clean = Join-Path $run 'tools/FelkDolphin-Clean/User'
+          $dump = Join-Path $clean 'Dump'
+          $data = Join-Path $run 'Wii-AI-Golf-Data'
+          $session = Join-Path $data 'captures/SHOT-synthetic-stage-PRIVATE'
+          New-Item -Path $dump -ItemType Directory -Force | Out-Null
+          New-Item -Path $session -ItemType Directory -Force | Out-Null
+          $mem1 = Join-Path $dump 'mem1.raw'
+          $mem2 = Join-Path $dump 'mem2.raw'
+          foreach ($b in @(@{ Path = $mem1; Size = 24MB }, @{ Path = $mem2; Size = 64MB })) {
+            $f = [IO.File]::Open($b.Path, [IO.FileMode]::CreateNew,
+                                 [IO.FileAccess]::Write, [IO.FileShare]::None)
+            try { $f.SetLength($b.Size) } finally { $f.Dispose() }
+          }
+          $args = @{
+            CleanDolphinUserRoot = $clean
+            SourceMem1Path = $mem1
+            SourceMem2Path = $mem2
+            PrivateDataRoot = $data
+            SessionFolder = $session
+            ExportStartedAfter = [datetime]::Now.AddMinutes(-5)
+            ConfirmBothExportsUnderSameGuiPause = $true
+            ConfirmCorrectVisibleShotPhase = $true
+            ConfirmNoHoleOrDolphinProcessChange = $true
+          }
+          $out1 = & ./scripts/preserve_golf_paused_pair_private.ps1 @args -Phase PRE
+          if (-not $?) { throw 'PRE staging failed' }
+          $out2 = & ./scripts/preserve_golf_paused_pair_private.ps1 @args -Phase POST
+          if (-not $?) { throw 'POST staging failed' }
+          foreach ($phase in @('PRE','POST')) {
+            foreach ($bank in @('MEM1','MEM2')) {
+              $source = if ($bank -eq 'MEM1') { $mem1 } else { $mem2 }
+              $saved = Join-Path $session "$phase-$bank.bin"
+              if (-not (Test-Path -LiteralPath $saved -PathType Leaf)) { throw 'Missing stage' }
+              if ((Get-FileHash -LiteralPath $saved -Algorithm SHA256).Hash -cne
+                  (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash) {
+                throw 'Source-vs-stage hash mismatch'
+              }
+            }
+          }
+          if (($out1 + $out2) -match '(?i)[0-9a-f]{64}|mem1.raw|mem2.raw') {
+            throw 'Unexpected private input name/hash in stdout'
+          }
+          $blocked = $false
+          try {
+            & ./scripts/preserve_golf_paused_pair_private.ps1 @args -Phase PRE
+          } catch { $blocked = $true }
+          if (-not $blocked) { throw 'PRE overwrite not rejected' }
+          $bad = $args.Clone()
+          $bad.ExportStartedAfter = [datetime]::Now.AddMinutes(1)
+          $fresh = Join-Path $data 'captures/SHOT-synthetic-stale-PRIVATE'
+          New-Item -Path $fresh -ItemType Directory -Force | Out-Null
+          $bad.SessionFolder = $fresh
+          $blocked = $false
+          try {
+            & ./scripts/preserve_golf_paused_pair_private.ps1 @bad -Phase PRE
+          } catch { $blocked = $true }
+          if (-not $blocked) { throw 'Stale source export not rejected' }
+          Write-Output 'Synthetic paired native staging passes on clean portable root.'
