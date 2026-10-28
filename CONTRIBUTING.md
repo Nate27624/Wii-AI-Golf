@@ -15,6 +15,12 @@ py scripts/golf.py demo
 
 The source-local `scripts/golf.py` intentionally imports the **current checkout** without requiring `pip install -e .`. Existing specialized scripts remain compatible and are not to be deleted merely for style.
 
+## Mandatory new-session read and rebaseline
+
+**Every new or resumed agent MUST read** AGENTS.md, README.md ACTIVE header, docs/agent-session-protocol.md, docs/operator-powershell-contract.md, docs/repository-map.md, research/coordination.md, the relevant live owner issue/PR and actual source/tests before acting. Record an honest **read-attestation** and **Current baseline**: actual branch/head and reviewed status, study/P0 hypothesis, evidence source and last negative control, current blocker/owner, and next approved action. A different agent context does not inherit your live state or your cached GitHub status.
+
+**Before every substantive reply**, reconcile the operator's newest terminal observation and refresh the relevant issue/PR/CI/branch evidence rather than trusting earlier messages. Keep the rebaseline concise and do not reread the entire repository for trivial replies. After substantial work, post a dated GitHub HANDOFF, with code revision, tests, safe uploaded observation (or NOT UPLOADED), verified/unverified facts, and next owner. See [mandatory session protocol](docs/agent-session-protocol.md).
+
 ## Adding functionality
 
 1. **Claim a scope** on its GitHub issue before editing shared code. Work in an isolated `agent/<role>/<slug>` branch; do not overwrite another agent's files or rebase their branch without coordination.
@@ -40,6 +46,9 @@ Every user-run research/test command must **automatically upload an approved san
 Do not upload raw memory banks, PRIVATE reports, original per-frame traces, ROMs, savestates, pointers or local paths. Record failures and negative findings as carefully as successes. Post a dated **FINDING** in the owning issue/PR with study/run ID, sanitized record URL (or NOT UPLOADED), controls, source/evidence classification, limitations and next agent; preserve material conclusions in research/ledger.md through reviewed changes. The publisher must preserve local sanitized output on failure rather than requesting manual uploading.
 
 ## PR checklist
+- [ ] New-agent read-attestation checked all ACTIVE rules and relevant owner issue/PR; does not claim unseen evidence was read
+- [ ] Current baseline re-established against latest branch/head/CI and user terminal output before changes or user instructions
+- [ ] Context-switch HANDOFF published with exact commit/tests/blocked gates/next owner and no fabricated live state
 - [ ] Existing trusted publisher automatically posts safe result from the SAME operator command, or agent states and resolves the missing integration before operator use
 - [ ] Significant positive/negative P0 findings are in owning issue/PR and linked research/ledger.md entry (or documented pending owner-reviewed integration)
 - [ ] Privacy allowlist and upload-failure tests/handling: no native RAM or PRIVATE results in Git; distinguish UPLOADED from NOT UPLOADED
