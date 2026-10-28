@@ -1,5 +1,7 @@
 # Script-first Wii Sports Golf — GitHub results handoff
 
+> **ACTIVE operator contract (2026-10-27):** give only complete self-locating Windows PowerShell blocks; never tell the operator to launch Dolphin manually, use a GUI/Git Bash, or replace source-validated A-button/swing methods with newly invented variants. Read [PowerShell-only operator contract](operator-powershell-contract.md) and [repository map](repository-map.md) first. Examples below are historical interface descriptions; confirm actual merged scripts and any required safe-clean Dolphin review before recommending LIVE commands. A draft PR is not deployed to main.
+
 The retired Research Lab GUI is no longer supported. **Only one maintained source repository**: Nate27624/Wii-AI-Golf. Multiple agents submit normal PRs, coordinate through Issues #2–#6, and may merge reviewed safe changes. The user runs one centralized local script, which pulls merged GitHub code first and publishes sanitized output to a dedicated branch.
 
 ## Operator workflow (PowerShell)
