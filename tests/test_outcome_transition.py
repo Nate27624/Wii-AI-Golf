@@ -1,4 +1,5 @@
 """Offline tests for the source-constrained golf outcome RAM snapshot/ranker."""
+import itertools
 import struct
 import unittest
 from pathlib import Path
@@ -14,9 +15,16 @@ from wii_ai_golf.audit.outcome_transition import (
     capture_outcome_windows, rank_outcome_candidates)
 
 
-def snapshot(phase, words, base=0x91000000):
+_FAKE_FRAMES = itertools.count(100, 3)
+
+
+def snapshot(phase, words, base=0x91000000, *, frame=None, end=None, mode=4):
+    # Entirely fabricated ordered RPC brackets. No live Dolphin or game evidence.
+    start = next(_FAKE_FRAMES) if frame is None else frame
+    stop = start + 1 if end is None and type(start) is int else end
     payload = b"".join(struct.pack(">I", w) for w in words)
     return {"phase": phase, "game_id": "RSPE01", "disc_revision": 1,
+            "game_mode_raw": mode, "frame_start": start, "frame_end": stop,
             "windows": {"golf_config": {
                 "address": f"0x{base:08X}", "bytes_hex": payload.hex()}}}
 
@@ -112,6 +120,63 @@ class OutcomeTransitionTests(unittest.TestCase):
                 snapshot("pre", [0]), snapshot("settled", [1])]
         with self.assertRaises(ValueError):
             rank_outcome_candidates(rows)
+
+    def test_reversed_frames_are_not_ranked_even_with_matching_100(self):
+        rows = [snapshot("pre", [0], frame=500),
+                snapshot("pre", [0], frame=503),
+                snapshot("settled", [100], frame=100),
+                snapshot("settled", [100], frame=103)]
+        with self.assertRaisesRegex(ValueError, "overlapping or reversed"):
+            rank_outcome_candidates(rows, human_distance=100)
+
+    def test_overlapping_frame_brackets_fail_closed(self):
+        rows = [snapshot("pre", [0], frame=100, end=104),
+                snapshot("pre", [0], frame=103, end=105),
+                snapshot("settled", [2], frame=110),
+                snapshot("settled", [2], frame=113)]
+        with self.assertRaisesRegex(ValueError, "overlapping or reversed"):
+            rank_outcome_candidates(rows)
+
+    def test_frame_bracket_metadata_is_strict_and_bounded(self):
+        rows = [snapshot("pre", [0]), snapshot("pre", [0]),
+                snapshot("settled", [2]), snapshot("settled", [2])]
+        for key, value in (("frame_start", None), ("frame_end", True),
+                           ("frame_start", -1), ("frame_end", 2.0)):
+            with self.subTest(key=key, value=value):
+                changed = [dict(x) for x in rows]
+                changed[0][key] = value
+                with self.assertRaisesRegex(ValueError, "frame bracket"):
+                    rank_outcome_candidates(changed)
+        too_long = [dict(x) for x in rows]
+        too_long[0]["frame_end"] = too_long[0]["frame_start"] + 121
+        with self.assertRaisesRegex(ValueError, "beyond-bound"):
+            rank_outcome_candidates(too_long)
+        changed = [dict(x) for x in rows]
+        changed[0]["non_atomic_frame_span"] = 99
+        with self.assertRaisesRegex(ValueError, "inconsistent"):
+            rank_outcome_candidates(changed)
+
+    def test_wrong_mode_or_boolean_revision_rejected(self):
+        rows = [snapshot("pre", [0]), snapshot("pre", [0]),
+                snapshot("settled", [2]), snapshot("settled", [2])]
+        for key, value in (("game_mode_raw", 3), ("game_mode_raw", True),
+                           ("game_mode_raw", 4.0), ("disc_revision", True)):
+            with self.subTest(key=key, value=value):
+                changed = [dict(x) for x in rows]
+                changed[1][key] = value
+                with self.assertRaisesRegex(ValueError, "game/revision/mode"):
+                    rank_outcome_candidates(changed)
+
+    def test_monotonic_brackets_do_not_prove_physics_or_score(self):
+        rows = [snapshot("pre", [0], frame=10, end=11),
+                snapshot("pre", [0], frame=11, end=11),
+                snapshot("settled", [3], frame=20, end=20),
+                snapshot("settled", [3], frame=21, end=22)]
+        report = rank_outcome_candidates(rows)
+        self.assertEqual(report["all_phase_stable_change_count"], 1)
+        self.assertTrue(report["sample_rpc_frame_brackets_ordered"])
+        self.assertFalse(report["same_boot_or_guest_physics_frame_verified"])
+        self.assertFalse(report["game_score_verified"])
 
     def test_invalid_manual_label_and_counts(self):
         with self.assertRaises(ValueError):
