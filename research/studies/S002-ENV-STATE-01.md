@@ -82,3 +82,35 @@ Share only the **printed JSON summary**. The tool writes a local `env-candidates
 - **Not run:** canonical full Windows checkout suite, real private outcome captures, Dolphin UI, actual pin/wind/ball decoding.
 - S002 approves source offsets and strict private format before promotion. S000 approves any new public observation kind separately (#126/#136).
 - PR remains **DRAFT**, non-merged pending S002/S000 owner review, Windows targeted/full suite and input lineage confirmation.
+
+
+## Offline follow-up: aggregate existing outcome captures (no Dolphin)
+
+The first operator pilot passed, producing eight source-backed **candidate** snapshots (pre 3 / post 2 / settled 3), source-mode 4, raw current-hole value 1 unchanged, source-labelled pin object count 6/start object count 31, stable pin/start/cup/course/map/wind-object reference presence, wind-arrow and minimap visibility true, slope preview false; max read bracket 22 emulator frames. **No XYZ, numeric wind, terrain, or independent-session confirmation.** No new game action was performed by the analysis. S002 owner must still check the actual source instance semantics and displayed hole number.
+
+After owner review, optionally compare **all existing canonical outcome capture files** under `Wii-AI-Golf-Data/captures` in one bounded local-only run, without new Dolphin or memorized private file selection:
+
+```powershell
+$repo = "D:\Projects\Wii Golf AI\Wii-AI-Golf"
+$work = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Environment-Offline"
+$branch = "agent/research/environment-memory-offline-audit"
+if (-not (Test-Path $work)) { throw "Missing existing isolated study worktree" }
+if (git -C $work status --porcelain) { throw "Study worktree dirty; preserve changes" }
+git -C $repo fetch origin $branch
+if ($LASTEXITCODE -ne 0) { throw "Fetch failed" }
+git -C $work switch --detach "origin/$branch"
+if ($LASTEXITCODE -ne 0) { throw "Study refresh failed" }
+Set-Location $work
+py -m unittest discover -s tests -p "test_environment_state_candidate.py" -v
+if ($LASTEXITCODE -ne 0) { throw "Prior source candidate regressions failed" }
+py -m unittest discover -s tests -p "test_environment_cohort.py" -v
+if ($LASTEXITCODE -ne 0) { throw "Cohort regressions failed" }
+py -m unittest discover -s tests -v
+if ($LASTEXITCODE -ne 0) { throw "Full Windows tests failed; STOP" }
+py scripts/audit_environment_cohort_private.py
+if ($LASTEXITCODE -ne 0) { throw "Cohort rejected one or more legacy captures; STOP and report, do not cherry pick" }
+```
+
+Preconditions: 2..64 existing canonical `outcome-*-RAW-PRIVATE.jsonl` files; each 1..100 snapshots, <=8MB; all must have expected Rev1/mode4 windows, stable instance layout and sorted frame brackets. It rejects **any** malformed matching capture; it never excludes inconvenient records to improve findings. Output `env-cohort-*-summary.json` is local-only and consists of bounded distributions/counts, not independent-boot proven evidence. All raw memory files remain unchanged and private.
+
+**Interpretation:** Repeating hole raw index 1 across captures does not verify its UI meaning; different raw-hole values may indicate a useful environment feature if later visually corroborated. Stable pin object pointers across repeated frames are expected scene metadata, not real-time ball position. Pins/start object counts are array sizes and can remain fixed across hole variants. A full native MEM1 comparative dump is a separate, S001-approved capability study (#148/#151/#153), not automatically required when existing source-labelled fields suffice. Multiple MEM1 comparator draft PRs (#149/#151/#152/#153) overlap in purpose; S000/S002 should designate **one canonical offline comparator** rather than merging all four.
