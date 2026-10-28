@@ -17,9 +17,9 @@ from test_golf_two_bank_roster_private import dform,mr
 def make(word=1):
     w,refs=fixture()
     w[mod.RECEIVER_SITE]=mr(29,3)
-    for li,stw,n in mod.LITERAL_AND_STORE:
+    for li,stw,n,base in mod.LITERAL_AND_STORE:
         w[li]=dform(14,0,0,n)
-        w[stw]=dform(36,0,29,0x24)
+        w[stw]=dform(36,0,base,0x24)
     w[refs["pm"]+4+mod.STATE_MEMBER]=word
     return w,refs
 
