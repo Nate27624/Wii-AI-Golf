@@ -36,4 +36,4 @@ jobs:
           python -m unittest discover -s tests -p test_s001_v1_selected_watch_compat.py -v
           python -m unittest discover -s tests -p test_s001_v1_watch_source_diagnostic.py -v
       - name: Compile
-        run: python -m compileall -q src/wii_ai_golf/integration/v1_ball_watch_compat.py scripts/prepare_v1_selected_watch_bridge_private.py tests/test_s001_v1_selected_watch_compat.py
+        run: python -m compileall -q src/wii_ai_golf/integration/v1_ball_watch_compat.py scripts/prepare_v1_selected_watch_bridge_private.py scripts/diagnose_v1_selected_watch_bridge_private.py tests/test_s001_v1_selected_watch_compat.py tests/test_s001_v1_watch_source_diagnostic.py
