@@ -19,3 +19,17 @@ To promote CC semantics, S002 #225 should trace read/write sites for ball+0xCC i
 ## How to run
 
 Use clean SHA-pinned detached worktree of `agent/research/p0-seven-phase-endpoint-order-check`, run `py -I -m unittest discover -s tests -p test_p0_seven_endpoint_order_private.py -v`, then run `py -I scripts/audit_p0_seven_endpoint_order_private.py --archive <ONE previously preserved p0-new-cohort-*-PRIVATE folder in ignored Data/captures>`. If more than one match exists, require explicit archive choice; do not guess. Output only JSON booleans/order categories. Never upload raw banks or manifests.
+
+## Actual operator seven-archive result, October 28 2026
+
+Operator ran this exact source study at pinned head `edbad2adbb690b48eef355b2f70d25f2ed80a6d2` against the preserved, SHA-verified seven-pair archive. All **14 local synthetic tests passed**, and the real JSON returned `all_source_guards_pass=true`, `preserved_seven_pair_archive_sha_verified=true`, `wedge_stable_selected_owner_and_geometry=true`.
+
+**Observed ordinal tests W5→W6→W7**:
+- Ball→cacheCC candidate distance step relation = `["decreased","decreased"]`; exact ball/cache word matches = `[0,0,3]`; W7 current ball equals **unchanged** pre-W7 cacheCC.
+- Ball→pin distance = `["decreased","decreased"]`; ball→tee distance = `["increased","increased"]`.
+- `wedge_cache_CC_equals_pin=false`; `wedge_ball_equals_pin_at_W7=false`; cacheCC→pin distance stable.
+- Separate driver D1/D2 has same source owner/geometry but `driver_D1_to_D2_cache_CC_stable=false`, `driver_D2_ball_equals_own_cache_CC=true`.
+
+This validates one-shot **conditional endpoint-like correlation** but falsifies any simplistic universal cacheCC-stays-fixed hypothesis across club/shot contexts. It does NOT establish that CC is predicted landing location, ground truth, score, or physical world-coordinate units. Human W7 flag/on-green outcome need not mean game physics fully settled. Same boot/guest frame/time spacing, velocity, power and training remain unverified and disallowed. All values above are sanitized booleans/categorical orders, no private vectors or hashes.
+
+Owner follow-up: S002 #219 handles CC source writer/branch provenance; S000 #205 records evidence but keeps training false. Independent #233 is also exploring deeper same-distance comparisons; do not repeat previous real seven-pair endpoint study.
