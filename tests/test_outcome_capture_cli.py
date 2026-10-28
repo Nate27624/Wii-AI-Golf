@@ -1,5 +1,6 @@
 """Mocked capture lifecycle tests: no emulator, no user files."""
 from pathlib import Path
+import itertools
 import struct
 from unittest.mock import patch
 import sys
@@ -15,9 +16,13 @@ from scripts.collect_outcome_transition import run_session
 from scripts.probe_swing import build_probe
 
 
+_FAKE_FRAMES = itertools.count(10, 3)
+
+
 def row(phase, value):
-    return {"game_id": "RSPE01", "disc_revision": 1, "phase": phase,
-            "frame_start": 1, "frame_end": 2,
+    frame = next(_FAKE_FRAMES)  # fabricated increasing RPC counts, no game frames
+    return {"game_id": "RSPE01", "disc_revision": 1, "game_mode_raw": 4,
+            "phase": phase, "frame_start": frame, "frame_end": frame + 1,
             "windows": {"golf_config": {"address": "0x90010000",
                                        "bytes_hex": struct.pack(">I", value).hex()}}}
 
