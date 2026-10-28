@@ -1,0 +1,46 @@
+name: S002 P0 seven captured source trajectory (offline)
+on:
+  pull_request:
+    paths:
+      - scripts/audit_p0_seven_source_trajectory_private.py
+      - scripts/Invoke-P0SevenSourceTrajectory.ps1
+      - tests/test_p0_seven_source_trajectory_private.py
+      - .github/workflows/p0-seven-source-trajectory.yml
+  workflow_dispatch:
+jobs:
+  synthetic:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: New targeted source tests
+        run: python -m unittest discover -s tests -p 'test_p0_seven_source_trajectory_private.py' -v
+      - name: Compile
+        run: python -m py_compile scripts/audit_p0_seven_source_trajectory_private.py
+  powershell:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Parse Windows PowerShell 5.1 script
+        shell: powershell
+        run: |
+          $tokens=$null
+          $errors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path scripts/Invoke-P0SevenSourceTrajectory.ps1).Path,
+            [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
+      - name: Execute PowerShell 5.1 tests-only workflow
+        shell: powershell
+        run: |
+          & .\scripts\Invoke-P0SevenSourceTrajectory.ps1 -TestsOnly
+          if ($LASTEXITCODE -ne 0) { exit 1 }
