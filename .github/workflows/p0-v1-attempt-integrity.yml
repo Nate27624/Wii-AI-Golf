@@ -27,3 +27,13 @@ jobs:
         run: python -m unittest discover -s tests -p test_research_cli.py -v
       - name: Synthetic-only clean-launch regression (no Dolphin)
         run: python -m unittest discover -s tests -p test_research_cli_clean_dolphin.py -v
+
+  full-offline-regression:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Full repository unit tests (no emulator)
+        run: python -m unittest discover -s tests -v
