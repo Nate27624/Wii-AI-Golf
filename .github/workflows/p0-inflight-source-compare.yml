@@ -1,0 +1,38 @@
+name: S002 P0 in-flight vs B0 native source contrast (offline)
+on:
+  pull_request:
+    paths:
+      - scripts/audit_p0_inflight_vs_b0_private.py
+      - scripts/Invoke-P0InFlightBallCompare.ps1
+      - tests/test_p0_inflight_vs_b0_private.py
+      - .github/workflows/p0-inflight-source-compare.yml
+  workflow_dispatch:
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Offline source comparison tests
+        run: python -m unittest discover -s tests -p test_p0_inflight_vs_b0_private.py -v
+      - name: Compile private reader
+        run: python -m py_compile scripts/audit_p0_inflight_vs_b0_private.py
+  powershell-parse:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell 5.1 operator entrypoint
+        shell: powershell
+        run: |
+          $tokens=$null
+          $errors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path scripts/Invoke-P0InFlightBallCompare.ps1).Path,
+            [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
