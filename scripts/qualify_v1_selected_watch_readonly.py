@@ -94,10 +94,20 @@ def summarize_qualification(response: dict, *, elapsed_s: float) -> dict:
     if (len(slots) != 1 or len(holes) != 1
             or any(b - a != WATCH_INTERVAL for a, b in zip(frames, frames[1:]))):
         raise RuntimeError("record ownership/frame interval instability")
+    # A slow monotonic drift can satisfy every adjacent comparison while
+    # moving far from the original stationary position. Require BOTH an
+    # anchored first-sample bound and the consecutive-sample bound.
     stability = {
-        field.replace("_f32_candidate", "") + "_stable": all(
-            max(abs(a[i] - b[i]) for i in range(3)) <= VECTOR_STABILITY_TOL
-            for a, b in zip(values, values[1:])
+        field.replace("_f32_candidate", "") + "_stable": (
+            all(
+                max(abs(a[i] - b[i]) for i in range(3)) <= VECTOR_STABILITY_TOL
+                for a, b in zip(values, values[1:])
+            )
+            and all(
+                max(abs(a[i] - values[0][i]) for i in range(3))
+                <= VECTOR_STABILITY_TOL
+                for a in values
+            )
         )
         for field, values in vectors.items()
     }
