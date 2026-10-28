@@ -1,0 +1,44 @@
+name: P0 effect pointer tail ownership (offline source and private tests)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_effect_tail_ownership_private.py'
+      - 'scripts/Invoke-P0EffectTailOwnership.ps1'
+      - 'tests/test_p0_effect_tail_ownership_private.py'
+      - 'research/studies/P0-EFFECT-TAIL-OWNERSHIP-01.md'
+      - '.github/workflows/p0-effect-tail-ownership.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-pointer-and-overlap-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Original source snapshot validator
+        run: python -m unittest discover -s tests -p test_p0_shot_transients_private.py -v
+      - name: Prior settled-variability classifier
+        run: python -m unittest discover -s tests -p test_p0_settled_variability_private.py -v
+      - name: Effect tail pointer overlap and privacy regression
+        run: python -m unittest discover -s tests -p test_p0_effect_tail_ownership_private.py -v
+      - name: Compile offline source-only analysis
+        run: python -m py_compile scripts/audit_p0_effect_tail_ownership_private.py
+      - name: Parse Windows PowerShell wrapper without executing private capture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tokens = $null
+          $errors = $null
+          $script = Join-Path $PWD 'scripts/Invoke-P0EffectTailOwnership.ps1'
+          [System.Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -ne 0) { throw 'PowerShell parse error' }
