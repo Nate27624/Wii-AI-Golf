@@ -5,7 +5,10 @@ No RAM image is required, no network, no Dolphin and no private source bytes.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import tempfile
+from unittest import mock
 from pathlib import Path
 import subprocess
 import sys
@@ -56,7 +59,9 @@ def source_fixture():
                 "ball_nested_plus_0x4c":cur,
                 "ball_cache_0x0cc":end,
                 "source_current_start":start,
-            }
+                "source_selected_pin":(90,91,92),
+            },
+            "config_selector_words":(100,101,102)
         }
     return out
 
@@ -171,6 +176,112 @@ class GlobalReceiverAuditTests(unittest.TestCase):
             target.summarize(samples,{i:{"global_load_type":"x",
                                         "static_source_global_slot_supported":False,
                                         "runtime":{"supported":False}} for i in range(1,8)},[])
+
+    def _synthetic_codes(self):
+        return {i:{
+            "global_load_type":"not_supported",
+            "static_source_global_slot_supported":False,
+            "runtime":{"supported":False}
+        } for i in range(1,8)}
+
+    def test_same_pointer_changed_pin_vector_abstains(self):
+        samples=source_fixture()
+        samples[6]["triplets"]["source_selected_pin"]=(99,91,92)
+        with self.assertRaisesRegex(ValueError,"pin or start"):
+            target.summarize(samples,self._synthetic_codes(),[])
+
+    def test_same_pointer_changed_start_vector_abstains(self):
+        samples=source_fixture()
+        samples[7]["triplets"]["source_current_start"]=(1,2,999)
+        with self.assertRaisesRegex(ValueError,"pin or start"):
+            target.summarize(samples,self._synthetic_codes(),[])
+
+    def test_changed_config_selector_abstains(self):
+        samples=source_fixture()
+        samples[2]["config_selector_words"]=(100,101,999)
+        with self.assertRaisesRegex(ValueError,"GolfConfig selectors"):
+            target.summarize(samples,self._synthetic_codes(),[])
+
+    def test_stable_reference_vectors_and_config_pass(self):
+        report=target.summarize(source_fixture(),self._synthetic_codes(),[])
+        self.assertTrue(report["within_shot_pin_start_config_stability_verified"])
+        self.assertFalse(report["actual_ball_world_xyz_verified"])
+
+    @staticmethod
+    def _fabricated_canonical_archive(root):
+        captures=root/"captures"
+        captures.mkdir()
+        folder=captures/"p0-fabricated-PRIVATE"
+        folder.mkdir()
+        entries=[]
+        for phase in range(1,8):
+            banks=[]
+            for number,label,size in ((1,"MEM1",16),(2,"MEM2",32)):
+                name=f"{phase}.{number}.raw"
+                content=bytes((phase+number,))*size
+                (folder/name).write_bytes(content)
+                banks.append({
+                    "file":name,"bank":label,"bytes":size,
+                    "copy_verified":True,
+                    "sha256":hashlib.sha256(content).hexdigest()
+                })
+            entries.append({"capture_number":phase,"banks":banks})
+        manifest={
+            "kind":"p0-private-numbered-capture-inventory",
+            "training_approved":False,
+            "human_phase_file_mapping_verified":False,
+            "capture_count":7,
+            "capture_numbers":list(range(1,8)),
+            "captures":entries
+        }
+        (folder/"manifest-PRIVATE.json").write_text(
+            json.dumps(manifest),encoding="utf-8")
+        return folder
+
+    def _archive_gates(self,root):
+        return (
+            mock.patch.object(target.seven.source.selected,"DATA_ROOT",root),
+            mock.patch.object(target.seven,"MEM1_SIZE",16),
+            mock.patch.object(target.seven,"MEM2_SIZE",32),
+        )
+
+    def test_canonical_14_digest_gate_positive(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            root=Path(dirname)
+            folder=self._fabricated_canonical_archive(root)
+            a,b,c=self._archive_gates(root)
+            with a,b,c:
+                digests=target._canonical_archive_sha(folder)
+            self.assertEqual(len(digests),7)
+            self.assertTrue(all(set(x)=={"MEM1","MEM2"}
+                                for x in digests.values()))
+
+    def test_canonical_sha_detects_bank_replaced_before_first_hash(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            root=Path(dirname)
+            folder=self._fabricated_canonical_archive(root)
+            path=folder/"6.2.raw"
+            path.write_bytes(b"Z"*32)  # still valid length and valid memory wrapper
+            a,b,c=self._archive_gates(root)
+            with a,b,c:
+                # Old before/after-only test would pass after this substitution.
+                self.assertEqual(target.seven._hash(path),
+                                 target.seven._hash(path))
+                with self.assertRaisesRegex(ValueError,"canonical preserved"):
+                    target._canonical_archive_sha(folder)
+
+    def test_canonical_manifest_rejects_false_training_approval(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            root=Path(dirname)
+            folder=self._fabricated_canonical_archive(root)
+            path=folder/"manifest-PRIVATE.json"
+            manifest=json.loads(path.read_text(encoding="utf-8"))
+            manifest["training_approved"]=True
+            path.write_text(json.dumps(manifest),encoding="utf-8")
+            a,b,c=self._archive_gates(root)
+            with a,b,c:
+                with self.assertRaisesRegex(ValueError,"noncanonical"):
+                    target._canonical_archive_sha(folder)
 
     def test_dform_signed_negative(self):
         self.assertEqual(target.dform(lwz(3,13,-100))["imm"],-100)
