@@ -234,7 +234,9 @@ class DualObjectTests(unittest.TestCase):
         rows = self.cohort()
         for row in rows:
             row["selected_ball_object_pointer"] = 0x93FFFEF8
-            row["source_global_ball_object_pointer"] = 0x93FFFFB0
+            # Global's +0x50 footprint ends EXACTLY where selected begins.
+            # Old +0xB0 position overlapped the selected +0x108 region.
+            row["source_global_ball_object_pointer"] = 0x93FFFEA8
         result = mod.summarize_private_samples(rows)
         self.assertTrue(result["accepted_for_offline_relationship_review"])
         self.assertTrue(result["selected_global_object_pointers_distinct"])
