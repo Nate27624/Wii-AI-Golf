@@ -28,8 +28,10 @@ $required = @(
     $ConfirmBothMemBanksExportedUnderEachSamePause,
     $ConfirmGameRanBetweenPhases
 )
-if ($required | Where-Object { -not [bool]$_ }) {
-    Stop-Redacted 'explicit operator observation missing'
+foreach ($confirmation in $required) {
+    if (-not [bool]$confirmation) {
+        Stop-Redacted 'explicit operator observation missing'
+    }
 }
 
 try {
