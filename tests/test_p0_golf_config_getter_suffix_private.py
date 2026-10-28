@@ -35,8 +35,9 @@ def source_fixture():
     a=data["get_nth_hole_score"]
     b=data["get_nth_hole_strokes"]
     for i,w in {
-        0x48:d(15,6,0,0x803c),
-        0x50:d(32,7,13,-1852),
+        0x40:d(32,7,13,-1852),
+        0x48:d(14,0,0,0),
+        0x50:d(15,6,0,0x803c),
         0x54:d(7,5,3,36),
         0x58:slwi(4,0,2),
         0x5c:slwi(3,3,4),
@@ -50,7 +51,8 @@ def source_fixture():
     }.items():
         a[i//4]=w
     for i,w in {
-        0x48:d(32,5,13,-1852),
+        0x40:d(32,5,13,-1852),
+        0x48:d(14,0,0,0),
         0x50:slwi(4,0,2),
         0x54:slwi(3,3,4),
         0x58:x(266,3,5,3),
@@ -120,9 +122,12 @@ class GetterSuffixReview(unittest.TestCase):
     def test_external_static_sda_load_role_only(self):
         z=m.evaluate_windows(source_fixture())
         fst=z["two_getter_source_clue_sites"][0]["focused_sites"]
-        self.assertEqual(fst[1]["opcode_class"],"lwz")
-        self.assertEqual(fst[1]["source_registers"],["r13"])
-        self.assertEqual(fst[1]["address_role"],"small_data_root_source")
+        self.assertEqual(fst[1]["opcode_class"],"addis")
+        self.assertEqual(fst[1]["source_registers"],["r0"])
+        self.assertEqual(fst[1]["address_role"],"zero_base_literal")
+        self.assertTrue(z["both_getters_load_candidate_config_root_from_same_r13_slot"])
+        self.assertEqual(z["score_getter_r7_r13_load_sites"],["+0x40"])
+        self.assertEqual(z["strokes_getter_r5_r13_load_sites"],["+0x40"])
         self.assertIs(z["config_score_root_r7_function1_and_r5_function2_verified"],False)
 
     def test_no_raw_native_source_words_or_paths(self):
