@@ -65,7 +65,9 @@ class AdapterTests(unittest.TestCase):
             bank = synthetic_b0(Path(td))
             r = adapter.report_from_bytes(bank, FakeCFG(), public_units=PUBLIC)
         self.assertEqual(len(r["source_only_two_callers"]), 2)
-        self.assertTrue(r["public_Golf_source_window_gated"])
+        self.assertFalse(r["public_Golf_source_window_gated"])
+        self.assertFalse(r["original_B0_SHA_and_manifest_verified_before_after"])
+        self.assertFalse(r["reviewed_pure_CFG_helper_commit_verified"])
         self.assertTrue(all(x["conservative_static_cfg_status"]
                             == "ABSTAIN_SOURCE_UNRESOLVED"
                             for x in r["source_only_two_callers"]))
@@ -161,6 +163,8 @@ class AdapterTests(unittest.TestCase):
                 r = adapter.audit(Path(td), Path(td), Path(td))
         self.assertEqual(checked.call_count, 2)
         self.assertTrue(r["original_B0_SHA_and_manifest_verified_before_after"])
+        self.assertTrue(r["public_Golf_source_window_gated"])
+        self.assertTrue(r["reviewed_pure_CFG_helper_commit_verified"])
 
     def test_postread_changed_checkpoint_rejected(self):
         with tempfile.TemporaryDirectory() as td:
