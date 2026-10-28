@@ -53,10 +53,58 @@ def synthetic():
     return mapping, {"scene": scene, "pm": pm, "config": config, "manager": manager}
 
 
+
+def dform(op, rd, ra, imm):
+    return ((op << 26) | (rd << 21) | (ra << 16) | (imm & 0xFFFF))
+
+
+def mr(dest, source):
+    return ((31 << 26) | (source << 21) | (dest << 16)
+            | (source << 11) | (444 << 1))
+
+
+def bl(pc, target):
+    return ((18 << 26) | ((target - pc) & 0x03FFFFFC) | 1)
+
+
+def bc(pc, target):
+    return (16 << 26) | ((target - pc) & 0xFFFC)
+
+
+def source_flow_fixture(mapping):
+    """Fabricate isolated PPC instructions from mnemonic/operand parameters."""
+    patterns = {
+        0x802A3194: mr(29, 3),
+        0x802A3200: dform(14, 31, 29, 4),
+        0x802A3214: mr(3, 31),
+        0x802A3218: mr(4, 30),
+        0x802A321C: bl(0x802A321C, 0x802A08A0),
+        0x802A3224: dform(14, 31, 31, 0xCC),
+        0x802A3228: dform(11, 0, 30, 4),
+        0x802A322C: bc(0x802A322C, 0x802A3214),
+        0x802A08B4: mr(30, 3),
+        0x802A08F0: dform(36, 0, 30, 0x88),
+        0x8029F0E4: dform(32, 3, 3, 0x88),
+        0x8029F0E8: bl(0x8029F0E8, 0x80297124),
+        0x802A03A0: dform(32, 4, 3, 0x88),
+        0x802A03B4: dform(32, 4, 4, 0x4C),
+        0x802A03B8: dform(52, 2, 4, 0),
+        0x802A03C0: dform(52, 0, 4, 4),
+        0x802A03C8: dform(52, 0, 4, 8),
+        0x802A0D74: dform(15, 3, 0, -32708),
+        0x802A0D7C: dform(14, 3, 3, 32040),
+        0x802A0D88: dform(36, 3, 31, 0),
+        0x802A0D94: dform(36, 31, 30, 0xC4),
+    }
+    mapping.update(patterns)
+    return patterns
+
+
 class PlayerBallRosterTests(unittest.TestCase):
     def analyze(self, words, header=b"RSPE01\x00\x01"):
         def read(addr):
-            if x.PLAYER_MANAGER_CODE[0] <= addr < x.PLAYER_MANAGER_CODE[1]:
+            if (x.PLAYER_MANAGER_CODE[0] <= addr < x.PLAYER_MANAGER_CODE[1]
+                    or 0x8029E62C <= addr < 0x802A2210):
                 return words.get(addr, 0)
             if addr not in words:
                 raise ValueError("unmapped synthetic word")
@@ -176,6 +224,57 @@ class PlayerBallRosterTests(unittest.TestCase):
         self.assertEqual(info["ppc_manager_code_instructions_checked"], 1236)
         self.assertFalse(info["ppc_member_register_dataflow_proven"])
         self.assertNotIn("instruction_words", json.dumps(result))
+
+    def test_source_flow_and_exact_constructor_firstword_positive(self):
+        words, refs = synthetic()
+        patterns = source_flow_fixture(words)
+        for slot in range(x.ROSTER_SLOTS):
+            obj = words[refs["pm"] + x.PLAYER_CANDIDATE_MEMBER + slot*x.ROSTER_STRIDE]
+            words[obj] = 0x803C7D28  # fake constructor vtable value
+        report = self.analyze(words)
+        flow = report["bounded_source_register_flow_evidence"]
+        self.assertEqual(len(patterns), 21)
+        self.assertTrue(flow["four_inline_0xcc_record_loop_source_supported"])
+        self.assertTrue(flow["record_plus_0x88_ball_code_path_source_supported"])
+        self.assertTrue(flow["ball_child_plus_0x4c_three_float_writer_source_supported"])
+        self.assertTrue(flow["record_plus_0xc4_allocated_subobject_source_supported"])
+        self.assertEqual(report["exact_constructor_firstword_matches_for_plus_0xc4_subobjects"], 4)
+        self.assertTrue(report["source_supported_record_layout_not_gameplay_semantics"])
+        self.assertFalse(flow["world_space_ball_xyz_or_units_verified"])
+
+    def test_source_flow_rejects_corrupted_four_slot_indexing(self):
+        words, _ = synthetic()
+        source_flow_fixture(words)
+        words[0x802A3224] = dform(14, 31, 31, 0xD0)
+        report = self.analyze(words)
+        self.assertFalse(
+            report["bounded_source_register_flow_evidence"]
+                  ["four_inline_0xcc_record_loop_source_supported"])
+        self.assertFalse(report["source_supported_record_layout_not_gameplay_semantics"])
+
+    def test_source_flow_rejects_wrong_ball_writer_pointer_base(self):
+        words, _ = synthetic()
+        source_flow_fixture(words)
+        words[0x802A03B4] = dform(32, 4, 3, 0x4C)
+        out = self.analyze(words)
+        self.assertFalse(
+            out["bounded_source_register_flow_evidence"]
+               ["ball_child_plus_0x4c_three_float_writer_source_supported"])
+        self.assertTrue(
+            out["bounded_source_register_flow_evidence"]
+               ["record_plus_0x88_ball_code_path_source_supported"])
+
+    def test_wrong_constructor_store_does_not_prove_subobject_vtable(self):
+        words, refs = synthetic()
+        source_flow_fixture(words)
+        words[0x802A0D94] = dform(36, 31, 30, 0xC8)
+        for slot in range(x.ROSTER_SLOTS):
+            obj = words[refs["pm"] + x.PLAYER_CANDIDATE_MEMBER + slot*x.ROSTER_STRIDE]
+            words[obj] = 0x803C7D28
+        result = self.analyze(words)
+        self.assertFalse(result["bounded_source_register_flow_evidence"]
+                         ["record_plus_0xc4_allocated_subobject_source_supported"])
+        self.assertEqual(result["exact_constructor_firstword_matches_for_plus_0xc4_subobjects"], 0)
 
 if __name__ == "__main__":
     unittest.main()
