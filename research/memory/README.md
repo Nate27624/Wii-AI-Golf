@@ -186,16 +186,33 @@ MEM1/MEM2 pair. `source_selected_record_identity_confirmed=false`,
 `actual_player_or_ball_identity_verified=false`, and
 `start_vector_physically_ball_xyz_verified=false` remain correct.
 
-**Next available OFFLINE discriminator:** stacked S002 [PR #163](https://github.com/Nate27624/Wii-AI-Golf/pull/163)
-already has a strict saved-pair candidate equality reader. It can
-compare the preserved `roster-existing` and `unclassified-20261027-203338`
-pairs and emit only full-bank SHA equality booleans and relative
-3-word triplet same/different flags, never hashes or numeric words.
-If pairs are bitwise duplicates, they are **not independent evidence**.
-If different, no same-boot, same-frame, swing or actual motion
-can be inferred from those differences without acquisition
-provenance; stop and require a future controlled frame-aligned
-read-only game observation before semantic promotion.
+**Completed duplicate-control result — do not repeat:** S002 stacked [PR #163](https://github.com/Nate27624/Wii-AI-Golf/pull/163)
+ran the real source-gated two-pair comparison using `roster-existing` and
+`unclassified-20261027-203338`: both **entire MEM1 banks bitwise
+identical**, both **entire MEM2 banks bitwise identical**, same selected
+record index0, same three-position vector words and raw hole. A separate
+operator hash-only comparison also found the current Dolphin Dump pair
+identical to `roster-existing`. **THREE folders represent ONE distinct
+full-memory state, not three snapshots**, and contribute **zero dynamic
+ball-motion measurements**. They are not independent boots, shot
+conditions, animation phases or repetitions. Do not recopy or rescan them
+to increase an apparent sample count.
+
+**Next real experiment is blocked on capture instrumentation, not data
+analysis.** S001/S002 [PR #165](https://github.com/Nate27624/Wii-AI-Golf/pull/165)
+implements an OFFLINE four-phase temporal evidence/abstention consumer
+(20 synthetic Windows/Linux CI tests), but **does not itself capture
+live data**. It requires a future S001-approved single existing Felk
+frame-coroutine reader (not a second bridge), selected record and nested
+vector source gates, actual game-frame brackets at most two frames,
+one boot/hole, identical start/object pointers, no-shot idle stability,
+independently observed contact and visible ball motion, and preserved
+V1 swing waveform. The next operator action is **NONE until the live
+read-only sampler exists, nonperturbation is demonstrated and explicit
+opt-in is obtained**. Paused GUI native exports alone cannot satisfy
+that strict same-frame format. A provisional positive temporal
+classification still cannot establish physical world coordinates,
+velocity, power or training readiness.
 
 PR #162 [Rev1 PPC source evidence](https://github.com/Nate27624/Wii-AI-Golf/pull/162)
 also identifies a distinct `RPGolConfig::GetWind` lookup that uses
