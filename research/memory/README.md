@@ -2,7 +2,7 @@
 
 **Owner:** S000 schema/claims gate. S002 owns source and capture facts; S001 owns controller/frame-callback timing; S003 reviews identifiability before any training. **Status:** proposal, not merged, no new live capture.
 
-The machine-readable [field-evidence-ledger.json](field-evidence-ledger.json) contains **24 entries**: fourteen source/runtime structural or negative-control candidates (including eight newly source-named environment references) and ten deliberately **unlocated** gameplay variables. Nothing is labelled verified game power, ball velocity or club pose. Synthetic tests reject guessed offsets, untrusted URLs, raw runtime pointers, unsupported private fields, and unsupported training promotion.
+The machine-readable [field-evidence-ledger.json](field-evidence-ledger.json) contains **27 entries**: seventeen source/runtime structural, base-class or negative-control candidates (including eight source-named environment references, one constructor-backed Base member, and two unverified selected-object hypotheses), plus ten deliberately **unlocated** gameplay variables. Nothing is labelled verified game power, ball velocity or club pose. Synthetic tests reject guessed offsets, untrusted URLs, raw runtime pointers, unsupported private fields, and unsupported training promotion.
 
 ## Exactly what a field claim must establish
 
@@ -59,6 +59,60 @@ any unique privacy tests into #151 instead of creating three readers.
 The next new measurement should prioritize existing-bank source owner
 and selected-map-object hypotheses (#151 player-object source evidence;
 stacked #159 selected pin/start candidate vectors) with no Dolphin.
+
+## Real selected-map-object test and stronger DOL constructor evidence
+
+The user executed S002 [map candidate PR #159](https://github.com/Nate27624/Wii-AI-Golf/pull/159)
+against existing **saved** source-gated MEM1/MEM2, and provided only the
+sanitized JSON:
+
+- Both current pin and start objects resolve into MEM2. The supposed Base
+  `+0x30` VEC3 and hypothesized backing PMP `+0x08` triplets are each
+  finite, bounded and nonzero. They are candidate **numbers**, not verified
+  positions or calibrated world units.
+- **Pin**: the two candidate triplets agree within the preregistered
+  tolerance 0.1 (unknown units).
+- **Start**: the two candidate triplets **disagree**. This rules out the
+  blanket assertion that both selected map objects share equivalent
+  runtime-vs-PMP position values.
+- **Both** selected object first-words do not land in the narrow proposed
+  Golf map-object module `.data` interval; a negative range hint, not
+  proof the pointers are bad or that no object exists.
+- Explicit `source_known_derived_class_inheritance=false`,
+  `runtime_pmp_layout_verified=false`, `pin_world_xyz_verified=false`,
+  `start_world_xyz_verified=false`,
+  `same_boot_proven=false`, `same_emulated_frame_proven=false`.
+
+**Material new static provenance:** S002 separately read the user's private
+RSPE01 Rev1 DOL constructor `RPGolMapObjBase::RPGolMapObjBase` and
+reported three receiver-relative f32 stores at `+0x30/+0x34/+0x38` (initial
+translation zeros), scale stores `+0x3C/+0x40/+0x44` (ones), and
+**internal self pointers** at `+0x48` to `base+0x0C`, `+0x4C` to
+`base+0x30`. The public `RPGolMapObjBase.h` had wrongly annotated
+the two pointer fields at `+0x40/+0x44`, overlapping scale storage. The
+**constructor evidence resolves the Base struct layout**, but it does
+NOT prove that selected `RPGolMapObjPin*` or `RPGolMapObjPlayer*`
+points to a Base subobject at offset zero.
+
+Therefore the dictionary now carries **three separate entries**:
+`environment.map_base_translation` (static source type and constructor
+initializing writer corroborated, not verified live pin XYZ);
+`environment.selected_pin_translation_candidate` (runtime numerics
+plausible and map-entry agreement, untyped);
+`environment.selected_start_translation_candidate` (runtime
+numerics plausible but second representation DISAGREES, untyped).
+
+**Next offline controlled falsification, S002 #159 owner:** using the **same
+preserved MEM2** and source-gated selected pointer, test two constructor
+invariants as pointer **equality only**:
+`*(obj+0x48)==obj+0x0C`, `*(obj+0x4C)==obj+0x30`.
+No second pointer dereference is required. Compare pin vs start, and test
+known mock lookalikes, invalid pointers and nonzero base offsets. If both
+match, this is **Base-layout consistency evidence**, not proof of class
+inheritance, game coordinate units, or live ball identity. If they fail,
+the selected object may use a different base location or layout; do
+not search blindly or rename fields as XYZ. No fresh Dolphin session,
+RAM dump or model training is needed for this experiment.
 
 ## Full-MEM1 checkpoints are discovery data, NOT instant semantic labels
 
