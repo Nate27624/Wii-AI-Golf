@@ -13,6 +13,10 @@ END = ENTRY + SIZE
 WORD_COUNT = SIZE // 4
 MAP_OBJ_BALL_LO, MAP_OBJ_BALL_HI = 0x80296FD8, 0x8029B240
 SIMULATE_MANAGER_LO, SIMULATE_MANAGER_HI = 0x8029B240, 0x8029BBB4
+# Immutable published RSPE01 Rev1 .text source splits, not named functions.
+# ogws config/RSPE01_01/splits.txt Git blob df4085de5285b0d188fdfec8c097b301382263d3
+GOLF_DRAW_MANAGER_LO, GOLF_DRAW_MANAGER_HI = 0x80294184, 0x8029528C
+GOLF_UNSPLIT_LO, GOLF_UNSPLIT_HI = 0x802A79F8, 0x802C7924
 
 
 def _word(w):
@@ -39,6 +43,10 @@ def _public_unit(target):
         return "RPGolMapObjBall_source_unit_ONLY"
     if SIMULATE_MANAGER_LO <= target < SIMULATE_MANAGER_HI:
         return "RPGolSimulateManager_source_unit_ONLY"
+    if GOLF_DRAW_MANAGER_LO <= target < GOLF_DRAW_MANAGER_HI:
+        return "RPGolDrawManager_source_unit_ONLY"
+    if GOLF_UNSPLIT_LO <= target < GOLF_UNSPLIT_HI:
+        return "RPGolScene_unsplit_source_unit_ONLY"
     return "OTHER_OR_UNKNOWN_PUBLIC_TEXT"
 
 
