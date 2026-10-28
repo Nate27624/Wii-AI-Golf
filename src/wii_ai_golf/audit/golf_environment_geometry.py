@@ -78,7 +78,8 @@ def audit_environment_geometry(mem1, mem2, *, strict_size=True):
     banks = _Banks(mem1, mem2)
     field = banks.u32(STATIC_FIELD)
     conf = banks.u32(STATIC_CONFIG)
-    assert ancestor["conditions"]["game_mode"] == 4
+    if ancestor["conditions"]["game_mode"] != 4:
+        raise ValueError("Not Hitting the Green game mode")
     transforms = {}
     for name, offset in _OBJECT_OFFSETS.items():
         transforms[name] = _object_transform(
