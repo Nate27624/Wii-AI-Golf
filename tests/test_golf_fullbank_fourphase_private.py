@@ -67,11 +67,32 @@ class FullBankFourPhaseStudyTests(unittest.TestCase):
             base=0x100 if stage<2 else 0x200
             struct.pack_into(">I",pair[1],base+0x04,
                              8 if stage>=2 else 0)
+        # Populate 4 matching ball-like slots, source start and local
+        # candidate buffers. No real game state or runtime addresses.
+        region_descriptors=[]
+        for stage,pair in enumerate(pages):
+            start=0x1200
+            for j,v in enumerate((2.2,-5.5,-318.0)):
+                struct.pack_into(">f",pair[1],start+0x30+j*4,v)
+            for slot in range(4):
+                obj=0x400+0x200*slot
+                if slot==0:
+                    for off in (0x30,0xCC,0xF0,0xFC):
+                        for j,v in enumerate((2.2,-5.5,-318.0)):
+                            struct.pack_into(">f",pair[1],obj+off+j*4,v)
+                    pair[1][obj+0x108:obj+0x118]=bytes([255])*16
+            named={
+                "selected_player_record":
+                    (x.MEM2_BASE+(0x100 if stage<2 else 0x200),0x20),
+                "selected_ball_related_object":(x.MEM2_BASE+0x400,0x1AC),
+                "current_start_map_object":(x.MEM2_BASE+start,0x80),
+            }
+            for slot in range(4):
+                named[f"ball_related_slot_{slot}"]=(
+                    x.MEM2_BASE+0x400+0x200*slot,0x1AC)
+            region_descriptors.append((0,1,named))
         with (patch.object(x.roster,"TwoBankReader",side_effect=lambda *p:object()),
-              patch.object(x,"_resolve_objects",side_effect=[
-                  (0,1,{"selected_player_record":(x.MEM2_BASE+(0x100 if i<2 else 0x200),0x20)})
-                  for i in range(4)
-              ])):
+              patch.object(x,"_resolve_objects",side_effect=region_descriptors)):
             r=x._region_analysis(pages,max_object_offsets=4)
         obj=r["source_resolved_regions"]["selected_player_record"]
         self.assertFalse(obj["source_object_address_constant_all_phases"])
@@ -79,6 +100,14 @@ class FullBankFourPhaseStudyTests(unittest.TestCase):
         self.assertEqual(obj["changed_word_details"][0][
             "source_object_relative_word_offset"],"+0x004")
         self.assertNotIn("0x90000100",json.dumps(r))
+        check=r["ball_related_candidate_buffers_by_phase"][0]
+        for candidate in check["candidate_triplets"]:
+            self.assertEqual(candidate["selected_matches_source_start_components"],3)
+            if candidate["ball_object_relative_offset"]!="+0x030":
+                self.assertEqual(candidate["inactive_slot_triplets_all_zero"],
+                                 [True,True,True])
+        self.assertTrue(check["selected_four_flag_words_all_ffffffff"])
+        self.assertTrue(check["inactive_four_flag_words_zero"])
 
     def test_selected_slot_or_hole_change_fails_closed(self):
         pages=[(bytearray(0x2000),bytearray(0x2000)) for _ in range(4)]
