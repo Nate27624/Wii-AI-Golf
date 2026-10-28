@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
@@ -85,18 +86,13 @@ class SevenTrajectoryTests(unittest.TestCase):
                 audit.run_local(Path(td))
 
     def test_analyzes_current_scene_source_not_arbitrary_words(self):
-        class Fake:
-            def __init__(self): self.calls=[]
-            def u32(self,a): raise AssertionError("source decoder must gate first")
-            def header(self): return b""
-        old=audit.source._sample
-        try:
-            def fail(*args): raise ValueError("Rev1 source gate failed")
-            audit.source._sample=fail
-            with self.assertRaisesRegex(ValueError,"Rev1 source gate failed"):
-                audit._source_sample(b"\x00",b"\x00")
-        finally:
-            audit.source._sample=old
+        # Gate check must be mocked at the reader boundary: tiny byte strings
+        # are invalid native banks and would stop before our source validator.
+        with patch.object(audit.ROSTER,"TwoBankReader",return_value=object()):
+            with patch.object(audit.source,"_sample",
+                              side_effect=ValueError("Rev1 source gate failed")):
+                with self.assertRaisesRegex(ValueError,"Rev1 source gate failed"):
+                    audit._source_sample(b"",b"")
 
     def test_python_isolated_cli_imports_real_source_helpers(self):
         with tempfile.TemporaryDirectory() as td:
