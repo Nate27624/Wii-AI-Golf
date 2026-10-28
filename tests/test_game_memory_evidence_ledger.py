@@ -29,12 +29,12 @@ class GameMemoryEvidenceLedgerTests(unittest.TestCase):
 
     def test_current_ledger_is_valid_without_training_claims(self):
         fields = validate_memory_ledger(self.doc)
-        self.assertEqual(len(fields), 24)
+        self.assertEqual(len(fields), 27)
         self.assertFalse(any(x["training_eligible"] for x in fields))
         self.assertEqual(len([x for x in fields if x["negative_control"]]), 4)
         self.assertEqual(len([x for x in fields if x["identity_level"] == "unlocated"]), 10)
         self.assertEqual(len([x for x in fields if x["object_role"] == "golf_field_manager"]), 6)
-        self.assertEqual(len(read_memory_ledger(SOURCE)), 24)
+        self.assertEqual(len(read_memory_ledger(SOURCE)), 27)
 
     def test_environment_reference_is_not_a_physical_quantity(self):
         entries = validate_memory_ledger(self.doc)
@@ -54,6 +54,25 @@ class GameMemoryEvidenceLedgerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Training promotion"):
             validate_memory_ledger(self.mutate(
                 "environment.current_pin_ref", training_eligible=True))
+
+    def test_base_constructor_member_is_not_selected_pin_xyz(self):
+        entries = validate_memory_ledger(self.doc)
+        by_id = {entry["field_id"]: entry for entry in entries}
+        base = by_id["environment.map_base_translation"]
+        self.assertTrue(base["source_typed_member_verified"])
+        self.assertTrue(base["writer_instruction_verified"])
+        self.assertFalse(base["gameplay_value_verified"])
+        self.assertFalse(base["training_eligible"])
+        for name in ("environment.selected_pin_translation_candidate",
+                     "environment.selected_start_translation_candidate"):
+            entry = by_id[name]
+            self.assertFalse(entry["source_typed_member_verified"])
+            self.assertFalse(entry["gameplay_value_verified"])
+            self.assertFalse(entry["training_eligible"])
+        self.assertEqual(by_id["gameplay.ball_position"]["identity_level"], "unlocated")
+        with self.assertRaisesRegex(ValueError, "Training promotion"):
+            validate_memory_ledger(self.mutate(
+                "environment.map_base_translation", training_eligible=True))
 
     def test_a_time_correlated_field_cannot_be_promoted_directly(self):
         with self.assertRaisesRegex(ValueError, "Training promotion"):
