@@ -30,6 +30,7 @@ class FakeMemory:
         m, scene, config, field = 0x80007000, 0x90010000, 0x90011000, 0x90012000
         pm, ball, start = 0x90013000, 0x90014000, 0x90015000
         self.words.update({
+            0x80000000: 0x52535045, 0x80000004: 0x30310001,
             0x804BF4D8: m, m + 0x18: 5, m + 0x0C: scene,
             scene + 0x1C: 5, scene + 0x20: m, scene + 0x54: 2,
             0x804BF8C4: config, config + 0x94: 4, config + 0x98: 1,
@@ -106,6 +107,11 @@ class WatchPatchTests(unittest.TestCase):
         self.mem.words[m + 0x18] = 5
         pm = self.mem.words[0x804BF8D0]
         self.mem.words[pm + 0x334] = 0xDEADBEEF
+        with self.assertRaises(ValueError):
+            self.ns["_wii_ball_snapshot"]()
+
+    def test_wrong_disc_revision_blocks_sampling(self):
+        self.mem.words[0x80000004] = 0x30310000
         with self.assertRaises(ValueError):
             self.ns["_wii_ball_snapshot"]()
 
