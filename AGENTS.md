@@ -1,5 +1,9 @@
 # AI agent coordination protocol
 
+## P0 golf memory / physics / Near Pin research — read before claiming a new study
+
+**Current source-of-truth snapshot:** [P0 evidence, owner boundaries and STOP rules](docs/p0-current-evidence-and-stop-rules.md). The seven original source-gated dumps, stable public Rev1 Calculate/Draw dispatch candidates, stationary-validation fixes and critical **no-guest-physics-clock** findings are already assigned. Do **not** duplicate scans, infer game physics frames from bridge ticks/VI fields/codebreakpoint events, ask for a new shot, or promote source word matches to rendered/physical/score/training evidence. Check the newest [cross-agent P0 issue #121](https://github.com/Nate27624/Wii-AI-Golf/issues/121) and owner PR comments to supersede the dated snapshot. New operator tests must be exact-pin, source-gated, purpose-specific, read-only, sanitized and owner-reviewed. The operator prefers copy/paste PowerShell with `gh` and `py -3 -I`.
+
 ## Delegated self-merging
 
 **Agents may merge their own PRs** when every gate in [merging requirements](docs/merging-requirements.md) is met and posted as a `MERGE READY` checklist. S000 is not a routine approval bottleneck; shared interface changes require acknowledgment by canonical owners and S000 before the author self-merges. Draft/conflicted/untested PRs cannot self-merge. Preserve GitHub protection rules and exact test evidence.
