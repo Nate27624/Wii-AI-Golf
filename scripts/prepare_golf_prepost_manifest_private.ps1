@@ -104,6 +104,9 @@ try {
     if (Test-Path -LiteralPath $manifestFile) {
         Stop-Redacted 'manifest exists; preserve original without overwriting'
     }
+    # Materialize JSON before creating a new file: conversion failures
+    # cannot leave behind a misleading empty private manifest.
+    $manifestJson = $manifest | ConvertTo-Json -Depth 8
     # Exclusive file creation: another process cannot replace an existing
     # private manifest. No raw memory, hashes or absolute paths on stdout.
     $stream = [IO.File]::Open($manifestFile, [IO.FileMode]::CreateNew,
@@ -112,7 +115,7 @@ try {
         $writer = [IO.StreamWriter]::new($stream,
             [Text.UTF8Encoding]::new($false))
         try {
-            $writer.Write(($manifest | ConvertTo-Json -Depth 8))
+            $writer.Write($manifestJson)
             $writer.Flush()
         } finally {
             $writer.Dispose()
