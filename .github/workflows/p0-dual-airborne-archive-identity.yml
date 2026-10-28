@@ -39,3 +39,7 @@ jobs:
               (Resolve-Path -LiteralPath 'scripts/Invoke-P0DualAirborneArchiveIdentity.ps1').Path,
               [ref]$t,[ref]$e) | Out-Null
           if ($e.Count) { throw 'PowerShell operator wrapper parse failed' }
+      - name: Execute PowerShell wrapper in tests-only mode (no private files)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: "& './scripts/Invoke-P0DualAirborneArchiveIdentity.ps1' -TestsOnly"
