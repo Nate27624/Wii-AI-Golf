@@ -14,6 +14,14 @@
 - [ ] I reused existing canonical S001 fresh boot/menu, named checkpoint, original frozen waveform and currently source-validated bridge; I did not invent/replace controller timing or conflate A45 final menu, A-prime, V1 lead, neutral trace or follow-through.
 - [ ] Any novel swing/launcher/shared CLI or source contract change is separately justified, preregistered, owner-reviewed and backward-tested, not presented as a new default.
 
+## Automatic GitHub output and mandatory findings (MANDATORY)
+
+- [ ] Operator-run result is **automatically published in the SAME approved PowerShell command** using the existing sanitized research_cli.py publisher to the research/observations branch; OR no operator run is requested until a narrow S000/S002-reviewed adapter exists.
+- [ ] Allowed fields are explicitly bounded and tested; native RAM/PRIVATE captures, ROM, savestates, raw traces, pointers, personal config and private paths never upload. Do not invent an alternate publisher.
+- [ ] The full run produces local sanitized backup plus actual GitHub observation link on success; a blocked upload reports **NOT UPLOADED** and keeps the local copy (no fabricated success or manual upload).
+- [ ] Material **FINDING** (including failure/negative evidence) is posted to the owning GitHub issue/PR with study/run, source class, controls, record URL or publication blocker, limitations and next owner.
+- [ ] Durable evidence-qualified conclusion is linked in research/ledger.md through the normal reviewed owner PR/integration; no promotion of candidate memory or human observation to verified physics/training targets.
+
 ## Validation / provenance / safety
 
 - [ ] Focused tests and **FULL Windows suite** run with exact commands, platform, commit SHA and results; or explain which were not run and keep DRAFT.
