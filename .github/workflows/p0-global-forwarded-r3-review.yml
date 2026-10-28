@@ -1,0 +1,29 @@
+name: P0 global r3 forwarded pointer first-use review (fabricated)
+on:
+  push:
+    paths:
+      - scripts/review_p0_global_slot_load_consumers.py
+      - tests/test_p0_global_forwarded_r3_first_use_review.py
+      - .github/workflows/p0-global-forwarded-r3-review.yml
+  pull_request:
+    paths:
+      - scripts/review_p0_global_slot_load_consumers.py
+      - tests/test_p0_global_forwarded_r3_first_use_review.py
+      - .github/workflows/p0-global-forwarded-r3-review.yml
+  workflow_dispatch:
+jobs:
+  native-free:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Existing exact 15-source first-use adversarial cases
+        run: python -m unittest discover -s tests -p test_p0_global_slot_load_consumers_private.py -v
+      - name: New r3 forwarding field consumer positive/negative and privacy cases
+        run: python -m unittest discover -s tests -p test_p0_global_forwarded_r3_first_use_review.py -v
