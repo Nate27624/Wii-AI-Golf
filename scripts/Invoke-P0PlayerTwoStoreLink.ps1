@@ -34,18 +34,46 @@ if ($LASTEXITCODE -ne 0 -or -not $lines) {
 }
 try { $r=($lines -join [Environment]::NewLine) | ConvertFrom-Json }
 catch { throw 'ABSTAIN: malformed sanitized report' }
-if ($r.kind -ne 'S002-P0-PLAYER-TWO-FLOAT-STORE-SAME-RECEIVER-LOCAL-POSSIBILITY' -or
-    $r.original_B0_SHA_and_Rev1_verified_before_after -ne $true -or
-    $r.player_source_first_store -ne '+0x2008' -or
-    $r.caller_r30_to_r3_copy_site -ne '+0x201C' -or
-    $r.caller_direct_BL_site -ne '+0x2024' -or
-    $r.callee_candidate_entry -ne '+0x1BD4' -or
-    $r.same_object_runtime_write_proven -ne $false -or
-    $r.true_function_boundary_or_typed_receiver_verified -ne $false -or
-    $r.store_executed_in_same_shot_verified -ne $false -or
-    $r.approved_for_training -ne $false -or
-    $r.allowed_to_publish -ne $false) {
-    throw 'ABSTAIN: integrity/interpretation/training invariant unexpected'
+# Strict fail-closed report contract with *field names only* on mismatch.
+# In particular, do not conflate a successful Python exit with passed
+# source evidence qualification, and never disclose raw native JSON.
+$expected = [ordered]@{
+    kind = 'S002-P0-PLAYER-TWO-FLOAT-STORE-SAME-RECEIVER-LOCAL-POSSIBILITY'
+    original_B0_SHA_and_Rev1_verified_before_after = $true
+    player_source_first_store = '+0x2008'
+    caller_r30_to_r3_copy_site = '+0x201C'
+    caller_direct_BL_site = '+0x2024'
+    callee_candidate_entry = '+0x1BD4'
+    same_object_runtime_write_proven = $false
+    true_function_boundary_or_typed_receiver_verified = $false
+    store_executed_in_same_shot_verified = $false
+    approved_for_training = $false
+    allowed_to_publish = $false
+}
+$violations = New-Object 'System.Collections.Generic.List[string]'
+foreach ($key in $expected.Keys) {
+    $prop = $r.PSObject.Properties[$key]
+    if ($null -eq $prop) {
+        $violations.Add("MISSING:$key")
+        continue
+    }
+    $want = $expected[$key]
+    $got = $prop.Value
+    if ($want -is [bool]) {
+        if ($got -isnot [bool] -or $got -ne $want) {
+            $violations.Add("MISMATCH:$key")
+        }
+    } else {
+        if ($got -isnot [string] -or $got -cne $want) {
+            $violations.Add("MISMATCH:$key")
+        }
+    }
+}
+if ($violations.Count -gt 0) {
+    # Only allowlisted key NAMES; no values, paths, hashes, pointer or ROM.
+    Write-Host ("P0_TWO_STORE_REPORT_CONTRACT_ABSTAIN={0}" -f
+        ($violations.ToArray() -join ','))
+    throw 'ABSTAIN: exact original-source report contract mismatch; no claim promoted'
 }
 Write-Host 'P0_ORIGINAL_B0_SOURCE_SHA=PASS'
 Write-Host ("CALLER_LOCAL_BL_REACHABLE={0}" -f $r.caller_local_path_reaches_BL)
