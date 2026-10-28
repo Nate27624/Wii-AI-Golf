@@ -232,7 +232,8 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
             capture_stage("pre", pre_samples)
         approval = input_fn(f"Press ENTER to execute ONE {len(samples)}-frame forward swing; q cancels: ")
         if approval.strip():
-            return {"cancelled": True, "raw_data_created": True, "partial_samples": len(rows)}
+            return {"cancelled": True, "raw_data_created": not visual_first,
+                    "partial_samples": len(rows), "shot_dispatched": False}
         shot_start_frame = None
         if observe_start_pose:
             frame = rpc.call("frame.get_count", [])
