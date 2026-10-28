@@ -12,7 +12,7 @@ $tokens = $null
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile(
     $scriptPath, [ref]$tokens, [ref]$errors)
-if (@($errors).Count -ne 0) {
+if ($null -ne $errors -and @($errors).Count -ne 0) {
     throw 'CONTRACT_TEST_FAILED: PowerShell 5.1 syntax invalid'
 }
 
