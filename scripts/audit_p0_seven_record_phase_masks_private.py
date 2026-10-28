@@ -122,7 +122,7 @@ def summarize(samples):
                 "P3/D4 omitted: different club, input and pose."),
     }
 
-def analyze(archive:Path):
+def read_samples(archive:Path):
     dirs=seven._check_archive(archive)  # ALL 14 original private SHA gates
     with ExitStack() as stack:
         samples={}
@@ -133,7 +133,10 @@ def analyze(archive:Path):
                 fp=stack.enter_context(path.open("rb"))
                 banks.append(stack.enter_context(mmap.mmap(fp.fileno(),0,access=mmap.ACCESS_READ)))
             samples[n]=capture(roster.TwoBankReader(*banks))
-        return summarize(samples)
+        return samples
+
+def analyze(archive:Path):
+    return summarize(read_samples(archive))
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
