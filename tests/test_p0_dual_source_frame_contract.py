@@ -128,6 +128,167 @@ class DualObjectTests(unittest.TestCase):
                 rows=self.cohort();rows[0][key]=value
                 with self.assertRaises(ValueError): mod.summarize_private_samples(rows)
 
+    def test_reject_off_bank_and_unaligned_pointer_claims(self):
+        # Nonzero u32 alone is not a native MEM1/MEM2 object pointer.
+        for raw in (0x90001001, 0x80000001, 0x12345678, 0x94000000,
+                    0x81800000, 0xC0001000, 0xFFFFFFFF, 0x90000002):
+            with self.subTest(raw=raw):
+                rows = self.cohort()
+                for row in rows:
+                    row["selected_ball_object_pointer"] = raw
+                with self.assertRaisesRegex(ValueError, "canonical"):
+                    mod.summarize_private_samples(rows)
+
+    def test_each_source_pointer_uses_same_canonical_ram_gate(self):
+        # All five fields must independently have aligned/native addresses.
+        for key in mod.POINTERS:
+            for bad in (0x90001001, 0x12345678):
+                with self.subTest(key=key, bad=bad):
+                    rows = self.cohort()
+                    for row in rows:
+                        row[key] = bad
+                    with self.assertRaisesRegex(ValueError, "canonical"):
+                        mod.summarize_private_samples(rows)
+
+    def test_native_mem1_mem2_last_word_boundaries(self):
+        self.assertTrue(mod._canonical_native_guest_pointer(0x80000000))
+        self.assertTrue(mod._canonical_native_guest_pointer(0x817FFFFC))
+        self.assertTrue(mod._canonical_native_guest_pointer(0x90000000))
+        self.assertTrue(mod._canonical_native_guest_pointer(0x93FFFFFC))
+        for not_native in (0x7FFFFFFC, 0x81800000, 0x8FFFFFFC,
+                           0x94000000, True, 0, 0x100000000):
+            with self.subTest(value=not_native):
+                self.assertFalse(mod._canonical_native_guest_pointer(not_native))
+
+    def test_good_distinct_native_ram_pointers_still_accepted(self):
+        rows = self.cohort()
+        for row in rows:
+            row["selected_ball_object_pointer"] = 0x93FFFEF8
+            row["source_global_ball_object_pointer"] = 0x90000000
+        result = mod.summarize_private_samples(rows)
+        self.assertTrue(result["selected_global_object_pointers_distinct"])
+        self.assertFalse(result["rendered_ball_object_identity_verified"])
+        self.assertFalse(result["training_approved"])
+
+    def test_reject_selected_ball_pointer_with_no_room_for_4c_member(self):
+        # Both values are aligned and inside native banks with one word
+        # available, but PPC's ball-object +0x4C load would cross the end.
+        for bad in (0x817FFFFC, 0x817FFFB4, 0x93FFFFFC, 0x93FFFFB4):
+            with self.subTest(bank_end_pointer=bad):
+                rows = self.cohort()
+                for row in rows:
+                    row["selected_ball_object_pointer"] = bad
+                with self.assertRaisesRegex(ValueError, "bounded canonical"):
+                    mod.summarize_private_samples(rows)
+
+    def test_reject_global_ball_pointer_with_no_room_for_4c_member(self):
+        for bad in (0x817FFFFC, 0x817FFFB4, 0x93FFFFFC, 0x93FFFFB4):
+            with self.subTest(bank_end_pointer=bad):
+                rows = self.cohort()
+                for row in rows:
+                    row["source_global_ball_object_pointer"] = bad
+                with self.assertRaisesRegex(ValueError, "bounded canonical"):
+                    mod.summarize_private_samples(rows)
+
+    def test_selected_and_global_balls_can_reach_last_full_4c_field(self):
+        rows = self.cohort()
+        for row in rows:
+            row["selected_ball_object_pointer"] = 0x93FFFEF8
+            row["source_global_ball_object_pointer"] = 0x93FFFFB0
+        result = mod.summarize_private_samples(rows)
+        self.assertTrue(result["accepted_for_offline_relationship_review"])
+        self.assertTrue(result["selected_global_object_pointers_distinct"])
+        self.assertFalse(result["actual_guest_physics_time_verified_by_analyzer"])
+
+    def test_other_object_types_retain_one_word_only_not_guessed_spans(self):
+        # Original Rev1 readers actually require the three objects in MEM2
+        # with +0x50, +0x50, +0xA8 footprints, respectively.
+        rows = self.cohort()
+        for row in rows:
+            row["pin_object_pointer"] = 0x93FFFFB0
+            row["start_object_pointer"] = 0x90004000
+            row["field_manager_pointer"] = 0x93FFFF58
+        self.assertTrue(mod.summarize_private_samples(rows)[
+            "accepted_for_offline_relationship_review"])
+
+    def test_4c_span_helper_fails_closed_on_bad_minimums(self):
+        for minimum in (0, 1, 3, 5, -4, True, 2.0):
+            with self.subTest(minimum=minimum):
+                self.assertFalse(mod._canonical_native_guest_pointer(
+                    0x90001000, min_bytes=minimum))
+        self.assertTrue(mod._canonical_native_guest_pointer(
+            0x93FFFFB0, min_bytes=0x50))
+        self.assertFalse(mod._canonical_native_guest_pointer(
+            0x93FFFFB4, min_bytes=0x50))
+
+    def test_mem2_only_full_source_footprints_are_required(self):
+        self.assertEqual(mod.SOURCE_OBJECT_MEM2_MIN_SPANS, {
+            "selected_ball_object_pointer": 0x108,
+            "source_global_ball_object_pointer": 0x50,
+            "pin_object_pointer": 0x50,
+            "start_object_pointer": 0x50,
+            "field_manager_pointer": 0xA8,
+        })
+        self.assertTrue(mod._qualified_mem2_object_span(
+            0x93FFFEF8, min_bytes=0x108))
+        self.assertFalse(mod._qualified_mem2_object_span(
+            0x93FFFEFC, min_bytes=0x108))
+        self.assertTrue(mod._qualified_mem2_object_span(
+            0x93FFFFB0, min_bytes=0x50))
+        self.assertTrue(mod._qualified_mem2_object_span(
+            0x93FFFF58, min_bytes=0xA8))
+
+    def test_all_five_object_fields_refuse_mem1_even_with_available_span(self):
+        # The source-global static r13 slot may be MEM1, but its pointee
+        # is MEM2. Original readers restrict every source object to MEM2.
+        for key in mod.POINTERS:
+            with self.subTest(key=key):
+                rows = self.cohort()
+                for row in rows:
+                    row[key] = 0x80001000
+                with self.assertRaisesRegex(ValueError, "bounded canonical"):
+                    mod.summarize_private_samples(rows)
+
+    def test_each_mem2_object_rejects_its_last_partial_span(self):
+        for key, span in mod.SOURCE_OBJECT_MEM2_MIN_SPANS.items():
+            with self.subTest(key=key, span=span):
+                rows = self.cohort()
+                for row in rows:
+                    row[key] = 0x94000000 - span + 4
+                with self.assertRaisesRegex(ValueError, "bounded canonical"):
+                    mod.summarize_private_samples(rows)
+
+    def test_each_mem2_object_accepts_exact_full_span_boundary(self):
+        for key, span in mod.SOURCE_OBJECT_MEM2_MIN_SPANS.items():
+            with self.subTest(key=key, span=span):
+                rows = self.cohort()
+                for row in rows:
+                    row[key] = 0x94000000 - span
+                self.assertTrue(mod.summarize_private_samples(rows)[
+                    "accepted_for_offline_relationship_review"])
+
+    def test_selected_cc_fc_source_span_rejects_50_only_false_positive(self):
+        # A selected ball with +0x50 room still cannot hold +0xFC
+        # three-word region that the original source reader qualified.
+        for near_end in (0x93FFFFB0, 0x93FFFF80, 0x93FFFF00):
+            with self.subTest(selected=near_end):
+                rows = self.cohort()
+                for row in rows:
+                    row["selected_ball_object_pointer"] = near_end
+                with self.assertRaisesRegex(ValueError, "bounded canonical"):
+                    mod.summarize_private_samples(rows)
+
+    def test_mem2_span_helper_refuses_noninteger_or_unaligned_minimum(self):
+        for bad in (True, False, -4, 0, 1, 2.0, 5, 0x101):
+            with self.subTest(bad=bad):
+                self.assertFalse(mod._qualified_mem2_object_span(
+                    0x90001000, min_bytes=bad))
+        for bad in (0x94000000, 0x817FFFF0, 0x90000002, 0x7FFFFFFC,
+                    0xFFFFFFFF, True, "0x90000000"):
+            with self.subTest(bad=bad):
+                self.assertFalse(mod._qualified_mem2_object_span(
+                    bad, min_bytes=0x50))
+
     def test_reject_pointer_relocation_selected(self):
         rows=self.cohort();rows[3]["selected_ball_object_pointer"]+=4
         with self.assertRaises(ValueError): mod.summarize_private_samples(rows)
