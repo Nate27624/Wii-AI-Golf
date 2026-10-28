@@ -142,7 +142,7 @@ class EffectHandleSourceTests(unittest.TestCase):
         words=fixture()
         words[h.R31_FROM_R3_PC+4]=0x7C9F2378  # mr r31,r4: recognized competing assignment
         result=h.analyze(lambda addr:words.get(addr,0))
-        self.assertFalse(result["field_manager_r31_from_incoming_r3_source_pattern_verified"])
+        self.assertFalse(result["field_manager_r31_from_r3_at_80290dd0_static_pattern_verified"])
         self.assertFalse(result["field_manager_r31_no_recognized_intervening_redefinition"])
 
     def test_excessive_hits_abort(self):
