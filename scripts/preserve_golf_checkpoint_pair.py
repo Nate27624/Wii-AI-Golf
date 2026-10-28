@@ -30,6 +30,7 @@ PHASES = {
     "B2": "wasd_aim_only",
     "B3": "idle_after_aim",
     "B4": "landed_after_observed_shot",
+    "B5": "idle_after_landing",
 }
 SCHEMA_VERSION = 1
 MANIFEST_NAME = "checkpoint-manifest-PRIVATE.json"
@@ -107,7 +108,7 @@ def preserve_pair(*, mem1_source, mem2_source, private_root,
     ordered = tuple(PHASES.keys())
     if (len(keys) >= len(ordered) or keys != ordered[:len(keys)]
             or checkpoint != ordered[len(keys)]):
-        raise ValueError("Only sequential new B0 -> B1 -> B2 -> B3 -> B4 captures")
+        raise ValueError("Only sequential new B0 -> B1 -> B2 -> B3 -> B4 -> B5 captures")
     if prior:
         last = prior["checkpoints"][keys[-1]]
         if (srcstats[0].st_mtime_ns <= last["source_mtime_ns"]["MEM1"]
