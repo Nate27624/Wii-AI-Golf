@@ -25,6 +25,7 @@ def fabricated():
     config = 0x91002000
     field = 0x91003000
     pm = 0x91004000
+    main = 0x91008000
     rec = pm + 4
     ball = 0x91005000
     start = 0x91006000
@@ -35,9 +36,10 @@ def fabricated():
         m.STATIC_SCENE: manager,
         manager + 0x0C: scene, manager + 0x18: 5,
         scene + 0x1C: 5, scene + 0x20: manager, scene + 0x54: 2,
+        scene + 0x9C: main, main: 0x803C779C,
         m.STATIC_CONFIG: config, config + 0x94: 4, config + 0x98: 1,
         m.STATIC_FIELD: field, field + 0x50: start,
-        m.STATIC_PLAYER_MANAGER: pm, pm + 0x334: rec,
+        m.STATIC_PLAYER_MANAGER: pm, pm: 0x803C7DD4, pm + 0x334: rec,
         rec + 0x88: ball, ball: m.BALL_DATA_START + 4,
         ball + 0x4C: ball + 0x30,
         start + 0x48: start + 0x0C,
@@ -52,7 +54,7 @@ def fabricated():
             words[location + 4 * i] = value
     return words, {"manager": manager, "scene": scene,
                    "config": config, "field": field, "pm": pm,
-                   "rec": rec, "ball": ball, "start": start}
+                   "rec": rec, "ball": ball, "start": start, "main": main}
 
 
 class FakeSource:
@@ -151,6 +153,15 @@ class SelectedBallMicroWatchTests(unittest.TestCase):
                 self.sample()
             self.words[address] = before
         self.assertFalse(self.watch.private_samples())
+
+    def test_source_manager_firstwords_required(self):
+        for addr in (self.ref["pm"], self.ref["main"]):
+            before = self.words[addr]
+            self.words[addr] = 0
+            with self.assertRaises(m.WatchRejected):
+                self.sample()
+            self.words[addr] = before
+        self.assertEqual(self.watch.private_samples(), [])
 
     def test_selected_record_is_exact_inline_slot(self):
         self.words[self.ref["pm"] + 0x334] = 0x91007770
