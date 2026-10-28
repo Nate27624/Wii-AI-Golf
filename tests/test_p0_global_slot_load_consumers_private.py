@@ -81,6 +81,22 @@ class FirstUse(unittest.TestCase):
         self.assertEqual(result["first_bounded_consumer_class"],
                          "possible_register_clobber_before_proven_consumer")
 
+    def test_ppc_r0_is_not_a_memory_base_pointer(self):
+        # D-form rA=0 means effective address uses literal zero, NOT GPR0.
+        for opcode in (32, 34, 40, 42, 48, 50, 36, 38, 44, 52, 54):
+            with self.subTest(opcode=opcode):
+                r=run({P+4:d(opcode,5,0,4)},reg=0)
+                self.assertNotIn(
+                    r["first_bounded_consumer_class"],
+                    ("field_load_from_source_global_pointer",
+                     "field_store_through_source_global_pointer"))
+
+    def test_r0_can_still_be_mr_source_register(self):
+        # True GPR copy is legal, even if r0 cannot be D-form address base.
+        r=run({P+4:mr(3,0),P+8:(18<<26)|1},reg=0)
+        self.assertEqual(r["first_bounded_consumer_class"],
+                         "direct_bl_after_r3_pointer_candidate")
+
     def test_exact_15_sites_and_private_report_contract(self):
         sites=[{"source_unit":"RPGolMapObjBall",
                 "source_access_type":"direct_lwz_read",
