@@ -22,8 +22,11 @@ def fixture():
         + "HANDLERS = {\n"
         + '    "trace.submit_swing": _wii_ai_submit_swing,\n'
         + "}\n"
-        + "async def main_coroutine():\n"
+        + "while True:\n"
+        + "    await event.frameadvance()\n"
+        + "    _frame_count += 1\n"
         + "    _wii_ai_tick()\n"
+        + "    # Inline comment or extra step does not change controller order.\n"
         + "    _poll_sockets()\n"
     )
 
@@ -77,9 +80,8 @@ class V1WatchCompatTests(unittest.TestCase):
     def test_refuse_duplicate_handler_or_tick(self):
         for source in (
             fixture().replace("HANDLERS = {", "HANDLERS = {\nHANDLERS = {"),
-            fixture().replace("    _wii_ai_tick()\n    _poll_sockets()",
-                              "    _wii_ai_tick()\n    _poll_sockets()\n"
-                              "    _wii_ai_tick()\n    _poll_sockets()"),
+            fixture().replace("    _wii_ai_tick()\n",
+                              "    _wii_ai_tick()\n    _wii_ai_tick()\n"),
         ):
             with self.assertRaises(V1BallWatchCompatibilityError):
                 adapt(source)
@@ -104,6 +106,29 @@ class V1WatchCompatTests(unittest.TestCase):
         self.assertIn('"live_contact_verified": False', target)
         self.assertIn('"a_lead_applied": False', target)
         self.assertIn('"training_allowed": False', target)
+
+    def test_structural_frame_loop_accepts_nonadjacent_socket_poll(self):
+        source = fixture().replace(
+            "    _wii_ai_tick()\n    # Inline comment",
+            "    _wii_ai_tick()\n    _other_observer()\n    # Inline comment")
+        compiled = adapt(source)
+        self.assertIn("    _wii_ball_watch_tick()\n    _wii_ai_tick()", compiled)
+        self.assertIn("    _other_observer()", compiled)
+
+    def test_reject_wrong_tick_scope_and_missing_advance(self):
+        for source in (
+            fixture().replace("    await event.frameadvance()\n", "    frameadvance_unknown()\n"),
+            fixture().replace("    _frame_count += 1\n", "    _frame_count = 0\n"),
+        ):
+            with self.subTest(source=source[-90:]):
+                with self.assertRaises(V1BallWatchCompatibilityError):
+                    adapt(source)
+
+    def test_retains_crlf_bridge_and_literal_coroutine_dispatch(self):
+        source = fixture().replace("\n", "\r\n")
+        patched = adapt(source)
+        self.assertIn("    _wii_ball_watch_tick()\r\n    _wii_ai_tick()", patched)
+        self.assertEqual(patched.count("    _wii_ai_tick()"), 1)
 
 
 if __name__ == "__main__":
