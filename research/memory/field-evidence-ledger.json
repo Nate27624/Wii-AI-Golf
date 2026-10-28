@@ -4,7 +4,7 @@
   "game_id": "RSPE01",
   "target_revision": 1,
   "status": "research_only_no_verified_power_fields",
-  "source_state": "Current candidates are structural/nuisance; no validated player/ball/club physical quantities.",
+  "source_state": "Operator-confirmed source-compatible MEM1/MEM2 scene and eight configuration/field reference candidates; no gameplay physics or independently verified power/ball/club state.",
   "evidence_levels_note": "Identity and behavior are separate axes; runtime candidate and observed change are NOT verified gameplay meaning.",
   "training_gate": "No field can be used as a verified game-state training feature or target without verified code writer, independent boot, same-shot frame provenance and gameplay semantics. Stored booleans are evidence claims, not inferred from numerical correlations.",
   "fields": [
@@ -24,9 +24,12 @@
       "training_eligible": false,
       "evidence_refs": [
         "https://github.com/Nate27624/Wii-AI-Golf/pull/122",
-        "https://github.com/Nate27624/Wii-AI-Golf/pull/132"
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/132",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/150",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/151",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/157"
       ],
-      "notes": "One stable slot0 root observed in older two-pass pilot. New scene-own-ID/backlink proof is not yet a verified completed experiment; no class-type identity claimed."
+      "notes": "Operator's preserved MEM1/MEM2 inventory is source-structurally consistent: manager instance MEM1, scene instance MEM2, game scene own ID5/backlink/sport2. Same emulated frame/boot NOT proven; no class-type or physical variable verified."
     },
     {
       "field_id": "scene.golfer_main_candidate",
@@ -44,9 +47,12 @@
       "training_eligible": false,
       "evidence_refs": [
         "https://github.com/Nate27624/Wii-AI-Golf/pull/122",
-        "https://github.com/Nate27624/Wii-AI-Golf/pull/132"
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/132",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/150",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/151",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/157"
       ],
-      "notes": "Earlier live probe observed RAM-like pointer shape, never a proved RPGolMain instance or golfer-power structure."
+      "notes": "Source-suggested scene+0x09C candidate object is MEM2 resident. Initial 0x100 bytes contained 4 MEM1 and 25 MEM2 pointer-shaped 32-bit words, and first word matched one source .data unit range; this does not prove player/club child types, actual C++ vtable or swing power."
     },
     {
       "field_id": "golfer.main_0x074",
@@ -294,6 +300,174 @@
       "training_eligible": false,
       "evidence_refs": [],
       "notes": "Not located or semantically validated in source+runtime. Do not fabricate a RAM offset."
+    },
+    {
+      "field_id": "environment.game_mode_raw",
+      "object_role": "golf_config",
+      "relative_offset": "+0x094",
+      "semantic_hypothesis": "Source-labelled raw game mode (observed 4 in this Hitting-the-Green structure); not independently scene-screen correlated",
+      "identity_level": "runtime_candidate",
+      "behavior_level": "unobserved",
+      "source_typed_member_verified": false,
+      "writer_instruction_verified": false,
+      "independent_boot_replication_verified": false,
+      "same_shot_frame_join_verified": false,
+      "gameplay_value_verified": false,
+      "negative_control": false,
+      "training_eligible": false,
+      "evidence_refs": [
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/150",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/151",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/157"
+      ],
+      "notes": "Rev1 header-derived member +0x94, one preserved cross-bank source-gated structural pair; numeric game mode only, no training readiness."
+    },
+    {
+      "field_id": "environment.current_hole_raw",
+      "object_role": "golf_config",
+      "relative_offset": "+0x098",
+      "semantic_hypothesis": "Source-labelled current-hole raw index (observed 1), not verified against UI numbering",
+      "identity_level": "runtime_candidate",
+      "behavior_level": "unobserved",
+      "source_typed_member_verified": false,
+      "writer_instruction_verified": false,
+      "independent_boot_replication_verified": false,
+      "same_shot_frame_join_verified": false,
+      "gameplay_value_verified": false,
+      "negative_control": false,
+      "training_eligible": false,
+      "evidence_refs": [
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/150",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/151",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/157"
+      ],
+      "notes": "One preserved cross-bank source-gated pair; raw=1. No visual hole-index corroboration or independent-boot replication."
+    },
+    {
+      "field_id": "environment.current_pin_ref",
+      "object_role": "golf_field_manager",
+      "relative_offset": "+0x044",
+      "semantic_hypothesis": "Selected pin-object reference in MEM2; not the pin world position",
+      "identity_level": "runtime_candidate",
+      "behavior_level": "unobserved",
+      "source_typed_member_verified": false,
+      "writer_instruction_verified": false,
+      "independent_boot_replication_verified": false,
+      "same_shot_frame_join_verified": false,
+      "gameplay_value_verified": false,
+      "negative_control": false,
+      "training_eligible": false,
+      "evidence_refs": [
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/150",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/151",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/157"
+      ],
+      "notes": "Source-named field pointer present; 6 pin objects in one inventory. Historical phase windows changed jointly with selected start, not a ball-trajectory signal."
+    },
+    {
+      "field_id": "environment.current_start_ref",
+      "object_role": "golf_field_manager",
+      "relative_offset": "+0x050",
+      "semantic_hypothesis": "Selected player-start marker reference in MEM2; not the moving ball",
+      "identity_level": "runtime_candidate",
+      "behavior_level": "unobserved",
+      "source_typed_member_verified": false,
+      "writer_instruction_verified": false,
+      "independent_boot_replication_verified": false,
+      "same_shot_frame_join_verified": false,
+      "gameplay_value_verified": false,
+      "negative_control": false,
+      "training_eligible": false,
+      "evidence_refs": [
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/150",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/151",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/157"
+      ],
+      "notes": "Source-named field pointer present; 31 start entries. Distinguish static map start from true ball position, velocity and player pose."
+    },
+    {
+      "field_id": "environment.cup_ref",
+      "object_role": "golf_field_manager",
+      "relative_offset": "+0x054",
+      "semantic_hypothesis": "Cup object reference in MEM2, world-space cup coordinate unverified",
+      "identity_level": "runtime_candidate",
+      "behavior_level": "unobserved",
+      "source_typed_member_verified": false,
+      "writer_instruction_verified": false,
+      "independent_boot_replication_verified": false,
+      "same_shot_frame_join_verified": false,
+      "gameplay_value_verified": false,
+      "negative_control": false,
+      "training_eligible": false,
+      "evidence_refs": [
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/150",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/151",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/157"
+      ],
+      "notes": "Present in one structural snapshot, no dereferenced subtype geometry or same-frame confirmation."
+    },
+    {
+      "field_id": "environment.wind_object_ref",
+      "object_role": "golf_field_manager",
+      "relative_offset": "+0x068",
+      "semantic_hypothesis": "Wind visualization/game object pointer in MEM2, numeric wind vector unknown",
+      "identity_level": "runtime_candidate",
+      "behavior_level": "unobserved",
+      "source_typed_member_verified": false,
+      "writer_instruction_verified": false,
+      "independent_boot_replication_verified": false,
+      "same_shot_frame_join_verified": false,
+      "gameplay_value_verified": false,
+      "negative_control": false,
+      "training_eligible": false,
+      "evidence_refs": [
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/150",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/151",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/157"
+      ],
+      "notes": "Object reference present but no source-backed wind direction/speed decoder."
+    },
+    {
+      "field_id": "environment.course_object_ref",
+      "object_role": "golf_field_manager",
+      "relative_offset": "+0x070",
+      "semantic_hypothesis": "Course object pointer in MEM2, not collision grid or slope",
+      "identity_level": "runtime_candidate",
+      "behavior_level": "unobserved",
+      "source_typed_member_verified": false,
+      "writer_instruction_verified": false,
+      "independent_boot_replication_verified": false,
+      "same_shot_frame_join_verified": false,
+      "gameplay_value_verified": false,
+      "negative_control": false,
+      "training_eligible": false,
+      "evidence_refs": [
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/150",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/151",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/157"
+      ],
+      "notes": "Object reference present, surface mesh/terrain semantics unverified."
+    },
+    {
+      "field_id": "environment.map_data_ref",
+      "object_role": "golf_field_manager",
+      "relative_offset": "+0x018",
+      "semantic_hypothesis": "Map-data pointer in MEM2, not verified terrain geometry",
+      "identity_level": "runtime_candidate",
+      "behavior_level": "unobserved",
+      "source_typed_member_verified": false,
+      "writer_instruction_verified": false,
+      "independent_boot_replication_verified": false,
+      "same_shot_frame_join_verified": false,
+      "gameplay_value_verified": false,
+      "negative_control": false,
+      "training_eligible": false,
+      "evidence_refs": [
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/150",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/151",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/157"
+      ],
+      "notes": "Object reference present; no interpreted collision/height/material information."
     }
   ]
 }
