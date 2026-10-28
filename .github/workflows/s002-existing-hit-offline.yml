@@ -1,0 +1,31 @@
+name: S002 existing successful shot offline audit
+
+on:
+  push:
+    branches:
+      - agent/research/s002-existing-hit-retro-audit-20261028
+  pull_request:
+    paths:
+      - scripts/audit_existing_successful_shot_private.py
+      - tests/test_existing_successful_shot_private.py
+      - .github/workflows/s002-existing-hit-offline.yml
+
+permissions:
+  contents: read
+
+jobs:
+  offline-retro-audit:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile scoped source
+        run: python -m compileall -q scripts/audit_existing_successful_shot_private.py tests/test_existing_successful_shot_private.py
+      - name: Test synthetic PRE POST SETTLED and zero raw leakage
+        run: python -m unittest discover -s tests -p test_existing_successful_shot_private.py -v
