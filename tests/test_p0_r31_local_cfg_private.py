@@ -66,6 +66,13 @@ class TestLocalSourceCFG(unittest.TestCase):
         self.assertTrue(x["local_path_reaches_store_with_unknown_r31"])
         self.assertIn("linked_call_return_unverified",x["incomplete_path_reasons"])
 
+    def test_bo_always_branch_does_not_fabricate_fallthrough(self):
+        branch=(16<<26)|(20<<21)|((m.COPY+32-(m.COPY+12))&0xfffc)
+        x=m.analyze_window(synth({3:branch, 4:encode_d(14,31,30,1)}))
+        self.assertTrue(x["local_path_reaches_store_with_unmodified_r31"])
+        self.assertFalse(x["local_path_reaches_store_with_unknown_r31"])
+        self.assertEqual(x["control_flow_edges"][0]["kind"],"unconditional_branch")
+
     def test_op19_cr_logic_not_misclassified_as_branch(self):
         x=m.analyze_window(synth({3:(19<<26)|(193<<1)}))
         self.assertTrue(x["local_path_reaches_store_with_unmodified_r31"])
