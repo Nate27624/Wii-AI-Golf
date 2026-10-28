@@ -6,14 +6,14 @@
 
 Real original snapshots (source owners #240, #230, #231) show the r13-based global MapObjBall is NOT any of four player-roster balls (7/7) and global position matches selected ball cache +CC in numbered W5/W6/W7. Exact static Rev1 code in #183 uses caller r3 saved to callee r27 and writes a triplet copied from source-global into receiver+CC. #240's two callsite windows have linear `mr r31,r3` prologue and `mr r3,r31` near target BL, but known branch hazards. The question addressed HERE is **whether every statically reachable caller path into each exact cache-writer BL must carry the function's incoming r3 through r31 back into callsite r3**.
 
-## Source boundary inconsistency found (current highest-value output)
+## Address-order correction
 
-At both original #240 native-run code revisions and its later code, the first `CALLS` tuple is `(call_pc=0x80299B64, claimed_entry=0x80299ACC)`. Since `entry > call_pc`, the backward source window is EMPTY; a source-visible caller entry at 0x80299ACC cannot contain the earlier cache-writer call. As a result, #240's claim of *two* resolved `mr r31,entry_r3` chains contradicts these exact input ranges; #240's `trace_r31_inputs` even checks entry < pc and should ABSTAIN. This is a source-pinning/identity problem, not a physics finding. It was reported to owners on #240 and #219; the helper explicitly marks the first caller UNCERTIFIED and refuses it until the true containing Rev1 function boundary is established independently. Do NOT fill an invented entry or equate `fn_80299ACC` with the earlier callsite. The second `fn_80299C20` entry 0x80299C20 precedes its source call at 0x80299C58, but still needs real CFG examination.
+The initial reviewer incorrectly compared the hexadecimal addresses; **this was retracted** on #240/#219/#121. Correct: the documented first callsite `0x80299B64` is **AFTER** caller entry `0x80299ACC` by `0x98` bytes. It is therefore a valid bounded candidate window. The issue under study is NOT function-entry ordering: it is whether **all reachable basic-block paths** preserve incoming `r3` through `r31` at the cache writer BL, and whether incoming `r3` is the right object. None of that is established solely by the linear source hints.
 
 ## Independent bounded implementation
 
 `scripts/review_p0_cache_receiver_cfg_mustdef.py` is a PURE library receiving `read_u32(pc)` for **independently authenticated original Rev1 PPC**. It contains public source function entry/call bounds:
-- unverified claimed first entry 0x80299ACC, BL at 0x80299B64 (**invalid ordering; ABSTAIN**)
+- fn_80299ACC candidate entry 0x80299ACC, BL at 0x80299B64 (entry precedes call)
 - fn_80299C20 entry 0x80299C20, BL at 0x80299C58
 - callee fn_80299C70
 
