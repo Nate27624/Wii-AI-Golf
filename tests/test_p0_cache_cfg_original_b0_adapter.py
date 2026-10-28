@@ -31,6 +31,8 @@ class FakeCFG:
                 "kind": "P0-STATIC-PPC-R31-CALLSITE-MUSTDEF",
                 "published_source_function": n,
                 "status": "ABSTAIN_SOURCE_UNRESOLVED",
+                "abstain_reason_category": "UNSUPPORTED_XFORM",
+                "first_encountered_unresolved_source_relative_offset": "+0x000C",
                 "known_exact_cache_writer_callsite_reached": False,
                 "all_reaching_paths_pass_entry_r3_through_r31_to_call_r3": False,
                 "runtime_receiver_object_verified": False,
@@ -73,6 +75,58 @@ class AdapterTests(unittest.TestCase):
                             for x in r["source_only_two_callers"]))
         self.assertFalse(r["runtime_cache_receiver_or_executed_writer_verified"])
         self.assertFalse(r["training_approved"])
+
+    def test_exact_sanitized_reason_category_passed_from_cfg_owner(self):
+        with tempfile.TemporaryDirectory() as td:
+            bank = synthetic_b0(Path(td))
+            r = adapter.report_from_bytes(bank, FakeCFG(), public_units=PUBLIC)
+        for row in r["source_only_two_callers"]:
+            self.assertEqual(row["first_abstain_reason_class"], "UNSUPPORTED_XFORM")
+            self.assertEqual(row["first_source_relative_unresolved_offset"], "+0x000C")
+            self.assertTrue(row["diagnostic_witness_is_static_not_executed"])
+            self.assertFalse(row["exact_cache_writer_callsite_reached"])
+
+    def test_invalid_reason_category_does_not_escape_to_operator(self):
+        with tempfile.TemporaryDirectory() as td:
+            bank = synthetic_b0(Path(td))
+            class Unsafe(FakeCFG):
+                def inspect_known_callers(self, read):
+                    out = super().inspect_known_callers(read)
+                    out["sources"][0]["abstain_reason_category"] = "PPC_BYTE_SECRET"
+                    return out
+            with self.assertRaises(adapter.QualificationError):
+                adapter.report_from_bytes(bank, Unsafe(), public_units=PUBLIC)
+
+    def test_malformed_or_out_of_window_diagnostic_offset_refused(self):
+        for bad in ("0xFFFF", "+0x9999", "+0x000c", "+0x000Z",
+                    "+0xFFFF/private", "", 17, None):
+            with self.subTest(bad=str(bad)), tempfile.TemporaryDirectory() as td:
+                bank = synthetic_b0(Path(td))
+                class Unsafe(FakeCFG):
+                    def inspect_known_callers(self, read):
+                        out = super().inspect_known_callers(read)
+                        out["sources"][0]["first_encountered_unresolved_source_relative_offset"] = bad
+                        return out
+                # None is a valid exception: an unsupported decoder can
+                # report no safe source-relative location.
+                if bad is None:
+                    r = adapter.report_from_bytes(bank, Unsafe(), public_units=PUBLIC)
+                    self.assertIsNone(r["source_only_two_callers"][0][
+                        "first_source_relative_unresolved_offset"])
+                else:
+                    with self.assertRaises(adapter.QualificationError):
+                        adapter.report_from_bytes(bank, Unsafe(), public_units=PUBLIC)
+
+    def test_source_reason_absent_on_unresolved_is_refused(self):
+        with tempfile.TemporaryDirectory() as td:
+            bank = synthetic_b0(Path(td))
+            class Unsafe(FakeCFG):
+                def inspect_known_callers(self, read):
+                    out = super().inspect_known_callers(read)
+                    out["sources"][0].pop("abstain_reason_category")
+                    return out
+            with self.assertRaises(adapter.QualificationError):
+                adapter.report_from_bytes(bank, Unsafe(), public_units=PUBLIC)
 
     def test_wrong_public_owner_rejected(self):
         with tempfile.TemporaryDirectory() as td:
