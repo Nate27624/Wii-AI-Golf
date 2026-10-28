@@ -40,3 +40,15 @@ if ($LASTEXITCODE -ne 0) { throw 'Source scan failed' }
 The agent should focus on whether the corresponding function's incoming `r3` is saved into `r29`, whether r29 is overwritten on either path, and whether those functions belong to the game-selected manager instance; do not infer caller identity just from a numeric `+0x334` match.
 
 The separate S001 WASD workflow may fail on upstream/stacked branch history; the targeted S002 suite is the relevant focused CI. Keep publication and model eligibility false.
+
+## Actual operator result — source manager-this register chain found
+
+The operator ran the prior offline `audit_golf_manager_r29_private.py` on B0; its three synthetic tests passed and its real output listed 17 source-unit r29-def candidates. **Both** selected-player call chains report the closest predecessor **`0x802A28F0 mr r29,r3`**. The new observed method prologue at `0x802A28DC` is `stwu r1,-0x20(r1)`, followed by `0x802A28F0 mr r29,r3`, `0x802A28F4 lwz r3,+0x334(r3)`, and `0x802A28F8 bl 0x802A0CA8`. The earlier two callsites `0x802A293C→2968` and `0x802A2B00→2B0C` then reload the selected pointer using `+0x334(r29)` and call `0x8029ED2C`, which retains its input r3 in r29 and updates the +0x3C angle / +0x40..+0x4C trig-like fields. This resolves the **static manager-this register link** substantially beyond the former register-offset coincidence.
+
+Earlier r29 candidates at `0x802A2448`, `0x802A24A4`, and `0x802A25AC` occur in different, preceding source routines; they must **not** be treated as overwrites of the later function's r29. Source-PC proximity alone across function boundaries is not causal dataflow.
+
+I upgraded the **existing repository** analyzer `scripts/audit_golf_manager_r29_private.py` to require the actual method-prologue and `r29←incoming r3` / first selected-pointer read PPC instruction words; it fails closed if any *recognized* intervening r29 write is found between the verified assignment and the later call, and continues to require the two exact selected-pointer-to-angle-updater callsite signatures. Its new reports carry `manager_this_register_proven=true` and `manager_r29_saved_from_entry_r3_source_verified=true` only at the source level, alongside `r29_reassignment_detector_exhaustive=false` and `manager_r29_runtime_identity_independently_verified=false`. The latter flags preserve the missing full CFG/ABI and independent runtime execution evidence. The actual heading and golf physics remain unverified; training and publication stay false.
+
+The source-chain analyzer's synthetic tests now include corrupt prologue, corrupt r29 assignment, corrupt source-selected load and an injected r29 overwrite after the method entry. **These are tests of evidence gates, not a live movement calibration.**
+
+**Operator next step:** rerun the identical standalone PowerShell block above after fetching latest branch. New output should include the source-level verification flags and any actual function-provenance links; share the compact `manager_this_register_proven` and `caller_chains` result. All existing B0–B3 checkpoint files remain unchanged.
