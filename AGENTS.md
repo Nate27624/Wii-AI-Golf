@@ -27,8 +27,12 @@ If the Windows Felk emulator exits with `3221225477` (`0xC0000005`) in
 [Felk Qt/Memory startup crash recovery](docs/felk-dolphin-qt-memory-crash-recovery.md)
 **before** reinstalling, resetting settings, retrying live S001/S002 captures
 or blaming the memory watcher. A preserved-data portable User reset restored
-**GUI-only** startup; scripting-bridge runtime and a watched shot remain unverified.
+**GUI-only** startup. A later real V1 stationary read-only watch **PASSED** (32/32 samples, max 49 microseconds); one subsequent watched V1 **no-contact** attempt completed 89/89 swing frames and 70/70 memory samples, max 64 microseconds. Neither is a hit or verified ball XYZ.
 Never overwrite historical V1 bridges, the portable User backup, savestates or raw RAM.
+
+## Preserved near-contact V1 controller baseline (2026-10-28)
+
+The operator explicitly requested retaining the almost-contact V1 input set for future memory analysis. **Before modifying the proven V1 swing/shot prelude, read** [S001 near-contact V1 no-hit reference](docs/s001-v1-near-contact-no-hit-reference-20261028.md). This REAL local trial has completed 89/89 trace frames, 70/70 51-word source samples, 45 observed A-prime ticks, and independent human **no contact/no movement**. Treat as a **reproducible negative control**, not a positive-hit or trainable observation; raw pointer-containing memory stays in ignored local Data. Do not change multiple input factors simultaneously or infer successful contact from bridge status.
 
 ## Mission and trust model
 
