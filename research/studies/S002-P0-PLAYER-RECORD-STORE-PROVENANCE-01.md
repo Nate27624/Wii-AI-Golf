@@ -9,16 +9,16 @@ Draft, offline, source-only. Different from #235 runtime seven-phase masks and #
 ## Method and limits
 
 - Reuse #219 original B0 native MEM1 SHA256/manifest and published RSPE01 Rev1 Golf code unit boundaries. Check header and SHA again after bounded source read. No Dolphin, RAM writes, new shots, new captures, raw uploads or private path leaks.
-- Scan ONLY RPGolPlayer and RPGolPlayerManager .text for D-form stw/stwu/stfs/stfsu and other D-form stfd/stfdu/sth/sthu/stb/stbu whose signed displacement exactly matches +0x030,+0x034,+0x038,+0x054,+0x060,+0x090. Output source-unit-relative site offsets, names of registers/opcodes, capped candidate counts and explicit false gates.
+- Scan ONLY RPGolPlayer and RPGolPlayerManager .text for D-form stw/stwu/stfs/stfsu and other D-form stfd/stfdu/sth/sthu/stb/stbu whose signed displacement exactly matches +0x030,+0x034,+0x038,+0x054,+0x060,+0x090. Output source-unit-relative site offsets, names of registers/opcodes, capped candidate counts and explicit false gates. For each site, perform a **64-byte maximum backward straight-line hint** for the base register: nearby source GPR load, immediate arithmetic, register copy, update-form or unknown writer. **Any branch/call within the window stops the trace with a control-flow barrier**. This intentionally does not prove pointer ownership, frame execution, or complete def-use.
 - A store +0x090(rA) does NOT establish rA as the selected record base. This could be a different object or adjusted base. Indexed/indirect, other object-file and 8-byte overlapping stores remain unresolved. Zero candidates does NOT disprove a runtime writer.
 - Source displacement matches cannot be causally joined to #235's changing runtime record until register provenance and actual receiver identity are established.
 
-For approved operator use on EXISTING B0 only, after upstream #219 review:
+For approved operator use on EXISTING B0 only, after upstream #219 review. A guarded PowerShell 5.1 runner is also provided at `scripts/Invoke-P0PlayerStoreProvenance.ps1` and **requires an externally verified exact pinned detached-worktree commit** and existing private Data root. The runner requires synthetic PASS, repeats B0 source/manifest SHA gates and prints sanitized only:
 
     python scripts/audit_p0_player_record_store_candidates_private.py --data-root "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data" --private-session "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\ball-study-20261027-212633"
 
 ## Testing and release gates
 
-Seven fully fabricated unit tests cover endian/opcode widths, signed negative displacement, source-unit attribution, no-match and malformed gates, sanitized output and failed private path. Windows/Ubuntu synthetic CI; no native data in GitHub.
+Thirteen fully fabricated unit tests cover endian/opcode widths, signed negative displacement, source-unit attribution, direct load, branch barrier, GPR zero base, unknown writers, float loads versus update-form base mutation, no-match and malformed gates, sanitized output and failed private path. Windows/Ubuntu synthetic CI and Windows PowerShell parser-only CI; no native data in GitHub.
 
 No real original B0 was analyzed as part of this PR. Actual field semantics, shot power, velocity, physical XYZ, frame sync, impact, score and training all UNVERIFIED; approved_for_training=false, allowed_to_publish=false. Draft stacked on #219; require S002/S000 owners and full Windows suite before merge.
