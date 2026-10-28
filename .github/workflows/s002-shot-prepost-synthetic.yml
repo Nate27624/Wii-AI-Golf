@@ -40,7 +40,12 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $out = & ./scripts/prepare_golf_prepost_manifest_private.ps1 -PrivateDataRoot '.' -SessionFolder '.' 2>&1 | Out-String
-          if ($out -notmatch 'explicit operator observation missing') { throw 'Attestation fail-closed gate missing' }
+          $blocked = $false
+          try {
+            & ./scripts/prepare_golf_prepost_manifest_private.ps1 -PrivateDataRoot '.' -SessionFolder '.'
+          } catch {
+            $blocked = $_.Exception.Message -match 'explicit operator observation missing'
+          }
+          if (-not $blocked) { throw 'Attestation fail-closed gate missing' }
           if (Test-Path -LiteralPath './shot-checkpoint-manifest-PRIVATE.json') { throw 'Unexpected file written by validation' }
 
