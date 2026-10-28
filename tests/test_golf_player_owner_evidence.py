@@ -51,6 +51,10 @@ class PlayerOwnerSourceTests(unittest.TestCase):
             "owner_relative_offset"],"+0x030")
         self.assertEqual(r["player_data_and_text_cross_unit_candidates"][0][
             "first_twelve_table_words_in_player_text_unit"],8)
+        self.assertEqual(r["player_data_and_text_cross_unit_candidates"][0][
+            "table_words_checked_in_extended_source_witness"],24)
+        self.assertEqual(r["player_data_and_text_cross_unit_candidates"][0][
+            "first_twenty_four_table_words_in_player_text_unit"],8)
         self.assertTrue(r["player_manager_source_table_candidate"])
         self.assertFalse(r["actual_C++_dynamic_type_verified"])
         self.assertFalse(r["swing_power_verified"])
