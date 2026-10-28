@@ -110,6 +110,55 @@ class OperatorContractDocsTests(unittest.TestCase):
             with self.subTest(word=word):
                 self.assertIn(word.casefold(), template.casefold())
 
+    def test_agents_requires_automatic_safe_upload_and_finding_handoff(self):
+        text = read("AGENTS.md")[:6500]
+        for term in ("MANDATORY automatic GitHub result publication",
+                     "research/observations", "scripts/research_cli.py",
+                     "SANITIZED", "FINDING", "research/ledger.md",
+                     "NOT UPLOADED", "auto-publication", "no custom"):
+            with self.subTest(term=term):
+                self.assertIn(term.casefold(), text.casefold())
+
+    def test_operator_contract_describes_publisher_failure_and_privacy(self):
+        text = read("docs/operator-powershell-contract.md")
+        for term in ("Automatic GitHub publication", "same invocation",
+                     "research/observations", "publish_summary",
+                     "allowlisted", "PRIVATE", "NOT UPLOADED",
+                     "--no-upload", "S000/S002", "research/ledger.md",
+                     "FINDING", "human-observed", "negative",
+                     "missing adapter"):
+            with self.subTest(term=term):
+                self.assertIn(term.casefold(), text.casefold())
+
+    def test_repo_map_and_readme_define_upload_vs_local_data(self):
+        readme = read("README.md")[:4800]
+        maptext = read("docs/repository-map.md")
+        workflow = read("docs/cli-only-workflow.md")
+        for contents in (readme, maptext, workflow):
+            with self.subTest(source=contents[:55]):
+                self.assertIn("research/observations", contents)
+                self.assertIn("research/ledger.md", contents)
+                self.assertIn("sanitized", contents.lower())
+                self.assertIn("NOT UPLOADED", contents)
+
+    def test_contributor_pr_template_have_upload_and_finding_gate(self):
+        text = read("CONTRIBUTING.md") + read(".github/pull_request_template.md")
+        for term in ("automatically", "research/observations", "FINDING",
+                     "research/ledger.md", "NOT UPLOADED", "S000/S002",
+                     "RAW", "privacy"):
+            with self.subTest(term=term):
+                self.assertIn(term.casefold(), text.casefold())
+
+    def test_existing_publisher_still_automatic_only_for_supported_modes(self):
+        source = read("scripts/research_cli.py")
+        self.assertIn('OBS_BRANCH = "research/observations"', source)
+        self.assertIn("if not args.no_upload:", source)
+        self.assertIn("publish_summary(summary)", source)
+        self.assertIn("Local sanitized result:", source)
+        self.assertIn("Upload NOT completed", source)
+        self.assertIn('"--no-upload"', source)
+        self.assertIn('_ALLOWED = {"test", "v1"}', source)
+
     def test_no_draft_feature_claimed_as_merged(self):
         text = read("docs/operator-powershell-contract.md")
         self.assertIn("draft until merged", text)
