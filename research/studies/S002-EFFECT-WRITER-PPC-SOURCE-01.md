@@ -36,3 +36,63 @@ Filter output to source_unit, matched_dform_count, paired_field_write_count, pai
 4. Keep raw memory local, publication/training gates false, and avoid new live A-button trials. No full-bank scan is needed for this.
 
 Source map: https://github.com/doldecomp/ogws/blob/master/config/RSPE01_01/splits.txt
+## Full copy-paste Windows PowerShell procedure (only B0 code, no Dolphin)
+
+~~~powershell
+& {
+    $ErrorActionPreference = 'Stop'
+    $root = 'D:\Projects\Wii Golf AI'
+    $repo = Join-Path $root 'Wii-AI-Golf'
+    $private = Join-Path $root 'Wii-AI-Golf-Data\ball-study-20261027-212633'
+    $branch = 'agent/research/golf-source-object-windows-private-20261027'
+    if (-not (Test-Path -LiteralPath (Join-Path $private 'checkpoint-manifest-PRIVATE.json') -PathType Leaf)) {
+        throw 'Original private B0 checkpoint is missing'
+    }
+    git -C $repo fetch origin "refs/heads/$($branch):refs/remotes/origin/$($branch)"
+    if ($LASTEXITCODE -ne 0) { throw 'Git fetch failed' }
+    $head = (git -C $repo rev-parse "origin/$branch").Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve exact branch head' }
+    $work = Join-Path $root "Wii-AI-Golf-Effect-Writers-$($head.Substring(0,8))"
+    if (Test-Path -LiteralPath $work) {
+        $actual = (git -C $work rev-parse HEAD).Trim()
+        if ($LASTEXITCODE -ne 0 -or $actual -ne $head) {
+            throw 'Existing worktree is not the approved exact source revision'
+        }
+    } else {
+        git -C $repo worktree add --detach $work "origin/$branch"
+        if ($LASTEXITCODE -ne 0) { throw 'Worktree checkout failed' }
+    }
+    py -m unittest discover -s "$work\tests" -p 'test_golf_effect_source_writers_private.py' -v
+    if ($LASTEXITCODE -ne 0) { throw 'Source-level synthetic tests failed' }
+    $raw = @(py -I "$work\scripts\audit_golf_effect_source_writers_private.py" --private-root "$private")
+    if ($LASTEXITCODE -ne 0) { throw 'Preserved B0 PPC scan failed' }
+    $result = ($raw -join [Environment]::NewLine) | ConvertFrom-Json
+
+    'SOURCE-BOUNDED PPC COUNTS'
+    $result.source_units |
+        Select-Object source_unit, matched_dform_count, paired_field_write_count, paired_field_read_count, effect_pointer_offset_hits |
+        Format-Table -AutoSize
+    foreach ($unit in $result.source_units) {
+        "[$($unit.source_unit)] first candidate stores at +0x78 / +0x7C:"
+        @($unit.literal_hits | Where-Object {
+            $_.kind -eq 'write' -and $_.offset -in @('+0x078', '+0x07C')
+        } | Select-Object -First 12) |
+            Select-Object pc, offset, mnemonic, base_register, value_register |
+            Format-Table -AutoSize
+        $shown = 0
+        foreach ($entry in $unit.selected_source_contexts) {
+            if ($entry.target.kind -eq 'write' -and
+                $entry.target.offset -in @('+0x078', '+0x07C')) {
+                "Static source context for $($entry.target.pc)"
+                $entry.nearby_static_code_only |
+                    Select-Object pc, word, approximate_disassembly |
+                    Format-Table -AutoSize
+                $shown++
+                if ($shown -ge 2) { break }
+            }
+        }
+    }
+}
+~~~
+
+Only return PPC CODE-site tables and small neighborhoods; do not paste native RAM dumps or source private paths. Textual static code offset matches never establish effect receiver identity.
