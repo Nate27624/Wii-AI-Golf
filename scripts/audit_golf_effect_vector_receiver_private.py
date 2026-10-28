@@ -56,7 +56,20 @@ BALL_SITES = {
     # Previous method ends 0x802977C4 blr, next starts at 0x802977C8.
     0x802977C8: 0x9421FFF0,  # stwu r1,-0x10(r1)
     0x802977D8: 0x7C7F1B78,  # mr r31,r3 (save incoming receiver)
+    # Whole local interval through the conditional zero/reset stores:
+    # only r4,r0,FPRs change; r3 remains the incoming argument.
+    0x802977DC: 0x808DA510,  # lwz r4,-0x5af0(r13)
+    0x802977E0: 0x808406B4,  # lwz r4,+0x6b4(r4)
+    0x802977E4: 0x8804005D,  # lbz r0,+0x5d(r4)
+    0x802977E8: 0x2C000000,
+    0x802977EC: 0x40820010,
+    0x802977F0: 0x80040138,
+    0x802977F4: 0x2C000000,
+    0x802977F8: 0x4082005C,
     0x802977FC: 0x88030050,  # lbz r0,+0x50(r3)
+    0x80297800: 0x38800000,  # li r4,0 (not r3)
+    0x80297804: 0xC002C610,  # lfs f0,constant
+    0x80297808: 0x2C000000,
     0x8029780C: 0x9883005C,  # stb r4,+0x5C(r3)
     0x80297810: 0xD0030078,  # stfs f0,+0x78(r3)
     0x80297814: 0xD003007C,
@@ -130,6 +143,9 @@ def analyze(read_word) -> dict:
             "ball_method_shaped_entry_static_verified": name=="ball_triplet_reset",
             "ball_incoming_r3_saved_to_r31_static_verified": name=="ball_triplet_reset",
             "ball_direct_receiver_conditional_float_reset_static_verified": name=="ball_triplet_reset",
+            "ball_r3_preserved_across_exact_straight_line_interval": name=="ball_triplet_reset",
+            "ball_reset_value_from_sdata2_constant_type_verified": name=="ball_triplet_reset",
+            "ball_reset_float_literal_value_verified": False,
             "field_r31_origin_proven":False,
             "field_effect_object_pointer_proven":False,
             "ball_effect_object_pointer_proven":False,
