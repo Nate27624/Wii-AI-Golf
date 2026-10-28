@@ -4,6 +4,8 @@ on:
     paths:
       - scripts/review_p0_global_slot_load_consumers.py
       - scripts/review_p0_global_call_translation_followup.py
+      - scripts/review_p0_global_common_callee.py
+      - tests/test_p0_global_common_callee_private.py
       - tests/test_p0_global_call_translation_followup_private.py
       - scripts/audit_p0_global_ball_source_xrefs_private.py
       - tests/test_p0_global_slot_load_consumers_private.py
@@ -12,6 +14,8 @@ on:
     paths:
       - scripts/review_p0_global_slot_load_consumers.py
       - scripts/review_p0_global_call_translation_followup.py
+      - scripts/review_p0_global_common_callee.py
+      - tests/test_p0_global_common_callee_private.py
       - tests/test_p0_global_call_translation_followup_private.py
       - scripts/audit_p0_global_ball_source_xrefs_private.py
       - tests/test_p0_global_slot_load_consumers_private.py
@@ -35,5 +39,7 @@ jobs:
         run: python -I -B -m unittest discover -s tests -p test_p0_global_slot_load_consumers_private.py -v
       - name: New exact 3-BL and translation pointer followup tests
         run: python -I -B -m unittest discover -s tests -p test_p0_global_call_translation_followup_private.py -v
+      - name: New bounded common callee target synthetic tests
+        run: python -I -B -m unittest discover -s tests -p test_p0_global_common_callee_private.py -v
       - name: Inherited 15-read global xref tests
         run: python -I -B -m unittest discover -s tests -p test_p0_global_ball_source_xrefs_private.py -v
