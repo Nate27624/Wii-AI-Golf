@@ -94,6 +94,32 @@ def summarize_records(records: list[object]) -> dict:
     }
 
 
+def watcher_evidence(records: list[object]) -> dict:
+    """Summarize a known S001 watch schema without releasing numeric vectors."""
+    if len(records) != 1 or not isinstance(records[0], dict):
+        return {}
+    record = records[0]
+    if record.get("kind") != "PRIVATE-UNVERIFIED-selected-ball-frame-watch":
+        return {}
+    safe = record.get("safe_summary")
+    if not isinstance(safe, dict):
+        return {"schema": "known_watch", "safe_summary_present": False}
+    fields = {
+        "watch_complete", "candidate_ball_vector_changed_during_recording",
+        "candidate_ball_changed_after_trace_start",
+        "candidate_motion_corroborated_by_human", "start_vector_stable",
+        "pretrace_candidate_ball_stationary",
+        "actual_active_ball_xyz_verified", "ball_velocity_verified",
+        "human_observed_ball_movement"
+    }
+    # Strict whitelist avoids accidentally publishing raw values or pointers.
+    extracted = {k: v for k, v in safe.items()
+                 if k in fields and (type(v) is bool or
+                                     k == "human_observed_ball_movement"
+                                     and v in ("yes", "no", "unknown"))}
+    return {"schema": "known_watch", "safe_summary_present": True, **extracted}
+
+
 def parse_capture(path: Path) -> tuple[list[object], str]:
     if path.suffix.lower() == ".jsonl":
         records = []
@@ -153,6 +179,7 @@ def audit_directory(root: Path, max_files: int = DEFAULT_MAX_FILES,
             total += size
             records, kind = parse_capture(path)
             result = summarize_records(records)
+            result["known_watch_evidence"] = watcher_evidence(records)
             score = (len(result["ball_related_paths"]) +
                      2 * len(result["velocity_related_paths"]) +
                      len(result["timing_or_provenance_paths"]) +
@@ -206,7 +233,8 @@ def main(argv=None) -> int:
               "velocity_keys=",len(row["velocity_related_paths"]),
               "phase=",",".join(row["declared_phase_terms"]) or "unknown",
               "varying_vector_paths=",len(row["candidate_changing_ball_vector_paths"]),
-              "format=",row["file_kind"])
+              "format=",row["file_kind"],
+              "watch=",json.dumps(row["known_watch_evidence"],sort_keys=True) if row["known_watch_evidence"] else "-")
     print("All apparent motion remains unverified; manually trace phase/shot/frame linkage.")
     return 0
 
