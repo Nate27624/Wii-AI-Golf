@@ -50,6 +50,9 @@ def _wii_ball_vec(address):
 def _wii_ball_snapshot():
     # Fail-closed RSPE01 Rev1 memory source-layout gates. No heap addresses
     # or raw pointer values are returned outside this function.
+    if (_wii_ball_u32(0x80000000) != 0x52535045
+            or _wii_ball_u32(0x80000004) != 0x30310001):
+        raise ValueError("RSPE01 Rev1 header mismatch")
     manager = _wii_ball_u32(0x804BF4D8)
     if not (0x80000000 <= manager < 0x81800000
             and _wii_ball_u32(manager + 0x18) == 5):
