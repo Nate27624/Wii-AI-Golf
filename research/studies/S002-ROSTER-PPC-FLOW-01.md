@@ -93,3 +93,8 @@ Interpretation: the original 20-instruction bounded straight-line tracker is the
 These fields enable S002 to prioritize 2 unknown-family decoders vs source-level branch CFG review. The scan still does NOT prove the other input register points to a player-manager base or that class construction uses the candidate slot layout. The richer per-site report requires Windows targeted/full tests and an operator real-data rerun before interpreting the categories. The current helper adds two additional synthetic tests, bringing the intended total to 15.
 
 Success decision: nominate one or two exact unsupported opcode families for S002 manual PPC dataflow review, then prove constructor base-register ownership with a bounded cross-reference. Positive syntactic matches never authorize field promotion; no new training or live capture is justified solely by this result.
+
+
+## PPC branch classification precision
+
+The older operator result counted two generic branch stops, but the earlier parser stopped for **every primary opcode 19**, which also contains non-branch instructions such as isync and condition-register operations. Revised code treats opcode 16/18 as branches and only primary19 XO 16 (bclr) / XO 528 (bcctr) as true branch forms. Remaining primary19 forms are separately categorized as unsupported until their register effects are analyzed. Two additional synthetic cases test isync vs bclr (17 synthetic cases total intended). Thus the next real run may reclassify the previous two branch stops without changing memory; do not claim actual branch targets without PPC CFG.
