@@ -21,12 +21,31 @@
     "S001 swing/frame mapping only after source gate"
   ],
   "data_classification": "human observation labels public; raw RAM, SHA and absolute file paths RAW-PRIVATE",
-  "status": "draft; no direct access to operator local dumps; no bytes analyzed yet",
+  "status": "draft PR #228, real operator 7/7 bank pairs and 4 page contrasts recorded; real wedge temporal mask recorded; S002 #230 and #231 independent real source-gated observations recorded (no raw bytes read by this agent); owner review pending",
   "guards": {
     "same_guest_frame_verified": false,
     "ball_xyz_verified": false,
     "score_memory_verified": false,
     "approved_for_training": false,
     "allowed_to_publish_raw": false
+  },
+  "handoff_to": [
+    "S002 #230 source-selected dynamic ball candidate",
+    "S002 #231 preserved seven bank archive cross-check and per-snapshot cache equality",
+    "S002 #225 and #219 source cache-coherence and update-writer provenance",
+    "S000 #205 variable registry / gates"
+  ],
+  "evidence": {
+    "all_seven_native_pairs_24MiB_MEM1_and_64MiB_MEM2_reported": true,
+    "real_within_shot_page_counts_observed": true,
+    "real_wedge_temporal_mask_observed": true,
+    "independent_source_gated_seven_phase_runs_observed": true,
+    "live_ball_translation_candidate_3_of_3_changed_W5_to_W6_and_W6_to_W7": true,
+    "pin_and_start_0_of_3_changed_those_edges": true,
+    "cache_CC_0_of_3_changed_those_edges": true,
+    "cache_CC_matches_current_ball_at_W7_not_W5_or_W6": true,
+    "independent_guest_frame_timing_verified": false,
+    "absolute_xyz_axes_units_verified": false,
+    "endpoint_cache_semantics_verified": false
   }
 }
