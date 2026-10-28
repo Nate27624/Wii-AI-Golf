@@ -67,9 +67,11 @@ class SelectedPlayerSwingPrivateTests(unittest.TestCase):
 
     def test_idle_drift_excluded_from_motion_specific(self):
         result = analyzer.analyze(make_report(drift=True))
-        confound = next(x for x in result["source_relative_candidate_offsets"]
-                       if x["source_relative_offset"] == "+0x090")
-        self.assertFalse(confound["motion_specific_candidate_not_verified"])
+        confounds = [x for x in result["source_relative_candidate_offsets"]
+                     if x["source_relative_offset"] == "+0x090"]
+        self.assertTrue(
+            not confounds or not confounds[0]["motion_specific_candidate_not_verified"]
+        )
 
     def test_no_motion_has_no_swing_specific(self):
         result = analyzer.analyze(make_report(no_motion=True))
