@@ -232,3 +232,60 @@ four earlier #256 suites on both Windows and Ubuntu. Changes are
 new-only; #259's unrelated GPR-clobber correction remains in a
 separate owner-review PR. Keep private archive unmodified and
 publication/training false.
+
+
+## Operator literal-role audit negative and source direction change (2026-10-28)
+
+The operator verified exact pinned #256 \`c46833a4c418a949f77498d5cc71e6c7e7ba04d7\`
+using 17/17 focused synthetics and original B0 source/SHA gates.
+Both previously qualified one-integer static format candidates,
+\`RPGolScene_unsplit.o+0x18EC0\` and \`+0x19B50\`,
+had **no recognized distance-unit, distance/target, result-screen,
+score/stroke, timer, debug or counter keywords** in the bounded
+printable string context. The output returned
+\`NO_KNOWN_ROLE=True\` for both. This is a genuine negative on the
+allowed English token list; it cannot rule out numeric-only,
+resource-based or translated UI text. Deprioritize further generic
+\`sprintf\`/r31 scans unless a verified UI dataflow emerges.
+
+### Better source-defined formatting wrapper
+
+Public \`kiwi515/ogws_info/RP/RPKernel/RPSysLytTextBox.h\` declares the
+Golf-compatible \`RPSysLytTextBox\` interface. Concrete RSPE Rev1
+function addresses:
+
+- \`RPSysLytTextBox::setMessage\` 0x80198FD0 (va_list overload);
+- \`RPSysLytTextBox::setMessage\` 0x80199148 (variadic overload);
+- \`RPSysLytTextBox::setText\` 0x8019931C (formatted text);
+- \`RPSysLayout::findTextBox\` 0x80196280;
+- \`RPSysLayout::create\` 0x80196A38.
+
+The public header duplicates 0x80198E24 for both \`setScaleX\` and
+\`setMessage(text)\`; this ambiguous code address is intentionally not
+claimed as a sink. The documented \`RPSysLytTextBox\` API can render a
+formatted text message via a BMG resource without any direct
+\`TextBox::SetString\` BL from Golf. The original #256 first-hop scanner
+did not include these exact wrapper methods; zero direct base-NW4R
+setter hits was therefore not evidence of absent text UI.
+
+### Distinct read-only test
+
+\`scripts/audit_p0_golf_layout_text_wrapper_xrefs_private.py\`
+reuses unchanged #219 original B0 SHA/Rev1 gate and #256 public 25
+Golf source object units. It counts direct PPC b/bl sites for the five
+exact wrapper calls above, and returns only public *source-unit-relative*
+code offsets and sorted co-occurrence windows. It never emits native
+instruction words, private RAM/ROM bytes, static/heap addresses, message
+text, guest code contents, SHA, local file paths or game values.
+
+A direct BL into \`setMessage\` plus nearby \`findTextBox\` would prioritize
+the **code location** for typed value provenance, but *window
+co-occurrence is NOT same function/CFG/dataflow/runtime proof*.
+A zero direct hit may reflect indirect \`bctrl\`/vtable calls or other
+text interfaces. If direct wrapper calls are absent, investigate the
+indirect dispatch path conservatively rather than promoting a
+negative no-UI conclusion.
+
+No live Dolphin, new capture, human-provisional phase promotion or
+training. All rendered/result/backing-physics semantics remain
+UNVERIFIED; S001/#248 independently owns same guest-frame association.
