@@ -17,3 +17,17 @@ Mode4 score semantics, game result, score/units, 15.2-ft UI, impact/frame, actua
 Use exactly reviewed SHA worktree and `py -m unittest discover -s tests -p test_p0_seven_sequence_scores_private.py -v`, then `py -I scripts/audit_p0_seven_sequence_scores_private.py --archive <unique-existing-p0-new-cohort-PRIVATE>`. The archive must match #231 `kind=p0-private-numbered-capture-inventory`, contain seven paired native files with exact saved SHA, and live beneath ignored sibling `Wii-AI-Golf-Data/captures`; older `seven-dump-inventory` does NOT match the canonical schema. Full 14-bank hashes checked before and after. Real native study PENDING, do not merge/self-approve or train.
 
 Owner boundaries: #213 Config score, #239 Config shot transition, #231 canonical seven source resolver, #235 player record, #236 ball/cache writer, #184 outcome/UI, S000 #205 registry. This is only the *separate SequenceMgr* source-bound observation.
+
+
+## Actual seven-pair operator result — 2026-10-28
+
+The operator ran EXACT reviewed SHA `102a84ab8b9e6e6ea8f399ae0ed4e57843de1364` on a clean detached Windows checkout: 14/14 dedicated synthetic tests PASS and real canonical original bank/Rev1/source/selected owner/tee/pin/Config guards PASS. `P0_SEQUENCE_SCORES_ANALYSIS=COMPLETE` (offline, no Dolphin or new shot). The separate RPSportsSequenceMgr singleton was PRESENT and its sport enum indicated Golf BOTH ends of all four tested human-labeled edges.
+
+| Shot-number comparison | Selected source ball change | SequenceMgr mGolfScores[9][4] +0x14 | Selected source hole/player cell changed | Training-game / Golf-mode enums changed |
+| --- | ---: | ---: | --- | --- |
+| D1 -> D2 driver operator flight->settled | 3/3 words | 0/36 words | false | false/false |
+| W5 -> W6 wedge near apex->descent | 3/3 | 0/36 | false | false/false |
+| W6 -> W7 wedge descent->flag/result | 3/3 | 0/36 | false | false/false |
+| W5 -> W7 wedge bracket | 3/3 | 0/36 | false | false/false |
+
+**Interpretation:** this is a qualified negative for any *immediate 36-word SequenceMgr table change in those sampled native banks*, not a negative for a score being rendered, for late updates, or for a different mode4 result producer. Both source-defined tables (this `[hole][player]` +0x14 and GolfConfig `[player][hole]` +0x04) stay 0/36 through these edge comparisons. **Do not infer '15.2 ft' or score units, contact tick, power/velocity/XYZ, or training approval**. The operator phase labels may be inaccurate; source bytes are valid but labels are not independently machine-frame joined. Persistent per-player training best at data object+0x296 remains separately unlocated and must not be promoted to an immediate score. Next source priority: mode4 result UI/distance-to-pin producer/consumer under typed source evidence, separate from both hole-score tables.
