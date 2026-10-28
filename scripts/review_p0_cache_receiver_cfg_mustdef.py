@@ -190,7 +190,12 @@ def prove_caller(read_u32: Callable[[int], int], *, entry: int,
                 continue
             if word == 0:  # invalid / missing executable body
                 raise Unresolved("zero instruction word")
-            next_r3, next_r31 = _effect(word, r3, r31)
+            # Branches change PC, not tracked GPR values. The branch decoder
+            # itself rejects linked calls, indirect targets and unsafe edges.
+            if word >> 26 in (16, 18, 19):
+                next_r3, next_r31 = r3, r31
+            else:
+                next_r3, next_r31 = _effect(word, r3, r31)
             for dest in _next(pc, word, callsite):
                 if dest < entry or dest > callsite or dest % 4:
                     raise Unresolved("uncertified direct branch destination")
