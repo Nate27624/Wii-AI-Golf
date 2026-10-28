@@ -140,6 +140,7 @@ def analyze(archive: Path):
                 b = u(record + 0x88)
                 if (_bank(record, ROSTER_STRIDE) != "MEM2"
                         or _bank(b, 0x1AC) != "MEM2"
+                        or not seven.roster._in_data(u(b), seven.roster.BALL_DATA)
                         or u(b + 0x4C) != b + 0x30):
                     raise ValueError("four-slot source roster incomplete")
                 balls.append(b)
