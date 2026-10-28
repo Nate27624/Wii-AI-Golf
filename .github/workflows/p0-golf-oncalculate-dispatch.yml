@@ -1,0 +1,27 @@
+name: P0 Golf OnCalculate source dispatch native-free
+on:
+  push:
+    paths:
+      - 'scripts/audit_p0_golf_oncalculate_dispatch_private.py'
+      - 'tests/test_p0_golf_oncalculate_dispatch_private.py'
+      - '.github/workflows/p0-golf-oncalculate-dispatch.yml'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_golf_oncalculate_dispatch_private.py'
+      - 'tests/test_p0_golf_oncalculate_dispatch_private.py'
+      - '.github/workflows/p0-golf-oncalculate-dispatch.yml'
+  workflow_dispatch:
+jobs:
+  synthetic:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Strict PPC source-thunk and privacy synthetic tests
+        run: python -m unittest discover -s tests -p test_p0_golf_oncalculate_dispatch_private.py -v
