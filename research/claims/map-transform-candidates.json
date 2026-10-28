@@ -1,0 +1,22 @@
+{
+  "role": "S002 support source-grounded map transform pilot",
+  "coordination_issue": 3,
+  "head": "agent/research/map-transform-candidate-triage",
+  "base": "agent/research/offline-mem1-checkpoint-diff",
+  "canonical_upstream_pr": 151,
+  "files": [
+    "src/wii_ai_golf/audit/golf_map_transform_candidates.py",
+    "scripts/audit_golf_map_transforms_private.py",
+    "tests/test_golf_map_transform_candidates.py",
+    "research/studies/S002-MAP-TRANSFORM-01.md",
+    "research/claims/map-transform-candidates.json"
+  ],
+  "status": "draft_source_hypothesis_only",
+  "data_movement": "one existing paired MEM1/MEM2 read-only from ignored Data; private numeric float result never published",
+  "author_tests": "authored 10 synthetic cases, full Windows suite and real B0 audit pending",
+  "source_conflict": "RPGolMapObjBase header mScale+0x3C VEC3 overlaps claimed mpRotation+0x40 and mpTrans+0x44 pointers; unresolved",
+  "other_owners": "S002 #151 reviewer required; S000 #154 evidence ledger, S001 later gameplay correlation",
+  "no_live_actions": true,
+  "world_xyz_verified": false,
+  "model_training_allowed": false
+}
