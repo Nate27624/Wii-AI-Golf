@@ -66,3 +66,20 @@ Run this whole PowerShell block from any working directory to examine the existi
     }
 }
 ```
+
+## Owner-run PPC result: known function assignments resolve the apparent +0x7C writers
+
+The operator fetched B0 code at `90a5a559` and ran the six `test_golf_effect_handle_source_private.py` unit tests successfully. The actual gated source scan reported exactly ONE recognized `r31` definition candidate, `0x80290DD0 mr r31,r3`, and exactly TWO D-form writes at `+0x7C` in the compilation unit `RPSysEffectBase.cpp`:
+
+| Exact PC | PPC opcode | Source-defined containing function | True typed target |
+| --- | --- | --- | --- |
+| `0x80194FCC` | `0xD003007C stfs f0,+0x7C(r3)` | `RPSysEffect::setPowerSpecDirAdd` at `0x80194F48..0x80195000` | `nw4r::ef::Emitter::mParameter.mVelPowerSpecDir` (f32) |
+| `0x80195064` | `0xD3E3007C stfs f31,+0x7C(r3)` | `RPSysEffect::setPowerSpecDir` at `0x80195000..0x80195094` | `nw4r::ef::Emitter::mParameter.mVelPowerSpecDir` (f32) |
+
+Independent primary decomp evidence: `doldecomp/ogws config/RSPE01_01/symbols.txt` identifies the exact PPC function boundaries; `src/Pack/RPKernel/RPSysEffectBase.cpp` shows that both routines modify particle-emission power (one adds a base value from an emitter-resource descriptor, one sets the supplied scalar) via `pEmitter->mParameter.mVelPowerSpecDir`; `include/nw4r/ef/ef_emitter.h` gives Emitter `mParameter` at **+0x20**, its internal `mVelPowerSpecDir` at **+0x5C**, hence Emitter `+0x7C`. These float stores therefore **DO NOT** write `RPSysEffect::mHandle.mObject` (LinkedObject* at wrapper +0x7C), and they are **NOT** golf-club swing-power fields. `RPSysEffectBase.cpp` may still mutate handles via inlined calls or other stores, which this narrow D-form scan does not exhaust.
+
+FieldManager symbol map independently bounds `fn_80290DB0` to `0x80290DB0..0x80290F78`. The operator's PPC reported `0x80290DD0 mr r31,r3`; the earlier operator trace included `0x80290E4C mr r29,r31`, `0x80290E78/0x80290E98 lwz r3,+0x04(r29)`, and `0x80290EB8 addi r29,r29,4`. These are in ONE named function, and the known idiom establishes static `r3(at DD0) -> r31 -> r29 -> +4 child-pointer walk` with no recognized r31 redefinition. It does **not** independently prove that r3 at DD0 equals the method's incoming this pointer: the code from its prologue at DB0 through the DD0 assignment needs inspection for calls/reassignments and path reachability. Equally it does not prove that any child points into the observed minimap effects.
+
+Follow-up code update: `scripts/audit_golf_effect_handle_source_private.py` now distinguishes D-form offset hits from **opcode-type-compatible** direct HandleBase word stores and explicitly labels these two `stfs` sites as typed Emitter power writes and not HandleBase pointer writes. It displays the bounded function-prologue-to-r31 source context without asserting CFG/method-this identity; synthetic negatives include a fake intervening r31 definition and both exact float words. No user raw RAM, pointer value, private path, running emulator, or new shot is needed.
+
+**Status:** Source effect HANDLE field typing = established; source particle-emission-power float-store typing = established; FieldManager r31 static source chain = source-supported; actual observed runtime effect-wrapper identity, pointed-to ID check, shot dynamics, ball XYZ/velocity, and model training = UNVERIFIED. This is a documentation and static-code result, not a new live acquisition.
