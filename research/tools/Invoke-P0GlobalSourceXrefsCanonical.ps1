@@ -4,11 +4,12 @@
 param(
     [string]$Archive,
     [string]$CanonicalCheckout,
+    [string]$XrefCheckout,
     [switch]$SyntheticOnly
 )
 
 $ErrorActionPreference = 'Stop'
-$XrefSourcePin = '6b926d88c7a2b69037c9b900662d0a0610124ea9'
+$XrefSourcePin = '6cf36c094b6b1a7d6fbed234fc5d4f90c858ffb8'
 $CanonicalPin = '89aa3a2bd3e82532c4051168a466498e7195f596'
 
 function RequireGitSuccess([string]$message) {
@@ -20,7 +21,26 @@ $py = Get-Command py -ErrorAction SilentlyContinue
 if ($null -eq $py) { $py = Get-Command python -ErrorAction SilentlyContinue }
 if ($null -eq $py) { throw 'Python unavailable. No private files read.' }
 
-Push-Location -LiteralPath $worktree
+if ([string]::IsNullOrWhiteSpace($XrefCheckout)) {
+    if (-not $SyntheticOnly) {
+        throw 'Require separate -XrefCheckout at the exact new #240 source pin. No native read.'
+    }
+    $sourceTree = $worktree
+} else {
+    $sourceTree = (Resolve-Path -LiteralPath $XrefCheckout -ErrorAction Stop).Path
+    $sourceHead = (& git -C $sourceTree rev-parse HEAD).Trim()
+    RequireGitSuccess 'Cannot inspect source study checkout.'
+    if ($sourceHead -ne $XrefSourcePin) {
+        throw 'Source #240 writer-value study commit differs from pin. No native read.'
+    }
+    $sourceDirty = @(& git -C $sourceTree status --porcelain -- scripts)
+    RequireGitSuccess 'Cannot inspect source scripts status.'
+    if ($sourceDirty.Count -ne 0) {
+        throw 'Pinned #240 source scripts modified/untracked. Refusing.'
+    }
+}
+
+Push-Location -LiteralPath $sourceTree
 try {
     Write-Host '=== XREF FABRICATED TESTS ==='
     # Python unittest -v normally writes progress to stderr. Do NOT combine
@@ -28,19 +48,18 @@ try {
     # harmless "... ok" becomes a terminating NativeCommandError.
     & $py.Source -I -B -m unittest discover -s tests -p test_p0_global_ball_source_xrefs_private.py -v
     RequireGitSuccess 'Fabricated xref tests failed. No native read.'
+    if (-not [string]::IsNullOrWhiteSpace($XrefCheckout)) {
+        Write-Host '=== SINGLE STORE SOURCE FABRICATED TESTS ==='
+        & $py.Source -I -B -m unittest discover -s tests -p test_p0_global_ball_writer_value_private.py -v
+        RequireGitSuccess 'Fabricated single-store source tests failed. No native read.'
+    }
     if ($SyntheticOnly) {
         Write-Host 'P0_GLOBAL_XREF_PS5_SYNTHETIC_ONLY=PASS'
         return
     }
 
-    # This child review branch must not change ANY upstream Python scripts.
-    & git -C $worktree merge-base --is-ancestor $XrefSourcePin HEAD
-    RequireGitSuccess 'XREF source pin is not an ancestor. Refusing.'
-    & git -C $worktree diff --quiet $XrefSourcePin HEAD -- scripts
-    RequireGitSuccess 'XREF Python source differs from reviewed pin. Refusing.'
-    $dirty = @(& git -C $worktree status --porcelain -- scripts)
-    RequireGitSuccess 'Cannot inspect git script source status.'
-    if ($dirty.Count -ne 0) { throw 'Worktree Python scripts modified/untracked. Refusing.' }
+    # The exact source SHA and its pristine scripts were checked BEFORE
+    # running native tests. The wrapper's own branch is separate review code.
 
     if ([string]::IsNullOrWhiteSpace($CanonicalCheckout)) {
         throw 'Supply a separate exact pinned #231 canonical checkout. No native read.'
@@ -95,7 +114,7 @@ try {
     Write-Host 'P0_ORIGINAL_14_BANKS_BEFORE=PASS'
 
     Write-Host '=== R13 GLOBAL BALL SOURCE SLOT XREF / READ ONLY ==='
-    $xrefScript = Join-Path $worktree 'scripts\audit_p0_global_ball_source_xrefs_private.py'
+    $xrefScript = Join-Path $sourceTree 'scripts\audit_p0_global_ball_source_xrefs_private.py'
     $nativeJson = @(& $py.Source -I -B $xrefScript --dump-directory $archivePath)
     RequireGitSuccess 'Existing #240 source-global xref refused.'
     if ($nativeJson.Count -eq 0) { throw 'Source-global XREF returned no report.' }
@@ -108,7 +127,12 @@ try {
         $report.training_approved -ne $false -or
         $report.allowed_to_publish -ne $false -or
         $report.real_ball_world_xyz_verified -ne $false -or
-        $null -eq $report.static_source_global_slot_xrefs) {
+        $null -eq $report.static_source_global_slot_xrefs -or
+        $report.static_source_global_slot_xrefs.global_slot_direct_r13_reference_counts.direct_stw_write -ne 1 -or
+        $null -eq $report.static_source_global_slot_xrefs.single_direct_slot_store_source_candidate -or
+        $report.static_source_global_slot_xrefs.single_direct_slot_store_source_candidate.exact_stw_source_slot_verified -ne $true -or
+        $report.static_source_global_slot_xrefs.single_direct_slot_store_source_candidate.source_register_reaching_definition_fully_verified -ne $false -or
+        $report.static_source_global_slot_xrefs.single_direct_slot_store_source_candidate.source_writer_ran_during_wedge_verified -ne $false) {
         throw 'XREF output source/safety contract failed. Report withheld.'
     }
 
@@ -121,8 +145,8 @@ try {
     }
 
     Write-Host 'P0_ORIGINAL_14_BANKS_AFTER=PASS'
-    Write-Host 'P0_GLOBAL_R13_XREF_CANONICAL_AUDIT=PASS'
-    Write-Host '=== SANITIZED CODE UNIT COUNTS ONLY ==='
+    Write-Host 'P0_GLOBAL_R13_STORE_SOURCE_CANONICAL_AUDIT=PASS'
+    Write-Host '=== SANITIZED SOURCE GLOBAL SLOT COUNTS AND STORE VALUE CANDIDATE ONLY ==='
     $report.static_source_global_slot_xrefs | ConvertTo-Json -Depth 8
     Write-Host 'PHYSICS_XYZ_VELOCITY_RECEIVER_EXECUTION_TRAINING_UNVERIFIED'
 } finally {
