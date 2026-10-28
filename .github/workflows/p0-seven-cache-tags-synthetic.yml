@@ -5,11 +5,13 @@ on:
     paths:
       - 'scripts/audit_p0_seven_cache_update_tags_private.py'
       - 'tests/test_p0_seven_cache_update_tags_private.py'
+      - 'scripts/Invoke-P0SevenCacheTagStudy.ps1'
       - '.github/workflows/p0-seven-cache-tags-synthetic.yml'
   pull_request:
     paths:
       - 'scripts/audit_p0_seven_cache_update_tags_private.py'
       - 'tests/test_p0_seven_cache_update_tags_private.py'
+      - 'scripts/Invoke-P0SevenCacheTagStudy.ps1'
       - '.github/workflows/p0-seven-cache-tags-synthetic.yml'
   workflow_dispatch:
 
@@ -30,3 +32,9 @@ jobs:
         with:
           python-version: '3.13'
       - run: python -I -m unittest discover -s tests -p 'test_p0_seven_cache_update_tags_private.py' -v
+      - name: Parse PowerShell wrapper
+        shell: pwsh
+        run: |
+          $tokens=$null; $errors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile('scripts/Invoke-P0SevenCacheTagStudy.ps1', [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
