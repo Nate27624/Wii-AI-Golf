@@ -99,6 +99,14 @@ def _mr_matches(read_u32, pc: int, target_reg: int, source_reg: int) -> bool:
             and (word >> 11) & 31 == source_reg)
 
 
+def _add_matches(read_u32, pc: int, dest: int, lhs: int, rhs: int) -> bool:
+    word = read_u32(pc)
+    return (word >> 26 == 31 and (word >> 1) & 1023 == 266
+            and (word >> 21) & 31 == dest
+            and (word >> 16) & 31 == lhs
+            and (word >> 11) & 31 == rhs)
+
+
 def _relative_branch_target(pc: int, word: int, opcode: int) -> int | None:
     if word >> 26 != opcode or word & 2:  # exclude absolute branch forms
         return None
@@ -157,8 +165,17 @@ def source_member_flow_evidence(read_u32) -> dict:
         _dform_matches(read_u32, 0x802A0D88, 36, 3, 31, 0),
         _dform_matches(read_u32, 0x802A0D94, 36, 31, 30, 0xC4),
     ))
+    selector_calculation = all((
+        _dform_matches(read_u32, 0x802A31E8, 32, 0, 29, 0x34C),
+        _dform_matches(read_u32, 0x802A31EC, 7, 0, 0, 0xCC),
+        _add_matches(read_u32, 0x802A31F0, 3, 29, 0),
+        _dform_matches(read_u32, 0x802A31F4, 14, 0, 3, 4),
+        _dform_matches(read_u32, 0x802A31F8, 36, 0, 29, 0x334),
+    ))
     return {
         "four_inline_0xcc_record_loop_source_supported": manager_record_loop,
+        "manager_selected_record_pointer_offset_source_supported":
+            selector_calculation,
         "record_plus_0x88_ball_code_path_source_supported": ball_member_access,
         "ball_child_plus_0x4c_three_float_writer_source_supported":
             nested_three_float_writer,
@@ -272,6 +289,16 @@ def triage(read_u32, header: bytes) -> dict:
                 for j in range(3)
             )
     all_pairs = all(paired)
+    selector = read_u32(pm + 0x334)
+    selected_indices = [
+        idx for idx in range(ROSTER_SLOTS)
+        if selector == pm + 4 + idx * ROSTER_STRIDE
+    ]
+    selected_index = (
+        selected_indices[0]
+        if source_flow["manager_selected_record_pointer_offset_source_supported"]
+        and len(selected_indices) == 1 else None
+    )
     source_code_stride = _code_stride_instruction_counts(read_u32)
     exact_subobject_vtable_matches = sum(
         _bank(p) == "MEM2" and read_u32(p) == 0x803C7D28
@@ -298,6 +325,8 @@ def triage(read_u32, header: bytes) -> dict:
         "ball_related_child_plus_0x4c_mapped_triplet_count": nested_pointer_count,
         "nested_triplets_equal_record_triplet_count": local_triplet_equal_count,
         "nested_three_word_destination_is_world_ball_xyz_verified": False,
+        "source_gated_selected_record_index_hypothesis": selected_index,
+        "source_selected_record_identity_confirmed": False,
         "source_supported_record_layout_not_gameplay_semantics":
             bool(source_flow["four_inline_0xcc_record_loop_source_supported"]
                  and source_flow["record_plus_0x88_ball_code_path_source_supported"]),
