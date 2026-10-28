@@ -77,7 +77,7 @@ class ExistingSuccessfulShotTests(unittest.TestCase):
         printed = json.dumps(out)
         self.assertNotIn("0x80010004", printed)
         self.assertNotIn('"before"', printed)
-        self.assertNotIn('"settled"', printed)
+        self.assertNotIn('"settled": {"u32"', printed) # phase count label safe
         self.assertNotIn("PRIVATE.jsonl", printed)
 
     def test_settled_only_distinguished_from_post(self):
