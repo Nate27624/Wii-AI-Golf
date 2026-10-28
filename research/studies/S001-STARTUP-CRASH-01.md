@@ -8,7 +8,20 @@ The main workflow source `scripts/run_golf_experiment.py` exits after the fresh-
 
 New script `scripts/audit_felk_startup_crash_events.ps1` uses Windows' read-only Application event log to find recent `Dolphin.exe` Application Error 1000 records. It extracts **ONLY** local crash time, faulting module's **basename**, and validated 8-hex-digit exception code; reports counts of Dolphin-related Windows Error Reporting ID 1001 records. It never reads full event messages, private paths, executable arguments, raw memory, process IDs, fault offsets, or user directories. A faulting module is a diagnostic clue, NOT attribution of the original bug.
 
-From a Windows PowerShell terminal inside the repo (no Dolphin process needed):
+Because PR #172 is still a draft and not present in `main`, first make a disposable **isolated read-only worktree** of the PR; never overwrite an existing worktree:
+
+~~~powershell
+$repo = "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
+$work = "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf-Crash-Audit"
+if (Test-Path $work) { throw "Existing worktree; preserve it" }
+git -C $repo fetch origin pull/172/head
+if ($LASTEXITCODE -ne 0) { throw "PR fetch failed" }
+git -C $repo worktree add --detach $work FETCH_HEAD
+if ($LASTEXITCODE -ne 0) { throw "Worktree creation failed" }
+Set-Location $work
+~~~
+
+From this isolated checkout (no Dolphin process needed):
 
 ~~~powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/audit_felk_startup_crash_events.ps1 -HoursBack 24
