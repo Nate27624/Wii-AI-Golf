@@ -36,7 +36,7 @@ function Get-P0SafeMetadata([object]$Value, [int]$Max = 100) {
     if ($null -eq $Value) { return $null }
     $v = [string]$Value
     if ($v.Length -lt 1 -or $v.Length -gt $Max) { return $null }
-    if ($v -cnotmatch '^[A-Za-z0-9 ._+()-]+ { return $null }
+    if ($v -cnotmatch '^[A-Za-z0-9 ._+()\-]+$') { return $null }
     return $v
 }
 
@@ -69,7 +69,7 @@ function Get-P0BinaryIdentity([string]$Path) {
             [System.IO.FileAccess]::Read,
             [System.IO.FileShare]::ReadWrite
         )
-        $reader = New-Object System.IO.BinaryReader($stream)
+        $reader = [System.IO.BinaryReader]::new($stream)
         if ($reader.ReadByte() -ne 0x4D -or $reader.ReadByte() -ne 0x5A) {
             return (New-P0Abstain 'NOT_MZ_EXECUTABLE')
         }
