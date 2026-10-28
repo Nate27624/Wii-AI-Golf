@@ -8,6 +8,7 @@ on:
       - 'tests/test_research_cli_clean_dolphin.py'
       - 'tests/test_research_cli.py'
       - 'tests/test_m15_visual_first.py'
+      - 'tests/test_golf_experiment_boot.py'
       - '.github/workflows/m15-clean-integration.yml'
   workflow_dispatch:
 
