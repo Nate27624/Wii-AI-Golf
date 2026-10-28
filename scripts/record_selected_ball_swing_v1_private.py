@@ -296,7 +296,10 @@ def main(argv=None) -> int:
             result["hold"]["observed_frame_delta"] if a.pretrace_mode == "hold-a-45" else 0)
         safe["pretrace_control_mode"] = a.pretrace_mode
         safe["pretrace_control_observed_frames"] = result["hold"]["observed_frame_delta"]
-        safe["pretrace_control_A_held"] = a.pretrace_mode == "hold-a-45"
+        # Controller REQUEST provenance only; guest-side A recognition unverified.
+        safe["pretrace_control_A_requested"] = a.pretrace_mode == "hold-a-45"
+        safe["pretrace_control_A_requests"] = result["hold"]["a_button_only_requests"]
+        safe["pretrace_control_game_A_recognition_verified"] = False
         safe["legacy_a_prime_stage_is_no_A_control"] = a.pretrace_mode == "neutral-45"
         safe["idle_observed_frames"] = result["idle"]["observed_idle_frame_delta"]
         safe["trace_sha256"] = result["digest"]
