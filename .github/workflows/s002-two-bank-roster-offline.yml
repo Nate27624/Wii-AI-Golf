@@ -1,0 +1,28 @@
+name: S002 paired-bank golfer/ball structural probe
+on:
+  push:
+    branches:
+      - agent/research/golf-crossbank-player-ball-roster-20261027
+  pull_request:
+    paths:
+      - scripts/audit_golf_two_bank_roster_private.py
+      - tests/test_golf_two_bank_roster_private.py
+      - .github/workflows/s002-two-bank-roster-offline.yml
+jobs:
+  synthetic:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Check script and test compile
+        run: python -m py_compile scripts/audit_golf_two_bank_roster_private.py tests/test_golf_two_bank_roster_private.py
+      - name: Run bounded synthetic cross-bank roster tests
+        run: python -m unittest discover -s tests -p "test_golf_two_bank_roster_private.py" -v
