@@ -1,0 +1,26 @@
+name: S002 source-backed selected player state null-controls
+on:
+  pull_request:
+    paths:
+      - 'scripts/audit_selected_player_state_four_phase_private.py'
+      - 'tests/test_selected_player_state_four_phase_private.py'
+      - '.github/workflows/s002-player-state-four-phase.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  state-source-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+    matrix:
+      os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile source-backed private study
+        run: python -m compileall -q scripts/audit_selected_player_state_four_phase_private.py tests/test_selected_player_state_four_phase_private.py
+      - name: Strict PPC source stores and B0-B3 null control tests
+        run: python -m unittest discover -s tests -p 'test_selected_player_state_four_phase_private.py' -v
