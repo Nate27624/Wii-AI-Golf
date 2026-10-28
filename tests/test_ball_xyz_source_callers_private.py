@@ -363,5 +363,51 @@ class PPCStaticTests(unittest.TestCase):
             m.short_entry_unconditional_destination(called, entry),
             {"found": False, "reason": "linked_call_not_direct_jump"})
 
+
+    def test_public_code_split_index_is_pinned_and_has_all_source_units(self):
+        rows = m.load_public_text_units()
+        self.assertEqual(len(rows), 832)
+        self.assertTrue(any(name.endswith("RPGolPlayer.cpp")
+                            for _a, _b, name in rows))
+        self.assertTrue(any(name.endswith(".o") for _a, _b, name in rows))
+        self.assertTrue(all(rows[i][1] <= rows[i + 1][0]
+                            for i in range(len(rows) - 1)))
+
+    def test_short_branch_target_uses_complete_public_source_map(self):
+        entry = 0x802A0318
+        target = 0x802A0200
+        fake_bytes = struct.pack(">II", 0x60000000,
+                                 branch(entry + 4, target, link=False))
+        public = ((0x802A0000, 0x802A0300, "Pack/RPSports/RPGolScene/SyntheticPlayer.cpp"),)
+        result = m.public_branch_destination(fake_bytes, entry, public)
+        self.assertEqual(result["destination_public_source_file"],
+                         "Pack/RPSports/RPGolScene/SyntheticPlayer.cpp")
+        self.assertEqual(result["destination_public_source_relative_offset"], "+0x0200")
+        self.assertTrue(result["within_original_six_golf_units"])
+        self.assertFalse(result["source_execution_during_shot_verified"])
+        self.assertNotIn("0x802A0200", json.dumps(result))
+
+    def test_short_branch_outside_all_source_units_stays_unknown(self):
+        entry = 0x802A0318
+        fake_bytes = struct.pack(">II", 0x60000000,
+                                 branch(entry + 4, 0x80280000, link=False))
+        rows = ((0x802A0000, 0x802A1000, "Pack/RPSports/RPGolScene/SyntheticPlayer.cpp"),)
+        result = m.public_branch_destination(fake_bytes, entry, rows)
+        self.assertFalse(result["public_code_owner_found"])
+        self.assertEqual(result["reason"], "outside_all_832_published_rev1_text_units")
+
+    def test_public_split_tamper_and_missing_index_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "public_index.json"
+            self.assertRaises(m.UntrustedInput, m.load_public_text_units, p)
+            data = json.loads(m.PUBLIC_INDEX.read_text(encoding="utf-8"))
+            data["source_blob_sha"] = "0" * 40
+            p.write_text(json.dumps(data), encoding="utf-8")
+            self.assertRaises(m.UntrustedInput, m.load_public_text_units, p)
+            data["source_blob_sha"] = m.PUBLIC_SPLITS_SHA
+            data["intervals"][1][0] = data["intervals"][0][0]
+            p.write_text(json.dumps(data), encoding="utf-8")
+            self.assertRaises(m.UntrustedInput, m.load_public_text_units, p)
+
 if __name__ == "__main__":
     unittest.main()
