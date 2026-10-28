@@ -8,6 +8,18 @@ Connected GitHub open-PR search returned **76 open PRs** at review time. Multipl
 
 The repository's most urgent issue is integration/review throughput, not lack of research branches. Do not delete, rebase, auto-merge or take ownership of another agent's work.
 
+## Verified hosted result — 2026-10-28
+
+Draft PR #200 hosted run [40632036747](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40632036747) completed all three jobs:
+
+- Windows: **14/14** synthetic queue-audit tests passed.
+- Ubuntu: **14/14** synthetic queue-audit tests passed.
+- The read-only GitHub queue snapshot succeeded and automatically published the [sanitized numeric-only GitHub artifact](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40632036747/artifacts/12790859677): **77 currently open PRs**, **52 draft PRs**, **25 non-main base PRs**, **0 unresolved non-main bases** in this scan.
+
+This count includes the new PR and is expected to change; it is not proof any PR is merge-ready. Artifact expires per workflow retention, so live GitHub query is authoritative thereafter. The workflow performed **no** code, branch, review, controller, memory or experiment writes.
+
+Another existing candidate to prioritize for owner review is draft [#170](https://github.com/Nate27624/Wii-AI-Golf/pull/170), whose exact branch [cross-platform full-regression workflow 40616186216](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40616186216) has succeeded. It addresses Windows test-fixture alias/path failures that also fail on unchanged main. **Do not merge or rebase #170 here**; leave its S001/CI ownership and merge checks intact. The shared operator-rule update #196 and canonical live launch fixes remain separately draft.
+
 ## New advisory audit
 
 - scripts/audit_open_pr_queue.py reads only open PR metadata from GitHub, using an Actions-supplied READ-ONLY GITHUB_TOKEN, or from an offline synthetic fixture. It cannot write to GitHub or launch Dolphin.
