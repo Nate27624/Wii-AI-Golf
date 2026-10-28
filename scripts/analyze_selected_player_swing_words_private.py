@@ -57,6 +57,21 @@ def analyze(report: dict) -> dict:
             or safe.get("source_hole_stable") is not True
             or safe.get("start_vector_stable") is not True):
         raise ValueError("Failed/partial/unstable source watch cannot be analyzed")
+    # The watched V1 bridge has a frozen a_prime stage name. In the
+    # single-factor neutral-45 experiment this is a 45-tick NO-A control,
+    # not an A-only lead. Keep the raw/private phase labels unchanged.
+    pretrace_mode = safe.get("pretrace_control_mode", "hold-a-45")
+    if pretrace_mode not in ("hold-a-45", "neutral-45"):
+        raise ValueError("unknown pretrace A control mode")
+    if pretrace_mode == "neutral-45" and (
+        safe.get("pretrace_control_A_requested") is not False
+        or safe.get("pretrace_control_A_requests") != 0
+        or safe.get("pretrace_control_game_A_recognition_verified") is not False
+        or safe.get("a_lead_observed_frames") != 0
+        or safe.get("pretrace_control_observed_frames", 0) < 45
+        or safe.get("legacy_a_prime_stage_is_no_A_control") is not True
+    ):
+        raise ValueError("neutral pretrace metadata contradicts A button state")
     rows = report.get("PRIVATE_UNVERIFIED_NUMERIC_VECTORS")
     if not isinstance(rows, list) or not 2 <= len(rows) <= 80:
         raise ValueError("Missing or unbounded private watch records")
@@ -124,7 +139,10 @@ def analyze(report: dict) -> dict:
                 "known_idle_confound_offset": offset == 0x90,
                 "source_state_word_untyped": offset == 0x24,
                 "idle_stable": idle_stable,
-                "a_only_stable_and_equal_to_idle": a_only_stable_and_equal,
+                "a_only_stable_and_equal_to_idle": (
+                    a_only_stable_and_equal if pretrace_mode == "hold-a-45" else None),
+                "pretrace_control_stable_and_equal_to_idle": a_only_stable_and_equal,
+                "pretrace_control_A_requested": pretrace_mode == "hold-a-45",
                 "motion_specific_candidate_not_verified": motion_specific_candidate,
                 "phase_flags": flags,
             })
@@ -142,6 +160,8 @@ def analyze(report: dict) -> dict:
         "source_record_size_bytes": 0xCC,
         "private_callback_samples": len(rows),
         "phase_sample_counts": phase_counts,
+        "pretrace_control_mode": pretrace_mode,
+        "legacy_a_prime_stage_is_no_A_control": pretrace_mode == "neutral-45",
         "missing_motion_phases": missing_motion,
         "source_selected_actor_stable": True,
         "bridge_tick_is_not_guest_applied_frame": True,
