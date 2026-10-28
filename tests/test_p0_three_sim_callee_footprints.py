@@ -56,9 +56,7 @@ class CalleeFootprint(unittest.TestCase):
 
     def test_short_getter_does_not_get_pure_predicate_label(self):
         d=run()
-        self.assertEqual(d["callee_footprints"][0]["source_direct_float_load_count"] if
-                         "source_direct_float_load_count" in d["callee_footprints"][0] else
-                         d["callee_footprints"][0]["source_float_D_form_load_count"],0)
+        self.assertEqual(d["callee_footprints"][0]["source_float_D_form_load_count"],0)
         self.assertFalse(d["callee_footprints"][0]["pure_predicate_or_game_ball_integrator_verified"])
 
     def test_source_float_store_not_typed_ball_write(self):
