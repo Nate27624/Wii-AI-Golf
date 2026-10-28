@@ -48,3 +48,14 @@ Source-only second part: two exact `bl fn_80299C70` callsite gates in known func
 
 Real operator run on original seven snapshots **not yet performed** for the roster/r31 extension; no inferred result or simulation endpoint promotion. `global_source_is_simulation_endpoint_verified=false`, `r31_runtime_receiver_verified=false`, source RAM atomic frame, physical XYZ, velocity, score and training all false.
 
+
+
+## Actual operator results: seven-phase global versus roster, October 28
+
+Operator ran exact reviewed code at 1d7e1e89d1a6a78dcf29b1d0105f0fa97f85f396. All 15 local synthetic tests passed and the native read-only comparison completed on seven original paired RAM captures. In every phase 1 through 7, all four source-selected player record +0x88 ball pointers were validated and were distinct from the source-global ball pointer. Thus global_matches_any_player_slot=false for all seven; wedge_source_global_outside_all_four_roster_balls=true. This disproves the possibility that the global source was merely a different roster player's ball in these samples, but does not establish its actual role.
+
+In both cache-update callers fn_80299ACC and fn_80299C20, the first supported r31 assignment was mr r31,r3, with no later recognized assignment or branch before that first assignment. The subsequent call passes r3 from r31 to fn_80299C70, which saves receiver r3 in r27. This is a static linear candidate chain, not a branch-complete or runtime receiver proof.
+
+Previous seven-phase run showed the distinct global object's translation equals selected cache +0xCC throughout wedge phases 5-7, while selected current position differs in 5 and 6 and equals global/cache in 7. No frame atomicity, observed-renderer linkage, physical XYZ axes, endpoint prediction, dynamic cache writes or training approval is established.
+
+Next owner task: source-level ownership of the separate global object and dispatch argument feeding fn_80299ACC and fn_80299C20. Other agents are already developing independent source/manifests hardening in PRs #246 and #247, and a future watcher contract in PR #248; do not duplicate them.
