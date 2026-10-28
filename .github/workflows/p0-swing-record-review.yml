@@ -1,0 +1,30 @@
+name: P0 swing-record false-positive controls (synthetic)
+on:
+  push:
+    branches:
+      - agent/review/p0-swing-record-negative-controls-20261027
+  pull_request:
+    paths:
+      - scripts/analyze_selected_player_swing_words_private.py
+      - tests/test_selected_player_swing_words_private.py
+      - .github/workflows/p0-swing-record-review.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic:
+    name: Private ranker negative-control review / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Compile no-game P0 private ranker
+        run: python -m py_compile scripts/analyze_selected_player_swing_words_private.py tests/test_selected_player_swing_words_private.py
+      - name: Adversarial swing record phase and neutral controls
+        run: python -m unittest discover -s tests -p "test_selected_player_swing_words_private.py" -v
