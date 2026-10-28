@@ -80,3 +80,13 @@ S002/S000 can now review the reduced candidate list:
 
 Only after an explicitly owned, single Dolphin session can a **small paired-bank before/after control** distinguish render/simulation position, active vs non-active slot and actual swing phases. This dataset alone cannot prove ball/club velocity, impact time, game recognized power, or causal changes. S003 training remains BLOCKED.
 
+
+
+## Source-gated selected-record pointer hypothesis
+
+The actual Rev1 PlayerManager code has an explicit code path at 0x802A31E8..0x802A31F8: load a source manager field at +0x34C; multiply it by 0xCC; add manager base; add +0x4; store the resulting pointer at manager+0x334. The branch-reg pattern checks (lwz r0,844(r29); mulli r0,r0,204; add r3,r29,r0; addi r0,r3,4; stw r0,820(r29)) are now gated in the same analyzer. This supports manager+0x334 as a **selected inline record pointer hypothesis**, not independently identified active human golfer or ball.
+
+In the operator's one private snapshot, manager+0x334 points EXACTLY to inline record index 0; separately the recorded count-like scalar at manager+0x338 is 1 (meaning not verified), and **only record 0** has an exactly matching local three-word triplet vs ball-related child+0x4C destination. This joint coincidence makes record 0 the highest-priority candidate for a later controlled observation. It is still **one non-atomic still snapshot**, not causal or independently repeated evidence. Do not report actual runtime addresses or float values.
+
+The analyzer returns ONLY source-gated relative slot index (0..3 or null), not the runtime record pointer. If code register flow does not pass or selected pointer is not exactly an inline record start, it returns null. It always reports selected record identity UNVERIFIED, nested triplet world-space XYZ UNVERIFIED, and training BLOCKED.
+
