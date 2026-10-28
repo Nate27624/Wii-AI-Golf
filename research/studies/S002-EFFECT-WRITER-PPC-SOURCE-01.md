@@ -96,3 +96,29 @@ Source map: https://github.com/doldecomp/ogws/blob/master/config/RSPE01_01/split
 ~~~
 
 Only return PPC CODE-site tables and small neighborhoods; do not paste native RAM dumps or source private paths. Textual static code offset matches never establish effect receiver identity.
+
+## Real operator read/write PPC results (2026-10-28)
+
+The operator ran the source scanner against existing immutable B0 source-linked native code, and all 5 synthetic tests passed. Exact source-unit summary:
+
+| Compilation unit | D-form target hits | +0x78/+0x7C writes | +0x78/+0x7C reads | +0x94/+0x98/+0x9C hits |
+| --- | ---: | ---: | ---: | ---: |
+| RPGolFieldManager.cpp | 69 | 12 | 10 | 47 |
+| RPGolDrawManager.cpp | 3 | 0 | 0 | 3 |
+| RPGolMapObjBall.cpp | 102 | 31 | 19 | 52 |
+
+Two exact code sequences (not guesses) deserve narrower receiver analysis:
+
+- FieldManager at 0x80290E74 calls PPC helper 0x802A3758. At 0x80290E78 it executes `lwz r3,+0x04(r29)` and stores stack f32 values +0x10,+0x14,+0x18 into the destination `stfs f0,+0x78(r3)` (0x80290E80), `+0x7C(r3)` (0x80290E88), and `+0x80(r3)` (0x80290E90). This is consistent with copying a 3-component float vector to a CHILD/INDIRECT recipient, not source-proven RPSysEffect object.
+- MapObjBall at 0x802977FC reads `lbz r0,+0x50(r3)`, at 0x8029780C writes `stb r4,+0x5C(r3)`, then executes `stfs f0,+0x78/+0x7C/+0x80(r3)` at 0x80297810/14/18, and another `stfs f0,+0x1A0/+0x1A4/+0x1A8(r3)` at 0x8029781C/20/24. All six float slots are assigned from the same f0 on the observed path, consistent with an initialization/reset. This does not prove source-selected active ball or RPSysEffect receiver.
+- DrawManager has no direct D-form stores at +0x78/+0x7C in its mapped .text. This is not evidence it never calls a helper or executes an indexed/copy write.
+
+### Independent Rev1 FieldManager C++ data-layout documentation
+
+Public `kiwi515/ogws_info` original reverse-engineered Rev1 header (https://github.com/kiwi515/ogws_info/blob/main/RP/RPSports/RPGolScene/RPGolFieldManager.h) identifies `RPGolFieldManager` +0x94 `mMapPlayerEff` as RPSysEffect*, +0x98 `mMapShotLineEff` as RPSysEffect*, and +0x9C `mMapBallEff` as RPSysEffect*. It separately identifies FieldManager +0x78 `mMapTreesObj` (RPGolMapObjBase*) and +0x7C `mShowGreenSlope` (bool). **These are offsets within the manager**, NOT the offset within its pointed-to effect object. In particular the FieldManager code sequence at 0x80290E80 targets r3 loaded from +4(r29), so calling it a direct write to the manager's +0x78 is an object-identity error. This secondary C++ layout reference strengthens the origin of the three effect observation window labels but still requires correlating to Rev1 runtime objects, as original B0 data and 0x90 alias layouts are distinct evidence.
+
+### New narrow receiver-source audit (no live action)
+
+Additional script `scripts/audit_golf_effect_vector_receiver_private.py` (with `tests/test_golf_effect_vector_receiver_private.py`) checks exact PPC instruction signatures for the two observed vector-store chains, searches only up to 0x240 preceding bytes in the same linked source unit for plausible `stwu r1,-N(r1)` and `mr r29,r3` instructions, and returns only up to 0xBC narrow code context around each writer. It intentionally does not claim function boundaries, dynamic control-flow or true RPSysEffect ownership from prologue proximity. It reuses existing private B0 SHA and selected-source gates and never launches Dolphin.
+
+Run against the same original saved private B0 session; no new screenshots or game captures are necessary. Review the printed candidate function prologue PCs and exact code disassembly before any pointer-to-effect entry attribution. Training, physical ball XYZ, velocity, meter power and game score remain unverified.
