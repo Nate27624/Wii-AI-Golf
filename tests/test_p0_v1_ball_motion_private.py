@@ -95,6 +95,29 @@ def fixture(motion=True, contact="yes", movement="yes"):
     }
 
 
+def refresh_synthetic_summary(p):
+    """Recompute producer-side consistency from edited synthetic rows."""
+    rows = p["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"]
+    b = [tuple(x["ball_translation_f32_candidate"]) for x in rows]
+    pre = next((i for i, x in enumerate(rows) if x["input_stage"] == "trace"), len(rows))
+    idle = [tuple(x["ball_translation_f32_candidate"]) for x in rows
+            if x["input_stage"] == "idle_control"]
+    safe = p["safe_summary"]
+    safe["start_vector_stable"] = len({tuple(x["current_start_f32_candidate"]) for x in rows}) == 1
+    safe["idle_control_vector_stationary"] = len(idle) >= 2 and len(set(idle)) == 1
+    safe["pretrace_candidate_ball_stationary"] = pre >= 2 and len(set(b[:pre])) == 1
+    safe["candidate_ball_changed_after_trace_start"] = bool(pre and any(x != b[0] for x in b[pre:]))
+    safe["candidate_record_triplet_equal_ball_triplet_count"] = sum(
+        x["record_translation_f32_candidate"] == x["ball_translation_f32_candidate"]
+        for x in rows)
+    safe["phase_sample_counts"] = {
+        stage: sum(x["input_stage"] == stage for x in rows)
+        for stage in ("idle_control", "a_prime", "trace", "posttrace")
+    }
+    p["watch_status"]["samples"] = len(rows)
+    return p
+
+
 class TrajectoryEvidenceTests(unittest.TestCase):
     def reject(self, payload):
         with self.assertRaises(m.Reject):
@@ -132,20 +155,19 @@ class TrajectoryEvidenceTests(unittest.TestCase):
     def test_neutral_trace_change_is_confound(self):
         p=fixture()
         p["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"][5]["ball_translation_f32_candidate"]=[2.0,2.0,3.0]
-        r=m.audit(p)
+        r=m.audit(refresh_synthetic_summary(p))
         self.assertFalse(r["idle_a_only_neutral_and_backswing_stable"])
         self.assertFalse(r["source_ball_vector_correlated_with_observed_swing_not_physics_verified"])
 
     def test_early_a_prime_change_is_confound(self):
         p=fixture()
         p["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"][3]["ball_translation_f32_candidate"]=[2.0,2.0,3.0]
-        p["safe_summary"]["pretrace_candidate_ball_stationary"] = False
-        self.assertFalse(m.audit(p)["source_ball_vector_correlated_with_observed_swing_not_physics_verified"])
+        self.assertFalse(m.audit(refresh_synthetic_summary(p))["source_ball_vector_correlated_with_observed_swing_not_physics_verified"])
 
     def test_backswing_change_is_confound(self):
         p=fixture()
         p["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"][7]["ball_translation_f32_candidate"]=[2.0,2.0,3.0]
-        self.assertFalse(m.audit(p)["source_ball_vector_correlated_with_observed_swing_not_physics_verified"])
+        self.assertFalse(m.audit(refresh_synthetic_summary(p))["source_ball_vector_correlated_with_observed_swing_not_physics_verified"])
 
     def test_record_words_must_match_independent_reported_record_vector(self):
         p=fixture()
@@ -191,10 +213,7 @@ class TrajectoryEvidenceTests(unittest.TestCase):
         p["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"]=[
             r for r in p["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"]
             if r["trace_sample_index_if_active"] not in (48,64)]
-        p["watch_status"]["samples"]=len(p["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"])
-        p["safe_summary"]["phase_sample_counts"]["trace"]=7
-        p["safe_summary"]["candidate_record_triplet_equal_ball_triplet_count"]=7
-        r=m.audit(p)
+        r=m.audit(refresh_synthetic_summary(p))
         self.assertIn("followthrough",r["missing_phases"])
         self.assertFalse(r["source_ball_vector_correlated_with_observed_swing_not_physics_verified"])
 
