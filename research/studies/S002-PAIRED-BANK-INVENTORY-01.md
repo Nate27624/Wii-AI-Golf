@@ -13,7 +13,7 @@ $repo = "D:\Projects\Wii Golf AI\Wii-AI-Golf"
 $work = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Paired-Bank-Audit"
 $backups = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\mem-checkpoints"
 if (Test-Path $work) { throw "Do not overwrite an existing worktree" }
-git -C $repo fetch origin pull/156/head
+git -C $repo fetch origin pull/157/head
 if ($LASTEXITCODE -ne 0) { throw "Fetch failed" }
 git -C $repo worktree add --detach $work FETCH_HEAD
 if ($LASTEXITCODE -ne 0) { throw "Worktree failed" }
