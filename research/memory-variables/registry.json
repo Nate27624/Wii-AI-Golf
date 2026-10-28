@@ -88,7 +88,10 @@
         "reviewer": null,
         "approved_at": null
       },
-      "last_evidence_date": "2026-10-28"
+      "last_evidence_date": "2026-10-28",
+      "evidence_ledger_field_ids": [
+        "scene.golf_scene_candidate"
+      ]
     },
     {
       "id": "golf.main_ptr",
@@ -164,7 +167,10 @@
         "reviewer": null,
         "approved_at": null
       },
-      "last_evidence_date": "2026-10-28"
+      "last_evidence_date": "2026-10-28",
+      "evidence_ledger_field_ids": [
+        "scene.golfer_main_candidate"
+      ]
     },
     {
       "id": "golf.tee_start.map_translation_xyz",
@@ -242,7 +248,12 @@
         "reviewer": null,
         "approved_at": null
       },
-      "last_evidence_date": "2026-10-28"
+      "last_evidence_date": "2026-10-28",
+      "evidence_ledger_field_ids": [
+        "environment.selected_start_translation_candidate",
+        "environment.current_start_ref",
+        "environment.map_base_translation"
+      ]
     },
     {
       "id": "golf.pin.map_translation_xyz",
@@ -319,7 +330,12 @@
         "reviewer": null,
         "approved_at": null
       },
-      "last_evidence_date": "2026-10-28"
+      "last_evidence_date": "2026-10-28",
+      "evidence_ledger_field_ids": [
+        "environment.selected_pin_translation_candidate",
+        "environment.current_pin_ref",
+        "environment.map_base_translation"
+      ]
     },
     {
       "id": "golf.cup.map_translation_xyz",
@@ -396,7 +412,11 @@
         "reviewer": null,
         "approved_at": null
       },
-      "last_evidence_date": "2026-10-28"
+      "last_evidence_date": "2026-10-28",
+      "evidence_ledger_field_ids": [
+        "environment.cup_ref",
+        "environment.map_base_translation"
+      ]
     },
     {
       "id": "golf.target_collection.count_candidate",
@@ -463,7 +483,10 @@
         "reviewer": null,
         "approved_at": null
       },
-      "last_evidence_date": "2026-10-28"
+      "last_evidence_date": "2026-10-28",
+      "evidence_ledger_field_ids": [
+        "gameplay.hole_state"
+      ]
     },
     {
       "id": "golf.unknown_float_pair.change_cluster",
@@ -521,7 +544,8 @@
         "reviewer": null,
         "approved_at": null
       },
-      "last_evidence_date": "2026-10-28"
+      "last_evidence_date": "2026-10-28",
+      "evidence_ledger_field_ids": []
     },
     {
       "id": "golf.unknown_main_counter",
@@ -575,7 +599,10 @@
         "reviewer": null,
         "approved_at": null
       },
-      "last_evidence_date": "2026-10-28"
+      "last_evidence_date": "2026-10-28",
+      "evidence_ledger_field_ids": [
+        "golfer.main_0x074"
+      ]
     },
     {
       "id": "golf.ball.world_xyz",
@@ -634,7 +661,10 @@
         "reviewer": null,
         "approved_at": null
       },
-      "last_evidence_date": "2026-10-28"
+      "last_evidence_date": "2026-10-28",
+      "evidence_ledger_field_ids": [
+        "gameplay.ball_position"
+      ]
     },
     {
       "id": "golf.ball.velocity_xyz",
@@ -688,7 +718,10 @@
         "reviewer": null,
         "approved_at": null
       },
-      "last_evidence_date": "2026-10-28"
+      "last_evidence_date": "2026-10-28",
+      "evidence_ledger_field_ids": [
+        "gameplay.ball_velocity"
+      ]
     },
     {
       "game": {
@@ -765,7 +798,11 @@
       "upstream_registry_ids": [
         "golf.main_ptr"
       ],
-      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154",
+      "evidence_ledger_field_ids": [
+        "golfer.ball_related_translation_write_path",
+        "golfer.player_record_sim_object_ref"
+      ]
     },
     {
       "game": {
@@ -841,7 +878,11 @@
       "upstream_registry_ids": [
         "golf.main_ptr"
       ],
-      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154",
+      "evidence_ledger_field_ids": [
+        "environment.selected_start_translation_candidate",
+        "golfer.ball_related_translation_write_path"
+      ]
     },
     {
       "game": {
@@ -923,7 +964,11 @@
       "upstream_registry_ids": [
         "golf.main_ptr"
       ],
-      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154",
+      "evidence_ledger_field_ids": [
+        "golfer.ball_related_translation_write_path",
+        "golfer.player_record_sim_object_ref"
+      ]
     },
     {
       "game": {
@@ -999,7 +1044,10 @@
       "upstream_registry_ids": [
         "golf.main_ptr"
       ],
-      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154",
+      "evidence_ledger_field_ids": [
+        "golfer.ball_related_translation_write_path"
+      ]
     },
     {
       "game": {
@@ -1074,7 +1122,8 @@
       "upstream_registry_ids": [
         "golf.main_ptr"
       ],
-      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154",
+      "evidence_ledger_field_ids": []
     },
     {
       "game": {
@@ -1149,7 +1198,8 @@
       "upstream_registry_ids": [
         "golf.main_ptr"
       ],
-      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154",
+      "evidence_ledger_field_ids": []
     },
     {
       "game": {
@@ -1225,7 +1275,10 @@
       "upstream_registry_ids": [
         "golf.main_ptr"
       ],
-      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154",
+      "evidence_ledger_field_ids": [
+        "gameplay.player_pose"
+      ]
     }
   ],
   "related_evidence_ledger": {
@@ -1233,5 +1286,6 @@
     "path": "research/memory/field-evidence-ledger.json",
     "note": "Existing 33-entry evidence ledger owns granular identity/behavior evidence; this access registry adds typed resolver/feature-eligibility index, not replacement evidence"
   },
-  "notes": "Use #160/#162/#181/#183 source-work as upstream; operational selection of ball/player record requires S002 source verifier. A pointer-chain expression with symbolic parent is NOT an independently deployable extractor."
+  "notes": "Use #160/#162/#181/#183 source-work as upstream; operational selection of ball/player record requires S002 source verifier. A pointer-chain expression with symbolic parent is NOT an independently deployable extractor.",
+  "authority_boundary": "This is the typed discovery/extraction access index and training-eligibility gate. PR #154 research/memory/field-evidence-ledger.json remains the more detailed source-evidence/identity/behavior ledger; this registry DOES NOT supersede its records. Reconcile references during PR reviews."
 }
