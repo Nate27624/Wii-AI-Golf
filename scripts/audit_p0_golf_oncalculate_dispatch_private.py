@@ -23,6 +23,7 @@ sys.path.insert(0, _HERE)
 import audit_p0_seven_numbered_source_pairs_private as seven
 import audit_golf_two_bank_roster_private as roster
 import review_p0_golf_main_update_direct_calls as main_update
+import review_p0_three_sim_callee_footprints as sim_footprints
 
 # Public header annotation and reviewed .text split source regions only.
 CALCULATE_PC = 0x8028DFA8
@@ -87,6 +88,7 @@ def analyze(archive: Path) -> dict:
     dirs = seven._check_archive(archive)  # full original 14-bank SHA first
     source_words = []
     main_source_words = []
+    sim_callee_source_windows = []
     owners = []
     for n in PHASES:
         with ExitStack() as stack:
@@ -117,6 +119,9 @@ def analyze(archive: Path) -> dict:
             source_words.append((u(CALCULATE_PC), u(CALCULATE_PC + 4)))
             main_source_words.append(tuple(u(pc) for pc in range(
                 main_update.MAIN_ENTRY, main_update.MAIN_END, 4)))
+            sim_callee_source_windows.append({
+                name: tuple(u(pc) for pc in range(entry,entry+size,4))
+                for name,entry,size,call_offset in sim_footprints.CALLEES})
 
     # Each archive captures the same revision's executable instructions.
     stable = all(words == source_words[0] for words in source_words[1:])
@@ -135,6 +140,13 @@ def analyze(archive: Path) -> dict:
     if main_report is not None:
         main_report["independent_prior_0x100_original_BL_prefix_matched"] = (
             main_update.require_prior_prefix_match(main_report))
+    sim_stable = all(words == sim_callee_source_windows[0]
+                     for words in sim_callee_source_windows[1:])
+    if not sim_stable:
+        raise ValueError("published three SimulateManager source code windows changed")
+    sim_report = (sim_footprints.analyze(main_source_words[0],
+                sim_callee_source_windows[0], main_report)
+                if main_report is not None else None)
     seven._check_archive(archive)  # full hash again after readers close
     return {
         "kind": "P0-SANITIZED-REV1-GOLF-ONCALCULATE-THUNK-AUDIT",
@@ -144,6 +156,8 @@ def analyze(archive: Path) -> dict:
         "source_scene_main_member_class_by_capture": owners,
         "main_101_word_code_unchanged_across_seven": main_stable,
         "main_entry_direct_BL_and_control_source_inventory": main_report,
+        "three_sim_callee_source_windows_unchanged_across_seven": sim_stable,
+        "three_sim_callee_bounded_source_footprints": sim_report,
         **report,
         "public_header_annotation_correlates_with_two_word_native_pattern":
             bool(report["oncalculate_to_main_direct_thunk_supported"]),
