@@ -11,6 +11,8 @@ on:
       - 'tests/test_p0_golf_sprintf_r31_variadics_private.py'
       - 'scripts/audit_p0_golf_sprintf_format_types_private.py'
       - 'tests/test_p0_golf_sprintf_format_types_private.py'
+      - 'scripts/audit_p0_golf_two_sprintf_literal_roles_private.py'
+      - 'tests/test_p0_golf_two_sprintf_literal_roles_private.py'
       - '.github/workflows/p0-golf-result-ui-xrefs.yml'
   pull_request:
     paths:
@@ -22,6 +24,8 @@ on:
       - 'tests/test_p0_golf_sprintf_r31_variadics_private.py'
       - 'scripts/audit_p0_golf_sprintf_format_types_private.py'
       - 'tests/test_p0_golf_sprintf_format_types_private.py'
+      - 'scripts/audit_p0_golf_two_sprintf_literal_roles_private.py'
+      - 'tests/test_p0_golf_two_sprintf_literal_roles_private.py'
       - '.github/workflows/p0-golf-result-ui-xrefs.yml'
   workflow_dispatch:
 
@@ -43,3 +47,4 @@ jobs:
           python -m unittest discover -s tests -p 'test_p0_golf_sprintf_arg_origins_private.py' -v
           python -m unittest discover -s tests -p 'test_p0_golf_sprintf_r31_variadics_private.py' -v
           python -m unittest discover -s tests -p 'test_p0_golf_sprintf_format_types_private.py' -v
+          python -m unittest discover -s tests -p 'test_p0_golf_two_sprintf_literal_roles_private.py' -v
