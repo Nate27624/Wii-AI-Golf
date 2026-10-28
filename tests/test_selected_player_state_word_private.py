@@ -1,7 +1,11 @@
 """Synthetic-only tests: never touch Dolphin, a game image or private RAM."""
+from pathlib import Path
+import sys
 import unittest
 
-from scripts.audit_selected_player_state_word_private import (
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+
+from audit_selected_player_state_word_private import (
     _SOURCE_WRITERS, source_state_writer_gate, summarize
 )
 
