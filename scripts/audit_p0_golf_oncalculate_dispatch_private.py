@@ -127,8 +127,9 @@ def analyze(archive: Path) -> dict:
         "source_two_word_window_unchanged_across_seven": stable,
         "source_scene_main_member_class_by_capture": owners,
         **report,
-        "source_declared_callback_name_matches_native_rev1_verified":
+        "public_header_annotation_correlates_with_two_word_native_pattern":
             bool(report["oncalculate_to_main_direct_thunk_supported"]),
+        "declared_callback_name_runtime_verified": False,
         "source_vtable_slot_and_runtime_dispatch_verified": False,
         "source_target_is_actual_ball_simulation_function_verified": False,
         "Dolphin_guest_physics_step_clock_verified": False,
