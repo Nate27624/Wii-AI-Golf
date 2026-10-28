@@ -146,3 +146,57 @@ fabricated RAM would not resolve the class ownership.
 The named `RPGolPhase::CommitResult` API is a distinct source
 declaration; the singleton symbol typo does not establish
 its machine-code address or whether mode 4 invokes it.
+
+
+## P0 typed result-presentation object and saved-record distinction
+
+Another **independent public-source *type*** in pinned Kokeshi Rev1:
+
+- [`RPSportsBaseScene.h`](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPSportsBaseScene.h):
+  inherited scene `RPSportsTrainingResult* mTrainingResultLyt` at
+  **scene +0x84**; scene `mTrainingGame` at +0x48.
+- [`RPSportsTrainingResult.h`](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPSportsTrainingResult.h):
+  `LoadResource`, `Reset`, `Calculate`, `UserDraw`;
+  `mFlags` at result-layout object +0x6C, **not identified numeric distance**.
+- Pinned [`base/symbols_sports.txt`](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/base/symbols_sports.txt)
+  independently labels `RPSportsTrainingResult::Calculate`
+  **0x80200600**, `Reset` 0x80200A88, `UserDraw` 0x801FFEE0,
+  `LoadResource` 0x80200D38.
+  These are source annotations, **not a confirmed Golf Near Pin
+  result-screen instance or its dataflow**.
+- [`RPSportsSequenceMgr.h`](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPSportsSequenceMgr.h):
+  generic `ETrainingGame mTrainingGame` at **+0x0C** (0..2); this
+  field is categorically DISTINCT from the standard Golf scoring
+  `mGolfScores[9][4]` at +0x14. The previous 0/36 result says
+  nothing about active training-game selection.
+- [`RPSportsPlayerData.h`](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPSportsPlayerData.h):
+  `u16 mGolTrainingRecords[3]` at **player-save object +0x296**,
+  accessed via `getGolTrainingBest(EGameID)`. This is
+  explicitly a **persistent best-record** category, NOT a current
+  shot-distance variable, current ten-shot total, result-layout
+  numeric field, or physics position.
+
+### Better constrained S002 source chain (no native scan authorization)
+
+1. Use the existing source-typed Golf scene identity and **only verify**
+   its inherited `mTrainingResultLyt+0x84` membership via Rev1
+   opcode-level caller/layout source, rather than another generic
+   `findTextBox` scan. The published class types support this as a
+   candidate pointer; no new Dolphin action or private pointer
+   dereference is authorized merely by a header.
+2. Follow only an actual `RPSportsTrainingResult::Calculate` /
+   `UserDraw` caller and its **typed score arguments**. A persistent
+   `mGolTrainingRecords` value must be rejected as the live per-hit
+   metric unless a separately proven result path links the quantities.
+3. Cross-check source `mTrainingGame` enums only if mode-4-to-training
+   sequence number really needs disambiguation, and require same-shot
+   frame/visual witness before claiming Hitting-the-Green result.
+4. A direct caller yielding NO typed score dataflow is **ABSTAIN**.
+   Do NOT reopen generic 60-lookups/19-zero-argc, static sprintf,
+   score-table deltas or arbitrary heap scans.
+
+**All addresses above are *public static field/code annotations*, not
+validated runtime values.** The current #277 Kokeshi singleton
+mangling mismatch is still unresolved and its local pointer reader
+remains blocked from operator execution. Training/publication remain
+FALSE.
