@@ -49,3 +49,44 @@ jobs:
           if (-not $blocked) { throw 'Attestation fail-closed gate missing' }
           if (Test-Path -LiteralPath './shot-checkpoint-manifest-PRIVATE.json') { throw 'Unexpected file written by validation' }
 
+
+      - name: End-to-end manifest with synthetic zero-only banks (NO user/game data)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $data = Join-Path $env:RUNNER_TEMP 'Wii-AI-Golf-Data'
+          $session = Join-Path $data 'captures/SHOT-synthetic-PRIVATE'
+          New-Item -Path $session -ItemType Directory -Force | Out-Null
+          foreach ($phase in @('PRE', 'POST')) {
+            foreach ($bank in @('MEM1','MEM2')) {
+              $size = if ($bank -eq 'MEM1') { 24MB } else { 64MB }
+              $path = Join-Path $session "$phase-$bank.bin"
+              $stream = [IO.File]::Open($path, [IO.FileMode]::CreateNew,
+                                        [IO.FileAccess]::Write, [IO.FileShare]::None)
+              try { $stream.SetLength($size) } finally { $stream.Dispose() }
+            }
+          }
+          $out = & ./scripts/prepare_golf_prepost_manifest_private.ps1 `
+            -PrivateDataRoot $data `
+            -SessionFolder $session `
+            -ConfirmSameDolphinProcess `
+            -ConfirmExactlyOneShot `
+            -ConfirmVisibleBallDisplacementBeforeReset `
+            -ConfirmNoHoleResetOrTransition `
+            -ConfirmBothMemBanksExportedUnderEachSamePause `
+            -ConfirmGameRanBetweenPhases
+          if (-not $?) { throw 'Synthetic private manifest generation failed' }
+          if ($out -match '[a-fA-F0-9]{64}') { throw 'Private SHA appeared in stdout' }
+          $file = Join-Path $session 'shot-checkpoint-manifest-PRIVATE.json'
+          if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw 'Manifest missing' }
+          $manifest = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+          if ($manifest.kind -ne 'local-private-golf-prepost-paired-checkpoints') { throw 'Wrong kind' }
+          foreach ($phase in @('PRE','POST')) {
+            foreach ($bank in @('MEM1','MEM2')) {
+              $actual = (Get-FileHash -LiteralPath (Join-Path $session "$phase-$bank.bin") -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($manifest.checkpoints.$phase.sha256.$bank -cne $actual) { throw 'Hash disagreement' }
+            }
+          }
+          $script = "import sys;from pathlib import Path;sys.path.insert(0,'scripts');import audit_selected_ball_prepost_shot_private as a;a._manifest(Path(sys.argv[1]));print('Synthetic manifest accepted by Python checker')"
+          python -c $script $session
+          if ($LASTEXITCODE -ne 0) { throw 'Python typed manifest validation failed' }
