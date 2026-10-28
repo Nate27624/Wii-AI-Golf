@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -27,6 +28,21 @@ def sample(*, ball=(1,2,3), start=(1,2,3), record=(1,2,3),
 
 
 class FlightCompareTests(unittest.TestCase):
+    def test_real_python_isolated_cli_resolves_sibling_source_helpers(self):
+        # Regress the ACTUAL operator entrypoint: -I omits the script directory.
+        # --help returns BEFORE any bank path or source RAM could be opened.
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                [sys.executable, "-I",
+                 str(ROOT / "scripts" / "audit_p0_inflight_vs_b0_private.py"),
+                 "--help"],
+                cwd=directory, capture_output=True, text=True,
+                timeout=15, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--baseline", result.stdout)
+        self.assertIn("--flight", result.stdout)
+        self.assertNotIn("ModuleNotFoundError", result.stderr)
+
     def test_ball_changes_with_stable_start_does_not_claim_xyz(self):
         result=audit.compare(sample(), sample(ball=(1,5,7)),
                              mem1_diff=True, mem2_diff=True)
