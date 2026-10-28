@@ -138,6 +138,31 @@ class StationaryQualificationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,"stationary"):
             q.summarize_qualification(x,elapsed_s=2)
 
+    def test_monotonic_subthreshold_drift_rejected_against_first_sample(self):
+        x = private()
+        # Each +0.9*tolerance step passes the old pairwise check, but the
+        # 32-sample total drift is +27.9*tolerance and is not stationary.
+        for i, row in enumerate(x["samples"]):
+            row["ball_translation_f32_candidate"][0] = (
+                2.0 + i * 0.9 * q.VECTOR_STABILITY_TOL
+            )
+        with self.assertRaisesRegex(RuntimeError, "stationary"):
+            q.summarize_qualification(x, elapsed_s=2.0)
+
+    def test_bounded_stationary_noise_passes_both_limits(self):
+        x = private()
+        for i, row in enumerate(x["samples"]):
+            row["ball_translation_f32_candidate"][0] = (
+                2.0 + (0.3 if i % 2 else -0.3) * q.VECTOR_STABILITY_TOL
+            )
+            row["record_translation_f32_candidate"][1] = (
+                3.0 + (0.2 if i % 2 else -0.2) * q.VECTOR_STABILITY_TOL
+            )
+        report = q.summarize_qualification(x, elapsed_s=2.0)
+        self.assertTrue(report["stationary_candidate_vectors"]["ball_translation_stable"])
+        self.assertTrue(report["stationary_candidate_vectors"]["record_translation_stable"])
+        self.assertFalse(report["training_allowed"])
+
     def test_bridge_tick_gap_refused(self):
         x=private()
         x["samples"][11]["frame_tick_index"]+=1
