@@ -89,7 +89,7 @@ class ResearchCliTests(unittest.TestCase):
                    return_value={"revision": "V1-neutral-swing-calls",
                                  "safe_for_isolated_legacy_copy": True}), \
              patch.object(research_cli, "_fresh_human_labels",
-                          return_value={"capture_status": "none_or_ambiguous"}), \
+                          return_value={"capture_status": "sanitized_human_annotation_only"}), \
              patch.object(research_cli, "_fallback_human_observation",
                           return_value={"human": {"contact_human": "unknown"}}):
             self.assertEqual(research_cli.main(
@@ -161,15 +161,25 @@ class ResearchCliTests(unittest.TestCase):
                 },
                 "known_good_swing_request": {
                     "a_lead_requested_frames": 0,
+                    "motion_scale": 1.0, "speed_scale": 1.0,
+                    "backswing_scale": 1.0, "generated_trace_frames": 89,
                     "trace_sha256": "a" * 64,
                     "private_ram_hex": "SECRET_BYTES",
                 },
+                "run_token": "b" * 32,
+                "swing_dispatch": {"state": "complete", "applied_frames": 89},
+                "schema_version": 1,
                 "candidate_ranking": {"windows": "RAW_RAM_NEVER_PUBLISH"},
-                "settled_screen_observation": "already transitioned",
+                "settled_screen_observation": "operator_confirmed_before_transition",
             }
             (caps / "outcome-unit-candidates.json").write_text(json.dumps(record))
             with patch.object(research_cli, "CAPTURES", caps):
-                result = research_cli._fresh_human_labels(start)
+                result = research_cli._fresh_human_labels(
+                    start, run_token="b" * 32,
+                    expected_controller={
+                        "a_lead_requested_frames": 0, "motion_scale": 1.0,
+                        "speed_scale": 1.0, "backswing_scale": 1.0,
+                    })
             published = json.dumps(result)
             self.assertEqual(result["human"]["initial_club_pose_human"], "back")
             self.assertNotIn("MUST NEVER PUBLISH", published)
@@ -202,9 +212,106 @@ class ResearchCliTests(unittest.TestCase):
                 (caps / f"outcome-{i}-candidates.json").write_text("{}")
             with patch.object(research_cli, "CAPTURES", caps):
                 result = research_cli._fresh_human_labels(
-                    datetime.now(timezone.utc) - timedelta(seconds=5))
+                    datetime.now(timezone.utc) - timedelta(seconds=5),
+                    run_token="c" * 32, expected_controller={})
             self.assertEqual(result["capture_status"], "none_or_ambiguous")
             self.assertNotIn("human", result)
+
+
+    def test_unqualified_zero_exit_does_not_publish_or_guess_contact(self):
+        from wii_ai_golf.lab.github_sync import SyncReport
+        with tempfile.TemporaryDirectory() as folder, \\
+             patch.object(research_cli, "sync_merged_main",
+                          return_value=SyncReport("up_to_date")), \\
+             patch.object(research_cli, "_run", return_value=0), \\
+             patch.object(research_cli, "v1_clean_boot_args", return_value=[]), \\
+             patch.object(research_cli, "DATA", Path(folder)), \\
+             patch.object(research_cli, "_fresh_human_labels",
+                          return_value={"capture_status": "none_or_ambiguous"}), \\
+             patch.object(research_cli, "_fallback_human_observation") as fallback, \\
+             patch.object(research_cli, "publish_summary") as publish, \\
+             patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
+                   return_value={"revision": "V1-neutral-swing-calls",
+                                 "safe_for_isolated_legacy_copy": True}):
+            self.assertEqual(research_cli.main(["v1", "--live"]), 2)
+            fallback.assert_not_called()
+            publish.assert_not_called()
+            local = list((Path(folder) / "research-cli").glob("*.json"))
+            self.assertEqual(len(local), 1)
+            row = json.loads(local[0].read_text())
+            self.assertEqual(row["kind"], "v1_attempt")
+            self.assertFalse(row["trial_valid_for_action_outcome"])
+
+    def test_canceled_or_failed_child_never_publishes_or_prompts_contact(self):
+        from wii_ai_golf.lab.github_sync import SyncReport
+        for child_exit in (40, 41, 1, 2):
+            with self.subTest(child_exit=child_exit), \\
+                 tempfile.TemporaryDirectory() as folder, \\
+                 patch.object(research_cli, "sync_merged_main",
+                              return_value=SyncReport("up_to_date")), \\
+                 patch.object(research_cli, "_run", return_value=child_exit), \\
+                 patch.object(research_cli, "v1_clean_boot_args", return_value=[]), \\
+                 patch.object(research_cli, "DATA", Path(folder)), \\
+                 patch.object(research_cli, "_fresh_human_labels") as labels, \\
+                 patch.object(research_cli, "_fallback_human_observation") as fallback, \\
+                 patch.object(research_cli, "publish_summary") as publish, \\
+                 patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
+                       return_value={"revision": "V1-neutral-swing-calls",
+                                     "safe_for_isolated_legacy_copy": True}):
+                self.assertEqual(research_cli.main(["v1", "--live"]), child_exit)
+                labels.assert_not_called()
+                fallback.assert_not_called()
+                publish.assert_not_called()
+                row_path, = (Path(folder) / "research-cli").glob("*.json")
+                row = json.loads(row_path.read_text())
+                self.assertEqual(row["kind"], "v1_attempt")
+                self.assertEqual(row["shot_dispatched"], "unknown")
+                self.assertFalse(row["trial_valid_for_action_outcome"])
+
+    def test_foreign_run_and_invalid_controls_fail_closed(self):
+        with tempfile.TemporaryDirectory() as folder:
+            caps = Path(folder)
+            start = datetime.now(timezone.utc) - timedelta(seconds=10)
+            expected = {"a_lead_requested_frames": 45, "motion_scale": 1.0,
+                        "speed_scale": 1.0, "backswing_scale": 1.0}
+            row = {
+                "source": "live-emulator-read-only-US-Rev1+human-result-label",
+                "run_token": "d" * 32,
+                "human_observation": {"contact_human": "yes",
+                                      "finished_on_green_human": "no",
+                                      "displayed_distance_human": 100,
+                                      "displayed_unit_human": "ft"},
+                "known_good_swing_request": {**expected,
+                    "generated_trace_frames": 89, "trace_sha256": "a" * 64},
+                "swing_dispatch": {"state": "complete", "applied_frames": 89},
+                "settled_screen_observation": "operator_confirmed_before_transition",
+            }
+            file = caps / "outcome-test-candidates.json"
+            file.write_text(json.dumps(row))
+            with patch.object(research_cli, "CAPTURES", caps):
+                foreign = research_cli._fresh_human_labels(
+                    start, run_token="e" * 32, expected_controller=expected)
+                self.assertNotEqual(foreign["capture_status"],
+                                    "sanitized_human_annotation_only")
+                wrong = research_cli._fresh_human_labels(
+                    start, run_token="d" * 32,
+                    expected_controller={**expected, "speed_scale": 0.8})
+                self.assertEqual(wrong["capture_status"],
+                                 "unqualified_child_trace_or_controls")
+                good = research_cli._fresh_human_labels(
+                    start, run_token="d" * 32, expected_controller=expected)
+                self.assertEqual(good["capture_status"],
+                                 "sanitized_human_annotation_only")
+                self.assertEqual(good["distance_interpretation"],
+                                 "censored_offgreen_100ft_penalty")
+                self.assertNotIn("run_token", good)
+                row["settled_screen_observation"] = {"private_ram": "SECRET"}
+                file.write_text(json.dumps(row))
+                leak = research_cli._fresh_human_labels(
+                    start, run_token="d" * 32, expected_controller=expected)
+                self.assertEqual(leak["capture_status"],
+                                 "unqualified_terminal_timing")
+                self.assertNotIn("SECRET", json.dumps(leak))
 
 
 if __name__ == "__main__":
