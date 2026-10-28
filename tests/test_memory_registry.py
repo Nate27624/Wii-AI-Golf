@@ -29,6 +29,40 @@ class MemoryRegistryTests(unittest.TestCase):
                             not v["training"]["eligible_as_label"]
                             for v in self.payload["variables"]))
 
+    def test_source_ball_and_cache_entries_present_without_training_promotion(self):
+        ids = {v["id"] for v in self.payload["variables"]}
+        for key in ("golf.ball_object.current_translation_candidate",
+                    "golf.ball_object.initialized_cache_cc",
+                    "golf.ball_object.conditional_cache_f0",
+                    "golf.ball_object.conditional_cache_fc",
+                    "golf.player.selected_record.aim_rotation",
+                    "golf.ball.world_xyz",
+                    "golf.ball.velocity_xyz"):
+            self.assertIn(key, ids)
+            v = next(x for x in self.payload["variables"] if x["id"] == key)
+            self.assertFalse(v["training"]["approved"])
+            self.assertFalse(v["training"]["eligible_as_input"])
+            self.assertFalse(v["training"]["eligible_as_label"])
+
+    def test_ball_translation_requires_pointer_dereference(self):
+        v = next(x for x in self.payload["variables"]
+                 if x["id"] == "golf.ball_object.current_translation_candidate")
+        self.assertIn("be_u32", v["memory_locator"]["expression"])
+        self.assertIn("read_ptr",
+                      [step["op"] for step in v["memory_locator"]["steps"]])
+
+    def test_angle_candidate_is_scalar_not_vector(self):
+        v = next(x for x in self.payload["variables"]
+                 if x["id"] == "golf.player.selected_record.aim_rotation")
+        self.assertEqual(v["datatype"], "float32_be")
+
+    def test_evidence_crosswalk_points_to_existing_ledger(self):
+        self.assertTrue(self.payload["variables"])
+        self.assertTrue(all("evidence_ledger_field_ids" in v
+                            and isinstance(v["evidence_ledger_field_ids"], list)
+                            for v in self.payload["variables"]))
+        self.assertIn("pull/154", self.payload["related_evidence_ledger"]["url"])
+
     def test_duplicate_id_is_rejected(self):
         self.payload["variables"].append(copy.deepcopy(self.variable))
         self.assertTrue(any("duplicate id" in s for s in validator.validate_registry(self.payload)))
