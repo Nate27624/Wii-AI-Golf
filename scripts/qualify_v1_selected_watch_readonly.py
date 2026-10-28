@@ -161,6 +161,8 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--read-only-live", action="store_true",
                         help="Explicitly qualify an already booted V1 watcher with no input")
+    parser.add_argument("--attach-running", action="store_true",
+                        help="Canonical post-boot dispatcher handoff; not a standalone authorization")
     parser.add_argument("--port", type=int, default=55355)
     args = parser.parse_args(argv)
     if not args.read_only_live:
@@ -173,6 +175,8 @@ def main(argv=None) -> int:
             "live_swing_approved": False,
         }, indent=2))
         return 0
+    if not args.attach_running:
+        parser.error("live read-only qualification requires canonical post-boot handoff")
     if not 1 <= args.port <= 65535:
         parser.error("invalid port")
     try:
