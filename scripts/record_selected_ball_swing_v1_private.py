@@ -40,6 +40,7 @@ IDLE_FRAMES = 24
 WATCH_FRAMES = 280
 SAMPLE_INTERVAL = 4
 TRACE_FRAMES = 89
+PRETRACE_MODES = ('hold-a-45', 'neutral-45')
 
 # 70 source-selected records with 51 u32 words and JSON field metadata can
 # exceed the transport's generic 64-KiB response limit. Keep a bounded,
@@ -74,6 +75,36 @@ def passive_frame_control(
             break
         sleep(0.012)
     raise TimeoutError("24 observed no-controller idle frames not reached")
+
+
+def passive_no_a_pretrace_control(
+    rpc: Any, *, frames: int = LEAD_FRAMES,
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> dict:
+    """Observe 45 ticks with ZERO controller RPCs, unlike the A-held baseline.
+
+    Retaining a same-duration pretrace window isolates button A as one factor.
+    The watched bridge stage remains a_prime for source SHA compatibility,
+    but report and offline analysis explicitly identify the neutral control.
+    """
+    if frames != LEAD_FRAMES:
+        raise ValueError("fixed same-duration 45-tick neutral control required")
+    first = _count(rpc)
+    started = clock()
+    for _ in range(600):
+        last = _count(rpc)
+        if last < first:
+            raise RuntimeError("bridge ticks reversed during neutral pretrace")
+        if last - first >= frames:
+            return {"observed_frame_delta": last - first,
+                    "a_button_only_requests": 0,
+                    "game_a_recognition_verified": False,
+                    "input_mode": "neutral-no-A"}
+        if clock() - started > 7:
+            break
+        sleep(0.012)
+    raise TimeoutError("45 neutral pretrace bridge ticks not observed")
 
 
 def verify_local_bridge(path: Path) -> str:
@@ -112,6 +143,8 @@ def capture_one(
     rpc: Any, samples: list, *,
     idle_wait: Callable = passive_frame_control,
     hold_a: Callable = hold_a_for_observed_frames,
+    neutral_wait: Callable = passive_no_a_pretrace_control,
+    pretrace_mode: str = "hold-a-45",
     run_trace: Callable | None = None,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict:
@@ -120,6 +153,8 @@ def capture_one(
     Hook functions exist for deterministic offline tests only; the CLI does
     not accept injected hooks. A-only hold always uses 45 OBSERVED frames.
     """
+    if pretrace_mode not in PRETRACE_MODES:
+        raise ValueError("unreviewed pretrace mode: refuse before arming watcher")
     digest = validate_frozen_trace(samples)
     if run_trace is None:
         def run_trace(target, values):
@@ -133,12 +168,19 @@ def capture_one(
         if type(idle.get("observed_idle_frame_delta")) is not int or idle["observed_idle_frame_delta"] < IDLE_FRAMES:
             raise RuntimeError("idle negative control did not advance 24 ticks")
         rpc.call("golf.ball_watch.stage", ["a_prime"])
-        hold = hold_a(rpc, frames=LEAD_FRAMES, remote=0)
-        if (type(hold.get("observed_frame_delta")) is not int
+        if pretrace_mode == "hold-a-45":
+            hold = hold_a(rpc, frames=LEAD_FRAMES, remote=0)
+            expected_requests = 1
+        else:
+            # No A-only RPC. Preserve the observed 45-tick wait as in baseline.
+            hold = neutral_wait(rpc, frames=LEAD_FRAMES)
+            expected_requests = 0
+        if (not isinstance(hold, dict)
+                or type(hold.get("observed_frame_delta")) is not int
                 or hold["observed_frame_delta"] < LEAD_FRAMES
-                or hold.get("a_button_only_requests") != 1
+                or hold.get("a_button_only_requests") != expected_requests
                 or hold.get("game_a_recognition_verified") is not False):
-            raise RuntimeError("real 45-frame A lead was not observed")
+            raise RuntimeError("fixed 45-tick pretrace control was not observed")
         rpc.call("golf.ball_watch.stage", ["trace"])
         trace = run_trace(rpc, samples)
         if (not isinstance(trace, dict) or trace.get("state") != "complete"
@@ -163,7 +205,7 @@ def capture_one(
                     or not isinstance(report.get("samples"), list)):
                 raise RuntimeError("incomplete private watched evidence")
             return {"trace": trace, "hold": hold, "idle": idle, "digest": digest,
-                    "report": report}
+                    "pretrace_mode": pretrace_mode, "report": report}
         if state.get("state") not in ("armed", "recording"):
             raise RuntimeError("watcher source/performance failed closed")
         if time.monotonic() - started > 12:
@@ -205,6 +247,9 @@ def main(argv=None) -> int:
                    help="Only canonical run_golf_experiment.py may inject this flag")
     p.add_argument("--send-live-swing", action="store_true",
                    help="Explicitly authorize one motion after human SWING confirmation")
+    p.add_argument("--pretrace-mode", choices=PRETRACE_MODES,
+                   default="hold-a-45",
+                   help="Hold A for 45 ticks (baseline) or observe 45 ticks with no A")
     p.add_argument("--port", type=int, default=55355)
     a = p.parse_args(argv)
     if not a.send_live_swing:
@@ -215,6 +260,8 @@ def main(argv=None) -> int:
             "required_A_observed_frames": LEAD_FRAMES,
             "A_RPC_request_count_is_not_frame_count": True,
             "watch_frames": WATCH_FRAMES,
+            "pretrace_control_mode": a.pretrace_mode,
+            "pretrace_duration_bridge_ticks": LEAD_FRAMES,
             "private_only": True, "training_allowed": False,
             "live_use_approved": False,
         }, indent=2))
@@ -234,7 +281,9 @@ def main(argv=None) -> int:
             if input("At first stationary ball, type SWING to proceed (anything else cancels): ").strip() != "SWING":
                 print("Cancelled. No controller input sent.")
                 return 0
-            result = capture_one(rpc, samples)
+            if a.pretrace_mode == "neutral-45":
+                print("ONE FACTOR: no A during 45-tick pretrace; frozen 89-frame V1 swing unchanged.")
+            result = capture_one(rpc, samples, pretrace_mode=a.pretrace_mode)
         human = ask_distinct_human_labels()
         samples_private = result["report"]["samples"]
         safe = summarize(samples_private,
@@ -242,7 +291,12 @@ def main(argv=None) -> int:
                          watch_state=result["report"]["status"]["state"])
         safe["contact_human"] = human["contact_human"]
         safe["contact_and_movement_are_separate_human_labels"] = True
-        safe["a_lead_observed_frames"] = result["hold"]["observed_frame_delta"]
+        safe["a_lead_observed_frames"] = (
+            result["hold"]["observed_frame_delta"] if a.pretrace_mode == "hold-a-45" else 0)
+        safe["pretrace_control_mode"] = a.pretrace_mode
+        safe["pretrace_control_observed_frames"] = result["hold"]["observed_frame_delta"]
+        safe["pretrace_control_A_held"] = a.pretrace_mode == "hold-a-45"
+        safe["legacy_a_prime_stage_is_no_A_control"] = a.pretrace_mode == "neutral-45"
         safe["idle_observed_frames"] = result["idle"]["observed_idle_frame_delta"]
         safe["trace_sha256"] = result["digest"]
         safe["swing_protocol_v1_source_checked"] = True
@@ -253,7 +307,12 @@ def main(argv=None) -> int:
             "operator_contact_human": human["contact_human"],
             "watch_status": result["report"]["status"],
             "bridge_trace_status": result["trace"],
-            "controller_timing": {"idle": result["idle"], "observed_A_lead": result["hold"]},
+            "controller_timing": {
+                "idle": result["idle"],
+                "pretrace_control_mode": a.pretrace_mode,
+                "observed_A_lead": result["hold"] if a.pretrace_mode == "hold-a-45" else None,
+                "neutral_pretrace_control": result["hold"] if a.pretrace_mode == "neutral-45" else None,
+            },
             "safe_summary": safe,
             "PRIVATE_UNVERIFIED_NUMERIC_VECTORS": samples_private,
         }
