@@ -98,7 +98,7 @@ def summarize(samples: list[dict], *, human_ball_moved: str) -> dict:
     )
     # A zero-length pretrace has NO approved baseline; do not index [0].
     ball_changed_after_trace_starts = (
-        first_trace is not None and pretrace_stable
+        first_trace is not None and pretrace_count >= 1
         and any(x != pretrace_balls[0] for x in balls[first_trace:])
     )
     start_fixed = all(x == starts[0] for x in starts)
