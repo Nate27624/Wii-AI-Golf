@@ -174,8 +174,8 @@ def main(argv=None) -> int:
             parent.relative_to(root)
         except ValueError as exc:
             raise ValueError("report not in private data directory") from exc
-        if output.suffix.lower() != ".json":
-            raise ValueError("private report must end in .json")
+        if not output.name.endswith("-PRIVATE.json"):
+            raise ValueError("private report must use explicit -PRIVATE.json suffix")
         summary, detail = compare(paths)
         # open 'x' guarantees never overwriting previous private evidence.
         with output.open("x", encoding="utf-8") as fp:
