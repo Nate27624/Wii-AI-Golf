@@ -7,6 +7,7 @@ on:
     paths:
       - src/wii_ai_golf/integration/ball_watch_preflight.py
       - tests/test_ball_watch_preflight.py
+      - tests/test_ball_watch_swing_tick_parity.py
       - .github/workflows/s001-ball-frame-watch-offline.yml
 jobs:
   focused:
@@ -23,6 +24,6 @@ jobs:
         with:
           python-version: '3.13'
       - name: Compile preflight and tests
-        run: python -m py_compile src/wii_ai_golf/integration/ball_watch_preflight.py tests/test_ball_watch_preflight.py
+        run: python -m py_compile src/wii_ai_golf/integration/ball_watch_preflight.py tests/test_ball_watch_preflight.py tests/test_ball_watch_swing_tick_parity.py
       - name: Offline native memory mock gates
-        run: python -m unittest discover -s tests -p "test_ball_watch_preflight.py" -v
+        run: python -m unittest discover -s tests -p "test_ball_watch*.py" -v
