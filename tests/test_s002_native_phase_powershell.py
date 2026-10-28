@@ -1,4 +1,4 @@
-"""CLI-only native bank phase safety tests; fake/sparse files, no game or Dolphin."""
+"""S002 standalone PowerShell phase guard tests; synthetic sparse Wii-size banks only."""
 from __future__ import annotations
 import hashlib
 import json
@@ -8,57 +8,63 @@ import subprocess
 import tempfile
 import unittest
 
-TOOLS = Path(__file__).resolve().parents[1] / 'scripts'
-PWSH = shutil.which('pwsh')
+SCRIPT = Path(__file__).resolve().parents[1] / 'scripts' / 'Invoke-GolfNativeShot.ps1'
+# Windows PowerShell 5.1 is named powershell.exe; PowerShell 7 is pwsh.
+# NEVER skip the suite silently: CI must fail when the shell is unavailable.
+SHELL = shutil.which('powershell.exe') or shutil.which('powershell') or shutil.which('pwsh')
 
 
-def _hash(path):
+def sha256(path):
     h = hashlib.sha256()
-    with path.open('rb') as stream:
-        for block in iter(lambda: stream.read(1 << 20), b''):
+    with path.open('rb') as f:
+        for block in iter(lambda: f.read(1024 * 1024), b''):
             h.update(block)
     return h.hexdigest()
 
 
-@unittest.skipUnless(PWSH, 'PowerShell 7 needed for cross-platform synthetic tests')
-class NativeP0PowerShellTests(unittest.TestCase):
+class NativeStandalonePowerShellTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix='golf-p0-powershell-')
-        self.addCleanup(self.temp.cleanup)
-        self.workspace = Path(self.temp.name)
-        self.repo = self.workspace / 'Wii-AI-Golf'
-        self.scripts = self.repo / 'scripts'
-        self.scripts.mkdir(parents=True)
-        for name in ('New-GolfNativeShotSession.ps1', 'Test-GolfNativeShotPair.ps1'):
-            shutil.copy2(TOOLS / name, self.scripts / name)
-        self.session = self.run_ps('New-GolfNativeShotSession.ps1', '-Id', 'rehearsal001').stdout.strip()
-        self.assertTrue(Path(self.session).is_dir())
+        if not SHELL:
+            raise RuntimeError('PowerShell 5.1 or 7 is REQUIRED; skipped tests must not pass')
+        tmp = tempfile.TemporaryDirectory(prefix='golf-native-standalone-')
+        self.addCleanup(tmp.cleanup)
+        self.repo = Path(tmp.name) / 'Wii-AI-Golf'
+        self.tools = self.repo / 'scripts'
+        self.tools.mkdir(parents=True)
+        shutil.copy2(SCRIPT, self.tools / SCRIPT.name)
+        ret = self.run_ps('-Action', 'Start', '-Id', 'rehearsal001')
+        self.assertEqual(ret.returncode, 0, ret.stderr)
+        self.session = Path(ret.stdout.strip())
+        self.assertTrue(self.session.is_dir())
 
-    def run_ps(self, script, *args):
-        return subprocess.run([PWSH, '-NoProfile', '-NonInteractive', '-File', str(self.scripts / script), *map(str, args)],
-                              cwd=str(self.repo), capture_output=True, text=True, timeout=100)
+    def run_ps(self, *args):
+        return subprocess.run(
+            [SHELL, '-NoProfile', '-NonInteractive', '-File',
+             str(self.tools / SCRIPT.name), *map(str, args)],
+            cwd=str(self.repo), capture_output=True, text=True, timeout=120)
 
     def save_manifest(self, phases):
-        p = Path(self.session)
-        manifest = {'kind': 'local-private-golf-shot-cup-distance-checkpoints',
-                    'schema_version': 1, 'allowed_to_publish': False,
-                    'training_allowed': False, 'same_guest_frame_verified': False,
-                    'checkpoints': {}}
+        manifest = {
+            'kind': 'local-private-golf-shot-cup-distance-checkpoints',
+            'schema_version': 1, 'allowed_to_publish': False,
+            'training_allowed': False, 'same_guest_frame_verified': False,
+            'checkpoints': {},
+        }
         for phase in phases:
-            banks = {}
-            for name, size in (('MEM1', 24*1024**2), ('MEM2', 64*1024**2)):
-                target = p / f'{phase}-{name}.bin'
-                with target.open('wb') as fd:
-                    fd.truncate(size)  # fully sized, sparse/synthetic zero bank
+            bank_hashes = {}
+            for name, size in (('MEM1', 24 * 1024**2), ('MEM2', 64 * 1024**2)):
+                target = self.session / f'{phase}-{name}.bin'
+                with target.open('wb') as f:
+                    f.truncate(size)
                     if name == 'MEM1':
-                        fd.seek(0)
-                        fd.write(b'RSPE01\x00\x01')
+                        f.seek(0)
+                        f.write(b'RSPE01\x00\x01')
                         if phase == 'POST':
-                            fd.write(b'\x7f')  # distinct synthetic post game word
+                            f.write(b'\x7f')
                     elif phase == 'POST':
-                        fd.seek(0)
-                        fd.write(b'\x55')
-                banks[name] = _hash(target)
+                        f.seek(0)
+                        f.write(b'\x55')
+                bank_hashes[name] = sha256(target)
             manifest['checkpoints'][phase] = {
                 'phase_label': phase,
                 'operator_reports_gui_paused': True,
@@ -67,80 +73,92 @@ class NativeP0PowerShellTests(unittest.TestCase):
                 'operator_reports_same_process': phase == 'POST',
                 'operator_reports_same_hole': phase == 'POST',
                 'operator_observed_result_visible': phase == 'RESULT',
-                'sha256': banks,
+                'sha256': bank_hashes,
             }
-        path = p / 'shot-distance-captures-PRIVATE.json'
-        path.write_text(json.dumps(manifest, indent=2), encoding='utf-8')
-        return path, manifest
+        manifest_file = self.session / 'shot-distance-captures-PRIVATE.json'
+        manifest_file.write_text(json.dumps(manifest), encoding='utf-8')
+        return manifest_file, manifest
 
-    def test_session_creation_is_unique_and_rejects_reuse(self):
-        p = Path(self.session)
-        self.assertEqual(p.parent.name, 'captures')
-        self.assertEqual(p.parent.parent.name, 'Wii-AI-Golf-Data')
-        bad = self.run_ps('New-GolfNativeShotSession.ps1', '-Id', 'rehearsal001')
-        self.assertNotEqual(bad.returncode, 0)
-        self.assertTrue(p.exists())
-        good = self.run_ps('New-GolfNativeShotSession.ps1')
-        self.assertEqual(good.returncode, 0, good.stderr)
-        self.assertNotEqual(good.stdout.strip(), self.session)
+    def test_start_is_one_command_and_reuse_is_refused(self):
+        self.assertEqual(self.session.parent.name, 'captures')
+        self.assertEqual(self.session.parent.parent.name, 'Wii-AI-Golf-Data')
+        duplicate = self.run_ps('-Action', 'Start', '-Id', 'rehearsal001')
+        self.assertNotEqual(duplicate.returncode, 0)
+        self.assertTrue(self.session.is_dir())
+        distinct = self.run_ps('-Action', 'Start')
+        self.assertEqual(distinct.returncode, 0, distinct.stderr)
+        self.assertNotEqual(distinct.stdout.strip(), str(self.session))
 
-    def test_one_pre_is_integrity_checked_but_not_a_shot_pair(self):
+    def test_status_of_fresh_session_is_pending_not_failure_or_capture(self):
+        result = self.run_ps('-Action', 'Status', '-Session', self.session)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('AWAITING_PRE', result.stdout)
+        self.assertIn('HasNativePrePostPair', result.stdout)
+        self.assertIn('False', result.stdout)
+        self.assertNotIn('PREPOST_INTEGRITY_VERIFIED', result.stdout)
+
+    def test_verify_of_fresh_session_fails_closed(self):
+        result = self.run_ps('-Action', 'Verify', '-Session', self.session)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('NOT READY', result.stderr)
+
+    def test_only_pre_is_awaiting_post_and_verify_refuses(self):
         self.save_manifest(['PRE'])
-        out = self.run_ps('Test-GolfNativeShotPair.ps1', '-Session', self.session)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn('NativeBankLengthsAndSHA256Verified', out.stdout)
-        self.assertIn('HasPrePostBanks', out.stdout)
-        self.assertIn('False', out.stdout)
-        self.assertNotIn(self.session, out.stdout)
-        self.assertNotIn('RSPE01', out.stdout)
+        status = self.run_ps('-Action', 'Status', '-Session', self.session)
+        self.assertEqual(status.returncode, 0, status.stderr)
+        self.assertIn('AWAITING_POST', status.stdout)
+        verify = self.run_ps('-Action', 'Verify', '-Session', self.session)
+        self.assertNotEqual(verify.returncode, 0)
+        self.assertIn('NOT READY', verify.stderr)
 
-    def test_pre_post_exact_binary_pair_passes_integrity_only(self):
+    def test_prepost_full_native_integrity_not_ball_physics(self):
         self.save_manifest(['PRE', 'POST'])
-        out = self.run_ps('Test-GolfNativeShotPair.ps1', '-Session', self.session, '-RequirePost')
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn('HasPrePostBanks', out.stdout)
-        self.assertIn('True', out.stdout)
-        self.assertIn('BallWorldXYZOrVelocityVerified', out.stdout)
-        self.assertIn('TrainingApproved', out.stdout)
-        self.assertNotIn('sha256:', out.stdout.lower())
+        result = self.run_ps('-Action', 'Verify', '-Session', self.session)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('PREPOST_INTEGRITY_VERIFIED', result.stdout)
+        self.assertIn('HasNativePrePostPair', result.stdout)
+        self.assertIn('True', result.stdout)
+        self.assertIn('BallWorldXYZOrVelocityVerified', result.stdout)
+        self.assertIn('TrainingApproved', result.stdout)
+        self.assertNotIn(str(self.session), result.stdout)
+        self.assertNotIn('RSPE01', result.stdout)
 
-    def test_require_post_rejects_pre_only_without_inventing_hit(self):
+    def test_changed_native_byte_rejected(self):
         self.save_manifest(['PRE'])
-        out = self.run_ps('Test-GolfNativeShotPair.ps1', '-Session', self.session, '-RequirePost')
-        self.assertNotEqual(out.returncode, 0)
-        self.assertIn('POST', out.stderr)
+        with (self.session / 'PRE-MEM1.bin').open('r+b') as f:
+            f.seek(80)
+            f.write(b'\x42')
+        result = self.run_ps('-Action', 'Status', '-Session', self.session)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('digest mismatch', result.stderr)
 
-    def test_hash_mismatch_rejected_without_leaking_bank_bytes(self):
-        self.save_manifest(['PRE'])
-        with (Path(self.session) / 'PRE-MEM1.bin').open('r+b') as fd:
-            fd.seek(120)
-            fd.write(b'\x42')
-        out = self.run_ps('Test-GolfNativeShotPair.ps1', '-Session', self.session)
-        self.assertNotEqual(out.returncode, 0)
-        self.assertIn('mismatch', out.stderr)
-        self.assertNotIn('RSPE01', out.stderr)
-
-    def test_manifest_cannot_authorize_training_or_publication(self):
-        path, manifest = self.save_manifest(['PRE'])
+    def test_training_claim_never_accepted(self):
+        file, manifest = self.save_manifest(['PRE'])
         manifest['training_allowed'] = True
-        path.write_text(json.dumps(manifest), encoding='utf-8')
-        out = self.run_ps('Test-GolfNativeShotPair.ps1', '-Session', self.session)
-        self.assertNotEqual(out.returncode, 0)
-        self.assertIn('Unsupported', out.stderr)
+        file.write_text(json.dumps(manifest), encoding='utf-8')
+        result = self.run_ps('-Action', 'Status', '-Session', self.session)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('unsupported training', result.stderr)
 
-    def test_out_of_order_result_is_rejected(self):
+    def test_result_without_pre_post_refused(self):
         self.save_manifest(['RESULT'])
-        out = self.run_ps('Test-GolfNativeShotPair.ps1', '-Session', self.session)
-        self.assertNotEqual(out.returncode, 0)
-        self.assertIn('phase prefix', out.stderr)
+        result = self.run_ps('-Action', 'Status', '-Session', self.session)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('phase order', result.stderr)
 
-    def test_missing_displacement_attestation_rejected(self):
-        path, manifest = self.save_manifest(['PRE', 'POST'])
+    def test_missing_human_post_observation_refused(self):
+        file, manifest = self.save_manifest(['PRE', 'POST'])
         manifest['checkpoints']['POST']['operator_observed_displaced_ball'] = False
-        path.write_text(json.dumps(manifest), encoding='utf-8')
-        out = self.run_ps('Test-GolfNativeShotPair.ps1', '-Session', self.session, '-RequirePost')
-        self.assertNotEqual(out.returncode, 0)
-        self.assertIn('attestations', out.stderr)
+        file.write_text(json.dumps(manifest), encoding='utf-8')
+        result = self.run_ps('-Action', 'Verify', '-Session', self.session)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('human-observed displacement', result.stderr)
+
+    def test_legacy_unindexed_bank_is_not_a_valid_capture(self):
+        (self.session / 'PRE-MEM1.bin').write_bytes(b'not even a dump')
+        result = self.run_ps('-Action', 'Status', '-Session', self.session)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Unindexed native banks', result.stderr)
 
 
 if __name__ == '__main__':
