@@ -15,6 +15,7 @@ import re
 import sys
 
 PHASES = ("B0", "B1", "B2", "B3")
+PHASE_LABELS = ("idle_baseline", "idle_delayed", "wasd_aim_only", "idle_after_aim")
 VECTOR_KEYS = ("selected_ball", "selected_start", "selected_record_plus_054",
                "selected_record_plus_060", "selected_pin")
 BALL_TRIPLETS = {"current_translation_030": 0x030,
@@ -49,7 +50,7 @@ def safe_object_summary(report: dict) -> dict:
     if not isinstance(report, dict) or report.get("kind") != GAME_KIND:
         raise InvalidStudy("not an S002 source-object-window four-phase JSON")
     if (report.get("schema_version") != 1 or report.get("game_id") != "RSPE01"
-            or report.get("revision") != 1 or report.get("phase_names") != list(PHASES)):
+            or report.get("revision") != 1 or report.get("phase_names") != list(PHASE_LABELS)):
         raise InvalidStudy("unexpected game revision or phase provenance")
     window_data = report.get("windows")
     phase_vectors = report.get("vec3_by_phase")
@@ -112,7 +113,8 @@ def safe_object_summary(report: dict) -> dict:
     # automatically treat ball_object_0 as the active ball.
     return {
         "kind": "PRIVATE-sanitized-existing-source-object-phase-triage",
-        "phase_labels": list(PHASES),
+        "phase_ids": list(PHASES),
+        "phase_labels": list(PHASE_LABELS),
         "source_game_revision_checked": True,
         "all_bank_pairs_distinct_reported": report.get("all_bank_pairs_distinct") is True,
         "selected_slot_and_hole_stable_reported": report.get("selected_slot_and_hole_stable") is True,
