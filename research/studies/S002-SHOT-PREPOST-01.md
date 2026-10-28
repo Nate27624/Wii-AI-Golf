@@ -140,6 +140,11 @@ irrespective of the candidate result.
   source START and owners after a visibly displaced shot is
   **supportive differential evidence**, not proof of physical
   XYZ, movement timing or causality.
+- MEM1 contains executable/state roots while selected player/ball/start
+  translations are already source-gated to MEM2; **MEM1 hashes may remain
+  identical** across a legitimate ball-position change. A MEM2 bank change
+  is expected for a changed selected ball vector. Full-bank hash equality
+  is an integrity/diagnostic flag, not a physical-motion sensor.
 - The ball may have been reset to START before the GUI pause;
   a no-change result is **inconclusive**, never proof the
   visible ball didn't move.
