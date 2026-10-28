@@ -47,7 +47,7 @@ $expected = [ordered]@{
     same_object_runtime_write_proven = $false
     true_function_boundary_or_typed_receiver_verified = $false
     store_executed_in_same_shot_verified = $false
-    approved_for_training = $false
+    training_approved = $false
     allowed_to_publish = $false
 }
 $violations = New-Object 'System.Collections.Generic.List[string]'
