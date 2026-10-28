@@ -142,3 +142,52 @@ Use this to decide whether the best *next source trace* is value-side
 integer arguments to a specific formatting call, a typed static format
 string origin, or else the indirect NW4R/RPSys layout/message dispatch
 path. Separate S001/#248 guest-frame and visual result link remains P0.
+
+## Real second-stage r31/variadic register result, operator 2026-10-28
+
+The owner ran #256 exact pinned source `bd3335a50c78e85896b75329a4b9fed9755059b8`
+locally with original B0 SHA/source gate PASS and 15/15 focused synthetic
+tests PASS. All 14 `bl sprintf` sites reconfirmed. The source-syntax
+analysis found **11 possible r31 high/low constant pairs**, three
+`addi r31,r6,imm` categories, and **12/14 sites with a control-flow
+barrier after the candidate r31 definition**. Thus the existing
+constant-construction classifications are **not trusted format-string
+pointers or runtime paths**. r5 was syntactically prepared at all fourteen
+sites from r26/r27/r28/r29; none of those underlying source values were
+read or typed. No source-proven distance, score, layout/render, pointer,
+function CFG, output format or training variable established.
+
+## Third-stage disjoint strict format-category probe
+
+`scripts/audit_p0_golf_sprintf_format_types_private.py` is a
+**more conservative** local offline, original-B0 source-gated study.
+For precisely the same fourteen exact direct `sprintf` sites, it inspects
+at most 0xC00 preceding bytes and accepts a possible format pointer only
+when a **single bounded branch-free suffix** contains either:
+
+- `lis r31,hi; addi r31,r31,lo; addi r4,r31,disp`, or
+- `lis r6,hi; addi r31,r6,lo; addi r4,r31,disp`,
+
+with no recognized or ambiguous intervening tracked register writes.
+An unknown source, wrong target, branch/call barrier, unsupported
+register clobber or pointer outside original MEM1 yields `NOT_QUALIFIED`,
+not an invented result. For qualifying candidates, **private local only**,
+it reads at most 96 bytes at a bounded candidate address and emits ONLY
+coarse types: NUL-terminated printable ASCII candidate, count of
+recognized printf conversions, integer/float/string/pointer conversion
+presence. It NEVER emits the literal text, candidate address, source
+instruction words, runtime pointers, gameplay numeric values, full paths,
+hashes or ROM bytes.
+
+A constant construction **even within a branch-free linear suffix**
+is still syntactic evidence, not complete function CFG reaching-def
+or guarantee that this path executed or the source address is a true
+literal pool. Presence of `%f` or `%d` alone does not identify the
+Hitting-the-Green result, units or a typed backing memory field.
+Unqualified sites remain `unknown`, not `not numeric`.
+
+Source correctness review #259 independently hardens original
+`_reg_def_class` for rA/write-update/multiword clobbers, and is NOT
+overwritten by this new-only extension. Integrate only with S002
+owner approval. The independent S001 guest frame+visual result contract
+in #248 is unchanged. All training/publication claims remain FALSE.
