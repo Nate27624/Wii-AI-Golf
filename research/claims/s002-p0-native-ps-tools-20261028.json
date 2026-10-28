@@ -5,8 +5,7 @@
   "claim_comment": "https://github.com/Nate27624/Wii-AI-Golf/pull/201#issuecomment-6460948837",
   "branch": "agent/support/p0-native-phase-ps-tools-20261028",
   "owned_paths": [
-    "scripts/New-GolfNativeShotSession.ps1",
-    "scripts/Test-GolfNativeShotPair.ps1",
+    "scripts/Invoke-GolfNativeShot.ps1",
     "tests/test_s002_native_phase_powershell.py",
     ".github/workflows/s002-p0-native-ps-tools.yml",
     "research/studies/S002-NATIVE-PHASE-POWERSHELL-01.md",
@@ -29,6 +28,7 @@
     "S002 native PRE/POST verification",
     "S000 PowerShell-only integration review"
   ],
-  "status": "draft, offline-only, no live Dolphin approval",
-  "data_classification": "Public: source/tests/docs only. RAW-PRIVATE banks and manifests remain in ignored sibling Data."
+  "status": "draft; corrected single standalone script, PS5 and PS7 CI pending; no real live capture",
+  "data_classification": "Public: source/tests/docs only. RAW-PRIVATE banks and manifests remain in ignored sibling Data.",
+  "operator_feedback": "Do not claim skipped tests passed; Status on empty session must be AWAITING_PRE, Verify requires captured PRE and POST."
 }
