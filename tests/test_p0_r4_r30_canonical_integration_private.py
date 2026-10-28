@@ -79,6 +79,34 @@ class NativeR4R30Tests(unittest.TestCase):
         with self.assertRaises(omega.Abstain):
             omega._operand_extract(y)
 
+    def test_omega_accepts_only_bounded_public_static_load_detail(self):
+        src=report()["outer_operand_source_rows"]
+        row=dict(src[0])
+        row["nearest_pre_mr_integer_load_source_detail"]={
+            "candidate_D_form_integer_load_mnemonic":"lwz",
+            "candidate_base_register":"r3",
+            "candidate_source_field_displacement":"+0x088",
+            "base_register_runtime_object_class_proven":False,
+            "candidate_load_reaches_receiver_on_all_paths_proven":False,
+        }
+        x={"original_fourteen_native_banks_sha_verified_before_and_after":True,
+           "two_source_code_windows_identical_all_seven":True,
+           "source_selected_scene_gated_for_all_seven":True,
+           "source_operand_hints":[row,src[1]]}
+        got=omega._operand_extract(x)
+        self.assertEqual(got[0]["source_static_load_detail"]["candidate_source_field_displacement"],"+0x088")
+        self.assertIsNone(got[1]["source_static_load_detail"])
+        for field, invalid in (("candidate_base_register","r999"),
+                               ("candidate_source_field_displacement","0x90001000"),
+                               ("candidate_D_form_integer_load_mnemonic","stw"),
+                               ("base_register_runtime_object_class_proven",True),
+                               ("candidate_load_reaches_receiver_on_all_paths_proven",True)):
+            with self.subTest(field=field):
+                y=json.loads(json.dumps(x))
+                y["source_operand_hints"][0]["nearest_pre_mr_integer_load_source_detail"][field]=invalid
+                with self.assertRaises(omega.Abstain):
+                    omega._operand_extract(y)
+
     def test_isolated_python_cli_from_other_cwd(self):
         with tempfile.TemporaryDirectory() as temp:
             script=Path(__file__).resolve().parents[1]/"scripts"/"audit_p0_outer_operand_r4_r30_private.py"
