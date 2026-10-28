@@ -4,7 +4,7 @@
   "game_id": "RSPE01",
   "target_revision": 1,
   "status": "research_only_no_verified_power_fields",
-  "source_state": "User independently executed current #160 source-gated saved pair: selected candidate slot0 record and nested simulation translation and current start are exactly 3/3 word-equal, with 0/3 unselected start matches. Strong static ball-at-start initialization candidate, NOT verified active ball motion, units, same-frame scene, wind or swing power.",
+  "source_state": "Operator confirmed three preserved directories are bitwise copies of ONE complete native MEM1+MEM2 state. Source-selected record0 and ball-like nested vector and selected start are equal on three components at initialization; no independent motion, same-frame verification, world units, power or trainable observations. Future #165 temporal consumer lacks S001 live sampler.",
   "evidence_levels_note": "Identity and behavior are separate axes; runtime candidate and observed change are NOT verified gameplay meaning.",
   "training_gate": "No field can be used as a verified game-state training feature or target without verified code writer, independent boot, same-shot frame provenance and gameplay semantics. Stored booleans are evidence claims, not inferred from numerical correlations.",
   "fields": [
@@ -545,9 +545,10 @@
       "training_eligible": false,
       "evidence_refs": [
         "https://github.com/Nate27624/Wii-AI-Golf/pull/159",
-        "https://github.com/Nate27624/Wii-AI-Golf/pull/160"
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/160",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/163"
       ],
-      "notes": "PPC source-backed four inline PlayerManager records stride0xCC and SimManager records stride0x1AC; record-relative+0x88 points to matching candidate simulator object. Operator source gate chooses record index0; its three source-position words and ball-related nested translation match selected start marker 3/3, while three other slot vectors do not fully match selected start. Active player selection and live-game ball identity remain unverified."
+      "notes": "Rev1 code traces record-relative +0x88 indexed simulation-object reference; selected candidate record index0 has 3/3 start/nested/record vector equality, with no unselected full matches. Three preserved directory pairs are bitwise identical MEM1 and MEM2, so single snapshot only; actual gameplay ball/physical coordinates and independent boots remain unverified."
     },
     {
       "field_id": "golfer.ball_related_translation_write_path",
@@ -565,9 +566,11 @@
       "training_eligible": false,
       "evidence_refs": [
         "https://github.com/Nate27624/Wii-AI-Golf/pull/159",
-        "https://github.com/Nate27624/Wii-AI-Golf/pull/160"
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/160",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/163",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/165"
       ],
-      "notes": "Actual operator #160 preserved-pair report: source selector candidate record index0; selected record+0x54, selected record+0x60, ball-related nested translation via record+0x88 and child+0x4C, and source-selected start marker translation ALL agree word-for-word on 3/3 components. Zero of three unselected ball-related vectors fully match the current start. All 4 candidate nested pointers mapped; only 1/4 record triplets match nested. Source code traces 3-f32 translation writer and start initialization, but dynamic motion/active ball/world units, same-frame/boot, contact and power remain unverified."
+      "notes": "One UNIQUE preserved native source state (three local folders were SHA-equal copies of both full RAM banks). Selected candidate index0: selected record+0x54 and+0x60, nested ball-like object+0x4C three-word destination, and current start getter translation all match 3/3; 0/3 nonselected nested vectors fully match start. Rev1 PPC contains three-f32 source writer and start initialization. Bitwise duplicate files add no replicate; no active visual ball motion, world units, frame-atomicity or verified physics."
     },
     {
       "field_id": "golfer.player_manager_inline_roster",
