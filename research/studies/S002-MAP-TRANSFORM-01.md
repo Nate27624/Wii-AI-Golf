@@ -136,3 +136,13 @@ if ($LASTEXITCODE -ne 0) { throw "Offline source gate rejected pair" }
 ~~~
 
 Share only the console's sanitized boolean report; never upload native banks, raw pointers, or numeric PRIVATE report. No new Dolphin actions are required. The #159 targeted Windows/Linux CI was green; full Windows regression and S002 class-layout review remain outstanding.
+
+## Operator native-file inventory and updated PPC constructor source evidence
+
+Operator found native 24MiB MEM1 + 64MiB MEM2 files in three places: current Dolphin Dump directory and two preserved subfolders under the ignored sibling Wii-AI-Golf-Data/mem-checkpoints directory, named roster-existing and unclassified-20261027-203338. The historical example filenames B0-MEM1.bin and B0-MEM2.bin do NOT exist in the earlier assumed folder. This was a safe stop, not a failed analysis.
+
+Use the preserved pair in each folder DIRECTLY by passing that folder as --private-root, and its mem1.raw and mem2.raw as --mem1/--mem2. Write an exclusive new -PRIVATE.json output in the same folder. No copying, Dolphin, input, savestate, network or upload is needed. Compare local SHA256 pair identities to avoid analyzing duplicate images as independent scenes; do NOT publish hashes. Different file content does not prove a different boot, game phase or observed coordinate variant.
+
+Other agent's *actual Rev1 DOL* inspection identified RPGolMapObjBase constructor at 0x80290A48: BE f32 translation at object +0x30/+0x34/+0x38, scale at +0x3C/+0x40/+0x44, rotation self-pointer at +0x48 points to obj+0x0C, translation self-pointer at +0x4C points to obj+0x30. Published header erroneously labels last pointers +0x40/+0x44. New audit checks exact equality of the two bounded self-reference slots WITHOUT following either pointer and returns constructor_layout_consistent_candidate, rotation selfref match and translation selfref match. Neither numerical finiteness nor these selfref matches proves the selected pin or player-start object's dynamic type, map units, current ball XYZ, or genuine world-space location. Real user B0 pair already had horizontal start-to-pin separation 216.551 unknown game units, pin/cup horizontal coincidence and +3 vertical offset as independently reported by S002. Treat as one historical scene.
+
+Windows+Ubuntu Python 3.13 targeted synthetic CI run 40611438500 passed following the self-reference additions. Operator Windows FULL suite and real #159 console candidate flags are NOT yet available. S002 owners must confirm derived class base pointer alignment and field semantics before promoting any vector in S000 field ledger.
