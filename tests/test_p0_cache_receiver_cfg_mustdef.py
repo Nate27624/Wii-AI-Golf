@@ -144,6 +144,19 @@ class CfgReceiverMustDefTests(unittest.TestCase):
         self.assertNotIn("0x80299",str(r))
         self.assertNotIn("0x9000",str(r))
 
+    def test_reported_first_caller_entry_after_callsite_abstains(self):
+        # #240's first tuple claims the entry fn_80299ACC while its bl
+        # instruction is at 0x80299B64 (0x168 bytes EARLIER).
+        # This must never be promoted to static r31 provenance.
+        name, entry, pc = mod.CALLERS[0]
+        self.assertGreater(entry, pc)
+        out = mod.prove_caller(
+            lambda _: (_ for _ in ()).throw(AssertionError("no source read")),
+            entry=entry, callsite=pc
+        )
+        self.assertEqual(out["status"],"ABSTAIN_SOURCE_UNRESOLVED")
+        self.assertFalse(out["all_reaching_paths_pass_entry_r3_through_r31_to_call_r3"])
+
     def test_native_free_cli(self):
         p=subprocess.run([sys.executable,str(SCRIPT)],capture_output=True,text=True,timeout=10)
         self.assertEqual(p.returncode,0,p.stderr)
