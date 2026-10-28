@@ -127,13 +127,13 @@ class DrawThunkTests(unittest.TestCase):
                 }
                 return vals.get(pc,0)
             chk={n:root for n in range(1,8)}
-            with patch.object(d.prior.seven,"_check_archive",side_effect=[chk,chk]) as check, \\
-                 patch.object(d.prior.seven,"SIZE",(4,4)), \\
+            with patch.object(d.prior.seven,"_check_archive",side_effect=[chk,chk]) as check, \
+                 patch.object(d.prior.seven,"SIZE",(4,4)), \
                  patch.object(d.prior.seven.src,"_file",
-                     side_effect=lambda folder,name,size:folder/name), \\
+                     side_effect=lambda folder,name,size:folder/name), \
                  patch.object(d.prior.roster,"TwoBankReader",
-                     side_effect=lambda *args:SimpleNamespace(u32=fake_get)), \\
-                 patch.object(d.prior.seven,"_get",return_value={"hole":0}), \\
+                     side_effect=lambda *args:SimpleNamespace(u32=fake_get)), \
+                 patch.object(d.prior.seven,"_get",return_value={"hole":0}), \
                  patch.object(d.prior.roster,"_bank",
                      side_effect=lambda ptr,size:
                      "MEM1" if ptr==0x80001000 else "MEM2"):
