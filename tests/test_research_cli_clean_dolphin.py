@@ -91,6 +91,8 @@ class P0CleanCliV1Tests(unittest.TestCase):
                                              return_value={
                                                  "capture_status": "sanitized_human_annotation_only",
                                                  "settled_screen_observation": "operator_confirmed_before_transition",
+                                        "terminal_capture_mode": "result_first_human_prompt",
+                                        "terminal_human_category": "on_green",
                                                  "human": {"contact_human": "unknown"}
                                              }))
             result = research_cli.main(commands)
