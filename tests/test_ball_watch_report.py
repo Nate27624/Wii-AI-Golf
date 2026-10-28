@@ -40,6 +40,21 @@ class ReportTests(unittest.TestCase):
         self.assertFalse(safe["start_vector_stable"])
         self.assertFalse(safe["candidate_motion_corroborated_by_human"])
 
+    def test_pretrace_ball_drift_blocks_false_contact(self):
+        reports = [sample(10), sample(14, ball=(0.1, 0., 0.)),
+                   sample(18, ball=(0.2, 0., 0.), trace_index=0),
+                   sample(22, ball=(1., 0., 0.), trace_index=4)]
+        safe = summarize(reports, human_ball_moved="yes")
+        self.assertFalse(safe["pretrace_candidate_ball_stationary"])
+        self.assertTrue(safe["candidate_ball_changed_after_trace_start"])
+        self.assertFalse(safe["candidate_motion_corroborated_by_human"])
+
+    def test_no_trace_blocks_corroboration_even_if_ball_changes(self):
+        reports = [sample(10), sample(14, ball=(1., 0., 0.))]
+        safe = summarize(reports, human_ball_moved="yes")
+        self.assertFalse(safe["candidate_ball_changed_after_trace_start"])
+        self.assertFalse(safe["candidate_motion_corroborated_by_human"])
+
     def test_human_unknown_blocks_corroboration(self):
         r = [sample(1), sample(5, ball=(1., 0., 0.))]
         safe = summarize(r, human_ball_moved="unknown")
