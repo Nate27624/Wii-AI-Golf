@@ -1,0 +1,29 @@
+name: P0 seven-writer original-manifest guard (synthetic only)
+
+on:
+  push:
+    branches:
+      - 'agent/research/p0-writer-canonical-manifest-gate-*'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_seven_writer_manifest_guard_private.py'
+      - 'tests/test_p0_seven_writer_manifest_guard_private.py'
+      - '.github/workflows/p0-seven-writer-manifest-guard.yml'
+
+jobs:
+  fabricated-only:
+    name: Fabricated tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check Python syntax
+        run: python -m py_compile scripts/audit_p0_seven_writer_manifest_guard_private.py tests/test_p0_seven_writer_manifest_guard_private.py
+      - name: Execute native-free privacy and SHA regression tests
+        run: python -I tests/test_p0_seven_writer_manifest_guard_private.py
