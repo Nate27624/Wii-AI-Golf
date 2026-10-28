@@ -32,9 +32,9 @@ def synthetic(parts=(), via_r6=True):
     code = bytearray(b"\x60\x00\x00\x00" * 0x1400)
     src = 6 if via_r6 else 31
     words = {
-        CALL - 24: d(15, src, 0, 0x8040),     # signed high half
-        CALL - 20: d(14, 31, src, 0x0120),   # low half
-        CALL - 16: d(14, 4, 31, 0x0010),     # format r4 from r31
+        CALL - 32: d(15, src, 0, 0x8040),     # signed high half
+        CALL - 24: d(14, 31, src, 0x0120),   # low half
+        CALL - 8: d(14, 4, 31, 0x0010),     # format r4 from r31
         CALL: bl(CALL, triage.prior.SPRINTF),
     }
     words.update(dict(parts))
@@ -72,15 +72,14 @@ class StrictFormatTypeTests(unittest.TestCase):
         self.assertTrue(result["format_buffer_class"]["has_float_conversion"])
 
     def test_branch_between_high_and_low_abstains(self):
-        r = inspect(parts=((CALL - 22 * 4, bl(CALL - 22 * 4,
-                                              CALL - 20, False)),))
+        r = inspect(parts=((CALL - 28, bl(CALL - 28,
+                                              CALL - 24, False)),))
         self.assertNotEqual(r["static_format_candidate_status"],
                             "bounded_linear_constant_candidate")
         self.assertEqual(r["format_buffer_class"]["status"], "not_qualified")
 
     def test_call_barrier_after_high_cannot_prove_const(self):
-        r = inspect(parts=((CALL - 22, bl(CALL - 24, CALL - 20, True)),))
-        # Misaligned fixture key intentionally rejected by synthetic()
+        r = inspect(parts=((CALL - 28, bl(CALL - 28, CALL - 24, True)),))
         self.assertEqual(r["format_buffer_class"]["status"], "not_qualified")
 
     def test_last_r4_xori_write_invalidates_pointer(self):
@@ -99,17 +98,17 @@ class StrictFormatTypeTests(unittest.TestCase):
                          "r4_last_def_not_addi_r31")
 
     def test_r31_other_write_before_r4_blocks_chained_const(self):
-        r = inspect(parts=((CALL - 18, d(14, 31, 28, 0)),))
+        r = inspect(parts=((CALL - 16, d(14, 31, 28, 0)),))
         self.assertNotEqual(r["static_format_candidate_status"],
                             "bounded_linear_constant_candidate")
 
     def test_high_half_not_lis_fails_closed(self):
-        r = inspect(parts=((CALL - 24, d(14, 6, 0, 0x8000)),))
+        r = inspect(parts=((CALL - 32, d(14, 6, 0, 0x8000)),))
         self.assertEqual(r["static_format_candidate_status"],
                          "high_half_not_source_lis")
 
     def test_pointer_out_of_mem1_fails_without_read(self):
-        r = inspect(parts=((CALL - 24, d(15, 6, 0, 0x7000)),))
+        r = inspect(parts=((CALL - 32, d(15, 6, 0, 0x7000)),))
         self.assertEqual(r["static_format_candidate_status"],
                          "candidate_pointer_outside_original_mem1")
         self.assertEqual(r["format_buffer_class"]["status"], "not_qualified")
