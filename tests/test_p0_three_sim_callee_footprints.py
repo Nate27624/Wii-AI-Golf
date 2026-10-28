@@ -70,6 +70,84 @@ class CalleeFootprint(unittest.TestCase):
         self.assertEqual(x["source_integer_D_form_store_sites"][0]["source_signed_displacement"],-12)
         self.assertEqual(x["source_float_D_form_load_count"],1)
 
+    def test_psq_DQ_store_hazards_are_not_fake_stfs_displacements(self):
+        # Wii PSQ DQ-form: do not decode lower bits as ordinary stfs disp.
+        row=run(modcallees={"fn_8029B43C":{
+            0:(60<<26)|(1<<21)|(3<<16)|0xFED0,
+            4:(61<<26)|(2<<21)|(4<<16)|0x0041,
+        }})["callee_footprints"][1]
+        self.assertEqual(row["source_wii_memory_store_hazard_count"],2)
+        self.assertEqual(row["source_float_D_form_store_sites"],[])
+        self.assertEqual([x["untyped_store_opcode_class"] for x in
+                          row["source_wii_memory_store_hazards_not_typed_to_ball"]],
+                         ["paired_single_DQ_store","paired_single_DQ_store"])
+        self.assertFalse(row["source_store_effect_exhaustively_classified"])
+
+    def test_psq_indexed_store_subopcode_7_and_39(self):
+        # Primary opcode 4's three-bit-subtable is selected from SUBOP10
+        # modulo 64 (not full op31 XO10 or ordinary signed displacement).
+        row=run(modcallees={"fn_8029B554":{
+            0:(4<<26)|(7<<1),
+            4:(4<<26)|(39<<1),
+            8:(4<<26)|(7<<1)|(1<<6),
+        }})["callee_footprints"][0]
+        self.assertEqual(row["source_wii_memory_store_hazard_count"],3)
+        self.assertEqual([x["relative_pc"] for x in
+                          row["source_wii_memory_store_hazards_not_typed_to_ball"]],
+                         ["+0x0000","+0x0004","+0x0008"])
+        self.assertTrue(all(x["untyped_store_opcode_class"]==
+                            "paired_single_indexed_store" for x in
+                            row["source_wii_memory_store_hazards_not_typed_to_ball"]))
+
+    def test_other_source_store_hazards_stfiwx_and_byte_reverse(self):
+        missing=(983,662,918,661,725)
+        row=run(modcallees={"fn_8029B43C":{
+            i*4:(31<<26)|(xo<<1) for i,xo in enumerate(missing)
+        }})["callee_footprints"][1]
+        self.assertEqual(row["source_wii_memory_store_hazard_count"],5)
+        self.assertTrue(all(x["untyped_store_opcode_class"]==
+                            "other_indexed_or_string_memory_store" for x in
+                            row["source_wii_memory_store_hazards_not_typed_to_ball"]))
+        self.assertEqual(row["source_X_form_store_candidates_not_proven_receiver"],0)
+
+    def test_psq_load_and_paired_arithmetic_are_not_store_hazards(self):
+        row=run(modcallees={"fn_8029B554":{
+            0:(56<<26),
+            4:(57<<26),
+            8:(4<<26)|(6<<1),  # psq_lx
+            12:(4<<26)|(38<<1),  # psq_lux
+            16:(4<<26)|(21<<1),  # ps_add
+        }})["callee_footprints"][0]
+        self.assertEqual(row["source_wii_memory_store_hazard_count"],0)
+        self.assertFalse(row["pure_predicate_or_game_ball_integrator_verified"])
+
+    def test_known_stfs_and_x_store_not_double_counted_as_wii_unknown(self):
+        row=run(modcallees={"fn_8029B554":{
+            0:d(52,1,3,4),
+            4:(31<<26)|(663<<1),  # stfsx
+        }})["callee_footprints"][0]
+        self.assertEqual(len(row["source_float_D_form_store_sites"]),1)
+        self.assertEqual(row["source_X_form_store_candidates_not_proven_receiver"],1)
+        self.assertEqual(row["source_wii_memory_store_hazard_count"],0)
+
+    def test_all_zero_store_classes_still_do_not_verify_purity(self):
+        row=run()["callee_footprints"][0]
+        self.assertEqual(row["source_wii_memory_store_hazard_count"],0)
+        self.assertEqual(row["source_float_D_form_store_sites"],[])
+        self.assertEqual(row["source_integer_D_form_store_sites"],[])
+        self.assertFalse(row["source_store_effect_exhaustively_classified"])
+        self.assertFalse(row["pure_predicate_or_game_ball_integrator_verified"])
+
+    def test_no_raw_ppc_or_dynamic_identity_in_new_report(self):
+        out=run(modcallees={"fn_8029B554":{4:(60<<26)}})
+        content=json.dumps(out)
+        self.assertIn("paired_single_DQ_store",content)
+        self.assertNotIn("private_heap",content)
+        self.assertNotIn("raw_instruction",content)
+        self.assertFalse(out["runtime_global_or_selected_ball_receiver_verified"])
+        self.assertFalse(out["guest_physics_step_clock_verified"])
+        self.assertFalse(out["training_approved"])
+
     def test_direct_B_and_linked_callee_branch_differ(self):
         name="fn_8029B57C"
         entry=0x8029B57C

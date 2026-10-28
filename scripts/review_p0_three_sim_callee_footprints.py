@@ -19,6 +19,11 @@ FLOAT_STORE_OPS=(52,53,54,55)
 GPR_STORE_OPS=(36,37,38,39,44,45,47)
 GPR_LOAD_OPS=(32,33,34,35,40,41,42,43,46)
 X_STORE_XOS=(151,183,215,247,407,439,663,695,727,759)
+# Independently verified public Gekko store opcodes from pinned Felk PPCTables.cpp.
+# These are separate hazards, not D-form f32 or receiver-typed stores.
+OTHER_INDEXED_MEMORY_STORE_XOS=(661,662,725,918,983)
+PSQ_PRIMARY_STORE_OPS=(60,61)
+PSQ_INDEXED_STORE_SUBOPS=(7,39)  # PPC primary 4, (word >> 1) & 63
 
 def _bl_target(pc,w):
     off=w&0x03fffffc
@@ -85,6 +90,7 @@ def analyze(main_words, callee_words, main_report):
         fp_loads=0
         gpr_loads=0
         ambiguous_xform_memory=0
+        untyped_wii_store_hazards=[]
         for i,w in enumerate(words):
             _word(w)
             op=w>>26
@@ -116,6 +122,23 @@ def analyze(main_words, callee_words, main_report):
             elif op in GPR_LOAD_OPS:gpr_loads+=1
             elif op==31 and (w>>1)&1023 in X_STORE_XOS:
                 ambiguous_xform_memory+=1
+            elif (op in PSQ_PRIMARY_STORE_OPS
+                  or (op==4 and ((w>>1)&63) in PSQ_INDEXED_STORE_SUBOPS)
+                  or (op==31 and ((w>>1)&1023) in OTHER_INDEXED_MEMORY_STORE_XOS)):
+                # Wii/Gekko can write memory without a conventional
+                # stfs/stw D-form opcode. Do not parse PSQ as signed D-form
+                # displacement: its quantization/index fields differ.
+                if op in PSQ_PRIMARY_STORE_OPS:
+                    kind="paired_single_DQ_store"
+                elif op==4:
+                    kind="paired_single_indexed_store"
+                else:
+                    kind="other_indexed_or_string_memory_store"
+                untyped_wii_store_hazards.append({
+                    "relative_pc":_rel(pc,entry),
+                    "untyped_store_opcode_class":kind,
+                    "receiver_alias_or_actual_ball_write_verified":False,
+                })
         summary.append({
             "public_source_function":name,
             "function_size_bytes":length,
@@ -130,6 +153,11 @@ def analyze(main_words, callee_words, main_report):
             "source_integer_D_form_load_count":gpr_loads,
             "source_float_D_form_load_count":fp_loads,
             "source_X_form_store_candidates_not_proven_receiver":ambiguous_xform_memory,
+            "source_wii_memory_store_hazards_not_typed_to_ball":untyped_wii_store_hazards,
+            "source_wii_memory_store_hazard_count":len(untyped_wii_store_hazards),
+            # Even a zero store hazard count cannot show purity: direct
+            # calls and unrecognized ISA instructions may mutate state.
+            "source_store_effect_exhaustively_classified":False,
             "pure_predicate_or_game_ball_integrator_verified":False,
         })
 
