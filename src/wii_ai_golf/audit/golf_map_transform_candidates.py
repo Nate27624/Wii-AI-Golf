@@ -73,13 +73,13 @@ def inspect_named_map_object(banks, address: int) -> tuple[dict, dict]:
     return safe, private
 
 
-def audit_paired_map_candidates(mem1, mem2) -> tuple[dict, dict]:
+def audit_paired_map_candidates(mem1, mem2, *, strict_size=True) -> tuple[dict, dict]:
     """Strict previous source gate then two small source-shaped candidate windows.
 
     Safe report may be pasted into an issue only after owner's publication review.
     Private report is for local research only and MUST NOT enter GitHub.
     """
-    verified = audit_pair(mem1, mem2, strict_size=True)
+    verified = audit_pair(mem1, mem2, strict_size=strict_size)
     if verified["source_chain"]["current_golf_scene_region"] != "MEM2":
         raise ValueError("Expected source-supported Golf scene in MEM2")
     banks = _Banks(mem1, mem2)
