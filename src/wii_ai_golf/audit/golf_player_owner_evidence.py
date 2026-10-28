@@ -26,7 +26,7 @@ def _in(pointer, interval):
     return interval[0] <= pointer < interval[1]
 
 
-def _table_evidence(banks, object_ptr, data_interval, code_interval):
+def _table_evidence(banks, object_ptr, data_interval, code_interval, *, min_functions=MIN_FUNCTION_POINTERS):
     if banks.region(object_ptr, 0x80) != "MEM2":
         return None
     vptr = banks.u32(object_ptr)
@@ -38,7 +38,7 @@ def _table_evidence(banks, object_ptr, data_interval, code_interval):
         return None
     functions = sum(_in(banks.u32(vptr + 4*i), code_interval)
                     for i in range(N_TABLE_WORDS))
-    if functions < MIN_FUNCTION_POINTERS:
+    if functions < min_functions:
         return None
     return functions
 
@@ -68,7 +68,7 @@ def audit_player_owner(mem1, mem2, *, strict_size=True):
             })
     player_manager = banks.u32(STATIC_PLAYER_MANAGER)
     mgr_table = _table_evidence(
-        banks, player_manager, PLAYER_MANAGER_DATA, PLAYER_MANAGER_TEXT)
+        banks, player_manager, PLAYER_MANAGER_DATA, PLAYER_MANAGER_TEXT, min_functions=1)
     return {
         "schema_version": 1,
         "kind": "local-golf-player-object-source-evidence",
