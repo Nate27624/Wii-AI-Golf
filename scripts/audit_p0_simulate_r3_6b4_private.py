@@ -20,6 +20,7 @@ if _HERE in sys.path:
 sys.path.insert(0, _HERE)
 import audit_p0_authenticated_receiver_chain_private as existing
 import review_p0_simulate_r3_6b4_source as probe
+import review_p0_simulate_savegpr26_source as savegpr
 
 
 def analyze(archive, canonical_source_scripts):
@@ -34,6 +35,7 @@ def analyze(archive, canonical_source_scripts):
     folders = seven._check_archive(original)
     source_hash = None
     result = None
+    savegpr_result = None
     for n in range(1, 8):
         with ExitStack() as stack:
             mm = []
@@ -50,15 +52,23 @@ def analyze(archive, canonical_source_scripts):
                 if type(w) is not int or not 0 <= w <= 0xFFFFFFFF:
                     raise ValueError("unqualified source PPC word")
                 dig.update(w.to_bytes(4, "big"))
+            for pc in range(savegpr.SAVE_HELPER,
+                            savegpr.SAVE_HELPER+savegpr.HELPER_INSTRUCTIONS*4, 4):
+                w = rd.u32(pc)
+                if type(w) is not int or not 0 <= w <= 0xFFFFFFFF:
+                    raise ValueError('unqualified Rev1 save helper PPC word')
+                dig.update(w.to_bytes(4, 'big'))
             digest = dig.digest()  # Never print or include digest in output.
             if source_hash is None:
                 source_hash = digest
             elif source_hash != digest:
                 raise ValueError("inconsistent original Rev1 source code")
             row = probe.analyze(rd.u32)
+            helper = savegpr.inspect(rd.u32)
             if result is None:
                 result = row
-            elif row != result:
+                savegpr_result = helper
+            elif row != result or helper != savegpr_result:
                 raise ValueError("source triage differs across original samples")
     seven._check_archive(original)  # all 14 original bank SHAs again
     if result is None or result.get("training_approved") is not False:
@@ -69,6 +79,7 @@ def analyze(archive, canonical_source_scripts):
         "rspe01_rev1_source_selected_scene_all_seven": True,
         "ppc_source_window_equal_all_seven": True,
         "source_load_base_r3_hint": result,
+        "static_register_save_helper_prologue": savegpr_result,
         "same_guest_frame_or_shot_verified": False,
         "rendered_ball_global_or_roster_receiver_verified": False,
         "velocity_xyz_power_contact_score_verified": False,
