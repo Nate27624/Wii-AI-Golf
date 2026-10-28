@@ -168,3 +168,95 @@ This is read-only offline. No current-user work is needed until
 capture preflight is approved. Sharing even the sanitized
 `allowed_to_publish=false` JSON outside private chat requires S000
 review; it is not auto-uploaded to the public repository.
+
+
+## AFTER APPROVAL: reusable PowerShell commands (do NOT run before review)
+
+These are prepared now so the operator can receive a reviewed,
+copy/paste-ready sequence **after** S001/S002/S000 sign off.
+Never assume the separate clean Felk installation has the old
+controller profile, named golf pre-start savestate, or working
+on-screen ball-contact baseline.
+
+### Worktree and offline tests
+
+```powershell
+$repo = "D:\Projects\Wii Golf AI\Wii-AI-Golf"
+$work = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Shot-PrePost"
+$data = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data"
+$branch = "agent/research/private-shot-prepost-cohort-20261027"
+
+if (Test-Path -LiteralPath $work) { throw "Existing worktree: preserve it" }
+git -C $repo fetch origin "refs/heads/${branch}:refs/remotes/origin/${branch}"
+if ($LASTEXITCODE -ne 0) { throw "Fetch failed" }
+git -C $repo worktree add --detach $work "origin/$branch"
+if ($LASTEXITCODE -ne 0) { throw "Worktree failed" }
+Set-Location $work
+py -m unittest discover -s tests -p "test_selected_ball_prepost_shot_private.py" -v
+if ($LASTEXITCODE -ne 0) { throw "Focused test failed: stop" }
+py -m unittest discover -s tests -v
+if ($LASTEXITCODE -ne 0) { throw "Full test failed: stop" }
+```
+
+The live-capture steps **MUST come from the approved S001 owner**
+because Dolphin GUI export commands/actual portable User Dump folder
+must be verified locally before using them. Without an explicitly
+verified contact baseline, STOP after the tests and do not send a shot.
+
+### After operator has successfully exported and preserved all four banks
+
+An approved capture folder should already contain these exact distinct
+files; the scripts **do not export or populate them**:
+`PRE-MEM1.bin`, `PRE-MEM2.bin`,
+`POST-MEM1.bin`, `POST-MEM2.bin`.
+
+```powershell
+$session = Join-Path $data "captures\SHOT-<reviewed-local-id>-PRIVATE"
+
+$expected = @{
+    "PRE-MEM1.bin" = 24MB
+    "PRE-MEM2.bin" = 64MB
+    "POST-MEM1.bin" = 24MB
+    "POST-MEM2.bin" = 64MB
+}
+foreach ($name in $expected.Keys) {
+    $file = Join-Path $session $name
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+        throw "Preserved native bank missing: $name"
+    }
+    if ((Get-Item -LiteralPath $file).Length -ne $expected[$name]) {
+        throw "Wrong private native bank size: $name"
+    }
+}
+
+& .\scripts\prepare_golf_prepost_manifest_private.ps1 `
+    -PrivateDataRoot $data `
+    -SessionFolder $session `
+    -ConfirmSameDolphinProcess `
+    -ConfirmExactlyOneShot `
+    -ConfirmVisibleBallDisplacementBeforeReset `
+    -ConfirmNoHoleResetOrTransition `
+    -ConfirmBothMemBanksExportedUnderEachSamePause `
+    -ConfirmGameRanBetweenPhases
+if (-not $?) { throw "Private manifest preparation failed" }
+
+py scripts/audit_selected_ball_prepost_shot_private.py --private-root $session
+if ($LASTEXITCODE -ne 0) { throw "Private source comparator failed" }
+```
+
+Each `-Confirm` switch is a real **human observation
+attestation**, never just a way to make the command pass. If any
+observation was not true or the ball reset, DO NOT assert it. Preserve
+the incomplete files privately, describe what occurred, and abstain
+from the strict PRE/POST source comparator. The manifest creator
+refuses to overwrite an existing manifest or to write outside the
+ignored `Wii-AI-Golf-Data` sibling tree, checks exact sizes and SHA256
+hashes of the original banks, and prints no raw values or hashes.
+No private file or command from this run goes to GitHub.
+
+**Approval gates:** S001 safe known-good clean Preview4 contact and
+GUI-pause/export protocol, S002 source/selected-object semantics,
+S000 private provenance and publication, targeted **exact-head**
+Windows/Linux CI, complete Windows full regression, and explicit
+operator consent for one shot. Do not mistake this prepared command
+section for approval.
