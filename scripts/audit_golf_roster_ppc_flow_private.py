@@ -51,6 +51,32 @@ def _is_add(word: int) -> bool:
     return _op(word) == 31 and ((word >> 1) & 0x1FF) == 266
 
 
+# PPC opcode31 indexed memory X-form XO values; no receiver class inference.
+# Only simple integer/FPR accesses are supported here, not string or
+# multiple-register loads/stores.
+INDEXED_MEM_XO = {
+    23: "load",   # lwzx
+    55: "load",   # lwzux
+    87: "load",   # lbzx
+    119: "load",  # lbzux
+    279: "load",  # lhzx
+    311: "load",  # lhzux
+    151: "store", # stwx
+    183: "store", # stwux
+    215: "store", # stbx
+    247: "store", # stbux
+    407: "store", # sthx
+    535: "load",  # lfsx
+    567: "load",  # lfsux
+    599: "load",  # lfdx
+    631: "load",  # lfdux
+    663: "store", # stfsx
+    695: "store", # stfsux
+    727: "store", # stfdx
+    759: "store", # stfdux
+}
+
+
 def _is_mem(word: int) -> bool:
     return _op(word) in {32, 33, 34, 35, 36, 37, 38, 39,
                          40, 41, 42, 43, 44, 45, 46, 47,
@@ -80,6 +106,8 @@ def analyze_words(words: list[int], lookahead: int = MAX_LOOKAHEAD) -> dict:
     all_member = Counter()
     chains = Counter()
     mul_with_join = mul_with_member = 0
+    site_shape_counts = Counter()
+    short_stop_counts = Counter()
 
     for i, w in enumerate(words):
         op = _op(w)
@@ -95,9 +123,12 @@ def analyze_words(words: list[int], lookahead: int = MAX_LOOKAHEAD) -> dict:
         lineage = {_gpr_dest(w): "scaled"}
         found_join = False
         found_member = False
+        site_shapes = set()
+        stop_reason = "window_end"
         for nxt in words[i + 1: i + 1 + lookahead]:
             n_op = _op(nxt)
             if n_op in (16, 18, 19):
+                stop_reason = "branch_before_complete_trace"
                 break  # stop at control-flow boundary
 
             if n_op in (14, 15):  # addi, addis
@@ -106,7 +137,16 @@ def analyze_words(words: list[int], lookahead: int = MAX_LOOKAHEAD) -> dict:
                 if dst in lineage:
                     lineage.pop(dst)
                 if prior:
-                    lineage[dst] = prior  # fixed offset applied to scaled index
+                    next_kind = prior
+                    if prior == "joined" and n_op == 14:
+                        if _signed16(nxt) in CANDIDATE_MEMBER_OFFSETS:
+                            next_kind = "joined_offset_member"
+                            site_shapes.add("joined_plus_candidate_member_addi")
+                        elif _signed16(nxt) == 0:
+                            site_shapes.add("joined_plus_zero_addi")
+                        else:
+                            site_shapes.add("joined_plus_other_addi")
+                    lineage[dst] = next_kind
                 continue
 
             if _is_add(nxt):  # add rD, rA, rB
@@ -123,14 +163,40 @@ def analyze_words(words: list[int], lookahead: int = MAX_LOOKAHEAD) -> dict:
                 continue
 
             if n_op == 46:  # lmw overwrites multiple registers; cannot track
+                stop_reason = "multiple_register_load"
                 break
+
+            if n_op == 31 and ((nxt >> 1) & 0x3FF) in INDEXED_MEM_XO:
+                xo = (nxt >> 1) & 0x3FF
+                base = _ra(nxt)
+                index = _rb(nxt)
+                if lineage.get(base, "").startswith("joined") or lineage.get(index, "").startswith("joined"):
+                    site_shapes.add("joined_indexed_memory_" + INDEXED_MEM_XO[xo])
+                # X-form GPR loads clobber destination (float loads FPR).
+                if xo in {23, 55, 87, 119, 279, 311}:
+                    lineage.pop(_gpr_dest(nxt), None)
+                # Indexed update-form loads/stores clobber base register.
+                if xo in {55, 119, 311, 183, 247, 567, 631, 695, 759}:
+                    lineage.pop(base, None)
+                continue
 
             if _is_mem(nxt):
                 base = _ra(nxt)
                 disp = _signed16(nxt)
-                if lineage.get(base) == "joined" and disp in CANDIDATE_MEMBER_OFFSETS:
-                    chains[(f"+0x{disp:03X}", _kind(nxt))] += 1
-                    found_member = True
+                base_kind = lineage.get(base)
+                if base_kind == "joined":
+                    if disp in CANDIDATE_MEMBER_OFFSETS:
+                        chains[(f"+0x{disp:03X}", _kind(nxt))] += 1
+                        found_member = True
+                        site_shapes.add("joined_direct_candidate_member_" + _kind(nxt))
+                    elif disp == 0:
+                        site_shapes.add("joined_zero_offset_memory_" + _kind(nxt))
+                    elif 0 < disp <= 0x100:
+                        site_shapes.add("joined_other_small_offset_memory_" + _kind(nxt))
+                    else:
+                        site_shapes.add("joined_other_offset_memory_" + _kind(nxt))
+                elif base_kind == "joined_offset_member" and disp == 0:
+                    site_shapes.add("joined_addi_member_then_zero_memory_" + _kind(nxt))
                 # Loads overwrite GPR dest, but float loads write FPR.
                 if n_op in (32, 33, 34, 35, 40, 41, 42, 43, 46):
                     lineage.pop(_gpr_dest(nxt), None)
@@ -146,10 +212,13 @@ def analyze_words(words: list[int], lookahead: int = MAX_LOOKAHEAD) -> dict:
                     lineage[dst] = prior
                 continue
 
-            # Prove no further syntactic chain only within supported forms.
-            # Unknown opcode families might clobber a tracked register.
+            # Unknown families may clobber tracked registers. Fail closed.
+            stop_reason = "unsupported_ppc_opcode"
             break
 
+        if found_join:
+            short_stop_counts[stop_reason] += 1
+            site_shape_counts.update(site_shapes)
         mul_with_join += int(found_join)
         mul_with_member += int(found_member)
 
@@ -167,6 +236,29 @@ def analyze_words(words: list[int], lookahead: int = MAX_LOOKAHEAD) -> dict:
         },
         "mulli_sites_with_bounded_index_plus_base_add": mul_with_join,
         "mulli_sites_with_bounded_index_add_then_member_access": mul_with_member,
+        "post_join_site_shape_counts": {key: site_shape_counts[key] for key in (
+            "joined_zero_offset_memory_load", "joined_zero_offset_memory_store",
+            "joined_indexed_memory_load", "joined_indexed_memory_store",
+            "joined_plus_candidate_member_addi",
+            "joined_addi_member_then_zero_memory_load",
+            "joined_addi_member_then_zero_memory_store",
+            "joined_other_small_offset_memory_load",
+            "joined_other_small_offset_memory_store",
+            "joined_other_offset_memory_load",
+            "joined_other_offset_memory_store",
+            "joined_plus_other_addi",
+            "joined_direct_candidate_member_load",
+            "joined_direct_candidate_member_store",
+        )},
+        "joined_site_trace_stop_reason_counts": {
+            key: short_stop_counts[key] for key in (
+                "branch_before_complete_trace",
+                "multiple_register_load",
+                "unsupported_ppc_opcode",
+                "window_end",
+            )
+        },
+        "index_provenance_and_receiver_identity_verified": False,
         "syntactic_candidate_chains": {
             f"{offset}_{kind}": chains[(offset, kind)]
             for offset in ("+0x08C", "+0x0C8") for kind in ("load", "store")
