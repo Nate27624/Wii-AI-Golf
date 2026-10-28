@@ -168,6 +168,58 @@ class OperatorContractDocsTests(unittest.TestCase):
             with self.subTest(term=term):
                 self.assertIn(term.casefold(), text.casefold())
 
+    def test_every_new_agent_must_read_rules_not_just_link(self):
+        readme = read("README.md")[:4100]
+        agents = read("AGENTS.md")[:3800]
+        for item in (readme, agents):
+            with self.subTest(source=item[:60]):
+                self.assertIn("AGENTS.md", item)
+                self.assertIn("agent-session-protocol.md", item)
+                self.assertIn("NEW", item)
+                self.assertIn("read", item.lower())
+        self.assertIn("READ", readme)
+        self.assertIn("before", agents.lower())
+
+    def test_substantive_reply_requires_fresh_checked_baseline(self):
+        protocol = read("docs/agent-session-protocol.md")
+        for term in ("Every substantive response", "RE-BASELINE",
+                     "latest", "operator", "source", "HEAD", "PR",
+                     "Current baseline", "NOT CHECKED",
+                     "context", "evidence", "blocker", "next",
+                     "HANDOFF", "PowerShell", "89-sample",
+                     "FINDING", "UPLOADED"):
+            with self.subTest(term=term):
+                self.assertIn(term.casefold(), protocol.casefold())
+
+    def test_read_attestation_and_context_handoff_in_pr_and_coordination(self):
+        contrib = read("CONTRIBUTING.md")
+        template = read(".github/pull_request_template.md")
+        coordination = read("research/coordination.md")
+        for item in (contrib, template, coordination):
+            with self.subTest(source=item[:50]):
+                for term in ("rebaseline", "HANDOFF", "AGENTS.md",
+                             "owner", "HEAD", "NOT CHECKED"):
+                    self.assertIn(term.casefold(), item.casefold())
+        self.assertIn("read-attestation", template)
+        self.assertIn("Current baseline", template)
+        self.assertIn("agent-session-protocol.md", coordination)
+
+    def test_agent_rules_cross_tool_pointer_documents_are_consistent(self):
+        for path in ("CLAUDE.md", ".github/copilot-instructions.md"):
+            with self.subTest(path=path):
+                content = read(path)
+                for term in ("AGENTS.md", "README", "agent-session-protocol.md",
+                             "PowerShell", "Dolphin", "FINDING", "89-sample"):
+                    self.assertIn(term.casefold(), content.casefold())
+
+    def test_merge_requirements_include_anti_stale_agent_check(self):
+        content = read("docs/merging-requirements.md")
+        for term in ("read-attestation", "agent-session-protocol.md",
+                     "Current baseline", "each substantive response",
+                     "HANDOFF", "evidence"):
+            with self.subTest(term=term):
+                self.assertIn(term.casefold(), content.casefold())
+
     def test_no_draft_feature_claimed_as_merged(self):
         text = read("docs/operator-powershell-contract.md")
         self.assertIn("draft until merged", text)
