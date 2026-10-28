@@ -1,0 +1,21 @@
+name: Lab OS lock full-suite regression
+on:
+  pull_request:
+    paths:
+      - "tests/test_lab_core.py"
+      - ".github/workflows/p0-lab-lock-full-suite.yml"
+  workflow_dispatch:
+jobs:
+  offline-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Full offline unit suite; no Dolphin
+        run: python -m unittest discover -s tests -v
