@@ -59,3 +59,21 @@ The script was subsequently upgraded with `_effect_stride_layout` to test this e
 1. Have source/decomp agents trace effect pointer ownership through `RPGolField` offsets +0x94, +0x98, +0x9C, and identify whether the +0x90 index stride represents entries in a shared effect pool, cloned/linked render structures or other aliasing. Do not assume the labels ball/player/shot_line mean actual motion vectors.
 2. Check `+0x78 / +0x7C` writes and downstream readers in the owned object type, using the already-preserved code/source snapshots or public RSPE01 Rev1 decomp; classify storage type using PPC instruction, not float guesswork.
 3. Since all eight are render/effect candidates, **exclude them from ball-physics and power training claims** until a causally controlled, temporally precise paired shot/no-shot sample and source type attribution. Do not require another live trial just to complete this existing-shot analysis.
+
+## Confirmed on the **operator's real capture**: four paired effect locations
+
+The owner fetched PR #197 revision `a8635ed03337df8acf55b9c87078daa7a0a267fa` and ran `audit_existing_successful_shot_private.py` against preserved `outcome-20261028T033948Z-5cd47f00` (the same successful shot, no emulator action). Actual command output:
+
+- `EffectSpacingVerified: True` — all 8 PRE/POST/SETTLED snapshots have the three effect window bases separated by +0x90 and +0x90.
+- `FourPairsVerified: True` — exactly four two-word pairs de-aliased to hypothetical slot indices 0,1,2,3 at common within-slot offsets +0x078 and +0x07C.
+- `CandidateCount: 8`; `PhysicalVariablesVerified: False`.
+- All 8 fields have `temporal_pattern = post_all_changed` in BOTH available POST snapshots.
+- Each +0x078 value is NOT pointer-like; each +0x07C is pointer-like according to the bounded MEM1/MEM2-range heuristic. This is an **untyped representation pattern**; not proof that +0x078 is a coordinate float or +0x07C is a valid live C++ pointer.
+
+**What is established:** three named observation windows are overlapping views into a repeatedly spaced native memory region, and the four same-relative-position pairs respond to the completed shot. The `minimap_ball_effect` name is an acquisition label; it is not proof any of these values is physics ball position. The stride might reflect subobjects, linked effects, or shared allocation; do NOT infer real 0x90 C++ object size without writers, constructor/class provenance and independent read paths. The capture is non-atomic over multiple emulated frames, and the UI 100.0ft off-green result could be censored.
+
+### Prioritize source writer sites, not another live swing
+
+Source-linked RSPE01 Rev1 code unit boundaries from the public `doldecomp/ogws` linker split to prioritize: `RPGolFieldManager.cpp` 0x80290B44..0x80294184; `RPGolDrawManager.cpp` 0x80294184..0x8029528C; `RPGolMapObjBall.cpp` 0x80296FD8..0x8029B240. These are **search regions**, not known owners of the +0x078/+0x07C fields. Any candidate `stw/lwz/stfs/lfs` with immediate +0x78/+0x7C must have register receiver provenance traced into the effect-window allocation before a member type claim. Inspect writers of the *actual active object*, not all numeric displacement coincidences.
+
+Expected next source deliverable: a safe table of `(source compilation unit, PPC PC, opcode, base-register provenance, field offset)` for each effect pair, with source ownership verified/unverified and publication/training flags still FALSE. Retain original local private raw snapshots and the working 45-observed-frame V1 contact sequence unchanged. No new operator launch or capture is necessary.
