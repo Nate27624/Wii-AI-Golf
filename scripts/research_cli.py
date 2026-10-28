@@ -90,35 +90,71 @@ def v1_clean_boot_args(root: Path) -> list[str]:
             "--config", str(config), "--catalog", str(catalog)]
 
 
-def _fresh_human_labels(start_time: datetime) -> dict:
-    """Read ONLY selected public/sanitized fields from a NEW locally generated summary."""
+def _fresh_human_labels(start_time: datetime, *, run_token: str | None = None,
+                        expected_controller: dict | None = None) -> dict:
+    """Accept only THIS completed child shot; local file mtime is not identity.
+
+    The nonce is private and never copied into the public summary. Reject
+    missing/foreign results, failed traces, altered settings and wrong source.
+    """
+    if type(run_token) is not str or len(run_token) != 32 or expected_controller is None:
+        return {"capture_status": "unqualified_missing_run_identity"}
     if not CAPTURES.is_dir():
-        return {}
+        return {"capture_status": "none_or_ambiguous"}
     options = [p for p in CAPTURES.glob("outcome-*-candidates.json")
                if p.is_file() and p.stat().st_mtime >= start_time.timestamp()]
-    if len(options) != 1:
+    matches = []
+    for path in options:
+        try:
+            if path.stat().st_size > 2_000_000:
+                continue
+            content = json.loads(path.read_text(encoding="utf-8"))
+            if (type(content) is dict and content.get("run_token") == run_token
+                    and content.get("source") == "live-emulator-read-only-US-Rev1+human-result-label"):
+                matches.append(content)
+        except (OSError, ValueError, UnicodeError):
+            continue
+    if len(matches) != 1:
         return {"capture_status": "none_or_ambiguous"}
-    path = options[0]
-    try:
-        if path.stat().st_size > 2_000_000:
-            return {"capture_status": "summary_too_large"}
-        content = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(content, dict) or not str(content.get("source", "")).startswith("live-emulator-"):
-            return {"capture_status": "unexpected_summary_source"}
-        human = content.get("human_observation") or {}
-        swing = content.get("known_good_swing_request") or {}
-        if not isinstance(human, dict) or not isinstance(swing, dict):
-            return {"capture_status": "unexpected_summary_shape"}
-        result = {"capture_status": "sanitized_human_annotation_only"}
-        result["human"] = {k: human[k] for k in SAFE_LABELS if k in human
-                           and (human[k] is None or type(human[k]) in (str, int, float, bool))}
-        result["controller"] = {k: swing[k] for k in SAFE_TRACE if k in swing
-                                and (swing[k] is None or type(swing[k]) in (str, int, float, bool))}
-        result["settled_screen_observation"] = content.get("settled_screen_observation")
-        return result
-    except (OSError, ValueError, UnicodeError):
-        return {"capture_status": "unreadable_summary"}
-
+    content = matches[0]
+    human = content.get("human_observation")
+    swing = content.get("known_good_swing_request")
+    dispatch = content.get("swing_dispatch")
+    if not (type(human) is dict and type(swing) is dict and type(dispatch) is dict
+            and dispatch.get("state") == "complete"
+            and type(swing.get("generated_trace_frames")) is int
+            and swing["generated_trace_frames"] > 0
+            and type(dispatch.get("applied_frames")) is int
+            and dispatch["applied_frames"] == swing["generated_trace_frames"]
+            and type(swing.get("trace_sha256")) is str
+            and len(swing["trace_sha256"]) == 64
+            and all(c in "0123456789abcdef" for c in swing["trace_sha256"])  # literal trace hash
+            and all(type(swing.get(k)) is type(v) and swing[k] == v
+                    for k, v in expected_controller.items())
+            and human.get("contact_human") in ("yes", "no", "unknown")
+            and human.get("finished_on_green_human") in ("yes", "no", "unknown")):
+        return {"capture_status": "unqualified_child_trace_or_controls"}
+    timing = content.get("settled_screen_observation")
+    if timing not in ("operator_confirmed_before_transition",
+                      "screen_had_already_transitioned_before_settled_samples"):
+        return {"capture_status": "unqualified_terminal_timing"}
+    safe_human = {k: human[k] for k in SAFE_LABELS if k in human
+                  and (human[k] is None or type(human[k]) in (str, int, float, bool))}
+    safe_trace = {k: swing[k] for k in SAFE_TRACE if k in swing
+                  and (swing[k] is None or type(swing[k]) in (str, int, float, bool))}
+    penalty = (human.get("finished_on_green_human") == "no"
+               and human.get("displayed_distance_human") == 100
+               and human.get("displayed_unit_human") == "ft")
+    return {
+        "capture_status": "sanitized_human_annotation_only",
+        "shot_dispatch_status": "bridge_trace_completed_not_game_contact_verified",
+        "human": safe_human, "controller": safe_trace,
+        "settled_screen_observation": timing,
+        "distance_interpretation": (
+            "censored_offgreen_100ft_penalty" if penalty
+            else "human_label_not_physical_distance_verified"),
+        "physical_distance_verified": False,
+    }
 
 
 def _fallback_human_observation(*, answer=input) -> dict:
@@ -269,6 +305,7 @@ def main(argv: list[str] | None = None) -> int:
                     or args.backswing_scale != expected_back):
                     parser.error("Trial settings differ from preregistered plan")
         begin = datetime.now(timezone.utc)
+        run_token = uuid.uuid4().hex if args.command == "v1" else None
         if args.command == "test":
             exit_code = _run([sys.executable, "-m", "unittest", "discover",
                               "-s", "tests", "-p", args.pattern, "-v"])
@@ -288,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
                               "--observe-start-pose", "--motion-scale", str(args.motion_scale),
                               "--speed-scale", str(args.speed_scale),
                               "--backswing-scale", str(args.backswing_scale),
-                              "--ask-power"])
+                              "--ask-power", "--run-token", run_token])
         summary = {"schema": 1,
                    "id": begin.strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:10],
                    "kind": args.command, "started_utc": begin.isoformat(),
@@ -307,11 +344,28 @@ def main(argv: list[str] | None = None) -> int:
                 summary["trial_index"] = args.trial_index
                 summary["trial_count"] = len(POWER_MAP_STUDY)
             summary["bridge_sha256"] = _sha_file(bridge)
-            summary.update(_fresh_human_labels(begin))
-            if _missing_capture_needs_fallback(summary):
-                print("No unambiguous completed collector summary. "
-                      "Recording HUMAN-only observation to avoid losing this trial.", flush=True)
-                summary.update(_fallback_human_observation())
+            # The wrapper can forward boot/child errors. A zero exit alone is
+            # not a completed shot; a missing summary is NOT fallback contact.
+            if exit_code == 0:
+                labels = _fresh_human_labels(
+                    begin, run_token=run_token,
+                    expected_controller={
+                        "a_lead_requested_frames": args.a_lead,
+                        "motion_scale": args.motion_scale,
+                        "speed_scale": args.speed_scale,
+                        "backswing_scale": args.backswing_scale,
+                    })
+                summary.update(labels)
+            if (exit_code != 0 or summary.get("capture_status") !=
+                    "sanitized_human_annotation_only"):
+                summary["kind"] = "v1_attempt"
+                summary["attempt_status"] = (
+                    "nonzero_launcher_or_collector_exit" if exit_code != 0
+                    else "missing_or_unqualified_child_summary")
+                summary["shot_dispatched"] = "unknown"
+                summary["trial_valid_for_action_outcome"] = False
+            else:
+                summary["trial_valid_for_action_outcome"] = True
         private = DATA / "research-cli"
         private.mkdir(parents=True, exist_ok=True)
         dest = private / (summary["id"] + ".json")
@@ -319,7 +373,10 @@ def main(argv: list[str] | None = None) -> int:
             json.dump(summary, out, indent=2, sort_keys=True, allow_nan=False)
             out.write("\n")
         print("Local sanitized result:", dest, flush=True)
-        if not args.no_upload:
+        # Keep canceled, incomplete and unqualified runs LOCAL; never publish
+        # as completed V1 observations, even when the launcher exited zero.
+        eligible_to_publish = args.command != "v1" or summary["kind"] == "v1"
+        if not args.no_upload and eligible_to_publish:
             try:
                 url = publish_summary(summary)
                 print("GitHub observation published:", url, flush=True)
@@ -327,6 +384,9 @@ def main(argv: list[str] | None = None) -> int:
                 print("Upload NOT completed; local sanitized result remains saved:",
                       exc, file=sys.stderr, flush=True)
                 return 3 if exit_code == 0 else exit_code
+        if args.command == "v1" and not eligible_to_publish:
+            print("No completed V1 result published: child trial identity or outcome unverified.", flush=True)
+            return exit_code if exit_code != 0 else 2
         return exit_code
     except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
         print("Research command failed (no success claimed):", exc,
