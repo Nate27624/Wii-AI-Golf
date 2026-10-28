@@ -46,8 +46,12 @@ def summarize(entries: list[dict], *, all_bank_pairs_changed: bool) -> dict:
         raise ValueError("Exactly four verified phases and bank metadata required")
     if any(type(e.get("state")) is not int or not 0 <= e["state"] <= 0xFFFFFFFF
            or type(e.get("slot")) is not int or type(e.get("hole")) is not int
-           or type(e.get("record")) is not int or
-           e.get("source_gate") is not True for e in entries):
+           or type(e.get("record")) is not int
+           or e.get("source_gate") is not True
+           or not isinstance(e.get("peer_states"), (tuple, list))
+           or len(e["peer_states"]) != roster.ROSTER_SLOTS
+           or any(type(v) is not int or not 0 <= v <= 0xFFFFFFFF
+                  for v in e["peer_states"]) for e in entries):
         raise ValueError("Malformed or ungated state sample")
     if len({e["slot"] for e in entries}) != 1 or len({e["hole"] for e in entries}) != 1:
         raise ValueError("Selected source slot/hole changed across no-shot phases")
@@ -56,6 +60,17 @@ def summarize(entries: list[dict], *, all_bank_pairs_changed: bool) -> dict:
     words = [e["state"] for e in entries]
     changes = [words[i] != words[i + 1] for i in range(3)]
     known = [w in _LITERAL_STATES for w in words]
+    selected_slot = entries[0]["slot"]
+    if selected_slot not in range(roster.ROSTER_SLOTS):
+        raise ValueError("Selected slot out of four-record source range")
+    peers = [e["peer_states"] for e in entries]
+    if any(e["peer_states"][selected_slot] != e["state"] for e in entries):
+        raise ValueError("Selected record and peer-slot value disagree")
+    nonselected = [i for i in range(roster.ROSTER_SLOTS) if i != selected_slot]
+    peer_changes = [
+        sum(peers[j][i] != peers[j + 1][i] for i in nonselected)
+        for j in range(3)
+    ]
     return {
         "kind": "local-private-selected-player-candidate-state-word-no-shot",
         "schema_version": 1,
@@ -67,6 +82,18 @@ def summarize(entries: list[dict], *, all_bank_pairs_changed: bool) -> dict:
         "selected_record_hole_slot_stable": True,
         "all_three_transitions_have_distinct_full_banks": all_bank_pairs_changed,
         "candidate_state_in_five_source_literals_each_phase": known,
+        "candidate_state_is_zero_each_phase": [w == 0 for w in words],
+        "all_four_candidate_slot_state_words_equal_each_phase": [
+            len(set(p)) == 1 for p in peers
+        ],
+        "any_slot_state_in_five_source_literals_each_phase": [
+            any(w in _LITERAL_STATES for w in p) for p in peers
+        ],
+        "other_slots_equal_to_selected_state_count_each_phase": [
+            sum(p[i] == words[j] for i in nonselected)
+            for j, p in enumerate(peers)
+        ],
+        "nonselected_slot_state_changes_by_transition": peer_changes,
         "candidate_state_change_by_transition": changes,
         "candidate_state_changed_during_idle_before_aim": changes[0],
         "candidate_state_changed_during_aim_without_shot": changes[1],
@@ -136,7 +163,14 @@ def run_local(folder: Path) -> dict:
                 raise ValueError("Selected record not in expected MEM2 range")
             if reader.u32(manager + 0x334) != rec:
                 raise ValueError("Selected record source selector moved")
+            peer_states = []
+            for i in range(roster.ROSTER_SLOTS):
+                candidate = manager + 4 + i * roster.ROSTER_STRIDE
+                if roster._bank(candidate, 0x28) != "MEM2":
+                    raise ValueError("Source-gated peer slot record out of range")
+                peer_states.append(reader.u32(candidate + 0x24))
             entries.append({
+                "peer_states": tuple(peer_states),
                 "slot": private["selected_index"],
                 "hole": private["hole"],
                 "record": rec,
