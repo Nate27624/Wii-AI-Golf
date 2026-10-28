@@ -70,3 +70,39 @@ Actions synthetic outcomes do not imply native B0 or live Dolphin validation.
 No ROM, raw memory, snapshots, paths, hashes, controller input or private
 reports uploaded; all physical XYZ, velocity, impact, power, training and
 publication false.
+
+## Operator local B0 direct xref result (2026-10-28)
+
+The original locally-preserved B0 code (US RSPE01 Rev1) was inspected by
+the operator at precisely pinned #256 head `7494bbe39d02116303b26bcec060977e9459ab35`.
+The 10 focused synthetic tests, native source, SHA and 25 Golf public units
+passed. Observed direct `bl` counts: `sprintf=14`,
+`PSVECSquareDistance=18`, `Golf::CalcRealScore=2`,
+`Golf::UpdatePlayerScores=1`, `Golf::GetNthHoleScore=1`,
+`Golf::GetNthHoleStrokes=3`, `Golf::IsTrainingGame=4`.
+Exact `TextBox::SetString=0`, `snprintf=0`, `swprintf=0`,
+`RPSysMessage::GetMessage=0`, but indirect/virtual layout calls remain
+uninspected. No 0x200-byte source window contained both a known formatter
+and the tracked math/score category. The xref supports REAL source-call
+existence, not a Hitting-the-Green result producer or memory state.
+
+### Focused #256 extension: bounded sprintf argument syntax
+
+`scripts/audit_p0_golf_sprintf_arg_origins_private.py` reuses original
+#219 SHA and public Golf code boundaries, checks exactly 14 `bl sprintf`
+sites, and classifies only <=0x80 preceding code bytes in each **same source
+unit**. It emits the source-relative code offset, last recognized GPR r3/r4
+definition syntax after the nearest control-flow barrier, and nearby
+PowerPC FPR load/op/store counts. Branch/call instructions are hard
+barriers; earlier register writes do not count as reliable origins. Even
+the post-barrier syntax is **not CFG reaching-definition proof**, and FPR
+activity is not necessarily a `sprintf` float argument.
+
+This stage does NOT read literal format strings or attempt to decode numeric
+precision/units, destination buffer contents, UI layout dispatch or actual
+score state. A direct `sprintf` call may format ordinary HUD values or
+logging unrelated to the user's visible result. A further owner-reviewed
+exact caller/input and format string provenance study is required after
+the sanitized per-site metadata is examined. Source/owner review and
+independently attested guest frame+visual output event are still required.
+No new Dolphin, capture, controller action, raw private files or upload.
