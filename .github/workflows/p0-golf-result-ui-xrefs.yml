@@ -15,6 +15,8 @@ on:
       - 'tests/test_p0_golf_two_sprintf_literal_roles_private.py'
       - 'scripts/audit_p0_golf_layout_text_wrapper_xrefs_private.py'
       - 'tests/test_p0_golf_layout_text_wrapper_xrefs_private.py'
+      - 'scripts/audit_p0_golf_message_arg_pairs_private.py'
+      - 'tests/test_p0_golf_message_arg_pairs_private.py'
       - '.github/workflows/p0-golf-result-ui-xrefs.yml'
   pull_request:
     paths:
@@ -30,6 +32,8 @@ on:
       - 'tests/test_p0_golf_two_sprintf_literal_roles_private.py'
       - 'scripts/audit_p0_golf_layout_text_wrapper_xrefs_private.py'
       - 'tests/test_p0_golf_layout_text_wrapper_xrefs_private.py'
+      - 'scripts/audit_p0_golf_message_arg_pairs_private.py'
+      - 'tests/test_p0_golf_message_arg_pairs_private.py'
       - '.github/workflows/p0-golf-result-ui-xrefs.yml'
   workflow_dispatch:
 
@@ -53,3 +57,4 @@ jobs:
           python -m unittest discover -s tests -p 'test_p0_golf_sprintf_format_types_private.py' -v
           python -m unittest discover -s tests -p 'test_p0_golf_two_sprintf_literal_roles_private.py' -v
           python -m unittest discover -s tests -p 'test_p0_golf_layout_text_wrapper_xrefs_private.py' -v
+          python -m unittest discover -s tests -p 'test_p0_golf_message_arg_pairs_private.py' -v
