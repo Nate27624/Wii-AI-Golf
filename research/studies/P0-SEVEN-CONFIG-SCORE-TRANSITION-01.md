@@ -104,21 +104,21 @@ still pending.
 
 ## Operator original 14-bank Rev1 final suffix result — all six source checks true
 
-Owner operated exactly reviewed source commit \`1dd88821a6ca7653956382a6b1349893a14e9d2f\` in a clean worktree **sibling to the canonical ignored \`Wii-AI-Golf-Data\`**. This resolves the intervening *path layout* abstain (the incorrectly temporary-rooted worktree could not pass \`selected.DATA_ROOT\` ancestry). The operator reported \`P0_PRIVATE_DATA_LAYOUT=PASS\` and **\`P0_ORIGINAL_14_BANK_SHA=PASS\`**, meaning source files were rehashed before and after. The sanitized, authentic PPC results:
+Owner operated exactly reviewed source commit `1dd88821a6ca7653956382a6b1349893a14e9d2f` in a clean worktree **sibling to the canonical ignored `Wii-AI-Golf-Data`**. This resolves the intervening *path layout* abstain (the incorrectly temporary-rooted worktree could not pass `selected.DATA_ROOT` ancestry). The operator reported `P0_PRIVATE_DATA_LAYOUT=PASS` and **`P0_ORIGINAL_14_BANK_SHA=PASS`**, meaning source files were rehashed before and after. The sanitized, authentic PPC results:
 
 | Source-only predicate | Original Rev1 result |
 | --- | --- |
-| \`first_getter_36byte_hole_metadata_candidate_and_16byte_score_candidate\` | **true** |
-| \`first_getter_subtracts_loaded_36byte_record_value_from_16byte_record_value\` | **true** |
-| \`second_getter_16byte_row_4byte_player_column_candidate\` | **true** |
-| \`public_HoleInfo_static_root_literal_matches_source_rev1_symbol\` | **true** |
-| \`both_getters_load_candidate_config_root_from_same_r13_slot\` | **true** |
-| \`source_suffix_branch_free\` | **true** |
+| `first_getter_36byte_hole_metadata_candidate_and_16byte_score_candidate` | **true** |
+| `first_getter_subtracts_loaded_36byte_record_value_from_16byte_record_value` | **true** |
+| `second_getter_16byte_row_4byte_player_column_candidate` | **true** |
+| `public_HoleInfo_static_root_literal_matches_source_rev1_symbol` | **true** |
+| `both_getters_load_candidate_config_root_from_same_r13_slot` | **true** |
+| `source_suffix_branch_free` | **true** |
 
-Terminal \`P0_CONFIG_SCORE_SOURCE_AUDIT=PASS\`; the same exact source had 16/16 local synthetic checks PASS, while all reviewed #278 focused tests had Windows+Ubuntu success [40774802547](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40774802547).
+Terminal `P0_CONFIG_SCORE_SOURCE_AUDIT=PASS`; the same exact source had 16/16 local synthetic checks PASS, while all reviewed #278 focused tests had Windows+Ubuntu success [40774802547](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40774802547).
 
-**Strong source inference**: \`GetNthHoleStrokes\` effectively computes an address using a 16-byte row stride plus 4-byte inner index; \`GetNthHoleScore\` contains this same pointer-expression family as well as a separate 36-byte record stride. The latter independently matches public Rev1 \`HoleInfo\` size 0x24, and source \`addis/addi\` matches its published symbol; the terminal \`lwz/lwz/subf\` compares the loaded values with the difference corresponding to **strokes minus hole par**. Both getter candidate stroke roots load through the same \`r13\` small-data source slot. This resolves the formerly surprising 36-byte stride without assigning the stroke array a player-major 9-entry row.
+**Strong source inference**: `GetNthHoleStrokes` effectively computes an address using a 16-byte row stride plus 4-byte inner index; `GetNthHoleScore` contains this same pointer-expression family as well as a separate 36-byte record stride. The latter independently matches public Rev1 `HoleInfo` size 0x24, and source `addis/addi` matches its published symbol; the terminal `lwz/lwz/subf` compares the loaded values with the difference corresponding to **strokes minus hole par**. Both getter candidate stroke roots load through the same `r13` small-data source slot. This resolves the formerly surprising 36-byte stride without assigning the stroke array a player-major 9-entry row.
 
-**What this does not do**: prove all caller arguments are specifically hole/player identifiers in every mode, dereference live singleton identity, prove a displayed Near Pin result or actual stroke count update, or attest a true emulator game-physics frame. The report explicitly holds \`typed_score_row_orientation_fully_verified=false\`, \`actual_sda_runtime_pointer_value_verified=false\`, \`training_approved=false\`. The defensible status is **static source strongly supports hole-major**, not *runtime game scoring/training ready*. Historical all 36 score words unchanged remains unchanged regardless of orientation.
+**What this does not do**: prove all caller arguments are specifically hole/player identifiers in every mode, dereference live singleton identity, prove a displayed Near Pin result or actual stroke count update, or attest a true emulator game-physics frame. The report explicitly holds `typed_score_row_orientation_fully_verified=false`, `actual_sda_runtime_pointer_value_verified=false`, `training_approved=false`. The defensible status is **static source strongly supports hole-major**, not *runtime game scoring/training ready*. Historical all 36 score words unchanged remains unchanged regardless of orientation.
 
 **Stop rule reached**: do not open another simple score-index microtrace. Parent #239 and S000 #205 should review these exact source results and label authoritative Config live-index mapping only after any additional *caller/runtime ownership* verification they require. Focus P0 resources on S001 #272 true post-game-update/guest-physics-frame source and #248/#240/#215 same-frame rendered-ball witness. No new Dolphin, shots, private uploads, merge, training or publishing.
