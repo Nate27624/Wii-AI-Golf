@@ -151,8 +151,18 @@ def _joined_visual_first(run_token: str, start: datetime, *,
         source = human.get("displayed_distance_source")
         value = human.get("displayed_distance_human")
         unit = human.get("displayed_unit_human")
+        pose = human.get("initial_club_pose_human")
+        power = human.get("displayed_power_percent_human")
+        shot_start = human.get("shot_start_frame_before_controller_trace")
+        if (type(pose) is not str or pose not in ("back", "center", "forward", "unknown")
+                or type(shot_start) is not int or shot_start < 0
+                or (power is not None and (type(power) not in (int, float)
+                    or not math.isfinite(power) or not 0 <= power <= 100))
+                or human.get("initial_club_pose_verified_by_memory") is not False
+                or human.get("displayed_power_verified_by_memory") is not False):
+            return invalid
         if (contact not in ("yes", "no", "unknown") or green not in ("yes", "no", "unknown")
-                or seen not in (True, False, None) or type(kind) is not str
+                or not (type(seen) is bool or seen is None) or type(kind) is not str
                 or kind not in ("green", "offgreen", "uncertain", "transitioned")
                 or source not in ("offgreen_100ft_penalty", "offgreen_display_unverified",
                                   "ongreen_display_human", "unseen_or_not_recorded")
@@ -168,7 +178,13 @@ def _joined_visual_first(run_token: str, start: datetime, *,
                 or (kind == "uncertain" and seen is not None)
                 or (source == "offgreen_100ft_penalty" and
                     not (kind == "offgreen" and value == 100.0 and unit == "ft"))
-                or (source == "ongreen_display_human" and kind != "green")):
+                or (source == "ongreen_display_human" and
+                    not (kind == "green" and value is not None))
+                or (source == "offgreen_display_unverified" and
+                    not (kind == "offgreen" and value is not None))
+                or (source == "unseen_or_not_recorded" and value is not None)
+                or (value is None and unit != "not-visible")
+                or (value is not None and unit == "not-visible")):
             return invalid
         screen = item.get("settled_screen_observation")
         if screen != ("human_terminal_before_transition" if seen is True
@@ -187,7 +203,10 @@ def _joined_visual_first(run_token: str, start: datetime, *,
                       "visible_result_class_human": kind,
                       "displayed_distance_source": source,
                       "displayed_distance_human": value,
-                      "displayed_unit_human": unit},
+                      "displayed_unit_human": unit,
+                      "initial_club_pose_human": pose,
+                      "shot_start_bridge_tick_before_trace": shot_start,
+                      "displayed_power_percent_human": power},
             "settled_screen_observation": screen,
             "verified_game_score": False,
             "physical_distance_verified": False,
