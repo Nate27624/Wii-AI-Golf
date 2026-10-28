@@ -47,24 +47,71 @@ class ScoreTransitionTests(unittest.TestCase):
     def test_selected_hole_cell_change_is_only_candidate(self):
         d = cohort()
         x = list(d[7]["scores"])
-        x[1] = 1234
+        x[4] = 1234
         d[7]["scores"] = tuple(x)
         r = audit.summarize(d)["comparisons"]
         self.assertEqual([row["player_score_table_changed_words_of_36"] for row in r],
                          [0, 0, 1, 1])
-        self.assertEqual(r[2]["score_changed_cells_per_player_row"], [1, 0, 0, 0])
-        self.assertTrue(r[2]["selected_player_source_hole_score_cell_changed"])
+        self.assertEqual(r[2]["score_changed_cells_per_hole_row_IF_hole_major"], [0, 1, 0, 0, 0, 0, 0, 0, 0])
+        self.assertEqual(r[2]["score_changed_cells_per_player_row_IF_player_major"], [1, 0, 0, 0])
+        self.assertTrue(r[2]["selected_cell_changed_IF_hole_major"])
+        self.assertFalse(r[2]["selected_cell_changed_IF_player_major"])
+        self.assertIsNone(r[2]["selected_player_source_hole_score_cell_changed"])
         self.assertFalse(audit.summarize(d)["game_reported_15p2ft_decoded_from_memory"])
 
     def test_other_player_changed_without_active_cell(self):
         d = cohort()
         x = list(d[2]["scores"])
-        x[27 + 4] = 543
+        x[7 * 4 + 3] = 543
         d[2]["scores"] = tuple(x)
         row = audit.summarize(d)["comparisons"][0]
-        self.assertEqual(row["score_changed_cells_per_player_row"], [0, 0, 0, 1])
-        self.assertFalse(row["selected_player_source_hole_score_cell_changed"])
-        self.assertEqual(row["other_score_cells_changed"], 1)
+        self.assertEqual(row["score_changed_cells_per_hole_row_IF_hole_major"], [0, 0, 0, 0, 0, 0, 0, 1, 0])
+        self.assertEqual(row["score_changed_cells_per_player_row_IF_player_major"], [0, 0, 0, 1])
+        self.assertFalse(row["selected_cell_changed_IF_hole_major"])
+        self.assertFalse(row["selected_cell_changed_IF_player_major"])
+        self.assertIsNone(row["other_score_cells_changed"])
+
+    def test_transposed_index_is_not_active_stroke_cell(self):
+        # Two contradictory Rev1 public layout annotations:
+        # Kokeshi hole-major index=2*4+1=9 vs ogws_info player-major=1*9+2=11.
+        d = cohort()
+        for s in d.values():
+            s["hole"] = 2
+            s["slot"] = 1
+        x = list(d[7]["scores"])
+        x[11] = 777
+        d[7]["scores"] = tuple(x)
+        r = audit.summarize(d)["comparisons"][2]
+        self.assertFalse(r["selected_cell_changed_IF_hole_major"])
+        self.assertTrue(r["selected_cell_changed_IF_player_major"])
+        self.assertIsNone(r["selected_player_source_hole_score_cell_changed"])
+        self.assertEqual(r["score_changed_cells_per_hole_row_IF_hole_major"][2], 1)
+        x[9] = 888
+        d[7]["scores"] = tuple(x)
+        r = audit.summarize(d)["comparisons"][2]
+        self.assertTrue(r["selected_cell_changed_IF_hole_major"])
+        self.assertTrue(r["selected_cell_changed_IF_player_major"])
+        self.assertIsNone(r["selected_player_source_hole_score_cell_changed"])
+        self.assertEqual(r["score_changed_cells_per_hole_row_IF_hole_major"][2], 2)
+
+    def test_player_and_hole_bounds_independent(self):
+        for key, invalid in (("slot", 4), ("hole", 9), ("slot", -1), ("hole", -1)):
+            d = cohort()
+            d[5][key] = invalid
+            with self.subTest(key=key, invalid=invalid), self.assertRaises(ValueError):
+                audit.summarize(d)
+
+    def test_frozen_readout_schema_identifies_hole_major_rows(self):
+        report = audit.summarize(cohort())
+        self.assertEqual(
+            report["score_table_source_layout"],
+            "GolfConfig+0x04 u32[36] layout disputed [4][9] vs [9][4]"
+        )
+        self.assertTrue(report["source_annotations_disagree_on_index_order"])
+        self.assertFalse(report["PPC_score_index_orientation_verified"])
+        self.assertEqual(len(report["comparisons"][0]["score_changed_cells_per_hole_row_IF_hole_major"]), 9)
+        self.assertEqual(len(report["comparisons"][0]["score_changed_cells_per_player_row_IF_player_major"]), 4)
+        self.assertIsNone(report["comparisons"][0]["selected_player_source_hole_score_cell_changed"])
 
     def test_field_timer_distinguished_from_score(self):
         d = cohort()
