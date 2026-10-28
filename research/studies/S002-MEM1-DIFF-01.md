@@ -59,3 +59,33 @@ External general reference (NOT claim for this packaged fork): https://www.wiibr
 ## Initial CI (PR #151)
 
 Github Actions workflow 40607500241 (Ubuntu and Windows, Python 3.13): compile PASS, new targeted 13/13 tests PASS on BOTH OS. Full regression not green for pre-existing unrelated failures: Ubuntu `test_lab_core` lock message `may be active` vs `already active` 1/375 failure (PR #131), Windows 7/375 short Windows Temp `RUNNER~1` versus `runneradmin` mismatches (Windows test-env alias known from #141). Not a passing merge gate; PR remains draft pending owner review/full tests.
+## First real paired bank B0 confirmed — original captures (2026-10-27)
+
+The operator provided paired native MEM1 and ExRAM snapshots for local-only analysis, which passed the 24MiB/64MiB sizes, `RSPE01` Rev1 header and source-gated source-mapped pointer chain. We do NOT know whether two GUI export actions were at the exact same emulated frame or same boot; cross-bank backlink coherence is evidence of compatible snapshots, not a timestamp guarantee. Missing locally extracted `main.dol` blocks PR #144/#146 STATIC CODE atlas only, NOT this RAM source checks.
+
+Sanitized source-backed findings (no actual RAM pointer bytes, values or paths released): the two `.sbss` manager static candidates contain one readable scene manager in MEM1. Manager current scene ID5, its active Golf scene in MEM2 at expected +0x0C, scene+0x1C ID5 and scene+0x20 backlink to manager, sport2 at +0x54. `RPGolScene+0x9C` points to readable candidate `RPGolMain` in MEM2. Main object +0x004 points back to scene; its first word falls in the Rev1 RPGolMain `.data` range (data-region hint; NOT verified C++ vtable). The static golf config object points to MEM2 and has mode4 and raw current hole index1 at documented +0x94/+0x98.
+
+Source-static field manager is readable in MEM2: 6 pin objects and 31 start objects, with current pin, current start, cup, wind, course and map data source-named pointers all resolving to MEM2. Candidate player manager singleton also points to MEM2 and first word falls in Rev1 player-manager `.data` interval (not verified class identity). The 0x100-byte candidate golf-main window contains 29 *pointer-shaped* 32-bit words with readable 0x80-byte targets: 25 point to MEM2 and four to MEM1. Includes potential vtable/text data and overlapping targets; NOT 29 proven owned children. This is an object relationship map, not proof of club pose, ball XYZ, power or timing.
+
+**Implementation added to PR #151:** `src/wii_ai_golf/audit/golf_cross_bank_state.py` and `scripts/audit_golf_cross_bank_private.py` now reproduce source-gated paired snapshots OFFLINE, plus eight synthetic false-provenance and no-pointer-leak tests at `tests/test_audit_golf_cross_bank_state.py`. Only operator-private *paired* raw files under a private folder can be read; output is fresh local `kind=local-private-cross-bank-golf-source-audit` v1, no raw bytes, no runtime pointers and explicit `same_game_frame_proven=false`, `same_boot_proven=false`, `power_verified=false`. No auto-uploader or Dolphin commands.
+
+**Follow-on capture decision:** Stop the previously proposed MEM1-only B1/B2/B3 series, as live source-named golf objects are MEM2. If obtaining later checkpoints, export and preserve **both** native `Dump MRAM` and `Dump ExRAM` at each paused checkpoint (B1 delayed idle, B2 WASD-aim only, B3 after returning idle), verifying exact sizes and no overwrite for each. `DumpArray` in Felk source opens `wb`; without copying, second dump overwrites the first. No independent same-boot/scene/phase verification is inferred by parser; any mismatch -> stop.
+
+### Private-only Windows paired B0 validation (no new game action)
+
+~~~powershell
+$repo = 'D:\Projects\Wii Golf AI\Wii-AI-Golf'
+$work = 'D:\Projects\Wii Golf AI\Wii-AI-Golf-MEM1-Offline'
+$private = 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\mem1-checkpoints'
+$branch = 'agent/research/offline-mem1-checkpoint-diff'
+git -C $repo fetch origin "refs/heads/${branch}:refs/remotes/origin/${branch}"
+if ($LASTEXITCODE -ne 0) { throw 'Fetch failed' }
+if (-not (Test-Path $work)) { git -C $repo worktree add --detach $work "origin/$branch" }
+if ($LASTEXITCODE -ne 0) { throw 'Worktree failed' }
+py -m unittest discover -s "$work\tests" -p 'test_audit_golf_cross_bank_state.py' -v
+if ($LASTEXITCODE -ne 0) { throw 'Source gates failed' }
+py "$work\scripts\audit_golf_cross_bank_private.py" --private-root $private --mem1 "$private\B0-MEM1.bin" --mem2 "$private\B0-MEM2.bin" --output "$private\B0-golf-source-audit.json"
+if ($LASTEXITCODE -ne 0) { throw 'Private paired audit failed' }
+~~~
+
+**Agent handoff:** S002 should confirm RPGolMain +0 vtable-like `.data` reference and actual player-manager ownership with a private Rev1 DOL/source xref when available, then decode only source-verified ball/club members in MEM2. S000 should review any future bounded public report schema; S003 must abstain from training. No new first-level 28-child idle/aim probe; all prior batches already exhausted.
