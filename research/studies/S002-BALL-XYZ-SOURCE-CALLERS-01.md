@@ -30,3 +30,16 @@ S002: interpret resulting direct callsite counts/relative offsets against the *r
 
 Focused Windows/Ubuntu synthetic CI covers signed relative PPC branches, direct/nonlink distinction, source unit classification, false promotion, output privacy, original native hash, wrong game/phase and invalid private roots. Full repository Windows suite and owner review remain merge gates. All new-only files:
 `scripts/audit_ball_xyz_source_callers_private.py`, `tests/test_ball_xyz_source_callers_private.py`, this study and `.github/workflows/s002-ball-xyz-callers.yml`.
+
+
+## 2026-10-28 actual operator run: corrections after exact public symbol map
+
+**Operator-confirmed**, exact original auditor SHA \`ff997b0cd6a599203c2bb30dd73456a49ed3bf31\`: all 11/11 local Windows synthetic tests PASS; B0 hash/revision/idle code gates PASS; source scanned 13,934 words. No additional Dolphin session or native data was captured. Sanitized result stored in GitHub #219 FINDING; original native words remain private.
+
+Original output:
+- PlayerManager +0x09F4 and +0x0F2C issue direct BL to **0x802A0318 / 0x802A0320**, not to the three \`stfs\` instructions themselves. Public \`doldecomp/ogws\` RSPE01_01 \`symbols.txt\` identifies \`fn_802A0318\` as an 8-byte function, \`fn_802A0320\` as 0x354-byte function that CONTAINS the previously source-proven Player→Ball \`stfs\` at 0x802A0388..0x802A03C8. The earlier target-window label implied callers of the three stores directly, which is inaccurate. The revised auditor uses symbol-level function bounds and explicitly distinguishes entrypoint calls from interior jumps; it **also checks whether the 8-byte stub actually branches to the longer function from ORIGINAL B0 PPC**. A symbol name alone does not prove a thunk redirects.
+- MapObjBall +0x2B8C and +0x2C80 issue direct BL to **0x80299C70**. Public symbol map gives \`fn_80299ACC\` (0x118 size), \`fn_80299C20\` (0x50 size) as the caller functions, and \`fn_80299C70\` (0x3C8) as the callee. The callee contains the source-identified current-position refresh +0xCC and conditional +0xF0/+0xFC cache-copy logic. This is stronger static *owner-local function-entry* evidence, still not dynamic flight execution, exact receiver identity, or physical axes.
+- The inverse Ball→Player read block 0x8029F300..0x8029F31C is **within** \`fn_8029F0A0\` of size 0x37C. The six nonlink branches observed in the old narrow block were internal PPC control flow, NOT six distinct caller functions. The revised source audit reports function-level calls into \`fn_8029F0A0\` separately from branches within its body.
+- The target/pin and start accessors are independent tiny public symbols \`fn_80292294\` size 0x20 and \`fn_802922EC\` size 0x0C. These source-getter callsites are controls, not a ball-flight locator.
+
+**Follow-up priority:** S002 determine from surrounding PPC the role and input conditions of \`fn_80299ACC\`, \`fn_80299C20\`, \`fn_802A28DC\`, \`fn_802A30F8\`, including whether the cache updater's receiver is the currently selected ball or a copied recording/cache instance. S001 capture only AFTER native Dolphin pre-bridge access violation and reviewed 51-word watcher permit safely observed same-shot A45/89 sample input. A source-confirmed function containing conditional position-copy code is not a verified current moving XYZ coordinate.
