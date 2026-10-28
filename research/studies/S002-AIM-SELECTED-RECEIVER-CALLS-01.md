@@ -23,3 +23,15 @@ This is stronger than offset coincidence: two separate direct callers explicitly
 4. Keep publication of native memory and model training disabled until S000/owner review.
 
 **Agent handoff:** S002 #162/#144 check pointer provenance; S002 #181 use this field map for the 17 aim-associated words; S001 #166 consume source-gated angle only after integration review; S000 #154 retain nontraining, nonphysics gate.
+
+## Operator confirmation from actual B0 source-gated run
+
+The operator executed `audit_golf_selected_aim_callers_private.py --private-root` on the real preserved B0 pair and returned **both** matching direct callsites, `callee_preserves_argument_r3_in_r29=true`, and `selected_player_pointer_source_contract_verified=true`. Output:
+
+- `source_direct_calls_verified = 2`, with load/call PCs `0x802A293C → 0x802A2968` and `0x802A2B00 → 0x802A2B0C`;
+- both show `argument_r3_loaded_from_r29_plus_0x334=true` and `r3_preserved_to_direct_call_on_checked_path=true`;
+- `manager_r29_runtime_identity_independently_verified=false`, `actual_shot_heading_verified=false`, `ball_motion_verified=false`, `training_allowed=false`, `allowed_to_publish=false`.
+
+These are **actual operator-run results**, not synthetic CI, and source-pointer linkage is now evidence-backed. The previous report's outstanding `r29` caller-owner identity caveat remains; a proof of a direct call through `+0x334` does not by itself prove every caller owns the same manager instance in every mode. It also does not prove world axes, shot power, or physical golf heading. The matching code and original private RAM were not uploaded to GitHub.
+
+Next bounded source pass should identify each caller's `r29` definition and intervening instructions in the existing B0 code image; no additional emulator action is required.
