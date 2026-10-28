@@ -33,11 +33,15 @@ class SourceContextTests(unittest.TestCase):
                          "addi r30,r30,-0x44")
 
     def test_each_region_source_bounded_and_compact(self):
-        for _name, start, end in ctx.SPANS:
-            self.assertGreaterEqual(start, scan.PLAYER_CODE_START)
-            self.assertLessEqual(end, scan.PLAYER_CODE_END)
+        for _name, start, end in ctx.ALL_SPANS:
+            self.assertTrue(
+                (scan.PLAYER_CODE_START <= start < end <= scan.PLAYER_CODE_END)
+                or (ctx.MATH_START <= start < end <= ctx.MATH_END)
+            )
             self.assertEqual((start | end) & 3, 0)
             self.assertLessEqual(end - start, 128)
+        self.assertTrue(any(start <= 0x802A3894 < end
+                            for _, start, end in ctx.MATH_HELPER_SPANS))
 
     def test_static_context_reads_only_fixed_boundaries(self):
         addresses = []
@@ -47,11 +51,11 @@ class SourceContextTests(unittest.TestCase):
                 return dform(52, 1, 3, 0x3C)
             return 0
         out = ctx.describe(fake)
-        self.assertEqual(len(out), len(ctx.SPANS))
+        self.assertEqual(len(out), len(ctx.ALL_SPANS))
         self.assertIn("* 0x8029ED9C", out[0]["text"])
         self.assertIn("stfs f1, +0x3c(r3)", out[0]["text"])
         self.assertEqual(len(addresses), sum((end-start)//4
-                                           for _, start, end in ctx.SPANS))
+                                           for _, start, end in ctx.ALL_SPANS))
         self.assertEqual(addresses[0], ctx.SPANS[0][1])
 
     def test_malformed_instruction_refused(self):
@@ -61,6 +65,17 @@ class SourceContextTests(unittest.TestCase):
             ctx.describe(lambda _pc: "bad")
         with self.assertRaises(ValueError):
             ctx.describe(lambda _pc: 1 << 32)
+
+    def test_math_helper_and_extra_receiver_spans_tested(self):
+        hits = []
+        out = ctx.describe(lambda pc: hits.append(pc) or 0)
+        self.assertEqual(len(out), len(ctx.ALL_SPANS))
+        self.assertIn(0x802A3894, hits)
+        self.assertIn(0x8029ED00, hits)
+        self.assertEqual(ctx.decode(dform(7, 3, 31, 4), ctx.SPANS[0][1]),
+                         "mulli r3,r31,4")
+        self.assertEqual(ctx.decode(dform(37, 1, 1, -0x80), ctx.SPANS[0][1]),
+                         "stwu r1,-0x80(r1)")
 
     def test_branch_target_decode(self):
         pc = ctx.SPANS[0][1]
