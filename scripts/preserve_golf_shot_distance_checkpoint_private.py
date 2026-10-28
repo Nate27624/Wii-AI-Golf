@@ -111,8 +111,10 @@ def preserve(*, private_root, mem1_source, mem2_source, checkpoint,
         raise ValueError("Session must be within ignored Data root")
     manifest_path=session/NAME
     prev=_read_manifest(manifest_path)
-    keys=tuple(prev["checkpoints"]) if prev else ()
-    if keys!=PHASES[:len(keys)] or len(keys)>=len(PHASES) or checkpoint!=PHASES[len(keys)]:
+    keys=set(prev["checkpoints"]) if prev else set()
+    # JSON sort_keys=True alphabetizes keys. Validate by the expected
+    # *membership* of the ordered phase prefix, not dict iteration order.
+    if keys!=set(PHASES[:len(keys)]) or len(keys)>=len(PHASES) or checkpoint!=PHASES[len(keys)]:
         raise ValueError("Only ordered fresh PRE -> POST -> optional RESULT accepted")
     source=[_checked_source(mem1_source,"mem1.raw",shot.roster.MEM1_SIZE),
             _checked_source(mem2_source,"mem2.raw",shot.roster.MEM2_SIZE)]
@@ -120,7 +122,7 @@ def preserve(*, private_root, mem1_source, mem2_source, checkpoint,
     if stats[1].st_mtime_ns<stats[0].st_mtime_ns or stats[1].st_mtime_ns-stats[0].st_mtime_ns>MAX_TIME_NS:
         raise ValueError("MRAM must be exported before ExRAM in SAME pause")
     if prev:
-        last=prev["checkpoints"][keys[-1]]
+        last=prev["checkpoints"][PHASES[len(keys)-1]]
         for i,bank in enumerate(("MEM1","MEM2")):
             if stats[i].st_mtime_ns<=last["source_mtime_ns"][bank]:
                 raise ValueError("Stale dumps; export both banks AFTER latest pause")
@@ -149,7 +151,7 @@ def preserve(*, private_root, mem1_source, mem2_source, checkpoint,
             if now.st_mtime_ns!=st.st_mtime_ns or now.st_size!=st.st_size or y.stat().st_size!=st.st_size:
                 raise ValueError("Native export changed during copy")
         hashes={bank:digest(f) for bank,f in zip(("MEM1","MEM2"),target)}
-        if prev and all(hashes[k]==prev["checkpoints"][keys[-1]]["sha256"][k]
+        if prev and all(hashes[k]==prev["checkpoints"][PHASES[len(keys)-1]]["sha256"][k]
                         for k in ("MEM1","MEM2")):
             raise ValueError("Both native banks unchanged; not a new checkpoint")
         m=prev or {
