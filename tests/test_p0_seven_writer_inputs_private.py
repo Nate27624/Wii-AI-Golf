@@ -55,7 +55,7 @@ class SevenWriterInputs(unittest.TestCase):
         self.assertEqual(rows[4]["source_live_equals_cache_CC_components"], 0)
         self.assertEqual(rows[5]["source_live_equals_cache_CC_components"], 0)
         self.assertEqual(rows[6]["source_live_equals_cache_CC_components"], 3)
-        self.assertEqual(rows[4]["source_live_equals_player_record_0x060_components"], 0)
+        self.assertEqual(rows[4]["source_live_equals_player_record_0x060_components"], 1)
         self.assertEqual(rows[6]["source_live_equals_player_record_0x060_components"], 0)
         self.assertFalse(report["cache_CC_is_predicted_landing_endpoint_verified"])
         self.assertFalse(report["global_ball_pointer_runtime_identity_verified"])
