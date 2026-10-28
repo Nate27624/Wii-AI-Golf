@@ -33,7 +33,7 @@ class FreshBootDispatchTests(unittest.TestCase):
         self.assertEqual(boot[:2], ["py", str(self.scripts / "launch_golf.py")])
         self.assertEqual(boot[boot.index("--profile") + 1], "green-pre-start")
         self.assertEqual(boot[boot.index("--game") + 1], "G:/Wii Sports.wbfs")
-        self.assertEqual(action[1], str(self.scripts / "probe_swing.py"))
+        self.assertEqual(Path(action[1]).resolve(), (self.scripts / "probe_swing.py").resolve())
         self.assertIn("--send-live-swing", action)
         self.assertIn("--attach-running", action)
         self.assertEqual(action.count("--attach-running"), 1)
@@ -42,7 +42,7 @@ class FreshBootDispatchTests(unittest.TestCase):
     def test_future_capture_script_without_boot_code_is_accepted(self):
         boot, action = self.plan(action="discover_golf_motion.py",
                                  action_args=["--seconds", "30", "--profile", "fast"])
-        self.assertEqual(action[1], str(self.scripts / "discover_golf_motion.py"))
+        self.assertEqual(Path(action[1]).resolve(), (self.scripts / "discover_golf_motion.py").resolve())
         self.assertNotIn("--attach-running", action)
         self.assertEqual(boot[1], str(self.scripts / "launch_golf.py"))
 
