@@ -84,6 +84,42 @@ class Source101Tests(unittest.TestCase):
         r=classify({0x60:direct_b(pc,0x8028E158)})
         self.assertEqual(r["source_direct_linked_calls"][0]["target_public_code_pc"],"0x8028E158")
 
+    def test_unit_and_function_offsets_distinguish_c0_origin(self):
+        pc=m.MAIN_ENTRY+0x7C
+        r=classify({0x7C:direct_b(pc,0x8029B554)})
+        call=r["source_direct_linked_calls"][0]
+        self.assertEqual(call["source_main_function_relative_pc"],"+0x007C")
+        self.assertEqual(call["source_main_unit_relative_pc"],"+0x013C")
+
+    def test_independent_original_prefix_positive_and_bad_targets_refused(self):
+        # Recreate ONLY the previously attested 0x100 code call-count witness.
+        linked={
+            0x04:0x800A3244,
+            0x14:0x8028E3A4,
+            0x24:0x8029A5EC,
+            0x34:0x8028E2EC,
+            0x44:0x8028E3A4,
+            0x54:0x802A28DC,
+            0x64:0x8028E2EC,
+            0x74:0x8029A5EC,
+            0x7C:0x8029B554,
+            0x90:0x8029B43C,
+        }
+        ops={off:direct_b(m.MAIN_ENTRY+off,dest) for off,dest in linked.items()}
+        positive=classify(ops)
+        self.assertTrue(m.require_prior_prefix_match(positive))
+        self.assertFalse(positive["guest_physics_step_clock_verified"])
+        bad_target=dict(ops)
+        bad_target[0x90]=direct_b(m.MAIN_ENTRY+0x90,0x8029B554)
+        with self.assertRaisesRegex(ValueError,"prefix"):
+            m.require_prior_prefix_match(classify(bad_target))
+        with self.assertRaisesRegex(ValueError,"prefix"):
+            m.require_prior_prefix_match(classify({0x7C:ops[0x7C],0x90:ops[0x90]}))
+        altered=classify(ops)
+        altered["source_direct_linked_calls"][0]["source_main_unit_relative_pc"]="+0x0004"
+        with self.assertRaisesRegex(ValueError,"crosswalk"):
+            m.require_prior_prefix_match(altered)
+
     def test_wrong_thunk_target_and_length_abstain(self):
         with self.assertRaises(ValueError):
             m.classify_source_words(words(),thunk_target="0x8028E15C")
