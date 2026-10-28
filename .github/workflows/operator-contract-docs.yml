@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - 'AGENTS.md'
+      - 'docs/agent-session-protocol.md'
+      - 'research/coordination.md'
+      - '.github/copilot-instructions.md'
+      - 'CLAUDE.md'
       - 'CONTRIBUTING.md'
       - '.github/pull_request_template.md'
       - 'README.md'
