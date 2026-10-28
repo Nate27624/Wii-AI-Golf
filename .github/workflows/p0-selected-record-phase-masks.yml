@@ -1,0 +1,22 @@
+name: P0 selected-player 51-word phase masks
+on:
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_seven_record_phase_masks_private.py'
+      - 'tests/test_p0_seven_record_phase_masks_private.py'
+      - '.github/workflows/p0-selected-record-phase-masks.yml'
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m unittest discover -s tests -p test_p0_seven_record_phase_masks_private.py -v
