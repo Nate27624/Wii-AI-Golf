@@ -367,6 +367,68 @@ class VisualFirstJoinTests(unittest.TestCase):
                 self.assertEqual(status["capture_status"], "failed_or_cancelled_action")
                 self.assertFalse(status["shot_dispatch_verified_by_collector"])
 
+    def test_mocked_positive_b1_run_joins_exact_child_and_stays_local(self):
+        """End-to-end synthetic parent/child handshake; no emulator or upload."""
+        from wii_ai_golf.lab.github_sync import SyncReport
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            captures = root / "captures"
+            captures.mkdir()
+            action_commands = []
+
+            def fake_runner(argv, **_kwargs):
+                action_commands.append(list(argv))
+                self.assertEqual(argv.count("--send-live"), 1)
+                self.assertEqual(argv.count("--send-live-swing"), 1)
+                token = argv[argv.index("--run-token") + 1]
+                child = child_summary()
+                child["run_token"] = token
+                # The child's private mock payload must never reach publication.
+                (captures / f"outcome-{token}-candidates.json").write_text(
+                    json.dumps(child), encoding="utf-8")
+                return 0
+
+            with patch.object(research_cli, "sync_merged_main",
+                              return_value=SyncReport("up_to_date")), \
+                 patch.object(research_cli, "DATA", root), \
+                 patch.object(research_cli, "CAPTURES", captures), \
+                 patch.object(research_cli, "_head", return_value="mocked-head"), \
+                 patch.object(research_cli, "v1_clean_boot_args",
+                              return_value=["--dolphin", "MOCK_CLEAN_DOLPHIN",
+                                            "--dolphin-user", "MOCK_CLEAN_USER"]), \
+                 patch.object(research_cli, "_run", side_effect=fake_runner), \
+                 patch.object(research_cli, "_fallback_human_observation") as fallback, \
+                 patch.object(research_cli, "publish_summary") as publish, \
+                 patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
+                       return_value={"revision": "V1-neutral-swing-calls",
+                                     "safe_for_isolated_legacy_copy": True}):
+                code = research_cli.main([
+                    "v1", "--live", "--visual-first", "--no-upload",
+                    "--a-lead", "45", "--speed-scale", "1.0",
+                    "--backswing-scale", "1.0"])
+                self.assertEqual(code, 0)
+                fallback.assert_not_called()
+                publish.assert_not_called()
+
+            self.assertEqual(len(action_commands), 1)
+            self.assertIn("MOCK_CLEAN_DOLPHIN", action_commands[0])
+            self.assertIn("--visual-first", action_commands[0])
+            self.assertNotIn("--no-upload", action_commands[0])
+            records = list((root / "research-cli").glob("*.json"))
+            self.assertEqual(len(records), 1)
+            saved = json.loads(records[0].read_text(encoding="utf-8"))
+            self.assertEqual(saved["capture_status"], "visual_first_joined")
+            self.assertEqual(saved["process_exit_code"], 0)
+            self.assertTrue(saved["informative_action_outcome_trial"])
+            self.assertTrue(saved["outcome_is_censored_penalty"])
+            self.assertFalse(saved["numeric_distance_target_eligible"])
+            self.assertFalse(saved["train_approved"])
+            self.assertEqual(saved["id"],
+                             action_commands[0][action_commands[0].index("--run-token") + 1])
+            self.assertNotIn("MUST_NOT_PUBLISH", json.dumps(saved))
+            self.assertNotIn("candidate_other_private_data", json.dumps(saved))
+
     def test_uninformative_valid_attempt_stays_local_and_unpublished(self):
         from wii_ai_golf.lab.github_sync import SyncReport
         with tempfile.TemporaryDirectory() as directory:
