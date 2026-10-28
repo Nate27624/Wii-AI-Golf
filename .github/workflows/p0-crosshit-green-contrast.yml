@@ -1,0 +1,43 @@
+name: P0 11-hit human outcome comparison PowerShell (offline only)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/Invoke-P0CrossHitGreenContrast.ps1'
+      - 'research/studies/P0-CROSSHIT-GREEN-CONTRAST-01.md'
+      - '.github/workflows/p0-crosshit-green-contrast.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-stratifier-and-shell:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Reuse S000 already-owned source outcome contrast synthetic tests
+        run: python -m unittest discover -s tests -p test_p0_hit_signatures_private.py -v
+      - name: Parse new PowerShell wrapper without any private captures
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = Join-Path $PWD 'scripts/Invoke-P0CrossHitGreenContrast.ps1'
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -ne 0) { throw 'PowerShell syntax rejected' }
+      - name: Exercise new PowerShell wrapper in TestsOnly mode
+        shell: pwsh
+        run: |
+          & './scripts/Invoke-P0CrossHitGreenContrast.ps1' -S002ReaderWorktree 'unused' -TestsOnly
+          if (-not $?) { throw 'P0 PowerShell wrapper synthetic entrypoint failed' }
