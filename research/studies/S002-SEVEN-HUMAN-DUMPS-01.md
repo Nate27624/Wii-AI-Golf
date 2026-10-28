@@ -83,3 +83,20 @@ Parallel S002 [PR #230](https://github.com/Nate27624/Wii-AI-Golf/pull/230) and [
 UI labels 15.2ft wedge and 100.0ft off-green driver are still human-read screen values, not decoded RAM score. Raw data, memory page indices and private paths never uploaded.
 
 Current gates: same_guest_frame_verified=false, actual_ball_world_xyz_verified=false, ball_velocity_verified=false, power_memory_verified=false, score_memory_verified=false, approved_for_training=false.
+
+## 2026-10-28 REAL source-gated seven-snapshot trajectory — operator #230 run
+
+The operator ran exact **S002 #230 commit b0a5272520d06ea446fe90679690cbc1889a2e3b** in a fresh detached worktree with PowerShell `Invoke-P0SevenSourceTrajectory.ps1`, against the seven original private 24/64MiB bank pairs. The script executed **9/9 synthetic tests PASS**, isolated Python import preflight PASS, and printed `P0_SEVEN_SOURCE_TRAJECTORY=PASS` after the real source-selected read. All **7/7** numbered snapshots passed the existing Rev1 PPC source, scene, golf mode, selected player/ball/start and pin self-reference checks required by the reader. These are *source-gated memory candidates*, not demonstrated game-world physical coordinates or atomic frame timestamps.
+
+| Human-labeled same-shot transition | Selected ball object +0x4C→+0x30 changed components | ball caches +0xCC/+0xF0/+0xFC changed components (each) | source start | source pin | record +0x54/+0x60 (each) | Source ball/pin/field/start pointer identities |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Driver #1 airborne→#2 stopped | 3/3 | 3/3 | 0/3 | 0/3 | 0/3 | identical |
+| Wedge #5 near apex→#6 descending | 3/3 | 0/3 | 0/3 | 0/3 | 0/3 | identical |
+| Wedge #6 descending→#7 flag/green result | 3/3 | 0/3 | 0/3 | 0/3 | 0/3 | identical |
+| Wedge #5 near apex→#7 flag/green result | 3/3 | 0/3 | 0/3 | 0/3 | 0/3 | identical |
+
+Other real fields: **all four same-shot transitions** returned `source_slot_and_hole_stable=true`, `ball_candidate_changed_with_stable_start_and_pin=true`, `ball_candidate_changed_but_pin_or_pointer_confounded=false`, and `ball_motion_proven=false`. There were **three distinct** source-selected ball candidate triplet bit patterns for wedge phases #5,#6,#7, so differences cannot be inferred solely from unrelated page activity. Existing source-selected fixed reference and pointer stability resolves the specific earlier B0→airborne PIN movement confound *for these within-shot comparisons* at the checked fields. It does **not** eliminate unmeasured global camera/world transform, reset/boot, timing, memory bank atomicity or numerical/physical semantics.
+
+**Notable wedge cache split:** current source-selected ball translation changes 3/3 for 5→6 and 6→7 while all three +0xCC/+0xF0/+0xFC copies remain bitwise unchanged across all three wedge phases. Meanwhile they change 3/3 along with the current translation in driver 1→2. These caches are *not* proven independent live position variables or synchronized to the current ball. Test whether they mirror launch/settled endpoints, stored aim/tee or delayed/reference transforms by using the existing cache-coherence owner #225 / seven-source owner #231, without writing a second reader. Explicitly compare **within each snapshot** cache vs current live vector bitwise and references across phase 1,2,5,6,7, then source check writer/callers. A stable cache is not a proof it is wrong; a changing current triplet is not proof its axes/units represent physical XYZ.
+
+**P0 promotion gates remain FALSE:** same-guest-frame MEM1/MEM2 atomicity, independent frame count/time delta, world XYZ axes and scale, velocity, power, contact frame, decoded memory score, full training readiness. The 15.2ft and off-green 100.0ft UI values are human-provided labels, not extracted RAM fields. No raw memory bytes, hashes, runtime pointer values or private file paths were uploaded to GitHub. No new swing needed.
