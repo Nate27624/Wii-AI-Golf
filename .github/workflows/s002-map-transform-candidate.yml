@@ -1,0 +1,30 @@
+name: S002 Map Transform Candidate Offline
+on:
+  pull_request:
+    paths:
+      - "src/wii_ai_golf/audit/golf_map_transform_candidates.py"
+      - "scripts/audit_golf_map_transforms_private.py"
+      - "tests/test_golf_map_transform_candidates.py"
+      - ".github/workflows/s002-map-transform-candidate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic:
+    name: Synthetic map candidates / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile candidate module and tests
+        run: python -m compileall -q src/wii_ai_golf/audit/golf_map_transform_candidates.py tests/test_golf_map_transform_candidates.py
+      - name: Source-gated synthetic tests, no Dolphin
+        run: python -m unittest discover -s tests -p test_golf_map_transform_candidates.py -v
