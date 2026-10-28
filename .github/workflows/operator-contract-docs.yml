@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'AGENTS.md'
+      - 'CONTRIBUTING.md'
+      - '.github/pull_request_template.md'
       - 'README.md'
       - 'docs/operator-powershell-contract.md'
       - 'docs/repository-map.md'
