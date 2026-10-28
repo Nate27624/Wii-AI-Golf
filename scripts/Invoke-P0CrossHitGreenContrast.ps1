@@ -33,9 +33,12 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Study does not contain the reviewed #205 base'
 }
 
+$python = Get-Command py -ErrorAction SilentlyContinue
+if ($null -eq $python) { $python = Get-Command python -ErrorAction SilentlyContinue }
+if ($null -eq $python) { throw 'No supported Python interpreter found' }
 Write-Output 'P0_CROSSHIT_MODE=OFFLINE_PRIVATE_READ_ONLY'
 Write-Output 'P0_CROSSHIT_TESTS=SOURCE_205_SYNTHETIC'
-py -m unittest discover -s tests -p 'test_p0_hit_signatures_private.py' -v
+& $python.Source -m unittest discover -s tests -p 'test_p0_hit_signatures_private.py' -v
 if ($LASTEXITCODE -ne 0) {
     throw 'S000 existing stratification tests failed, no private audit'
 }
@@ -68,7 +71,7 @@ if (-not (Test-Path -LiteralPath $private -PathType Container)) {
 
 # The existing #205 analyzer invokes existing #199.audit for EVERY pair.
 # Its stdout is sanitized JSON: no per-shot names or private memory values.
-$jsonLines = @(& py -I $contrast --captures $private --s002-reader $reader --top 200)
+$jsonLines = @(& $python.Source -I $contrast --captures $private --s002-reader $reader --top 200)
 if ($LASTEXITCODE -ne 0) {
     throw 'Source-validated 11-pair private contrast refused'
 }
