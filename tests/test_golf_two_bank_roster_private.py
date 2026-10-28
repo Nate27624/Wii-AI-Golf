@@ -39,6 +39,10 @@ def synthetic():
         x.PLAYER_MANAGER_STATIC_CANDIDATE: pm,
         pm: x.PLAYER_MANAGER_DATA[0],
     }
+    for index in range(4):
+        mapping[x.PLAYER_MANAGER_CODE[0] + index * 4] = (7 << 26) | 0xCC
+    for index in range(7):
+        mapping[x.PLAYER_MANAGER_CODE[0] + 0x40 + index * 4] = (14 << 26) | 0xCC
     for slot in range(x.ROSTER_SLOTS):
         ball = 0x91010000 + slot * 0x100
         player = 0x91020000 + slot * 0x100
@@ -52,6 +56,8 @@ def synthetic():
 class PlayerBallRosterTests(unittest.TestCase):
     def analyze(self, words, header=b"RSPE01\x00\x01"):
         def read(addr):
+            if x.PLAYER_MANAGER_CODE[0] <= addr < x.PLAYER_MANAGER_CODE[1]:
+                return words.get(addr, 0)
             if addr not in words:
                 raise ValueError("unmapped synthetic word")
             return words[addr]
@@ -66,6 +72,11 @@ class PlayerBallRosterTests(unittest.TestCase):
         self.assertEqual(out["slots_with_both_data_region_hints"], 4)
         self.assertTrue(out["all_candidate_slots_pairwise_distinct"])
         self.assertTrue(out["main_direct_child_firstword_in_player_data"])
+        self.assertTrue(out["candidate_stride_has_bounded_source_code_corroboration"])
+        self.assertEqual(
+            out["player_manager_source_code_stride_checks"]["ppc_mulli_immediate_matching_stride"], 4)
+        self.assertEqual(
+            out["player_manager_source_code_stride_checks"]["ppc_addi_immediate_matching_stride"], 7)
         self.assertFalse(out["actual_player_or_ball_identity_verified"])
         self.assertFalse(out["club_pose_power_ball_xyz_verified"])
 
@@ -147,6 +158,24 @@ class PlayerBallRosterTests(unittest.TestCase):
         self.assertFalse(x._in_data(x.PLAYER_DATA[1], x.PLAYER_DATA))
         self.assertTrue(x._in_data(x.PLAYER_DATA[0], x.PLAYER_DATA))
 
+
+    def test_matching_layout_without_code_stride_does_not_claim_corroboration(self):
+        m, _ = synthetic()
+        for addr in list(m):
+            if x.PLAYER_MANAGER_CODE[0] <= addr < x.PLAYER_MANAGER_CODE[1]:
+                m[addr] = 0
+        result = self.analyze(m)
+        self.assertEqual(result["slots_with_both_data_region_hints"], 4)
+        self.assertFalse(result["candidate_stride_has_bounded_source_code_corroboration"])
+        self.assertFalse(result["roster_member_offsets_source_verified"])
+
+    def test_ppc_code_window_is_bounded_and_no_instruction_bytes_exported(self):
+        m, _ = synthetic()
+        result = self.analyze(m)
+        info = result["player_manager_source_code_stride_checks"]
+        self.assertEqual(info["ppc_manager_code_instructions_checked"], 1236)
+        self.assertFalse(info["ppc_member_register_dataflow_proven"])
+        self.assertNotIn("instruction_words", json.dumps(result))
 
 if __name__ == "__main__":
     unittest.main()
