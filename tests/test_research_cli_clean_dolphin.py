@@ -32,6 +32,7 @@ class P0CleanCliV1Tests(unittest.TestCase):
         self.clean.mkdir()
         (self.clean / "User").mkdir()
         (self.clean / "Dolphin.exe").write_bytes(b"fake EXE not executable")
+        (self.clean / "portable.txt").write_text("", encoding="utf-8")
         (self.repo / "research" / "launch.local.json").write_text("{}", encoding="utf-8")
         (self.repo / "research" / "savestates.local.json").write_text("{}", encoding="utf-8")
 
@@ -41,7 +42,7 @@ class P0CleanCliV1Tests(unittest.TestCase):
         self.assertFalse(self.clean.exists())
 
     def test_missing_one_required_input_fails_closed(self):
-        for missing in ("Dolphin.exe", "User", "launch.local.json",
+        for missing in ("Dolphin.exe", "portable.txt", "User", "launch.local.json",
                         "savestates.local.json"):
             with self.subTest(missing=missing):
                 with tempfile.TemporaryDirectory() as temp:
@@ -51,9 +52,10 @@ class P0CleanCliV1Tests(unittest.TestCase):
                     clean.mkdir(parents=True)
                     (clean / "User").mkdir()
                     (clean / "Dolphin.exe").write_bytes(b"fake")
+                    (clean / "portable.txt").write_text("")
                     (root / "research" / "launch.local.json").write_text("{}")
                     (root / "research" / "savestates.local.json").write_text("{}")
-                    target = (clean / missing if missing in ("Dolphin.exe", "User")
+                    target = (clean / missing if missing in ("Dolphin.exe", "portable.txt", "User")
                               else root / "research" / missing)
                     if target.is_dir():
                         target.rmdir()
@@ -61,6 +63,26 @@ class P0CleanCliV1Tests(unittest.TestCase):
                         target.unlink()
                     with self.assertRaises(RuntimeError):
                         research_cli.v1_clean_boot_args(root)
+
+    def test_portable_marker_directory_is_not_accepted(self):
+        self.prepare_clean()
+        (self.clean / "portable.txt").unlink()
+        (self.clean / "portable.txt").mkdir()
+        with self.assertRaisesRegex(RuntimeError, "portable.txt"):
+            research_cli.v1_clean_boot_args(self.repo)
+
+    def test_alternate_user_environment_without_portable_marker_blocks_dispatch(self):
+        # The explicit config target does not itself prove that Dolphin will
+        # select that user root. No fallback to registry/environment default.
+        self.prepare_clean()
+        (self.clean / "portable.txt").unlink()
+        alternate = self.repo.parent / "alternate-dolphin-user"
+        alternate.mkdir()
+        with patch.dict("os.environ", {"DOLPHIN_EMU_USERPATH": str(alternate)}):
+            code, calls = self.patched_main(["v1", "--live", "--no-upload"])
+        self.assertEqual(code, 2)
+        self.assertEqual(calls, [])
+        self.assertFalse((self.clean / "portable.txt").exists())
 
     def test_explicit_paths_correct_order_no_legacy_fallback(self):
         self.prepare_clean()
