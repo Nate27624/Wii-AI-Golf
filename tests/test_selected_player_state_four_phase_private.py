@@ -16,6 +16,18 @@ from test_selected_ball_start_link_private import fixture
 from test_golf_two_bank_roster_private import dform, mr
 
 
+def synthetic_reader(words):
+    def read(addr):
+        if (roster.PLAYER_MANAGER_CODE[0] <= addr < roster.PLAYER_MANAGER_CODE[1]
+                or 0x8029E62C <= addr < 0x802A2210
+                or 0x80290B44 <= addr < 0x80294184):
+            return words.get(addr, 0)
+        if addr not in words:
+            raise ValueError("Undefined synthetic source word")
+        return words[addr]
+    return read
+
+
 def fake(stage_value=1):
     words,refs=fixture()
     words[0x8029F0C0]=mr(29,3)
@@ -24,15 +36,7 @@ def fake(stage_value=1):
         words[store]=dform(36,0,reg,0x24)
     selected=refs["pm"]+4
     words[selected+0x24]=stage_value
-    def read(addr):
-        if (roster.PLAYER_MANAGER_CODE[0] <= addr < roster.PLAYER_MANAGER_CODE[1]
-                or 0x8029E62C <= addr < 0x802A2210
-                or 0x80290B44 <= addr < 0x80294184):
-            return words.get(addr,0)
-        if addr not in words:
-            raise ValueError("Undefined synthetic source word")
-        return words[addr]
-    return study._one(read,b"RSPE01\x00\x01"),words,refs
+    return study._one(synthetic_reader(words),b"RSPE01\x00\x01"),words,refs
 
 
 def four(*values):
@@ -78,7 +82,7 @@ class SelectedPlayerStateStudyTests(unittest.TestCase):
     def test_pinned_source_rejects_corrupted_literal_load(self):
         (_,words,refs)=fake()
         words[0x8029F1BC]=dform(14,0,0,8)
-        def read(addr): return words[addr]
+        read = synthetic_reader(words)
         with self.assertRaises(ValueError):
             study._one(read,b"RSPE01\x00\x01")
 
@@ -90,13 +94,13 @@ class SelectedPlayerStateStudyTests(unittest.TestCase):
         ]:
             (pair,words,refs)=fake()
             words[pc]=alt
-            def read(addr): return words[addr]
+            read = synthetic_reader(words)
             with self.subTest(pc=pc),self.assertRaises(ValueError):
                 study._one(read,b"RSPE01\x00\x01")
 
     def test_non_rev1_scene_fails_source_gate(self):
         pair,words,refs=fake()
-        def read(addr): return words[addr]
+        read = synthetic_reader(words)
         with self.assertRaises(ValueError):
             study._one(read,b"RSPE01\x00\x00")
         words[refs["config"]+0x94]=3
