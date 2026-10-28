@@ -7,6 +7,7 @@ never sends raw candidate coordinates to GitHub or stdout.
 from __future__ import annotations
 
 import argparse
+import hashlib
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -23,37 +24,93 @@ from probe_swing import build_probe
 
 PRIVATE_ROOT = (ROOT.parent / "Wii-AI-Golf-Data")
 TRACE_SAMPLES = 89
+EXPECTED_BASELINE_SHA256 = "b63a1818ba5086c64b0fe7338236a498240e4be97bbd111809a772d783699891"
+
+
+def verify_frozen_waveform(samples) -> None:
+    """The exact #147 V1 human-contact trace; never accept 89 changed samples."""
+    if not isinstance(samples, list) or len(samples) != TRACE_SAMPLES:
+        raise ValueError("Known-good 89-frame waveform length changed")
+    rows = [[s.hold_a, *s.direction, s.distance_m, s.speed_m_s,
+             s.return_speed_m_s, s.angle_rad] for s in samples]
+    actual = hashlib.sha256(json.dumps(rows, separators=(",", ":"))
+                            .encode("utf-8")).hexdigest()
+    if actual != EXPECTED_BASELINE_SHA256:
+        raise ValueError("Frozen #147 waveform digest changed")
+
+
 
 
 def summarize(samples: list[dict], *, human_ball_moved: str) -> dict:
+    """Conservatively corroborate only COMPLETE, source-consistent pilot rows.
+
+    Bridge coroutine ticks are NOT independently verified guest frames, and
+    trace samples are requested commands, NOT game-applied shot events.
+    """
     if human_ball_moved not in ("yes", "no", "unknown"):
         raise ValueError("Human observation must be yes/no/unknown")
-    if not samples or len(samples) > 80:
+    if not isinstance(samples, list) or not 1 <= len(samples) <= 80:
         raise ValueError("Expected 1..80 bounded observations")
-    indexes = [s["frame_tick_index"] for s in samples]
-    if any(type(i) is not int for i in indexes) or indexes != sorted(set(indexes)):
+    if any(not isinstance(s, dict) for s in samples):
+        raise ValueError("Expected source-gated observation objects")
+    indexes = [s.get("frame_tick_index") for s in samples]
+    if (any(type(i) is not int for i in indexes)
+            or indexes != sorted(set(indexes))):
         raise ValueError("Unordered or duplicated frame tick indices")
+    required_vectors = (
+        "current_start_f32_candidate",
+        "ball_translation_f32_candidate",
+        "record_translation_f32_candidate",
+    )
+    if any(not isinstance(s.get(k), list) or len(s[k]) != 3
+           for s in samples for k in required_vectors):
+        raise ValueError("Missing source-gated three-component vector")
     starts = [s["current_start_f32_candidate"] for s in samples]
     balls = [s["ball_translation_f32_candidate"] for s in samples]
     records = [s["record_translation_f32_candidate"] for s in samples]
-    slots = {s["selected_slot_candidate"] for s in samples}
-    holes = {s["source_hole_index"] for s in samples}
-    trace_frames = [s for s in samples if s["trace_sample_index_if_active"] is not None]
-    idle_frames = [s for s in samples if s["trace_sample_index_if_active"] is None]
+    slots = {s.get("selected_slot_candidate") for s in samples}
+    holes = {s.get("source_hole_index") for s in samples}
+    owners_ok = all(s.get("source_owner_consistent") is True for s in samples)
+    read_budget_ok = all(type(s.get("read_overhead_us")) is int
+                         and 0 <= s["read_overhead_us"] <= 5000
+                         for s in samples)
+    raw_trace_indices = [s.get("trace_sample_index_if_active") for s in samples]
+    if any(t is not None and (type(t) is not int or not 0 <= t < 89)
+           for t in raw_trace_indices):
+        raise ValueError("Invalid commanded trace sample index")
+    trace_ids = [s.get("trace_id_if_active") for s in samples
+                 if s.get("trace_sample_index_if_active") is not None]
+    stable_trace_id = (len(trace_ids) > 0
+                       and all(type(tid) is int and tid == trace_ids[0]
+                               for tid in trace_ids))
+    trace_frames = [s for s in samples
+                    if s.get("trace_sample_index_if_active") is not None]
+    idle_frames = [s for s in samples
+                   if s.get("trace_sample_index_if_active") is None]
     first_trace = next((i for i, s in enumerate(samples)
-                        if s["trace_sample_index_if_active"] is not None), None)
+                        if s.get("trace_sample_index_if_active") is not None),
+                       None)
     pretrace_count = first_trace if first_trace is not None else len(samples)
     pretrace_balls = balls[:pretrace_count]
     pretrace_stable = (
         pretrace_count >= 2
         and all(v == pretrace_balls[0] for v in pretrace_balls)
     )
+    # A zero-length pretrace has NO approved baseline; do not index [0].
     ball_changed_after_trace_starts = (
-        first_trace is not None
+        first_trace is not None and pretrace_stable
         and any(x != pretrace_balls[0] for x in balls[first_trace:])
     )
     start_fixed = all(x == starts[0] for x in starts)
     ball_changed = any(x != balls[0] for x in balls[1:])
+    slot_stable = len(slots) == 1 and all(type(x) is int and 0 <= x < 4 for x in slots)
+    hole_stable = len(holes) == 1 and all(type(x) is int and 0 <= x < 9 for x in holes)
+    corroborated = (
+        pretrace_stable and ball_changed_after_trace_starts
+        and start_fixed and slot_stable and hole_stable
+        and owners_ok and read_budget_ok and stable_trace_id
+        and human_ball_moved == "yes"
+    )
     return {
         "kind": "private-candidate-ball-translation-frame-watch",
         "schema_version": 1,
@@ -61,8 +118,11 @@ def summarize(samples: list[dict], *, human_ball_moved: str) -> dict:
         "distinct_bridge_tick_indexes": len(set(indexes)),
         "samples_with_active_trace": len(trace_frames),
         "samples_without_active_trace": len(idle_frames),
-        "source_selected_slot_stable": len(slots) == 1,
-        "source_hole_stable": len(holes) == 1,
+        "source_selected_slot_stable": slot_stable,
+        "source_hole_stable": hole_stable,
+        "source_owner_consistent_all_samples": owners_ok,
+        "read_overhead_within_budget_all_samples": read_budget_ok,
+        "commanded_trace_id_stable": stable_trace_id,
         "start_vector_stable": start_fixed,
         "pretrace_control_samples": pretrace_count,
         "pretrace_candidate_ball_stationary": pretrace_stable,
@@ -71,10 +131,8 @@ def summarize(samples: list[dict], *, human_ball_moved: str) -> dict:
         "candidate_record_triplet_equal_ball_triplet_count":
             sum(a == b for a, b in zip(records, balls)),
         "human_observed_ball_movement": human_ball_moved,
-        "candidate_motion_corroborated_by_human": (
-            pretrace_stable and ball_changed_after_trace_starts
-            and start_fixed and len(slots) == 1
-            and len(holes) == 1 and human_ball_moved == "yes"),
+        "candidate_motion_corroborated_by_human": corroborated,
+        "no_button_idle_independently_verified": False,
         "guest_emulator_frame_verified": False,
         "actual_active_ball_xyz_verified": False,
         "ball_velocity_verified": False,
@@ -83,7 +141,6 @@ def summarize(samples: list[dict], *, human_ball_moved: str) -> dict:
         "training_allowed": False,
         "allowed_to_publish": False,
     }
-
 
 def _private_output(path: Path) -> Path:
     root = PRIVATE_ROOT.resolve(strict=True)
@@ -131,8 +188,7 @@ def main(argv=None) -> int:
     try:
         output = _private_output(args.private_output)
         samples = build_probe("forward", follow_through_frames=30, a_setup_frames=12)
-        if len(samples) != TRACE_SAMPLES:
-            raise ValueError("Known-good 89-frame waveform changed")
+        verify_frozen_waveform(samples)
         with FelkRPC(port=args.port) as rpc:
             ping = rpc.call("bridge.ping", [])
             caps = rpc.call("trace.swing_capabilities", [])
@@ -161,8 +217,8 @@ def main(argv=None) -> int:
                 release_buttons(rpc, remote=args.remote)
                 watch_report = rpc.call("golf.ball_watch.drain", [])
         status = watch_report.get("status", {})
-        if status.get("state") in ("source_gate_failed", "read_overhead_exceeded"):
-            raise RuntimeError("Watch source gate/performance failed; no numeric data exported")
+        if status.get("state") != "complete":
+            raise RuntimeError("Watch not complete or source/performance gate failed")
         watch_samples = watch_report.get("samples")
         if not isinstance(watch_samples, list) or not watch_samples:
             raise RuntimeError("Watch returned zero candidate frames")
