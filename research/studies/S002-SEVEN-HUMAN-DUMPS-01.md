@@ -55,3 +55,31 @@ Extended the **same** standalone PowerShell 5.1 audit to calculate the intersect
 
 **Exact synthetic validation:** [GitHub run 40644726793](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40644726793) Windows PowerShell 5.1 and Ubuntu PowerShell 7 both **7/7 tests PASS, zero skipped**, including a fabricated three-snapshot wedge control (pages 1,2,3 changed in first adjacent interval; 2,3,4 changed second; 1,3,4 changed long-span; overlap=2, all-three=1, returned-to-original=1). **Real user's W5/W6/W7 temporal intersection counts not obtained yet**; the original 4 pairs remain user-reported source-of-truth until rerun with this reviewed script. No fresh shots required.
 
+
+## 2026-10-28 real W5→W6→W7 temporal mask findings (operator-run private report)
+
+The operator ran local PowerShell on their previously saved report-RAW-PRIVATE.json containing 4KiB bank-relative changed-page masks from the REAL seven fullbank pair audit. Only the following aggregate counts were shared; private page indices/hashes/bytes stayed local.
+
+| Three-snapshot 4KiB page class | MEM1 | MEM2 |
+| --- | ---: | ---: |
+| Changed in BOTH adjacent intervals 5→6 and 6→7 | 253 | 200 |
+| Changed in ALL THREE contrasts (5→6, 6→7, 5→7) | 252 | 200 |
+| Changed in both adjacent intervals BUT first 5 and final 7 pages identical | 1 | 0 |
+| Changed ONLY in first adjacent interval | 14 | 8 |
+| Changed ONLY in second adjacent interval | 53 | 17 |
+| Reconstructed total 5→6 | 267 | 208 |
+| Reconstructed total 6→7 | 306 | 217 |
+| Reconstructed total 5→7 | 319 | 225 |
+| Exact three-snapshot page triangle check | PASS | PASS |
+
+Cross-checks: MEM1 253+14=267, 253+53=306, 252+14+53=319; MEM2 200+8=208, 200+17=217, 200+8+17=225. **94.76%** (253/267) of MEM1's first-interval changed pages and **96.15%** (200/208) of MEM2's first-interval changed pages also changed in the second. Reverse proportions: 82.68% (253/306) MEM1 and 92.17% (200/217) MEM2. One MEM1 4KiB page changed then returned to exactly snapshot 5's entire page contents in snapshot 7; zero MEM2 pages did so.
+
+These are **large recurring activity sets**, not identified ball-position addresses: a 4KiB page can contain rendering/UI, camera, time, player, physics and other fields. Whole-page identity is NOT physical return of a ball. Source bank hashes and masks prove bytewise change, not same-guest-frame atomicity or source-backed object semantics. Same-shot ordering is human observation.
+
+### Next source-gated owner task (do not duplicate readers)
+
+Parallel S002 [PR #230](https://github.com/Nate27624/Wii-AI-Golf/pull/230) and [PR #231](https://github.com/Nate27624/Wii-AI-Golf/pull/231) ALREADY own seven-snapshot source-checked PPC selected-ball/tee/pin/cache/record analysis. Reuse those readers on saved seven local pairs, verifying owner/hole/scene/pin/start for W5,W6,W7 and contrasting candidate current ball+0x30 and caches+0xCC/+0xF0/+0xFC in W5→W6 and W6→W7 (0..3 changed components). Check pin/current-start stable and player record+0x34/+0x38/+0x74, and camera rebase at W5. Driver 1→2 is an independent same-shot control. Putter 3 vs driver 4 is NOT controlled A-state intervention.
+
+UI labels 15.2ft wedge and 100.0ft off-green driver are still human-read screen values, not decoded RAM score. Raw data, memory page indices and private paths never uploaded.
+
+Current gates: same_guest_frame_verified=false, actual_ball_world_xyz_verified=false, ball_velocity_verified=false, power_memory_verified=false, score_memory_verified=false, approved_for_training=false.
