@@ -289,3 +289,53 @@ negative no-UI conclusion.
 No live Dolphin, new capture, human-provisional phase promotion or
 training. All rendered/result/backing-physics semantics remain
 UNVERIFIED; S001/#248 independently owns same guest-frame association.
+
+
+## Actual local Golf formatted layout wrapper xrefs (operator 2026-10-28)
+
+The operator used SHA-pinned source \`68c7d804be45e099a9de8b34d10b16514090e1a3\`
+with 13/13 focused synthetic tests passing and canonical original B0
+source/manifest SHA passing. In the 25 Golf public code units there are
+**60** direct \`RPSysLayout::findTextBox\` BL, **49** direct
+\`RPSysLytTextBox::setMessage(...)\` BL, **11** direct
+\`RPSysLytTextBox::setText(...)\` BL, **12** direct
+\`RPSysLayout::create\` BL, and **zero** direct calls to the
+\`setMessage(va_list)\` exact anchor. All returned UI wrapper BLs were
+within \`RPGolScene_unsplit.o\`. This proves Golf's source directly uses
+the formatted text layer; it does **NOT** establish that any candidate
+belongs to the Hitting-the-Green result or carries the actual result
+value. Notably a \`findTextBox\` at +0x07C28 and \`setMessage\` at
++0x07C40 are only 0x18 bytes apart; nearby presence alone is not
+control-flow/receiver identity or same-message semantics.
+
+### Constrained next source-only test and stopping condition
+
+\`scripts/audit_p0_golf_message_arg_pairs_private.py\` reuses the
+exact B0 SHA and public Golf source unit trust gates. Only direct
+\`findTextBox\` followed by a direct formatted-message/text wrapper
+call **within 0x40 bytes**, with NO intervening branch/call, can be
+reported. For each such source-code pair, it records a possible
+intervening r3 clobber (the prior call may return the pane in r3),
+plus the *last syntactic* post-lookup \`argc\` definition: \`r7\`
+for \`setMessage(...)\` or \`r5\` for \`setText(...)\`. The first
+variadic value register candidate is \`r8\` for \`setMessage(...)\`
+or \`r6\` for \`setText(...)\`; only source classes (register move,
+memory load, unknown, etc.) are emitted.
+
+The code does not recover BMG group IDs, message IDs, pane names,
+numeric argument contents, actual function CFG or incoming branch
+edges, and it cannot identify a displayed result number just from
+\`argc>0\`. The group/idx arguments are excluded from the output,
+to avoid unauthenticated game semantic promotion and private values.
+Unknown/zero argc also cannot prove no number, because the analysis
+is limited to definitions AFTER the last lookup and the UI setter
+may access a stored value via indirect dispatch.
+
+**Stop rule:** If the operator run produces no source-local paired
+formatted call with an explicit nonzero argument count and plausible
+value-side source, do NOT request another static UI xref iteration;
+next step requires S001 independently attested result screen and
+guest-frame linkage. If promising pairs appear, only trace those
+specific source-code locations and ask the S002 owner to connect
+pane/message and typed value producer, without promoting training.
+Source owner and downstream S000/S001 review remain required.
