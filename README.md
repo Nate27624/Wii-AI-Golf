@@ -1,5 +1,46 @@
 # Wii AI Golf
 
+## START HERE — CURRENT OPERATOR WORKFLOW (2026-10-27)
+
+### NEW AI AGENT? READ THIS BEFORE ANSWERING OR EDITING
+
+**This is a mandatory onboarding gate, not optional reference material.** Every new or resumed agent (S000–S005), including an agent reached by switching ChatGPT contexts, MUST **read** root [AGENTS.md](AGENTS.md), the [agent session/rebaseline protocol](docs/agent-session-protocol.md), [operator PowerShell rules](docs/operator-powershell-contract.md), [repository map](docs/repository-map.md), [research coordination](research/coordination.md), and the relevant live GitHub issue/PR/handoff and evidence **before giving advice, code or commands**. Read [merge rules](docs/merging-requirements.md) and existing script/tests before proposing changes. **Do not merely link to the rules: read them.**
+
+**RE-BASELINE EVERY SUBSTANTIVE RESPONSE:** The operator switches between independent agent conversations. Each agent must reconcile the latest PowerShell output and refresh relevant current GitHub branch/head, PR/CI/owner claim, frozen baseline input method, evidence status and next P0 blocker. A short Current baseline is enough: **source checked | P0 goal | verified vs candidate | blocker/owner | next one action**. Do not present a draft as merged, cached chat as fresh evidence or guess a current state. Do not make the operator repeat already supplied results. No full-repo reread needed on every trivial turn; recheck only state material to the answer.
+
+**Before handing off:** Post a dated HANDOFF in the owning GitHub issue/PR with actual commit, focused tests, sanitized observation URL or NOT UPLOADED, verified/negative evidence, current blocker and next owner. The new agent rechecks that handoff instead of trusting another chat. See [session protocol](docs/agent-session-protocol.md). Repository instructions improve consistency but cannot technically force an external AI to read; agents must attest truthfully to what they checked.
+
+**The operator uses Windows PowerShell only. No Lab GUI, manual Dolphin launch/loading, Git Bash instructions, ad hoc RPC/swing code, or experimental replacement of the already validated A-button and 89-sample swing methods.** Agents: follow [mandatory PowerShell/operator contract](docs/operator-powershell-contract.md) and [repository map](docs/repository-map.md) before giving any command. These rules supersede older date-stamped runbooks below.
+
+**Read-only setup check (safe; from any PowerShell directory):**
+
+~~~powershell
+$ErrorActionPreference = 'Stop'
+$repo = 'D:\Projects\Wii Golf AI\Wii-AI-Golf'
+Set-Location -LiteralPath $repo
+py scripts/golf.py doctor
+if ($LASTEXITCODE -ne 0) { throw 'Setup check failed; no game started' }
+~~~
+
+**Where to go:**
+
+| Need | Authoritative location |
+| --- | --- |
+| Operator commands, paste-back format, approved-vs-draft and A45 semantics | [PowerShell-only operator contract](docs/operator-powershell-contract.md) |
+| Repository directory tree, which code is canonical, raw-data boundaries, S000–S005 ownership | [Repository structure](docs/repository-map.md) |
+| Maintained research CLI sync/test/V1 result-sharing details | [Script-first workflow](docs/cli-only-workflow.md) |
+| Broader existing golf.py doctor/state/test command reference | [CLI reference](docs/cli.md) |
+| Existing agent rules and peer collision/claim/merge protocol | [AGENTS](AGENTS.md), [coordination](research/coordination.md), [merge gates](docs/merging-requirements.md) |
+| Historical evidence vs P0 next verified ball contact | [Research ledger](research/ledger.md), [active PR/issue queue](https://github.com/Nate27624/Wii-AI-Golf/issues/121) |
+
+**NEW mandatory result/handoff rule:** Approved tests and experiments must auto-publish a small allowlisted result to GitHub's `research/observations` branch through the existing research CLI publisher during the same PowerShell run; the operator must not perform manual uploads. Source-native RAM/PRIVATE captures remain local. Significant results, including failures and falsified P0 hypotheses, must be posted as **FINDING** to the owning issue/PR and then preserved in `research/ledger.md` through a reviewed integration. If an advanced probe lacks reviewed auto-publishing, build its adapter first or clearly say it does not yet upload. A failed upload is `NOT UPLOADED`, never an implied success. See [mandatory auto-publication policy](docs/operator-powershell-contract.md#automatic-github-publication-and-durable-research-findings-mandatory).
+
+**Canonical flow:** reviewed operator CLI -> S001 single fresh boot/registered checkpoint/menu -> existing source-pinned swing -> S002 observation -> sanitized result only. The operator does not start Dolphin by hand. Keep `Wii-AI-Golf-Data` private and NEVER assume a draft PR exists on local main. The clean Dolphin CLI guard from draft PR #195 must be reviewed/merged before anyone treats it as already active in main; visual contact and scoring remain separate unverified gates.
+
+**Archived material below:** older GUI-first sections, alternative shell commands, A45 experiments and historical statuses are preserved for archaeology only; do not use them as current operator instructions. When in doubt, follow the linked two ACTIVE documents above.
+
+---
+
 ## One-command research status sharing (existing Git authentication)
 
 ```powershell
@@ -22,7 +63,9 @@ Exporting does NOT notify agents. A passing process is **not** proof of a
 ball hit or verified golf score. See
 [Token-free CLI usage](docs/token-free-research-export.md).
 
-## Active workflow: automatic GitHub pull → local research → sanitized GitHub push
+## REFERENCE (2026-10-24): existing research sync and publication behavior
+
+> **Archived context:** do not instruct the operator to follow UI/Bash/manual launch steps or substitute this historic experiment for the current reviewed PowerShell method. See the ACTIVE rules at top.
 
 The **desktop UI is retired**. The Windows operator runs ONE central script against the existing codebase:
 
@@ -40,7 +83,9 @@ The existing Git Bash wrapper `bash scripts/golf.sh` remains an alternative for 
 ---
 
 
-## Current workflow: One Lab, desktop and Git Bash
+## ARCHIVED: former Lab GUI / Git Bash workflow — DO NOT USE
+
+> **Archived context:** do not instruct the operator to follow UI/Bash/manual launch steps or substitute this historic experiment for the current reviewed PowerShell method. See the ACTIVE rules at top.
 
 The Windows Research Lab GUI is supported, with Git Bash and PowerShell as optional interfaces to the SAME reviewed Python runner. Choose a game study from the GUI's list and use its right-hand Show/details pane. Agents commit code/tests and open reviewed GitHub pull requests; merged tests are discovered from the one `main` checkout. The shell wrapper never auto-uploads private game files or runs new tests without a user command.
 
@@ -62,11 +107,15 @@ To run a live, registered trial only after reviewing its plan: `bash scripts/gol
 ---
 
 
-## Game Testing UI result visibility
+## ARCHIVED: former GUI diagnostic visibility
+
+> **Archived context:** do not instruct the operator to follow UI/Bash/manual launch steps or substitute this historic experiment for the current reviewed PowerShell method. See the ACTIVE rules at top.
 
 The **Inspect bridges** button writes the actual V1/V2 inspection into the permanent Game Testing results area. **Prepare historical V1** runs the reviewed recorded Lab preparation in the background and displays progress/errors there. Neither opens a separate terminal or a generic missing-log popup. The one-shot Dolphin swing retains its interactive console and explicit consent. A historical V1 trial can only be enabled if the isolated copy exactly matches the verified pre-V2 backup. See [Research Lab UI guide](docs/research-lab.md).
 
-## New: one shared Research Lab (S000–S005)
+## ARCHIVED: former shared Research Lab GUI
+
+> **Archived context:** do not instruct the operator to follow UI/Bash/manual launch steps or substitute this historic experiment for the current reviewed PowerShell method. See the ACTIVE rules at top.
 
 **Instead of chasing agent-specific scripts, launch the Windows app:**
 
@@ -181,7 +230,9 @@ Optional installation: `py -m pip install -e .` then `wii-golf --help` or `py -m
 The historical `scripts/*.py` commands remain functional for advanced users and the other agents. This is an **additive** consolidation, not a breaking rename. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 
-## Current swing ordering experiment
+## HISTORICAL: A priming / neutral timing trials — NOT the active default
+
+> **Archived context:** do not instruct the operator to follow UI/Bash/manual launch steps or substitute this historic experiment for the current reviewed PowerShell method. See the ACTIVE rules at top.
 
 **Observed failure (2026-10-24):** After a good full Dolphin launch and A/A+B/A menu intro, the operator reported that motion happened before A visibly engaged, **no ball contact**, even with 45 A-held neutral samples in the swing trace. Investigation found that those so-called A-only samples **still invoked Dolphin's swing API with zero motion**. That is not equivalent to button-only input.
 
@@ -197,7 +248,9 @@ py scripts/golf.py swing --slot 2 --a-prime-frames 0
 
 The standard CLI uses `--a-prime-frames 60`, `--a-setup-frames 12`, and `--follow-through-frames 30`. Both normal commands retain the canonical fresh Felk startup, Emulated Wii Remote 1/Extension None, Slot 2 restore, A/A+B/A intro and human ready-screen confirmation. See [timing experiment](docs/first-swing-experiment.md) and [CLI guide](docs/cli.md). In-game button acceptance is still human-observed, not automatically verified.
 
-## Agent tests automatically appear from GitHub
+## ARCHIVED: prior Lab GUI test-list synchronization
+
+> **Archived context:** do not instruct the operator to follow UI/Bash/manual launch steps or substitute this historic experiment for the current reviewed PowerShell method. See the ACTIVE rules at top.
 
 The Windows Research Lab GUI now checks the approved repository's **merged `main`** when it opens and every **two minutes**, safely fast-forwarding a clean local checkout and discovering new `tests/test_*.py` files. In the UI choose **Agent tests**, select a newly merged **NEW** test, preview, and **Run offline**; or press **Sync GitHub** for an immediate check. No tests or live golf actions run without your approval. Unmerged agent PRs remain pending and are not automatically executed.
 

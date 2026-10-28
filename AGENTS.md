@@ -1,5 +1,28 @@
 # AI agent coordination protocol
 
+## ACTIVE OPERATOR RULES — 2026-10-27 (READ FIRST; SUPERSEDES GUI-ERA TEXT)
+
+**MANDATORY NEW-AGENT BOOTSTRAP (READ BEFORE EACH NEW CONTEXT):** All new or resumed S000–S005 agents MUST personally read the ACTIVE README + root AGENTS.md rules, **[agent session protocol](docs/agent-session-protocol.md)**, [PowerShell contract](docs/operator-powershell-contract.md), [repository map](docs/repository-map.md), [research coordination](research/coordination.md), and relevant current GitHub owner issue/PR comments, tests and evidence **before offering code, claims or operator commands**. At context start, attest briefly to documents actually read, source branch/head actually checked, P0 goal, evidence class, current blocker and ownership. Do not fabricate a read/approval from stale chat.
+
+**PER-RESPONSE REBASELINE (CONTEXT-SWITCH SAFE):** Before **every substantive answer**, reconcile the latest pasted operator result and recheck the *relevant* current branch/PR/CI/issue status; say **not checked** for inaccessible state. Provide a concise Current baseline (source, goal, verified vs candidate evidence, blocker, next one action), refreshed as changes occur. Do NOT repeatedly audit all docs, re-run known-good scans, or ask the operator for previously supplied information. Keep the source-verified A45 mode and frozen 89-sample waveform unchanged. After material work, post a durable HANDOFF to the owning GitHub issue so a different agent context can resume without trusting chat memory. No unattended live game inferred.
+
+**Operator-only interface: Windows PowerShell, CLI-only, copy/paste-ready.** Before proposing ANY local action, read [operator PowerShell contract](docs/operator-powershell-contract.md) and [repository map](docs/repository-map.md). These current instructions govern every agent S000–S005 and supersede older GUI/Git Bash/manual Dolphin startup examples below. Historical sections are retained as evidence, not active operator runbooks.
+
+- **MANDATORY automatic GitHub result publication and findings handoff:** Any operator-run test or research command that generates results MUST automatically publish the **approved sanitized result summary** to the existing `research/observations` GitHub branch **in the same command**, using the reviewed `scripts/research_cli.py` publisher/allowlist. No manual `git add`, GitHub upload, copying files, pasting raw output, PAT creation, or separate post-run command for the operator. This auto-publication is for **sanitized results only**; raw MEM1/MEM2, PRIVATE JSON, ROM, savestates, pointers, traces, generated bridges and local/private paths NEVER leave `Wii-AI-Golf-Data`.
+- **Missing uploader is a development blocker, not an excuse:** If a study's operator command lacks reviewed auto-publish integration, agents MUST first add a **narrow tested adapter to the canonical publisher** under S000/S002 privacy review, or clearly report that automatic upload is NOT YET IMPLEMENTED and do not claim its outputs will reach GitHub. No custom secondary publisher and no bypass of the allowlist. The explicit operator `--no-upload` or privacy/safety failure overrides the default; never post unsafe data merely to comply.
+- **Every important positive OR negative finding must be recorded:** For a validated or consequential hypothesis result, missed strike, candidate-variable change, calibration, contradicted assumption, blocker, regression, or P0 gate decision, post a concise dated **FINDING** on its owning GitHub issue/PR with study/run ID, source classification, commit/bridge/profile/trace identity where safe, sanitized observation URL or failure state, controls, limitations, confidence, and follow-up owner. Append the evidence-qualified conclusion to `research/ledger.md` via the owner's normal reviewed PR/integration path (do not race edits on main); link the exact issue and sanitized record. Do **not** promote source-only or human-only observations to physical XYZ, swing power, verified score or training eligibility.
+- **Upload failure is visible and preserved:** Save a sanitized local record before pushing; on auth, offline, concurrent-push, schema or privacy failure report `NOT UPLOADED` with a safe error and stop/abstain rather than inventing success or asking the operator to manually upload RAW files. The agent tracks the blocker in the GitHub issue if GitHub is reachable. Verified GitHub publication requires an observed successful publisher return/link; a terminal success or local saved JSON is not proof of upload.
+- **NEVER tell the operator to open, click, load, configure or manually run Dolphin or a Lab GUI.** The operator pastes one complete PowerShell block from any working directory and returns terminal output. If no local action is needed, say so; if the capability is absent/unmerged, implement a reviewed CLI adapter or identify the blocker instead of issuing hand-operated steps.
+- **PowerShell block contract:** `$ErrorActionPreference = 'Stop'`; set `$repo = 'D:\Projects\Wii Golf AI\Wii-AI-Golf'`; `Set-Location -LiteralPath $repo`; use exact currently merged existing scripts/flags and local private sibling path; include failure guards (`$LASTEXITCODE`) and expected *sanitized* console fields. Commands should not depend on unreviewed branch files or assume Dolphin/bridge was already launched.
+- **Reuse S001's validated commands and 89-sample source-frozen swing.** Canonical fresh-game startup, named checkpoint, Emulated Wii Remote and A/A+B/A menu are owned by existing code; do not duplicate or re-time without owner-reviewed controlled trial. The operator's previously validated **45-frame A** method must not be silently substituted with a different mechanism simply because it also uses 45. Distinguish menu final-A 45 request frames, separate A-only prime 45 requests, V1 observed-frame A-lead 45, and trace-neutral 45; they are NOT equivalent. Preserve the exact historical approved implementation, bridge protocol and trace hash for a given study.
+- **One canonical controller stack; no competing implementations.** For result-sharing use the maintained `scripts/research_cli.py` after merged safety gates; broader `scripts/golf.py` is a source-local wrapper for doctor/state/other existing commands. Live startup is delegated to `run_golf_experiment.py -> launch_golf.py -> launch_hitting_green.py -> menu_sequence.py`, not a bare `probe_swing.py --attach-running` or a separate Dolphin invocation.
+- **No unsafe live instruction just because a PR is green.** Check actual main vs draft, safe clean Felk exe/User + physical named savestate, S001/S000 acknowledgement, source gates, one explicit live human consent and unchanged trial waveform. A synthetic PASS, 89/89 bridge dispatch, a human-observed hit and a verified score are separate statuses. No auto-run or unattended shots.
+- **Branch/evidence discipline unchanged:** no raw MEM1/MEM2/ROM/savestate/PRIVATE JSON, pointers or generated bridge in Git; no destructive Git commands. Claim GitHub issue paths, respect PR ownership; require cross-owner review before shared CLI/rule changes.
+
+**Precedence:** latest direct operator instruction > this ACTIVE section / operator PowerShell contract > current merged CLI implementation + docs/cli-only-workflow.md > historical dated sections below. If older text says GUI supported, use Bash, load Dolphin manually, or change A timing experimentally as a default, **that older instruction is superseded**. See [docs/repository-map.md](docs/repository-map.md) for actual repository/data/agent structure.
+
+---
+
 ## Delegated self-merging
 
 **Agents may merge their own PRs** when every gate in [merging requirements](docs/merging-requirements.md) is met and posted as a `MERGE READY` checklist. S000 is not a routine approval bottleneck; shared interface changes require acknowledgment by canonical owners and S000 before the author self-merges. Draft/conflicted/untested PRs cannot self-merge. Preserve GitHub protection rules and exact test evidence.
@@ -12,7 +35,9 @@ Read [cross-agent cooperation contract](docs/cross-agent-cooperation.md) before 
 
 The script-only operator workflow now includes explicit requested **automatic publishing of allowlisted SANITIZED summaries** via `scripts/research_cli.py`. Run results go to the distinct `research/observations` branch; code PRs go to `main`. This is not permission to upload raw captures, ROMs, savestates, generated bridges, local paths, configs or arbitrary logs. The operator can opt out with `--no-upload`. Agents must examine the small observation JSONs on that branch when planning new experiments. Do not create another independent application or user-facing GUI. The published `process_exit_code` is not a game score. See [docs/cli-only-workflow.md](docs/cli-only-workflow.md).
 
-## CURRENT OPERATOR DECISION — ONE GUI WITH CLI BACKEND
+## ARCHIVED (2026-10-24): former GUI-first operator decision
+
+> **Historical only:** old GUI/Bash/manual-launch language in this section is NOT an active operator instruction; use PowerShell-only `docs/operator-powershell-contract.md`.
 
 This operator explicitly asks that the Lab GUI remain available, with the historical V1 trial in the selected experiment's Show/details pane, not detached toolbar steps. Support `py scripts/golf.py lab gui` alongside optional `scripts/golf.sh` / CLI. Both share one reviewed typed Lab runner, GitHub-synced tests, history and safety gates. The V1 action checks bridge provenance, requests approval before verified separate V1 preparation, then approval before exactly one Dolphin shot.
 
@@ -26,11 +51,15 @@ Coordinate separate AI coding/research sessions to develop a scientifically repr
 
 Every session MUST read README, this document, research/ledger.md, research/queue.jsonl, open GitHub Issues/PRs and relevant tests before changing code.
 
-## S000 GUI result-handling rule
+## ARCHIVED (2026-10-24): GUI result-handling guidance
+
+> **Historical only:** old GUI/Bash/manual-launch language in this section is NOT an active operator instruction; use PowerShell-only `docs/operator-powershell-contract.md`.
 
 The operator reported that **Inspect bridges** opened a blank console and a generic missing-log popup instead of showing any V1/V2 facts. UI diagnostics must render **structured, action-specific results in the application itself**; do not bounce users between short-lived consoles, hidden `*.log` files, and generic message boxes. Read-only inexpensive inspections can run directly; write-capable preparation must use the same reviewed Lab runner and show progress/errors in-window. Continue to record local provenance while keeping raw RAM local and interactive live Dolphin inputs explicitly approved. Add tests covering missing backup, wrong revision, mismatched V1 copy and no missing-log popup.
 
-## One public CLI (2026-10-24)
+## HISTORICAL (2026-10-24): broad golf.py CLI (see active PowerShell-only contract)
+
+> **Historical only:** old GUI/Bash/manual-launch language in this section is NOT an active operator instruction; use PowerShell-only `docs/operator-powershell-contract.md`.
 
 The project now has one **user/operator-facing entrypoint**: `py scripts/golf.py`. Use [docs/cli.md](docs/cli.md) for command reference, [research/README.md](research/README.md) for the S001–S005 research program and [docs/milestones.md](docs/milestones.md) for gates.
 
@@ -114,7 +143,9 @@ When blocked by legal game access, emulator control, inaccurate score units or u
 
 Before claiming or editing a new workstream, read [research/coordination.md](research/coordination.md), `research/claims/`, and the corresponding issue comments. Claims are recorded FIRST in an issue comment, then in a per-worker JSON file; conflicting paths require an explicit handoff. The shared ledger is a summary, not an automatic job scheduler or locking service. Keep raw findings in per-worker research folders to minimize merge conflicts.
 
-## Shared research application: mandatory integration path
+## ARCHIVED GUI-era integration path (historical; current CLI-only contract takes precedence)
+
+> **Historical only:** old GUI/Bash/manual-launch language in this section is NOT an active operator instruction; use PowerShell-only `docs/operator-powershell-contract.md`.
 
 The project now includes one source-local **`py scripts/golf.py lab ...`** experiment registry/runner and **`py scripts/golf.py lab gui`** Windows app. [docs/research-lab.md](docs/research-lab.md) defines the user/operator workflow and [research/experiments.json](research/experiments.json) is the reviewed catalog.
 
@@ -124,13 +155,17 @@ The project now includes one source-local **`py scripts/golf.py lab ...`** exper
 - Distinguish **script exit**, **Felk bridge ACK**, **user-observed ball strike**, **verified game score** and **generalization performance**. The latest S002 unprimed V2 human-reported shot **failed due to insufficient strike strength** and must remain a negative observation; prior 2.1-ft green and 100-ft miss hits are non-equivalent input conditions.
 - Save metadata in local `Wii-AI-Golf-Data/lab`, not GitHub; never upload RAW-PRIVATE RAM. All offline commands may be planned without any Dolphin connection, and only approved live commands can launch it. No unattended batches until measured scoring and safe control gates are passed.
 
-## Operator-first in-app game diagnostics (S000/S001/S002)
+## ARCHIVED GUI-era diagnostics (do not instruct operator to use UI)
+
+> **Historical only:** old GUI/Bash/manual-launch language in this section is NOT an active operator instruction; use PowerShell-only `docs/operator-powershell-contract.md`.
 
 The operator explicitly rejected separate shell instructions for the historical V1 swing comparison. The **single Windows Lab** now exposes a persistent **Game Testing** panel with registered `integration.bridge-audit` (read-only offline), `integration.prepare-v1` (consented isolated historical backup creation) and `integration.v1-diagnostic` (consented one-shot real Dolphin). All three use the SAME typed runner, history and logs. S001 owns original bridge provenance/backup logic; S002 owns observed outcome capture. S000/UI agents must not ask users to run `scripts/audit_local_swing_bridge.py` or inspect individual bridge-copy paths for routine trials; the UI itself provides the workflow and clear inability reasons.
 
 All new agent-proposed gameplay tests must include UI-visible prerequisite checks and preparation actions, or be explicitly tagged as unavailable. No "run this hidden Python script before your UI test" dependency is acceptable. Never silently alter installed V2 bridge, reuse autoloading legacy scripts, claim successful ball contact based on process exit, or start another Dolphin without user approval. The recent V2 unprimed outcome trial remains a human-reported insufficient-strength **failure**.
 
-## Mandatory automatic GitHub → Lab test delivery (2026-10-24)
+## ARCHIVED (2026-10-24): former Lab test delivery
+
+> **Historical only:** old GUI/Bash/manual-launch language in this section is NOT an active operator instruction; use PowerShell-only `docs/operator-powershell-contract.md`.
 
 **Operator request:** AI agents must use the same local Lab. GitHub-committed tests from agents should arrive in the Lab automatically when merged. A contributor's **`tests/test_*.py`** file is discovered on the user's clean `main` checkout after the app's **automatic safe GitHub sync** (startup, every 120 seconds, or **Sync GitHub** button) and appears as selectable `agent-tests.test_...` **OFFLINE** test. There is no need to write another operator-facing `py scripts/test_one_off.py` command, and no need to edit the static experiment catalog for every new regression file.
 

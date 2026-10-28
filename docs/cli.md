@@ -1,5 +1,7 @@
 # Wii AI Golf CLI reference
 
+> **Operator precedence (2026-10-27):** read [PowerShell-only instruction contract](operator-powershell-contract.md) and [repository map](repository-map.md). Every operator action must be supplied as one complete Windows PowerShell code block, automatically entering the canonical repository. No manual Dolphin, Lab GUI or Git Bash directions. This page includes earlier experimental A-button sections kept **for historical evidence only**, NOT permission to change a working A45 protocol, controller trace, or current reviewed run. For research result collection use the maintained scripts/research_cli.py lifecycle in [script-first workflow](cli-only-workflow.md); broader scripts/golf.py commands remain supported wrappers over canonical implementations.
+
 **Use one human-facing command surface:** `py scripts/golf.py` on your Windows game machine. It works directly from this checkout without `pip install -e .`. Optional installed equivalents are `wii-golf` and `python -m wii_ai_golf`; installed versions depend on the interpreter's environment and can point to older worktrees.
 
 ~~~powershell
@@ -89,7 +91,9 @@ Store raw evidence in the sibling `Wii-AI-Golf-Data` folder. Source control cont
 Existing `scripts/*.py` commands remain intact. They are **implementation adapters and advanced diagnostics**, not competing product entrypoints. S001 owns live startup/bridge, S002 score extraction, S003 motion modeling, S004 search and S005 generalization. New functionality should implement a well-scoped module and expose it through this CLI, with a fake-subprocess test proving the expected delegation. Avoid importing Dolphin at CLI import time. No GPU training or GitHub Actions are triggered by the CLI.
 
 
-## A-button BEFORE swing: independent priming phase (2026-10-24)
+## HISTORICAL — A-button BEFORE swing: independent priming phase (2026-10-24)
+
+> **Historical experiment only:** do not substitute this recipe for the current source-verified S001 workflow. Exact A45 mode, bridge and waveform must be reviewed and preserved.
 
 The user's 45-neutral-sample variant **failed**: motion was observed BEFORE A appeared to register and the ball was NOT hit. Source audit identified the actual flaw: every neutral `SwingSample` was scheduled through `trace.submit_swing`, and the generated bridge called `controller.set_wiimote_swing` each frame even when the vector/distance/speed were zero. That is **not a genuine A-only button hold**.
 
@@ -108,7 +112,9 @@ py scripts/golf.py swing --slot 2 --a-prime-frames 60 --a-setup-frames 12 --foll
 
 The operator still confirms the **actual at-ball game screen before pressing Enter**. The button-only phase automatically finishes before the swing submission; do not manually initiate a second process. `--a-prime-frames 0` reproduces the old no-extra-priming full session with the exact 89-frame trace. `--a-setup-frames N` now explicitly means **neutral samples INSIDE the swing trace**, not a genuine independent button-only phase; default remains 12. These are bounded, separate parameters. The JSONL report records priming requests and swing samples/hash separately. This is an **unverified in-game timing hypothesis**; no new ball hit is claimed.
 
-## 2026-10-24: Swing bridge V2 — neutral frames do NOT issue swing commands
+## HISTORICAL — 2026-10-24: Swing bridge V2 — neutral frames do NOT issue swing commands
+
+> **Historical experiment only:** do not substitute this recipe for the current source-verified S001 workflow. Exact A45 mode, bridge and waveform must be reviewed and preserved.
 
 **Negative live evidence:** Dolphin reported 60 completed A-only RPC requests and a complete 89/89-frame swing trace (start frame 1646; completion frame 1735), but the user observed **A released too early and no ball strike**. This is another failed shot, **not** a verified game hit. The Windows machine was still running the V1 `tools/mcp_bridge_swing.py` generator output; source changes do NOT update that local generated file by themselves.
 
@@ -142,7 +148,9 @@ This experiment extends **only the A-held neutral follow-through from 30 to 90**
 
 The operator confirms the golfer is **at the first ball** before pressing Enter; after the trace, record actual hit/no-hit, A release timing impression, and game distance if visible. V2 test mocks prove button/motion call order but cannot prove Wii Sports consumes them in that order. If the ball still isn't struck, investigate controller input readback, frame sampling and dynamics rather than extending the follow-through indefinitely.
 
-## 2026-10-24: Windows bridge upgrade port probe fix
+## HISTORICAL — 2026-10-24: Windows bridge upgrade port probe fix
+
+> **Historical experiment only:** do not substitute this recipe for the current source-verified S001 workflow. Exact A45 mode, bridge and waveform must be reviewed and preserved.
 
 A user confirmed `Get-NetTCPConnection -LocalPort 55355 -State Listen` found **no listener**, but an earlier `golf bridge upgrade-swing` still failed with **"Cannot verify bridge is stopped"**. The old implementation attempted an outbound TCP connection to 127.0.0.1 and accepted **only** `ConnectionRefusedError` as proof of a free port. Certain Windows networking/firewall behavior may yield a connection timeout or another `OSError` instead, despite no bridge listening.
 
@@ -161,7 +169,9 @@ If upgrade fails with a **port unavailable/occupied** message, inspect the liste
 
 This correction ONLY concerns the local bridge-upgrade preflight; it does not verify a golf swing or change swing physics.
 
-## Coordinating with the evaluation agent's actual ball-contact workflow (2026-10-24)
+## HISTORICAL — Coordinating with the evaluation agent's actual ball-contact workflow (2026-10-24)
+
+> **Historical experiment only:** do not substitute this recipe for the current source-verified S001 workflow. Exact A45 mode, bridge and waveform must be reviewed and preserved.
 
 **Why a separate route?** The user reports the evaluation/other agent is striking the ball reliably while multiple S001 standalone `golf swing` trials have resulted in club-only misses. The uploaded S001 JSONL has just two rows: first **89/89 frames, ball moved yes, green no**, later **149/149 frames, 60 separate A prime requests, club-only, ball moved no**. Neither bridge-ACK proves the ball was struck.
 
@@ -183,7 +193,9 @@ Options include `--pre-samples 3 --post-samples 8 --settled-samples 3 --interval
 
 **Cross-agent handoff:** [S001 integration issue #2](https://github.com/Nate27624/Wii-AI-Golf/issues/2), [S002 evaluation issue #3](https://github.com/Nate27624/Wii-AI-Golf/issues/3), [evaluation PR #14](https://github.com/Nate27624/Wii-AI-Golf/pull/14). The evaluation owner has been asked to provide exact command, remote mode, bridge revision, waveform SHA, preparation timing and repeated hit evidence, so we can promote one verified common swing route after reproducing it.
 
-## 2026-10-25 — S002 no-prime baseline and precise environment check
+## HISTORICAL — 2026-10-25 — S002 no-prime baseline and precise environment check
+
+> **Historical experiment only:** do not substitute this recipe for the current source-verified S001 workflow. Exact A45 mode, bridge and waveform must be reviewed and preserved.
 
 **Evidence that changed the plan:** S002's operator recorded two actual ball strikes (2.1 ft GREEN using 122 frames and 100 ft MISS using 89) **without any separately dispatched A-button priming requests**. After S002 started sending 60 standalone A-only presses in PR #40, another user-observed collector trial failed to strike. The evaluation owner restored the last observed striking protocol in merged PR #44: `collect_outcome_transition.py` now defaults to **0** A-only prime requests and invokes `SwingTraceClient.run(samples)` directly. The bridge revision has since changed independently to V2, so this is **not proof of a restored hit on the current emulator**.
 

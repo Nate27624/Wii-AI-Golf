@@ -1,5 +1,7 @@
 # Script-first Wii Sports Golf — GitHub results handoff
 
+> **ACTIVE operator contract (2026-10-27):** give only complete self-locating Windows PowerShell blocks; never tell the operator to launch Dolphin manually, use a GUI/Git Bash, or replace source-validated A-button/swing methods with newly invented variants. Read [PowerShell-only operator contract](operator-powershell-contract.md) and [repository map](repository-map.md) first. Examples below are historical interface descriptions; confirm actual merged scripts and any required safe-clean Dolphin review before recommending LIVE commands. A draft PR is not deployed to main.
+
 The retired Research Lab GUI is no longer supported. **Only one maintained source repository**: Nate27624/Wii-AI-Golf. Multiple agents submit normal PRs, coordinate through Issues #2–#6, and may merge reviewed safe changes. The user runs one centralized local script, which pulls merged GitHub code first and publishes sanitized output to a dedicated branch.
 
 ## Operator workflow (PowerShell)
@@ -23,6 +25,12 @@ Each script command runs the existing trusted `lab.github_sync.sync_merged_main`
 - No stash, reset, merge conflicts, force-update, or arbitrary PR checkout.
 - If blocked, no Dolphin or test job starts. The sync-only command does not publish a result.
 - Stale GUI lock files no longer block this script-first workflow. Keep one live CLI session at a time and close Dolphin between experiments.
+
+## Mandatory result-upload coverage for new studies
+
+**Operator rule:** Approved operator study/test runs must automatically upload a **sanitized and explicitly allowlisted GitHub result** in the same PowerShell command, without a separate manual upload. The current scripts/research_cli.py already does this for its reviewed test and v1 modes by default; not every arbitrary scripts/*.py P0 analyzer is integrated. Agents introducing new methods must first add S000/S002-reviewed safe adapters using that existing publisher, with synthetic tests for success, blocked private fields and failed remote; never claim an unmerged adapter works on main. A deliberate --no-upload request or privacy block takes precedence.
+
+Keep native RAM, PRIVATE JSON, arbitrary terminal output and savestates local. A failed push preserves the local sanitized summary and must report **NOT UPLOADED**, not a fabricated URL. Important positive or negative findings require a dated owning issue/PR FINDING comment plus reviewed research/ledger.md entry linked to the uploaded safe run; see [operator contract](operator-powershell-contract.md#automatic-github-publication-and-durable-research-findings-mandatory).
 
 ## How GitHub output upload works
 
