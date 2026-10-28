@@ -1,0 +1,29 @@
+name: P0 private airborne record versus no-shot aim masks
+on:
+  push:
+    branches:
+      - agent/research/p0-flight-record-aim-mask-20261028
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_record_flight_vs_aim_private.py'
+      - 'tests/test_p0_record_flight_vs_aim_private.py'
+      - '.github/workflows/p0-record-flight-aim-mask.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-source-only:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run offline 51-word record masks on entirely synthetic inputs
+        run: python -m unittest discover -s tests -p test_p0_record_flight_vs_aim_private.py -v
+      - name: Compile analyzer and mock tests
+        run: python -m compileall -q scripts/audit_p0_record_flight_vs_aim_private.py tests/test_p0_record_flight_vs_aim_private.py
