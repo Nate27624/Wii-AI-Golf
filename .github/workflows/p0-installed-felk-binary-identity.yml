@@ -1,0 +1,24 @@
+name: P0 offline Dolphin executable identity synthetic
+on:
+  push:
+    paths:
+      - 'research/tools/Get-P0InstalledDolphinIdentity.ps1'
+      - 'research/studies/P0-INSTALLED-FELK-BINARY-IDENTITY-01.md'
+      - '.github/workflows/p0-installed-felk-binary-identity.yml'
+  pull_request:
+    paths:
+      - 'research/tools/Get-P0InstalledDolphinIdentity.ps1'
+      - 'research/studies/P0-INSTALLED-FELK-BINARY-IDENTITY-01.md'
+      - '.github/workflows/p0-installed-felk-binary-identity.yml'
+  workflow_dispatch:
+jobs:
+  offline-synthetic-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Local generated PE header and fail-closed selftests
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\research\tools\Get-P0InstalledDolphinIdentity.ps1 -SelfTest
+          if ($LASTEXITCODE -ne 0) { throw 'Offline P0 PE identity selftest failed' }
