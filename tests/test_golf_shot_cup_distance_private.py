@@ -54,6 +54,33 @@ class ShotCupDistanceSynthetic(unittest.TestCase):
         self.assertFalse(z["ball_world_xyz_verified"])
         self.assertFalse(z["training_allowed"])
 
+    def test_result_screen_can_retain_or_reset_source_ball_candidate(self):
+        before=snap()
+        after=snap(ball=(3,0,0),record=(3,0,0))
+        result=snap(ball=(0,0,0),record=(0,0,0))
+        out=distance.summarize(
+            before,after,distinct_bank_mem1=True,distinct_bank_mem2=True,
+            result_native_present=True,result_source_valid=True,
+            result_source_snapshot=result)
+        self.assertTrue(out["result_selected_owner_hole_and_cup_same_as_post"])
+        self.assertFalse(out["result_candidate_ball_same_as_post"])
+        self.assertTrue(out["result_candidate_ball_equal_to_original_start"])
+        self.assertAlmostEqual(
+            out["result_candidate_ball_to_cup_planar_game_units"],5.0)
+        self.assertAlmostEqual(
+            out["candidate_ball_to_cup_planar_after_game_units"],4.0)
+        self.assertFalse(out["game_unit_scale_verified"])
+
+    def test_result_owner_change_not_mislabeled_same_trajectory(self):
+        after=snap(ball=(3,0,0),record=(3,0,0))
+        result=snap(ball=(1,0,0))
+        result["owner"]=(7,7,7,7,7)
+        out=distance.summarize(snap(),after,distinct_bank_mem1=True,
+                              distinct_bank_mem2=True,result_native_present=True,
+                              result_source_valid=True,result_source_snapshot=result)
+        self.assertFalse(out["result_selected_owner_hole_and_cup_same_as_post"])
+        self.assertNotIn("result_candidate_ball_to_cup_planar_game_units",out)
+
     def test_cup_move_refuses_even_if_ball_changes(self):
         a=snap()
         b=snap(ball=(3,0,0),record=(3,0,0))
