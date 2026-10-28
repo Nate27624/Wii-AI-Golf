@@ -109,6 +109,11 @@ def _wii_ball_snapshot():
         "current_start_f32_candidate": _wii_ball_vec(start + 0x30),
         # Identity categories only; no runtime addresses enter the report.
         "source_owner_consistent": True,
+        # Never leave this private tuple in RPC samples; tracked in-memory
+        # solely to detect reallocation/scene transitions across ticks.
+        "_source_owner_tuple": (manager, scene, config, field, pm,
+                                selected_record, ball, ball_vector_pointer,
+                                start),
     }
 
 
@@ -128,12 +133,29 @@ def _wii_ball_watch_arm(p):
     _wii_ball_watch_samples = []
     _wii_ball_watch = {"start": _frame_count + 1,
                        "end": _frame_count + duration,
-                       "interval": interval, "max_read_us": 0}
+                       "interval": interval, "max_read_us": 0,
+                       "stage": "idle_control", "source_owner_tuple": None}
     _wii_ball_watch_last = {"state": "armed", "samples": 0,
                            "requested_duration_frames": duration,
                            "interval_frames": interval,
                            "frame_count_source": "bridge_coroutine_tick_only"}
     return dict(_wii_ball_watch_last)
+
+
+def _wii_ball_watch_stage(p):
+    if (_wii_ball_watch is None or not isinstance(p, list)
+            or len(p) != 1 or type(p[0]) is not str):
+        raise ValueError("stage requires one active watch and one phase")
+    current = _wii_ball_watch["stage"]
+    successors = {
+        "idle_control": "a_prime",
+        "a_prime": "trace",
+        "trace": "posttrace",
+    }
+    if p[0] != successors.get(current):
+        raise ValueError("watch phase must advance exactly once in order")
+    _wii_ball_watch["stage"] = p[0]
+    return {"stage": p[0], "state": "recording_or_armed"}
 
 
 def _wii_ball_watch_tick():
@@ -157,6 +179,12 @@ def _wii_ball_watch_tick():
     before = _wii_ball_time.perf_counter()
     try:
         sample = _wii_ball_snapshot()
+        owner = sample.pop("_source_owner_tuple")
+        if cfg["source_owner_tuple"] is None:
+            cfg["source_owner_tuple"] = owner
+        elif cfg["source_owner_tuple"] != owner:
+            raise ValueError("selected object ownership changed mid-study")
+        sample["input_stage"] = cfg["stage"]
     except Exception:
         _wii_ball_watch = None
         _wii_ball_watch_last = {"state": "source_gate_failed",
@@ -186,6 +214,8 @@ def _wii_ball_watch_drain(p):
     global _wii_ball_watch, _wii_ball_watch_samples, _wii_ball_watch_last
     if p:
         raise ValueError("drain takes no parameters")
+    if _wii_ball_watch_last.get("state") != "complete":
+        raise RuntimeError("refuse partial or failed watched capture")
     result = {"status": dict(_wii_ball_watch_last),
               "samples": list(_wii_ball_watch_samples),
               "values_are_unverified_ball_translation_candidates": True,
@@ -214,6 +244,7 @@ def extend_swing_bridge_with_ball_watch(source: str) -> str:
         ('    "trace.swing_capabilities": _wii_ai_swing_capabilities,',
          '    "trace.swing_capabilities": _wii_ai_swing_capabilities,\n'
          '    "golf.ball_watch.arm": _wii_ball_watch_arm,\n'
+         '    "golf.ball_watch.stage": _wii_ball_watch_stage,\n'
          '    "golf.ball_watch.status": _wii_ball_watch_status,\n'
          '    "golf.ball_watch.drain": _wii_ball_watch_drain,'),
         ("    _wii_ai_tick()\n    _poll_sockets()",
