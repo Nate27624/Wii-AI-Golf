@@ -93,12 +93,12 @@ def first_consumer(read, pc: int, disp: int) -> dict:
             event = "immediate_zero_compare_on_loaded_pointer"
             off = _loc(here)
             break
-        if typ in (32, 34, 40, 42, 48, 50) and base == reg:
+        if typ in (32, 34, 40, 42, 48, 50) and reg != 0 and base == reg:
             event = "field_load_from_source_global_pointer"
             off = _loc(here)
             rel_field = immediate if -512 <= immediate <= 512 else None
             break
-        if typ in (36, 38, 44, 52, 54) and base == reg:
+        if typ in (36, 38, 44, 52, 54) and reg != 0 and base == reg:
             event = "field_store_through_source_global_pointer"
             off = _loc(here)
             rel_field = immediate if -512 <= immediate <= 512 else None
