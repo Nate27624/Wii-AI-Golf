@@ -51,6 +51,7 @@ def census(read_u32):
     indirect_sites = []
     d_form_base_r3 = []
     ordinary_blr_count = 0
+    source_sc_count = 0
     possible_return_or_indirect = 0
     for i, w in enumerate(words):
         pc = ENTRY + i * 4
@@ -69,14 +70,16 @@ def census(read_u32):
                 call_sites.append(item)
             else:
                 branch_sites.append(item)
-        elif op in (16, 17):
+        elif op == 16:
             branch_sites.append({
                 "source_function_relative_offset":offset,
                 "target_public_code_pc":None,
                 "target_public_golf_unit_hint":"CONDITIONAL_BRANCH_TARGET_NOT_TYPED",
                 "actual_call_executed_verified":False,
             })
-        elif op == 19 and (w >> 1) & 1023 in (16, 528):
+        elif op == 17:  # PPC sc: system call, NOT a branch or guest physics tick.
+            source_sc_count += 1
+        elif op == 19 and ((w >> 1) & 1023) in (16, 528):
             if w == 0x4E800020:
                 ordinary_blr_count += 1
             else:
@@ -107,6 +110,7 @@ def census(read_u32):
             possible_return_or_indirect,
         "source_noncanonical_indirect_or_return_offsets":indirect_sites,
         "source_plain_blr_count":ordinary_blr_count,
+        "source_system_call_instruction_count":source_sc_count,
         "source_d_form_base_r3_accesses":d_form_base_r3,
         "all_path_draw_call_role_verified":False,
         "render_object_submit_function_typed_and_verified":False,
