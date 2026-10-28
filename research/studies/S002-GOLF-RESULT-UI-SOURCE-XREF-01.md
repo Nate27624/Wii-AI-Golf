@@ -339,3 +339,55 @@ guest-frame linkage. If promising pairs appear, only trace those
 specific source-code locations and ask the S002 owner to connect
 pane/message and typed value producer, without promoting training.
 Source owner and downstream S000/S001 review remain required.
+
+
+## Terminal source-only P0 UI audit: STOP RULE MET (operator October 28, 2026)
+
+Operator ran exact pinned commit `9c3438a2326655ecf643e6bd506975117274465d`
+and its 16/16 focused fabricated tests on Windows, then successfully
+revalidated original private B0 manifest/SHA, RSPE01 Rev1 and public
+Golf source ownership. No new emulation session or RAM capture.
+
+Observed direct Golf source anchors:
+- 60 `RPSysLayout::findTextBox` BL.
+- 49 formatted `RPSysLytTextBox::setMessage(...)` BL.
+- 11 formatted `RPSysLytTextBox::setText(...)` BL.
+- 19 pairs with lookup→formatted call separation <=0x40 bytes, NO
+  intervening direct branch/call and no recognized r3 overwrite.
+- **19/19** pairs have post-lookup `argc` classification `zero`.
+  **0/19** have known nonzero argc; first variadic source is
+  `not_resolved`. These can be ordinary static label/message
+  initialization, but displayed result/UI ownership is still UNKNOWN.
+- Pair-site clusters in `RPGolScene_unsplit.o` include +0x07C28...,
+  +0x17A1C..., +0x17F8C..., +0x19C0C..., all *public unit-relative*.
+
+**Evidence boundary:** This is a scoped negative for one *local,
+linear direct-call pattern*, not proof all Golf UI setters use zero
+arguments. The source analyzer does not prove same runtime function,
+incoming CFG edges, resource IDs, live execution, pane identity or a
+numerical result field. A result screen may update text later through
+indirect virtual calls, different code, or a separate resource.
+
+**Hard compute stop** for this S002 owner branch: NO additional
+unanchored static UI xrefs, sprintf, score-table scans, or new native B0
+runs without externally attested on-screen result/guest-frame evidence.
+Draft PR #256 is research-complete for first-hop structural call-path
+triage, **not** ready to merge as a verified RAM variable.
+
+**Required next disjoint stage:**
+1. S001 #215 live owner must first qualify stationary, noninterfering
+   read-only watcher and a genuine game *guest-physics-frame* clock.
+   Existing bridge ticks are NOT game guest frames.
+2. S001 #248 dual-object contract (synthetic only) requires source
+   selected and source-global balls, cache CC, stable pin/start/config
+   and same-frame identity; it cannot authenticate a frame by itself.
+3. With informed operator permission, a controlled Hitting-the-Green
+   PRE/POST/RESULT visual event may use #184's private capture plan,
+   but that manual workflow alone does **not** guarantee that the UI
+   screenshot and MEM1/MEM2 were sampled in one guest frame.
+4. S002 should then trace only a concrete visually linked result
+   setter and source-typed numeric producer; keep unknowns as abstain.
+   S000 #205 must independently review before any training.
+   
+All UI outcome, physics XYZ/velocity/contact/power, frame
+synchronization, training and publication remain UNVERIFIED/FALSE.
