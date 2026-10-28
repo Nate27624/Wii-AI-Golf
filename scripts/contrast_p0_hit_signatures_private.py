@@ -17,6 +17,16 @@ OUTCOMES = ("yes", "no", "unknown")
 MAX_STUDIES = 30
 MAX_FILE_BYTES = 6 * 1024 * 1024
 AUDIT_KIND = "P0_PRIVATE_OUTCOME_SOURCE_RELATIVE_TRIAGE"
+# Mirror exact fixed source-window bounds in S002 #199; fail closed when
+# an apparent relative offset would be a dynamic guest pointer or out of range.
+WINDOW_BYTES = {
+    "golf_config": 0x1C74,
+    "golf_field": 0x0A8,
+    "sports_sequence": 0x0D0,
+    "minimap_ball_effect": 0x200,
+    "minimap_player_effect": 0x200,
+    "minimap_shot_line_effect": 0x200,
+}
 
 
 def human_green_label(summary):
@@ -39,6 +49,10 @@ def signature_for(candidate):
                 or not offset.startswith("+0x")
                 or not all(c in "0123456789ABCDEFabcdef" for c in offset[3:])):
             raise ValueError("Malformed source window-relative offset")
+        relative = int(offset[3:], 16)
+        if (window not in WINDOW_BYTES or relative % 4 != 0
+                or relative + 4 > WINDOW_BYTES[window]):
+            raise ValueError("Source-relative candidate is out of bounded S002 window")
         parts.append(f"{window}{offset.upper().replace('X','x')}")
         families.add(loc.get("triage_family"))
     return " | ".join(sorted(set(parts))), families
