@@ -1,0 +1,29 @@
+name: S001 ready-ball V1 A-lead recovery (offline only)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/recheck_ready_ball_v1_a45.py'
+      - 'tests/test_recheck_ready_ball_v1_a45.py'
+      - 'research/studies/S001-READY-BALL-V1-A45-CONTACT-RECHECK.md'
+      - '.github/workflows/s001-a-lead-recheck.yml'
+  workflow_dispatch:
+
+jobs:
+  synthetic:
+    name: Synthetic ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile and test without Dolphin or game
+        shell: bash
+        run: |
+          python -m compileall -q scripts/recheck_ready_ball_v1_a45.py tests/test_recheck_ready_ball_v1_a45.py
+          python -m unittest discover -s tests -p 'test_recheck_ready_ball_v1_a45.py' -v
