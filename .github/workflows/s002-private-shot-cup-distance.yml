@@ -1,0 +1,29 @@
+name: S002 private Golf shot result distance
+on:
+  pull_request:
+    paths:
+      - "scripts/preserve_golf_shot_distance_checkpoint_private.py"
+      - "scripts/audit_golf_shot_cup_distance_private.py"
+      - "tests/test_golf_shot_cup_distance_private.py"
+      - ".github/workflows/s002-private-shot-cup-distance.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-gated-distance-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+    matrix:
+      os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Compile private shot distance and preservation tools
+        run: python -m compileall -q scripts/preserve_golf_shot_distance_checkpoint_private.py scripts/audit_golf_shot_cup_distance_private.py tests/test_golf_shot_cup_distance_private.py
+      - name: Synthetic shot provenance and source-cup distance checks
+        run: python -m unittest discover -s tests -p "test_golf_shot_cup_distance_private.py" -v
+      - name: Existing PRE/POST source contract checks
+        run: python -m unittest discover -s tests -p "test_selected_ball_prepost_shot_private.py" -v
