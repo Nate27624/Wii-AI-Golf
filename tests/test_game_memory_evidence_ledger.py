@@ -29,11 +29,31 @@ class GameMemoryEvidenceLedgerTests(unittest.TestCase):
 
     def test_current_ledger_is_valid_without_training_claims(self):
         fields = validate_memory_ledger(self.doc)
-        self.assertEqual(len(fields), 16)
+        self.assertEqual(len(fields), 24)
         self.assertFalse(any(x["training_eligible"] for x in fields))
         self.assertEqual(len([x for x in fields if x["negative_control"]]), 4)
         self.assertEqual(len([x for x in fields if x["identity_level"] == "unlocated"]), 10)
-        self.assertEqual(len(read_memory_ledger(SOURCE)), 16)
+        self.assertEqual(len([x for x in fields if x["object_role"] == "golf_field_manager"]), 6)
+        self.assertEqual(len(read_memory_ledger(SOURCE)), 24)
+
+    def test_environment_reference_is_not_a_physical_quantity(self):
+        entries = validate_memory_ledger(self.doc)
+        by_id = {entry["field_id"]: entry for entry in entries}
+        for name in ("environment.current_pin_ref", "environment.current_start_ref",
+                     "environment.cup_ref", "environment.wind_object_ref",
+                     "environment.course_object_ref", "environment.map_data_ref"):
+            entry = by_id[name]
+            self.assertEqual(entry["identity_level"], "runtime_candidate")
+            self.assertIsNotNone(entry["relative_offset"])
+            self.assertFalse(entry["gameplay_value_verified"])
+            self.assertFalse(entry["writer_instruction_verified"])
+            self.assertFalse(entry["training_eligible"])
+        # A confirmed reference cannot substitute for real ball XYZ or wind.
+        self.assertEqual(by_id["gameplay.ball_position"]["identity_level"], "unlocated")
+        self.assertEqual(by_id["gameplay.wind"]["identity_level"], "unlocated")
+        with self.assertRaisesRegex(ValueError, "Training promotion"):
+            validate_memory_ledger(self.mutate(
+                "environment.current_pin_ref", training_eligible=True))
 
     def test_a_time_correlated_field_cannot_be_promoted_directly(self):
         with self.assertRaisesRegex(ValueError, "Training promotion"):
