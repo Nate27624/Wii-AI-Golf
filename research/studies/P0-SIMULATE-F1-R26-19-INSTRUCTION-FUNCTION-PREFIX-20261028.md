@@ -21,3 +21,27 @@ This analyzer uses unmodified #219 original ignored **B0 MEM1** manifest/SHA/RSP
 - Never promote physical world XYZ, velocity, square distance to cup, displayed score, power, collision or training from this evidence alone.
 
 Keep this PR draft, do not merge without owner review and full repository gates, and do not ask for further B0 or original seven-bank runs unless the result gives a new, discriminating yes/no question.
+
+
+## REAL operator original-B0 result — 2026-10-28 (supersedes "pending" above)
+
+Operator ran the EXACT reviewed source SHA `a2ad1117dde5ca0506a5201e35c72b838a32d692` from an isolated pristine Windows GitHub CLI checkout. **14/14 new and 13/13 parent synthetic local tests PASS**, original B0 manifest/source RSPE01 Rev1 SHA **before/after PASS** and source report evidence checks PASS; no original bytes, runtime addresses or bank hashes uploaded.
+
+Actual sanitized function-prefix report:
+
+| Source result | Real observation |
+| --- | --- |
+| Published function entry source-relative | `+0x0033C` |
+| Exact distance BL offset from function entry | `76` bytes (`+0x4C`) |
+| Source prefix words | `19` |
+| Recognized source transfers before BL | `2` |
+| Direct BLs before distance BL | `1` |
+| Recognized syntactic `r26` writes | `1` |
+| Nearest recognized `r26` producer | **`addi_or_addis_from_r1`** |
+| Source unit relative write site | **`+0x0035C`** |
+| Recognized controls after last `r26` write | **`1`** |
+| Float result store at `+0x0038C` | **`stfs f1,0(r26)`**, as qualified in earlier real #269 |
+
+**Interpretation / STOP:** r26's candidate value is **derived from PowerPC r1 stack pointer** in this function's prefix, making the `stfs f1,0(r26)` a strong **stack-derived temporary/output slot candidate**, rather than a source-typed persistent ball/result field. This corrects an overly optimistic reading of the earlier `NONSTACK_GPR_BASE_UNTYPED` classification: direct instruction RA not r1 does NOT rule out a stack-backed destination. The reported classifier does not distinguish `addi` from `addis`, and there is a control-transfer hazard after the candidate write; **not a proven stack-local/runtime store**. With no verified ball/pin vector owners, runtime FPR1 reaching definition, rendered guest frame or UI output, **deprioritize this specific call+stfs chain and do not launch another general source scan or repeat preserved memory**. The other 17 square-distance callsites had unresolved FPR arithmetic/move; this finding does NOT rule them out, nor does it identify a general shot distance variable.
+
+Next beneficial work must switch to independent higher-information lanes: source-typed actual rendered-ball/cache receiver and direct gameplay mode 4 result/UI presentation with same-guest-frame evidence. #240/#219/#254 and #256 already own those. No auto-merge, new capture, score table re-run or training/publish approval. `allowed_to_publish=false`, `training_approved=false`.
