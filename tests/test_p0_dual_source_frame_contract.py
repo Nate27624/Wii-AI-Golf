@@ -79,6 +79,46 @@ class DualObjectTests(unittest.TestCase):
         self.assertTrue(result["accepted_for_offline_relationship_review"])
         self.assertFalse(result["rendered_ball_object_identity_verified"])
 
+    def test_reject_distinct_but_overlap_at_selected_tail(self):
+        # Distinct object bases; global starts inside selected +0x108.
+        for offset in (4, 0x4C, 0x104):
+            with self.subTest(offset=offset):
+                rows = self.cohort()
+                for row in rows:
+                    row["source_global_ball_object_pointer"] = (
+                        row["selected_ball_object_pointer"] + offset)
+                with self.assertRaisesRegex(ValueError, "spans overlap"):
+                    mod.summarize_private_samples(rows)
+
+    def test_reject_distinct_but_overlap_at_global_tail(self):
+        # Selected object begins in final word of global +0x50.
+        rows = self.cohort()
+        for row in rows:
+            row["selected_ball_object_pointer"] = 0x9000104C
+            row["source_global_ball_object_pointer"] = 0x90001000
+        with self.assertRaisesRegex(ValueError, "spans overlap"):
+            mod.summarize_private_samples(rows)
+
+    def test_accept_exact_nonoverlapping_object_adjacency(self):
+        # The half-open range boundary is legal and leaves no alias.
+        for global_at in (0x90001108, 0x90000FB0):
+            with self.subTest(global_at=global_at):
+                rows = self.cohort()
+                for row in rows:
+                    row["source_global_ball_object_pointer"] = global_at
+                review = mod.summarize_private_samples(rows)
+                self.assertTrue(review["accepted_for_offline_relationship_review"])
+                self.assertTrue(review["selected_global_object_spans_disjoint"])
+                self.assertFalse(review["actual_guest_physics_time_verified_by_analyzer"])
+                self.assertFalse(review["training_approved"])
+
+    def test_disjoint_span_attestation_is_only_syntactic(self):
+        review = mod.summarize_private_samples(self.cohort())
+        self.assertTrue(review["selected_global_object_spans_disjoint"])
+        self.assertFalse(review["rendered_ball_object_identity_verified"])
+        self.assertFalse(review["actual_ball_world_xyz_verified"])
+        self.assertFalse(review["training_approved"])
+
     def test_reject_shot_label_with_all_candidate_vectors_stationary(self):
         rows = self.cohort()
         for row in rows:
