@@ -1,0 +1,34 @@
+name: S001 V1 observed-45-frame watcher collector (offline)
+on:
+  pull_request:
+    paths:
+      - 'scripts/record_selected_ball_swing_v1_private.py'
+      - 'src/wii_ai_golf/integration/post_boot.py'
+      - 'tests/test_s001_v1_observed_45_watched_collector.py'
+      - '.github/workflows/s001-v1-observed45-watched-collector.yml'
+  workflow_dispatch:
+jobs:
+  offline-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Synthetic V1 timed watched runner
+        run: PYTHONPATH=src python -m unittest discover -s tests -p test_s001_v1_observed_45_watched_collector.py -v
+      - name: Compile
+        run: python -m compileall -q scripts/record_selected_ball_swing_v1_private.py src/wii_ai_golf/integration/post_boot.py tests/test_s001_v1_observed_45_watched_collector.py
+  offline-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Synthetic V1 timed watched runner
+        run: |
+          $env:PYTHONPATH = 'src'
+          python -m unittest discover -s tests -p test_s001_v1_observed_45_watched_collector.py -v
+      - name: Compile
+        run: python -m compileall -q scripts/record_selected_ball_swing_v1_private.py src/wii_ai_golf/integration/post_boot.py tests/test_s001_v1_observed_45_watched_collector.py
