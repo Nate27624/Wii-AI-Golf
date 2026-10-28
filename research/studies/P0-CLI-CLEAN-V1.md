@@ -6,7 +6,13 @@ STATUS: DRAFT, OFFLINE REVIEW ONLY. The operator uses scripts/research_cli.py, n
 
 The main-branch research_cli.py V1 live subprocess previously passed only the isolated V1 bridge to run_golf_experiment.py. Without explicit Dolphin executable and User paths, the delegated launch_golf.py could fall back to the previously faulting old tools/FelkDolphin installation, invalidating the no-watcher contact baseline. The separate S001 draft PR #194 changes only Lab core planning and does not address this maintained CLI path. No overlap with its files.
 
-The new v1_clean_boot_args helper requires the CLEAN Dolphin.exe and isolated User directory, local launch.local.json and savestates.local.json. Absence causes a no-input, no-fallback error. Existing canonical single fresh boot and human opt-in are preserved; child A-prime requests are explicitly zero, no swing waveform/phase is modified, no extra launcher or UI is created. File presence does not establish that the named savestate actually exists under the clean User or that contact works.
+The new v1_clean_boot_args helper requires the CLEAN Dolphin.exe, existing executable-adjacent `portable.txt` file and isolated User directory, local launch.local.json and savestates.local.json. Absence causes a no-input, no-fallback error. Existing canonical single fresh boot and human opt-in are preserved; child A-prime requests are explicitly zero, no swing waveform/phase is modified, no extra launcher or UI is created. File presence does not establish that the named savestate actually exists under the clean User or that contact works.
+
+## Native User-root provenance: source-supported expected path, not process attestation
+
+Felk `scripting-preview4` Windows `UICommon::SetUserDirectory` selects the executable-adjacent `User/` when the executable-adjacent `portable.txt` exists, before the registry fallback. The maintained CLI passes the selected Clean executable to the canonical outer runner, but `--dolphin-user` is primarily the controller INI configuration target; the nested process launcher does not independently attest the active runtime User root. Therefore **do not** infer the running emulator profile from `Clean/User/` presence alone. This preflight requires an *existing* portable marker (does not create or alter it) and tests failure before dispatch for absent marker even when alternative `DOLPHIN_EMU_USERPATH` is set. An absent marker cannot be repaired automatically and must not trigger legacy fallback.
+
+This is a necessary Windows expected-root precondition, not proof that the locally installed binary exactly matches preview4, that the process honored the expected root, that the game/slot is valid, or that a ball was struck. S001/S000 must still establish the selected actual binary and one clean first-ball/handshaken launch; no automatic game shot or publication approval follows from this offline guard.
 
 ## Windows PowerShell offline-only worktree preflight
 
