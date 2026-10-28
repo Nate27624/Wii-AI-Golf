@@ -7,6 +7,7 @@ from __future__ import annotations
 
 PROBE_SCRIPT = "probe_swing.py"
 WATCHED_SWING_COLLECTOR_SCRIPT = "record_selected_ball_swing_private.py"
+V1_WATCHED_SWING_COLLECTOR_SCRIPT = "record_selected_ball_swing_v1_private.py"
 ATTACH_FLAG = "--attach-running"
 
 
@@ -21,4 +22,5 @@ def post_boot_action_args(script_name: str, arguments: list[str]) -> list[str]:
         raise ValueError("Post-boot action arguments must be a list of strings")
     if any(a.split("=", 1)[0] == ATTACH_FLAG for a in arguments):
         raise ValueError("Only the canonical post-boot dispatcher can authorize attach mode")
-    return ([ATTACH_FLAG] if script_name in (PROBE_SCRIPT, WATCHED_SWING_COLLECTOR_SCRIPT) else []) + arguments
+    return ([ATTACH_FLAG] if script_name in (PROBE_SCRIPT, WATCHED_SWING_COLLECTOR_SCRIPT,
+                                              V1_WATCHED_SWING_COLLECTOR_SCRIPT) else []) + arguments
