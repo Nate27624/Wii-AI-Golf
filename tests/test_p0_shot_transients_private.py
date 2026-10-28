@@ -49,7 +49,9 @@ def fixture(*, overlap=True):
                     struct.pack_into(">I", raw, addr-base, bits)
             windows[name] = {"address": f"0x{base:08X}", "bytes_hex": raw.hex()}
         rows.append({
-            "schema_version": 1, "phase": phase, "game_id": "RSPE01",
+            "schema_version": 1,
+            "source": "Felk-read-only-US-Rev1-unverified-golf-windows",
+            "phase": phase, "game_id": "RSPE01",
             "disc_revision": 1, "game_mode_raw": 4,
             "frame_start": 200+index*40, "frame_end": 207+index*40,
             "bytes_read": sum(len(raw) for raw in memories.values()),
@@ -146,6 +148,16 @@ class TransientTests(unittest.TestCase):
             m.audit(summ, rows)
         summ, rows = fixture()
         summ["known_good_swing_request"]["a_lead_requested_frames"] = 0
+        with self.assertRaises(ValueError):
+            m.audit(summ, rows)
+
+    def test_source_collector_and_guest_frame_order_fail_closed(self):
+        summ, rows = fixture()
+        rows[3]["source"] = "unknown-unverified-dump"
+        with self.assertRaises(ValueError):
+            m.audit(summ, rows)
+        summ, rows = fixture()
+        rows[4]["frame_start"] = 100
         with self.assertRaises(ValueError):
             m.audit(summ, rows)
 
