@@ -62,6 +62,12 @@ class DrawMainTests(unittest.TestCase):
         self.assertEqual(r["source_direct_BL_count"],0)
         self.assertEqual(r["source_branch_instructions_count"],1)
 
+    def test_ppc_sc_is_not_a_branch_or_golf_simulation_tick(self):
+        r=run({probe.ENTRY:17<<26})
+        self.assertEqual(r["source_branch_instructions_count"],0)
+        self.assertEqual(r["source_system_call_instruction_count"],1)
+        self.assertFalse(r["visual_frame_and_guest_physics_step_join_verified"])
+
     def test_indirect_control_and_plain_return_separately_counted(self):
         r=run({probe.ENTRY:0x4E800020,probe.ENTRY+4:0x4E800420})
         self.assertEqual(r["source_plain_blr_count"],1)
