@@ -17,6 +17,13 @@ from pathlib import Path
 import struct
 import sys
 
+# -I removes ambient import paths; only the reviewed sibling S002 modules
+# are eligible dependencies. Never resolve imports from the private archive.
+_SCRIPTS = str(Path(__file__).resolve().parent)
+if _SCRIPTS in sys.path:
+    sys.path.remove(_SCRIPTS)
+sys.path.insert(0, _SCRIPTS)
+
 import audit_p0_seven_numbered_source_pairs_private as seven
 import audit_golf_two_bank_roster_private as roster
 
