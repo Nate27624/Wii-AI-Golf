@@ -58,7 +58,14 @@ def audit_player_owner(mem1, mem2, *, strict_size=True):
         candidate = banks.u32(main + offset)
         count = _table_evidence(banks, candidate, PLAYER_DATA, PLAYER_TEXT)
         if count is not None:
+            table = banks.u32(candidate)
+            if banks.region(table, 24*4) != "MEM1":
+                raise ValueError("Player code table would exceed cached MEM1")
+            extended_count = sum(
+                _in(banks.u32(table + 4*i), PLAYER_TEXT) for i in range(24))
             matches.append({
+                "first_twenty_four_table_words_in_player_text_unit": extended_count,
+                "table_words_checked_in_extended_source_witness": 24,
                 "owner": "source_gated_RPGolMain",
                 "owner_relative_offset": f"+0x{offset:03X}",
                 "target_bank": "MEM2",
