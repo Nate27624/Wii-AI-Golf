@@ -52,3 +52,25 @@ Paste only the JSON stdout, not any raw dump. If the private file is stored in a
 If any bounded syntactic candidates match, S002 should review *named PPC function boundaries, register origin, and the object receiver* at those sites using the source-reviewed PPC/DOL extraction from PR #122/#144/#146. Do not promote to actual ball/player until receiver and write/access semantics are independently proven; do not treat the number of slots as active players. If the bounded scan yields zero chains, inspect unsupported instruction families or a source callsite/decomp, not arbitrary RAM.
 
 This branch must stay DRAFT until the S002 owner confirms coexistence with PR #160, Windows focused/full suite passes, and S000 reviews privacy; no automatic merge, new native dumps, additional swing trials or S003 training.
+
+
+## Operator evidence — first real bounded code study (2026-10-27)
+
+User ran the earlier #161 analyzer against their preserved real native MEM1:
+- code_unit_instructions_checked=1236; mulli 0xCC=4, addi 0xCC=7.
+- mulli_sites_with_bounded_index_plus_base_add=4.
+- direct_candidate_member_memory_opcode_counts: exactly 3 +0x08C_load, zero +0x08C_store, zero +0x0C8_load/store.
+- mulli_sites_with_bounded_index_add_then_member_access=0; all direct strict chain counts 0.
+- register_receiver_dataflow_proven=false; no ball XYZ, club pose or swing power verified.
+
+**Interpretation:** Four syntactic scaled-index+base additions are present, but none pass the very restrictive same-register, D-form +0x8C/+0xC8 member access pattern within 20 recognized instructions. This does not refute the 4x paired roster layout. Candidate explanations include D-form memory +0 offset from the derived record address; indexed PPC X-form loads; an intervening addi +0x8C/+0xC8; a branch, unhandled opcode, or intervening helper call. Code immediates with 0x8C elsewhere are NOT guaranteed related to the same derived base.
+
+## Follow-up instrumentation (same PR; no new game capture)
+
+The updated analyzer separately counts how many of the four joined sites exhibit:
+- D-form 0-offset load/store or other small relative offsets from the joined register.
+- Indexed PPC X-form lwzx/stwx and selected byte/halfword/FPR indexed loads/stores.
+- addi immediate +0x8C/+0xC8 applied to the joined address and then D-form 0-offset memory.
+- Conservative stop reasons: branch, multi-register GPR load, unknown PPC opcode, or bounded-window end.
+
+These are **site counts**, not exhaustive dynamic dataflow or inferred class members. The updated test suite adds four synthetic tests (13 total expected): joined zero-offset load, addi-member then zero-load, PPC indexed load, unknown-opcode fail-closed. Run the focused/full Windows suites and same saved input from the existing worktree after refreshing the clean branch. Do NOT interpret any positive shape as source-level object class identity; after this, assign S002 a source-backed receiver and constructor/xref review using PRs #144/#146.
