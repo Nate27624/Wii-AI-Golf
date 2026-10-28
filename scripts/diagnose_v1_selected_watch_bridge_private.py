@@ -20,7 +20,7 @@ from wii_ai_golf.integration.swing_patch import SWING_MARKER, SWING_NEUTRAL_V2_M
 from wii_ai_golf.integration.ball_watch_patch import BALL_WATCH_MARKER
 from wii_ai_golf.integration.v1_ball_watch_compat import (
     KNOWN_CONTACT_V1_SHA256, extend_known_v1_with_selected_watch,
-    V1BallWatchCompatibilityError,
+    V1BallWatchCompatibilityError, _find_unique_emulator_tick_line,
 )
 
 COUNTS = {
@@ -33,7 +33,16 @@ MAX_READ_SIZE = 200_000
 
 def inspect_text(text: str, *, actual_sha256: str) -> dict:
     counts = {name: min(3, text.count(anchor)) for name, anchor in COUNTS.items()}
+    # Legacy textual adjacency is retained as informational evidence only.
+    # Exact historical source has zero adjacent tick/poll lines but may still
+    # contain the correctly structured frameadvance loop.
+    try:
+        tick_line = _find_unique_emulator_tick_line(text)
+        frame_loop_valid = tick_line >= 1
+    except V1BallWatchCompatibilityError:
+        frame_loop_valid = False
     flags = {
+        "single_structurally_verified_frame_loop_tick": frame_loop_valid,
         "atomic_marker_present": PATCH_MARKER in text,
         "swing_v1_marker_present": SWING_MARKER in text,
         "autoload_marker_absent": BOOT_MARKER not in text,
@@ -47,7 +56,8 @@ def inspect_text(text: str, *, actual_sha256: str) -> dict:
         reason = "ORIGINAL_SHA256_DIFFERENT"
     elif not all(flags.values()):
         reason = "SOURCE_MARKER_POLICY_MISMATCH"
-    elif not all(n == 1 for n in counts.values()):
+    elif not (counts["handler_table"] == 1 and counts["swing_handler_registration"] == 1
+              and frame_loop_valid):
         reason = "SOURCE_ANCHOR_LAYOUT_MISMATCH"
     else:
         reason = "SOURCE_PREFLIGHT_PASS"
