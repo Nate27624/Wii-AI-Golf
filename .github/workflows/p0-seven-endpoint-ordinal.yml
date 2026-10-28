@@ -1,0 +1,22 @@
+name: P0 ordinal endpoint synthetic tests
+on:
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_seven_endpoint_order_private.py'
+      - 'tests/test_p0_seven_endpoint_order_private.py'
+      - '.github/workflows/p0-seven-endpoint-ordinal.yml'
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m unittest discover -s tests -p test_p0_seven_endpoint_order_private.py -v
