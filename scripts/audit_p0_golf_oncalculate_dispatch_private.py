@@ -22,6 +22,7 @@ if _HERE in sys.path:
 sys.path.insert(0, _HERE)
 import audit_p0_seven_numbered_source_pairs_private as seven
 import audit_golf_two_bank_roster_private as roster
+import review_p0_golf_main_update_direct_calls as main_update
 
 # Public header annotation and reviewed .text split source regions only.
 CALCULATE_PC = 0x8028DFA8
@@ -85,6 +86,7 @@ def classify_two_word_source(words: tuple[int, int]) -> dict:
 def analyze(archive: Path) -> dict:
     dirs = seven._check_archive(archive)  # full original 14-bank SHA first
     source_words = []
+    main_source_words = []
     owners = []
     for n in PHASES:
         with ExitStack() as stack:
@@ -113,12 +115,23 @@ def analyze(archive: Path) -> dict:
             if s["hole"] not in range(9):
                 raise ValueError("Selected golf hole/source control invalid")
             source_words.append((u(CALCULATE_PC), u(CALCULATE_PC + 4)))
+            main_source_words.append(tuple(u(pc) for pc in range(
+                main_update.MAIN_ENTRY, main_update.MAIN_END, 4)))
 
     # Each archive captures the same revision's executable instructions.
     stable = all(words == source_words[0] for words in source_words[1:])
     if not stable:
         raise ValueError("Published OnCalculate source window changed across captures")
     report = classify_two_word_source(source_words[0])
+    # Do NOT invent update-cadence from the function's 101 source words.
+    main_stable = all(words == main_source_words[0]
+                      for words in main_source_words[1:])
+    if not main_stable:
+        raise ValueError("published Golf main update code changed between captures")
+    main_report = (main_update.classify_source_words(
+        main_source_words[0],
+        thunk_target=report["candidate_target_public_code_pc"])
+        if report["oncalculate_to_main_direct_thunk_supported"] else None)
     seven._check_archive(archive)  # full hash again after readers close
     return {
         "kind": "P0-SANITIZED-REV1-GOLF-ONCALCULATE-THUNK-AUDIT",
@@ -126,6 +139,8 @@ def analyze(archive: Path) -> dict:
         "seven_scene_mode_selected_source_chains_verified": True,
         "source_two_word_window_unchanged_across_seven": stable,
         "source_scene_main_member_class_by_capture": owners,
+        "main_101_word_code_unchanged_across_seven": main_stable,
+        "main_entry_direct_BL_and_control_source_inventory": main_report,
         **report,
         "public_header_annotation_correlates_with_two_word_native_pattern":
             bool(report["oncalculate_to_main_direct_thunk_supported"]),
