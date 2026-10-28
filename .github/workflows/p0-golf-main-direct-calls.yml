@@ -3,12 +3,16 @@ on:
   push:
     paths:
       - scripts/review_p0_golf_main_update_direct_calls.py
+      - scripts/review_p0_three_sim_callee_footprints.py
+      - tests/test_p0_three_sim_callee_footprints.py
       - scripts/audit_p0_golf_oncalculate_dispatch_private.py
       - tests/test_p0_golf_main_update_direct_calls.py
       - .github/workflows/p0-golf-main-direct-calls.yml
   pull_request:
     paths:
       - scripts/review_p0_golf_main_update_direct_calls.py
+      - scripts/review_p0_three_sim_callee_footprints.py
+      - tests/test_p0_three_sim_callee_footprints.py
       - scripts/audit_p0_golf_oncalculate_dispatch_private.py
       - tests/test_p0_golf_main_update_direct_calls.py
       - .github/workflows/p0-golf-main-direct-calls.yml
@@ -29,5 +33,7 @@ jobs:
           python-version: '3.13'
       - name: New bounded Golf main call/branch syntax synthetic tests
         run: python -I -B -m unittest discover -s tests -p test_p0_golf_main_update_direct_calls.py -v
+      - name: Three exact SimulateManager callee footprints and call-gap synthetics
+        run: python -I -B -m unittest discover -s tests -p test_p0_three_sim_callee_footprints.py -v
       - name: Inherited Rev1 OnCalculate 2-word source and privacy tests
         run: python -I -B -m unittest discover -s tests -p test_p0_golf_oncalculate_dispatch_private.py -v
