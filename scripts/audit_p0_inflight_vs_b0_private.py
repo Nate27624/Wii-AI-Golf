@@ -15,6 +15,14 @@ import mmap
 from pathlib import Path
 import sys
 
+# python -I deliberately omits script/CWD/PYTHONPATH. Trust only the sibling
+# modules in this exact reviewed worktree, then retain isolated stdlib behavior.
+# Do not rely on a globally installed or another agent's stale S002 helpers.
+SCRIPT_DIR = str(Path(__file__).resolve().parent)
+if SCRIPT_DIR in sys.path:
+    sys.path.remove(SCRIPT_DIR)
+sys.path.insert(0, SCRIPT_DIR)
+
 import audit_golf_two_bank_roster_private as roster
 import audit_selected_ball_start_link_private as selected
 import audit_selected_ball_four_phase_private as four
