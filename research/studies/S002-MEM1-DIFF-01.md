@@ -59,3 +59,9 @@ External general reference (NOT claim for this packaged fork): https://www.wiibr
 ## Initial CI (PR #151)
 
 Github Actions workflow 40607500241 (Ubuntu and Windows, Python 3.13): compile PASS, new targeted 13/13 tests PASS on BOTH OS. Full regression not green for pre-existing unrelated failures: Ubuntu `test_lab_core` lock message `may be active` vs `already active` 1/375 failure (PR #131), Windows 7/375 short Windows Temp `RUNNER~1` versus `runneradmin` mismatches (Windows test-env alias known from #141). Not a passing merge gate; PR remains draft pending owner review/full tests.
+## Mandatory private-root and console redaction hardening
+
+Independent review found that an arbitrary `--private-root` could point at a Git worktree (where 24MiB of RAM could be accidentally committed). The stacked privacy fix **requires** `--private-root` to resolve inside the existing ignored sibling `Wii-AI-Golf-Data` directory. This intentionally rejects ad-hoc directories, existing repo worktrees, and locations outside the operator's private Data area.
+
+The canonical analyzed JSON file, which can include ranked bank-relative page offsets, still stays exclusively LOCAL in that private root. **Console STDOUT now prints aggregate counts only** and excludes ranked pages/relative offsets, even though the detailed file still retains them for private source inspection. The printed kind is `local-mem1-four-checkpoint-counts-only`; it is *not* a public-schema approval, still carries `allowed_to_publish=false`, and must not be auto-uploaded. Any future typed publication requires S000's schema review. Tests explicitly reject worktree roots and prove absence of page offsets in console output.
+
