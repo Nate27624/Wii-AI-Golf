@@ -69,6 +69,29 @@ def _source_write(w, reg):
             return "unknown_X_form_write_or_operand"
     return None
 
+def _source_load_detail(w, reg):
+    """Public PPC *code* immediate, never a private heap/runtime address.
+
+    Only exact D-form integer loads with RT==observed operand. No decoded
+    instruction bytes, memory contents, provenance of RA object, or dereference.
+    """
+    w=_word(w)
+    op, rt, ra=(w>>26)&63,(w>>21)&31,(w>>16)&31
+    names={32:"lwz",33:"lwzu",34:"lbz",35:"lbzu",
+           40:"lhz",41:"lhzu",42:"lha",43:"lhau"}
+    if op not in names or rt!=reg:
+        return None
+    imm=w&65535
+    signed=imm-65536 if imm&0x8000 else imm
+    return {
+        "candidate_D_form_integer_load_mnemonic": names[op],
+        "candidate_base_register":f"r{ra}",
+        "candidate_source_field_displacement":
+            ("-" if signed<0 else "+")+f"0x{abs(signed):03X}",
+        "base_register_runtime_object_class_proven":False,
+        "candidate_load_reaches_receiver_on_all_paths_proven":False,
+    }
+
 def analyze(read_u32):
     if not callable(read_u32):
         raise ValueError("qualified read_u32 callback required")
@@ -85,6 +108,7 @@ def analyze(read_u32):
             "mr_r3_entry_relative_offset":None,
             "nearest_pre_mr_operand_write_class":None,
             "nearest_pre_mr_operand_write_entry_relative_offset":None,
+            "nearest_pre_mr_integer_load_source_detail":None,
             "control_transfer_before_mr":None,
             "control_transfer_after_candidate_write":None,
             "status":"ABSTAIN",
@@ -123,6 +147,7 @@ def analyze(read_u32):
             else:
                 last,kind=found[-1]
                 r["nearest_pre_mr_operand_write_class"]=kind
+                r["nearest_pre_mr_integer_load_source_detail"]=(_source_load_detail(words[last],operand))
                 r["nearest_pre_mr_operand_write_entry_relative_offset"]=f"+0x{4*last:03X}"
                 r["control_transfer_after_candidate_write"]=any(
                     _control(w) for w in words[last+1:call])
