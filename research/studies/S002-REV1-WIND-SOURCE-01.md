@@ -121,3 +121,67 @@ must remain private. No need to take another game shot/dump.
 Related research: S002 PR #150 environment UI flags, S002 #159
 pin/start direct translation, #160 selected player/ball source path,
 and documentation-only #162 complete source links.
+
+
+## 2026-10-27 REAL OPERATOR-REPORTED RESULT — all wind entries zero
+
+Operator ran the exact `scripts/audit_golf_wind_table_private.py`
+against an already-preserved private source-gated RSPE01 Rev1 / Golf
+scene 5 / Hitting the Green **mode 4** MEM1+MEM2 pair. The sanitized
+report established:
+
+- Direction nine-entry table: `distinct_raw_word_count=1`,
+  `nonzero_word_count=0`, `raw_all_entries_equal=true`,
+  currently indexed raw value is zero.
+- Speed nine-entry table: `distinct_raw_word_count=1`,
+  `nonzero_word_count=0`, `raw_all_entries_equal=true`,
+  currently indexed raw value is zero.
+- `raw_hole_table_index_in_bounds=true`, source mode/revision and
+  scene-chain gates passed, `game_getwind_code_execution_observed=false`,
+  `same_boot_pair_verified=false`,
+  `same_emulated_frame_pair_verified=false`.
+- `runtime_gameplay_wind_verified=false`,
+  `windspeed_units_verified=false`,
+  `wind_direction_convention_verified=false`,
+  `approved_for_model_training=false`.
+
+**Interpretation matters:** The nine table values are ZERO, but that
+does not falsify the **source-code lookup** by itself. An important
+external/gameplay negative control is that independent original
+Wii Sports guides explicitly describe **Hitting the Green as having
+no wind on any hole**. This coheres with all nine runtime raw
+direction/speed entries zero in one captured mode-4 state:
+
+- GameFAQs, Crazyreyn Wii Sports Strategy Guide (2007):
+  https://gamefaqs.gamespot.com/wii/933010-wii-sports/faqs/46417
+  (Hitting the Green has no wind).
+- Guías Nintendo original Wii Sports Golf training:
+  https://www.guiasnintendo.com/2a_WII/wii_sports/wii_sports_sp/ent_golf_golpes.html
+  (No wind in this training activity).
+- GameFAQs / CheatCodes original Wii Sports walkthrough:
+  https://www.cheatcodes.com/guide/faq-and-walkthrough-wii-sports-wii-97232/
+  (Hitting the Green no wind; unlike Target Practice).
+- Nintendo's original 2008 official Target Practice article:
+  https://www.nintendo.com/en-gb/News/2008/On-target-with-Wii-Sports-golf-250745.html
+  (Wind increases during Target Practice).
+
+**Conclusion for the user's CURRENT mode-4 Hitting-the-Green
+training target:** prioritize NO-WIND as an **externally corroborated
+game-rule hypothesis** and fixed environmental condition. Zero
+BSS entries in ONE paired non-atomic snapshot are *consistent with*
+that rule, but not direct code proof of physics forcing zero wind,
+nor a positive control for `GetWind` against a nonzero mode.
+There is **no benefit in more wind-only mode-4 still captures**.
+For code/units validation on the larger general golf research
+branch, a source-side read of `CreateWindForGamemode` and its
+config mode decision is preferable to introducing a new Dolphin
+Target Practice session. If ever testing the nonzero decoder is
+explicitly needed, perform that as a separate, owner-approved
+phase/mode/boot-synchronized study; do not mix it with training
+or disturb the current user automation.
+
+This result is **research-complete for the bounded mode-4 B0
+table-shape question**, but **not a physical/units decoder**.
+Owner review/merge and independent gameplay state dictionary
+acceptance remain pending. Existing raw dumps, actual numeric
+entries and private paths were NEVER published.
