@@ -165,6 +165,19 @@ class ExistingShotHandleLifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "frame bracket"):
             m.audit(rows, summary)
 
+    def test_forged_persistent_candidate_is_rejected(self):
+        rows, summary = fixture()
+        # All saved candidate addresses remain present, but one candidate
+        # changes only POST and returns to PRE in all settled samples.
+        for row in rows[5:]:
+            base = int(row["windows"][m.WINDOWS[0]]["address"], 16)
+            raw = bytearray.fromhex(row["windows"][m.WINDOWS[0]]["bytes_hex"])
+            struct.pack_into(">I", raw, 0x078, 10)
+            row["windows"][m.WINDOWS[0]]["bytes_hex"] = raw.hex()
+        # +0x078 is contained only by the player window: no alias rewrite.
+        with self.assertRaisesRegex(ValueError, "persistent phase change"):
+            m.audit(rows, summary)
+
     def test_run_id_and_guest_memory_address_guards(self):
         self.assertIsNone(m.RUN_ID.fullmatch("../escape"))
         self.assertIsNotNone(m.RUN_ID.fullmatch("outcome-20261028T033948Z-5cd47f00"))
