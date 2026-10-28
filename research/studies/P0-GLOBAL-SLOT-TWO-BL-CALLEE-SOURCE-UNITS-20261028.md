@@ -19,3 +19,24 @@ The Python script accepts the original local B0 session via `--baseline`, defaul
 New-only 13 fabricated adversarial tests and Windows+Ubuntu CI. Preserve existing source #219 ownership, source-global #240 writer CFG, receiver #254/#255, UI result #256, and registry #205. Draft until focused CI, native owner review, operator original private B0 run and full suite. Do not merge automatically or ask operator for new shots. If B0 code check fails, abstain rather than weakening exact instructions.
 
 After the real result, #219/#240 owners can compare both destination public source units to known allocation and initialization functions in the published source index, *without* inventing names from proximity.
+
+
+## REAL original B0 result and public symbol crosswalk (operator 2026-10-28)
+
+The operator completed the **exact** #262 reviewed commit `737c6098ac2cfe4140710dac8f90ea7fc1c54be7` in Windows PowerShell. The command selected the original ignored B0 folder, verified its source revision, passed **13/13 local fabricated tests**, authenticated original B0 manifest SHA and game revision before/after, and printed `P0_TWO_CALLEE_SOURCE_STUDY_COMPLETE`, `P0_B0_SHA_VERIFIED_BEFORE_AFTER`. Source call destinations verified by the analyzer:
+
+| Direct source call | Target public code PC | Unique published compiled object | Offset in object |
+| --- | --- | --- | --- |
+| First `bl`, MapObjBall +0x3070 | `0x800A3244` | `egg/core/eggHeap.cpp` | `+0x00618` |
+| Optional second `bl`, MapObjBall +0x3080 | `0x8029AB78` | `Pack/RPSports/RPGolScene/RPGolMapObjBall.cpp` | `+0x03BA0` |
+
+Independent review of the published **doldecomp/ogws US Rev1** `config/RSPE01_01/symbols.txt` establishes an additional exact function-entry crosswalk: `0x800A3244` is **`__nw__FUl`**, global C++ `operator new(size_t)` (size `0x0C`), and `0x8029AB78` is **`fn_8029AB78`**, compiled function size `0x21C`. Independently the published EGG `eggHeap.cpp` implementation of global `operator new(size_t)` delegates to `EGG::Heap::alloc(size, 4, NULL)`. The published `kiwi515/ogws_info` Rev1 map similarly names `operator_new` and an **unnamed** `FUN_8029AB78`; these names are consistent, but the second target was not named a constructor by those two symbol maps.
+
+Source citations:
+- https://github.com/doldecomp/ogws/blob/master/config/RSPE01_01/symbols.txt
+- https://github.com/doldecomp/ogws/blob/master/src/egg/core/eggHeap.cpp
+- https://github.com/kiwi515/ogws_info/blob/main/RSPE_r1.map
+
+**Corroborating separate owner evidence, not an inference made by #262:** The #240 source owner reports a later original W5–W7 Rev1 source-gated real BO/BI run: `cmpwi cr0,r3,0` after operator new; branch with CR0.EQ to the global-pointer store on a null allocation result; the nonnull path invokes `fn_8029AB78` before the global pointer store. Owner also cites an earlier #162 executable-derived class constructor provenance study identifying `fn_8029AB78` as RPGolMapObjBall constructor via RPGolMapObjBase and class initialization. That stronger **constructor hypothesis has distinct provenance** from this PR's purely public symbol/unit lookup and should be reviewed in the relevant source-owner PR. Its exact return-register preservation and runtime path execution are still unverified; no static source proof identifies the global object as a rendered or physics ball.
+
+**Disposition:** #262's exact bounded test is complete. **Do not rerun identical B0 original banks or ask for any new Dolphin shot for this object-unit mapping.** The active next P0 is source-defined constructor **return-r3 preservation** and future source/cache receiver linkage, exclusively owned by #240/#219/#254. All physical XYZ, velocity, shot power, collision, scoring, timing, training and publishing flags remain unverified/false. Source owner review and full repository checks are still required before merging; draft retained.
