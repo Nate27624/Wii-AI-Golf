@@ -52,3 +52,27 @@ I upgraded the **existing repository** analyzer `scripts/audit_golf_manager_r29_
 The source-chain analyzer's synthetic tests now include corrupt prologue, corrupt r29 assignment, corrupt source-selected load and an injected r29 overwrite after the method entry. **These are tests of evidence gates, not a live movement calibration.**
 
 **Operator next step:** rerun the identical standalone PowerShell block above after fetching latest branch. New output should include the source-level verification flags and any actual function-provenance links; share the compact `manager_this_register_proven` and `caller_chains` result. All existing B0–B3 checkpoint files remain unchanged.
+
+## Actual operator rerun of exact source-chain verifier
+
+On the preserved RSPE01 Rev1 B0 snapshot, the operator fetched commit `ccf5f0634`, ran `test_golf_manager_r29_private.py` (**3 tests, OK**), and ran `audit_golf_manager_r29_private.py --private-root` successfully. The tool's actual results, not CI fixtures:
+
+| Exact output field | Observed |
+| --- | --- |
+| `checked_direct_calls` | `2` |
+| `manager_this_register_proven` | `true` |
+| `manager_r29_saved_from_entry_r3_source_verified` | `true` |
+| `source_selected_pointer_read_from_manager_r29_verified` | `true` |
+| `no_recognized_r29_reassignment_before_both_calls` | `true` |
+| `r29_reassignment_detector_exhaustive` | `false` |
+| `manager_r29_runtime_identity_independently_verified` | `false` |
+| `dynamic_execution_proven` | `false` |
+| `absolute_shot_heading_verified` | `false` |
+| `ball_motion_verified` | `false` |
+| `training_allowed` | `false` |
+
+In the operator source context, three r29 candidates at `0x802A2448`, `0x802A24A4`, and `0x802A25AC` belong to earlier independent source blocks. The relevant method begins at `0x802A28DC`; `0x802A28F0` preserves the method argument `r3` in `r29`; both callsites subsequently load `+0x334(r29)` into `r3` before calling the angle/rotation updater. This is now **operator-confirmed static pointer provenance**, not hypothetical inferred code.
+
+**Research handoff priority:** stop repeating B0–B3 no-shot aim verification. #186's cross-agent guidance explicitly prioritizes S001-controlled A-hold/backswing/forward swing/contact/no-contact temporal sampling under reviewer and operator gates. #166's proposed per-frame selected-ball watch, #180/#184 private PRE/POST/RESULT staging, and #154's nontraining evidence ledger should coordinate that first genuine swing cohort. #181's dense MEM2 aim-associated blocks and `golf_main+0x1DC` transient B1→B2→B3 reversion remain **untyped**; do not conflate them with swing or ball motion.
+
+Do not commit raw memory banks, runtime heap pointers, user-specific paths, or full private reports. No field is promoted to verified ball velocity, golf physics, GUI aim heading, swing power, or training eligibility.
