@@ -1,0 +1,29 @@
+name: P0 target emitter source field (synthetic only)
+
+on:
+  push:
+    branches:
+      - 'agent/research/p0-target-emitter-kill-flag-*'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_seven_target_emitter_flag_private.py'
+      - 'tests/test_p0_seven_target_emitter_flag_private.py'
+      - '.github/workflows/p0-target-emitter-flag.yml'
+
+jobs:
+  fabricated:
+    name: Source UI flag fabricated ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile source and tests
+        run: python -m py_compile scripts/audit_p0_seven_target_emitter_flag_private.py tests/test_p0_seven_target_emitter_flag_private.py
+      - name: Source and fail-closed synthetic regressions
+        run: python -I tests/test_p0_seven_target_emitter_flag_private.py
