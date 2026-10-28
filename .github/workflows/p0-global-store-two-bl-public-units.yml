@@ -1,0 +1,28 @@
+name: P0 Global slot two-BL public source unit lookup
+
+on:
+  push:
+    branches:
+      - 'agent/review/p0-global-store-two-bl-public-units-*'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_global_store_two_bl_public_units_private.py'
+      - 'tests/test_p0_global_store_two_bl_public_units_private.py'
+      - '.github/workflows/p0-global-store-two-bl-public-units.yml'
+
+jobs:
+  synthetic:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile new source
+        run: python -m py_compile scripts/audit_p0_global_store_two_bl_public_units_private.py tests/test_p0_global_store_two_bl_public_units_private.py
+      - name: Fabricated original-Rev1 source tests
+        run: python -I tests/test_p0_global_store_two_bl_public_units_private.py
