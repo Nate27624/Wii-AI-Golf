@@ -42,10 +42,13 @@ class EffectHandleSourceTests(unittest.TestCase):
         self.assertEqual(
             out["field_manager_r31_candidate_defs"][0]["type"],
             "or_or_mr_to_r31")
-        self.assertTrue(out["field_manager_r31_from_incoming_r3_source_pattern_verified"])
+        self.assertTrue(out["field_manager_r31_from_r3_at_80290dd0_static_pattern_verified"])
         self.assertTrue(out["field_manager_r31_to_r29_child_pointer_cursor_static_verified"])
         self.assertTrue(out["field_manager_r31_no_recognized_intervening_redefinition"])
         self.assertFalse(out["field_manager_method_boundary_cfg_verified"])
+        self.assertFalse(out["field_manager_r3_at_80290dd0_is_method_incoming_this_verified"])
+        self.assertEqual(out["field_manager_function_from_rev1_symbols"]["symbol"],
+                         "fn_80290DB0")
         self.assertFalse(out["field_manager_r31_origin_proven"])
         self.assertFalse(out["RPSysEffect_base_receiver_proven"])
         self.assertFalse(out["actual_four_minimap_effect_object_identity_verified"])
@@ -105,9 +108,28 @@ class EffectHandleSourceTests(unittest.TestCase):
         self.assertEqual(result["RPSysEffectBase_write_count"],2)
         self.assertEqual(result["RPSysEffectBase_opcode_compatible_handle_store_candidates"],0)
         self.assertEqual(result["RPSysEffectBase_float_store_offset_07c_collision_count"],2)
+        self.assertEqual(result["source_field_Emitter_direct_mVelPowerSpecDir_offset_hex"],"+0x07C")
+        typed=result["RPSysEffectBase_two_float_writes_typed_as_emitter_parameter"]
+        self.assertEqual([x["function"] for x in typed],
+                         ["RPSysEffect::setPowerSpecDirAdd","RPSysEffect::setPowerSpecDir"])
+        self.assertTrue(all(x["source_signature_verified"] for x in typed))
+        self.assertTrue(all(not x["is_golf_swing_power_store"] for x in typed))
         self.assertFalse(result["RPSysEffect_base_receiver_proven"])
         self.assertTrue(all(x["float_store_incompatible_with_direct_pointer_write"]
                             for x in result["RPSysEffectBase_literal_handle_hits"]))
+
+    def test_prologue_context_does_not_imply_r3_is_this(self):
+        words=fixture()
+        out=h.analyze(lambda pc:words.get(pc,0))
+        code=out["field_manager_prologue_to_r31_definition_code"]
+        self.assertEqual(code[0]["pc"],"0x80290DB0")
+        self.assertEqual(code[-1]["pc"],"0x80290DD0")
+        self.assertFalse(out["field_manager_r3_at_80290dd0_is_method_incoming_this_verified"])
+        # A call between the prologue and r31 save could replace r3.
+        # Source-pattern matching must still not promote method-this identity.
+        words[0x80290DBC]=0x48000001
+        out=h.analyze(lambda pc:words.get(pc,0))
+        self.assertFalse(out["field_manager_r3_at_80290dd0_is_method_incoming_this_verified"])
 
     def test_broken_r31_chain_prevents_source_promotion(self):
         for pc in (h.FIELD_METHOD_SHAPED_PROLOGUE,
@@ -115,7 +137,7 @@ class EffectHandleSourceTests(unittest.TestCase):
             words=fixture()
             words[pc]=0
             result=h.analyze(lambda addr:words.get(addr,0))
-            self.assertFalse(result["field_manager_r31_from_incoming_r3_source_pattern_verified"])
+            self.assertFalse(result["field_manager_r31_from_r3_at_80290dd0_static_pattern_verified"])
             self.assertFalse(result["field_manager_r31_to_r29_child_pointer_cursor_static_verified"])
         words=fixture()
         words[h.R31_FROM_R3_PC+4]=0x7C9F2378  # mr r31,r4: recognized competing assignment
