@@ -1,0 +1,36 @@
+name: P0 offline Felk embedded SCM preview4 synthetic
+on:
+  push:
+    paths:
+      - 'research/tools/Get-P0InstalledFelkScmRevisionHint.ps1'
+      - '.github/workflows/p0-felk-embedded-scm-revision.yml'
+  pull_request:
+    paths:
+      - 'research/tools/Get-P0InstalledFelkScmRevisionHint.ps1'
+      - '.github/workflows/p0-felk-embedded-scm-revision.yml'
+  workflow_dispatch:
+
+jobs:
+  windows-powershell:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Windows PowerShell 5.1 parse and artificial PE positive/negative cases
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = Join-Path $env:GITHUB_WORKSPACE 'research/tools/Get-P0InstalledFelkScmRevisionHint.ps1'
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            $script, [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -ne 0) { throw "Source parse error count: $($errors.Count)" }
+          & $script -SelfTest
+          if ($LASTEXITCODE -ne 0) { throw 'Fabricated offline PE tests abstained' }
+      - name: PowerShell 7 parse and same artificial tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = Join-Path $env:GITHUB_WORKSPACE 'research/tools/Get-P0InstalledFelkScmRevisionHint.ps1'
+          & $script -SelfTest
+          if ($LASTEXITCODE -ne 0) { throw 'Fabricated offline PE tests abstained' }
