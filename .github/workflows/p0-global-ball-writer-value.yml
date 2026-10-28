@@ -1,0 +1,29 @@
+name: S002 global pointer store value PPC provenance
+
+on:
+  push:
+    paths:
+      - 'scripts/audit_p0_global_ball_source_xrefs_private.py'
+      - 'tests/test_p0_global_ball_writer_value_private.py'
+      - '.github/workflows/p0-global-ball-writer-value.yml'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_global_ball_source_xrefs_private.py'
+      - 'tests/test_p0_global_ball_writer_value_private.py'
+      - '.github/workflows/p0-global-ball-writer-value.yml'
+  workflow_dispatch:
+
+jobs:
+  synthetic:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Run single PPC writer value tests without private memory
+        run: python -m unittest discover -s tests -p 'test_p0_global_ball_writer_value_private.py' -v
