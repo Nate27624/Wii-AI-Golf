@@ -100,6 +100,56 @@ def _relative_owners(rows: list[dict], address: int) -> list[dict]:
     ]
 
 
+
+def _effect_stride_layout(rows: list[dict]) -> bool:
+    """Check real window bases, in ALL phases, without exposing their values.
+
+    This confirms 0x90 *pointer spacing*, not type, record size, ball physics,
+    or that successive effect owners are independently allocated objects.
+    """
+    names = ("minimap_player_effect", "minimap_shot_line_effect",
+             "minimap_ball_effect")
+    for row in rows:
+        windows = row["windows"]
+        if not all(name in windows for name in names):
+            return False
+        bases = [int(windows[name]["address"], 16) for name in names]
+        if bases[1] - bases[0] != 0x90 or bases[2] - bases[1] != 0x90:
+            return False
+    return True
+
+
+def _effect_slot(rows: list[dict], address: int, *, layout: bool) -> dict:
+    """Infer a repeated 0x90 stride only when all source bases corroborate."""
+    if not layout:
+        return {
+            "inferred_effect_slot_index": None,
+            "inferred_effect_slot_field": None,
+        }
+    identity = None
+    for row in rows:
+        player = int(row["windows"]["minimap_player_effect"]["address"], 16)
+        distance = address - player - 0x78
+        slot, field = divmod(distance, 0x90)
+        if not 0 <= slot <= 3 or field not in (0, 4):
+            return {
+                "inferred_effect_slot_index": None,
+                "inferred_effect_slot_field": None,
+            }
+        next_identity = (slot, field)
+        if identity is not None and identity != next_identity:
+            return {
+                "inferred_effect_slot_index": None,
+                "inferred_effect_slot_field": None,
+            }
+        identity = next_identity
+    return {
+        "inferred_effect_slot_index": identity[0],
+        "inferred_effect_slot_field": (
+            "+0x078" if identity[1] == 0 else "+0x07C"),
+    }
+
+
 def audit(rows: list[dict], summary: dict) -> dict:
     """Pure offline validator; summarized output is safe for chat/PR review."""
     if summary.get("study_id") != "S002-HG-OUTCOME-TRANSITION-EXPLORATORY":
@@ -154,6 +204,7 @@ def audit(rows: list[dict], summary: dict) -> dict:
     pre = [a for a, r in zip(all_words, rows) if r["phase"] == "pre"]
     post = [a for a, r in zip(all_words, rows) if r["phase"] == "post"]
     settled = [a for a, r in zip(all_words, rows) if r["phase"] == "settled"]
+    effect_spacing = _effect_stride_layout(rows)
     records = []
     for candidate in recomputed["candidates"]:
         address = int(candidate["address"], 16)
@@ -165,8 +216,10 @@ def audit(rows: list[dict], summary: dict) -> dict:
                     else "post_partially_changed" if change_count
                     else "settled_only_change")
         region_refs = _relative_owners(rows, address)
+        effect_slot = _effect_slot(rows, address, layout=effect_spacing)
         records.append({
             "source_relative_owners": region_refs,
+            **effect_slot,
             "source_owner_stable_across_all_snapshots": bool(region_refs),
             "temporal_pattern": temporal,
             "pointer_like_word_any_phase": any(
@@ -181,6 +234,17 @@ def audit(rows: list[dict], summary: dict) -> dict:
         p: sum(row["phase"] == p for row in rows)
         for p in ("pre", "post", "settled")
     }
+    assigned = [(r["inferred_effect_slot_index"],
+                 r["inferred_effect_slot_field"]) for r in records]
+    complete_slot_pairs = (
+        effect_spacing and len(assigned) == 8
+        and len(set(assigned)) == 8
+        and set(assigned) == {
+            (slot, field)
+            for slot in range(4)
+            for field in ("+0x078", "+0x07C")
+        }
+    )
     return {
         "kind": "S002-successful-shot-existing-private-cohort-audit",
         "schema_version": 1,
@@ -200,6 +264,11 @@ def audit(rows: list[dict], summary: dict) -> dict:
         "distance_may_be_capped_or_censored": (
             label.get("finished_on_green_human") == "no" and distance == 100),
         "candidate_count_recomputed_and_matches_saved": len(records),
+        "effect_pointer_bases_spaced_0x90_in_all_phases": effect_spacing,
+        "repeating_two_word_effect_pairs_observed": complete_slot_pairs,
+        "repeated_effect_pair_count_if_verified": 4 if complete_slot_pairs else None,
+        "effect_stride_interpretation": (
+            "source-pointer spacing only; effect entry size and semantics NOT verified"),
         "candidate_temporal_classifications": records,
         "raw_input_values_printed": False,
         "shot_contact_verified_by_memory": False,
