@@ -6,8 +6,10 @@ on:
       - 'research/memory-variables/**'
       - 'scripts/validate_memory_registry.py'
       - 'scripts/inventory_private_golf_json_motion.py'
+      - 'scripts/triage_private_object_windows_summary.py'
       - 'tests/test_memory_registry.py'
       - 'tests/test_json_motion_inventory.py'
+      - 'tests/test_private_object_windows_summary.py'
       - '.github/workflows/memory-variable-registry-checks.yml'
   workflow_dispatch:
 
@@ -30,3 +32,5 @@ jobs:
         run: python -m unittest discover -s tests -p test_memory_registry.py -v
       - name: Run source-only synthetic capture inventory tests
         run: python -m unittest discover -s tests -p test_json_motion_inventory.py -v
+      - name: Run S002 source-object phase summary synthetic tests
+        run: python -m unittest discover -s tests -p test_private_object_windows_summary.py -v
