@@ -98,6 +98,25 @@ class Tests(unittest.TestCase):
         hint=s.scan_candidate_stores(data,BASE,UNITS)['candidates'][0]['candidate_sites'][0]['local_base_definition_hint']
         self.assertEqual(hint['origin_class'],'unknown_xform_possible_definition')
 
+    def test_float_load_is_not_gpr_definition(self):
+        instructions=[0x60000000]*16
+        instructions[0]=w(32,30,3,0x88)
+        instructions[1]=w(48,4,30,0x30)  # lfs does not overwrite r30
+        instructions[2]=w(52,2,30,0x30)
+        data=b''.join(struct.pack('>I',x) for x in instructions)
+        hint=s.scan_candidate_stores(data,BASE,UNITS)['candidates'][0]['candidate_sites'][0]['local_base_definition_hint']
+        self.assertEqual(hint['origin_class'],'memory_load_candidate')
+
+    def test_float_update_form_invalidates_old_base(self):
+        instructions=[0x60000000]*16
+        instructions[0]=w(32,30,3,0x88)
+        instructions[1]=w(49,4,30,0x30)  # lfsu changes base r30
+        instructions[2]=w(52,2,30,0x30)
+        data=b''.join(struct.pack('>I',x) for x in instructions)
+        hint=s.scan_candidate_stores(data,BASE,UNITS)['candidates'][0]['candidate_sites'][0]['local_base_definition_hint']
+        self.assertEqual(hint['origin_class'],'update_form_base_modified')
+        self.assertFalse(hint['runtime_selected_record_base_verified'])
+
     def test_cli_failure_hides_private_path(self):
         err=io.StringIO()
         with contextlib.redirect_stderr(err):
