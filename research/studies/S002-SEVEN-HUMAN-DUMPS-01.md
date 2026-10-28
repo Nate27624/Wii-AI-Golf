@@ -32,3 +32,19 @@ Status: **human observations recorded; RAW files not read by this agent; memory 
 ## Work item / handoff
 
 Use independent read-only PowerShell 5.1 inventory and bounded offline bank comparison to generate a private **local** report of file pairing and whole-bank delta-page counts for D1→D2 and W5→W6→W7. On file naming/size ambiguity, stop at inventory; let the operator provide only sanitized name/size mapping (not bytes). S002 #223/#224/#225/#227 use source-gated follow-up and source-selected coordinate controls. S000 #205 track status and P0 blockers. S001 must not alter approved V1 waveform or create a new swing merely to obtain these frames.
+
+## 2026-10-28 operator-run real native file inventory and whole-bank page differences
+
+**Actual operator stdout (not independently accessed by GitHub agent):** Windows PowerShell 5.1 ran exact commit `dda6131e8baee76ea51870a52f9087e29ec9de8d` via `Invoke-P0SevenDumpAudit.ps1 -Mode Analyze` in the local Dolphin User/Dump. All seven phase numbers 1..7 contain exactly one 24 MiB MEM1 `n.1.raw` and one 64 MiB MEM2 `n.2.raw` by actual size. **14 files / 7 complete native bank pairs; unmatched raw filenames 0, wrong-sized matched files 0.** Original input files remained unmodified; operator script reported 4 completed same-shot comparison results and wrote a new RAW-PRIVATE local report. Strict Rev1 header and double-pass SHA checks did not trigger refusal. This is tool-success evidence, not independently demonstrated same-frame atomicity, stable pin/camera, proper image provenance across phases, or source-decoded physics.
+
+| Pair (human labels) | MEM1 changed 4096-byte pages | MEM2 changed 4096-byte pages |
+| --- | ---: | ---: |
+| D1→D2 airborne→stationary | 385 | 244 |
+| W5→W6 near apex→descending | 267 | 208 |
+| W6→W7 descending→flag/'Nice on' | 306 | 217 |
+| W5→W7 near apex→flag/result | 319 | 225 |
+
+Each page count refers to **pages with >=1 changed byte**, not count of individual changing bytes, motion dimensions or physical variables. MEM1 has 6144 pages; MEM2 has 16384 pages. The 100.0 ft driver and 15.2 ft wedge are human UI readouts, not a decoded RAM score field.
+
+**Next P0:** Preserve all seven pairs as read-only baseline; source-resolve selected ball, start and PIN via existing S002 #223/#224/#225 readers in **each** W5,W6,W7 and D1,D2, requiring consistent selected owner/hole and validated cache alias/self-reference. For the wedge time sequence, the key prediction is candidate ball location changes W5→W6 and W6→W7 while stable start/pin/tee controls stay unchanged. Prior flight study found the PIN also changes, so gate off any physical XYZ/velocity claim until coordinate-rebase/pin camera confounds are resolved. Check temporal overlap of changed pages as coarse triage, not a coordinate decoder.
+
