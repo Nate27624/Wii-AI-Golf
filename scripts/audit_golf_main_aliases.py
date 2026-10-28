@@ -120,14 +120,41 @@ def analyze(captures: Captures, depth: int = 2, max_nodes: int = 256) -> dict:
     for off, ptr in first:
         references[ptr].append(f'main+0x{off:03X}')
     first_ptrs = list(references)
+    if len(first_ptrs) > max_nodes:
+        raise ReadError(f'{len(first_ptrs)} distinct first-hop nodes exceed max_nodes={max_nodes}; '
+                        'cannot perform the complete first-hop audit')
+    # Do not mistake aliases back into the unknown-size root vicinity for
+    # independent child objects or expand them into a combinatorial graph.
+    root_overlap = lambda addr: addr < root + ROOT_BYTES and addr + CHILD_BYTES > root
+    skipped_self_alias_parents = 0
+    scanned_second_hop_parents = 0
+    second_sources = defaultdict(list)
     if depth == 2:
         for parent in first_ptrs:
+            if root_overlap(parent):
+                skipped_self_alias_parents += 1
+                continue
+            scanned_second_hop_parents += 1
             for off, ptr in stable_pointers(captures, parent, SECOND_POINTER_BYTES):
-                references[ptr].append(f'0x{parent:08X}+0x{off:03X}')
-                if len(references) > max_nodes:
-                    raise ReadError(f'pointer graph exceeded {max_nodes} unique nodes: do not report a partial audit')
-    if len(references) > max_nodes:
-        raise ReadError(f'too many pointer nodes: {len(references)}')
+                second_sources[ptr].append(f'0x{parent:08X}+0x{off:03X}')
+    # A bounded, explicitly INCOMPLETE two-hop audit is better than
+    # aborting after reading hundreds of aliases or silently dropping nodes.
+    # Enumerate all second-hop pointer VALUES first, then select a stable,
+    # documented set for their larger 512-byte read windows. Prioritize
+    # regions outside the root; MEM2 is prioritized because these sampled
+    # game objects live there, not because a MEM2 pointer proves identity.
+    second_new = [ptr for ptr in second_sources if ptr not in references]
+    second_new.sort(key=lambda ptr: (
+        1 if root_overlap(ptr) else 0,
+        0 if 0x90000000 <= ptr < 0x94000000 else 1,
+        ptr))
+    capacity = max_nodes - len(references)
+    chosen = set(second_new[:capacity])
+    for ptr, sources in second_sources.items():
+        if ptr in references or ptr in chosen:
+            references[ptr].extend(sources)
+    omitted = len(second_new) - len(chosen)
+    coverage_complete = omitted == 0
     unique_new = {}
     rows = []
     for ptr, sources in references.items():
@@ -157,13 +184,23 @@ def analyze(captures: Captures, depth: int = 2, max_nodes: int = 256) -> dict:
         'stable_pointer_fields_512b': len(first),
         'unique_first_hop_pointees': len(first_ptrs),
         'unique_pointees_all_hops': len(references),
+        'max_nodes': max_nodes,
+        'second_hop_parent_count': scanned_second_hop_parents,
+        'second_hop_root_alias_parents_skipped': skipped_self_alias_parents,
+        'second_hop_new_candidates_enumerated': len(second_new),
+        'second_hop_new_pointees_sampled': len(chosen),
+        'second_hop_new_pointees_omitted': omitted,
+        'coverage_complete_within_declared_scope': coverage_complete,
+        'coverage_status': 'complete' if coverage_complete else 'bounded_partial',
         'unique_changed_addresses_outside_root': [
             {'address': f'0x{a:08X}', 'values': v}
             for a, v in sorted(unique_new.items())[:40]],
         'total_unique_changed_addresses_outside_root': len(unique_new),
         'ranked_pointees': rows[:30],
-        'note': 'Overlapping window aliases are not independent changes. '
-                'A changed word outside this window is not necessarily ball physics.'
+        'note': 'First-hop is complete within 512 bytes of main. Second-hop reads first 128 bytes '
+                'of non-root-overlapping first-hop pointees only; if bounded_partial, there '
+                'are omitted candidate windows and absence of motion is NOT established. '
+                'Overlapping window aliases are not independent changes; changes do not prove ball physics.'
     }
 
 
@@ -172,10 +209,13 @@ def main(argv=None) -> int:
     parser.add_argument('--study', required=True, type=Path)
     parser.add_argument('--captures', nargs='+', default=['B0','B1','B2','B3'])
     parser.add_argument('--depth', type=int, default=2, choices=[1,2])
+    parser.add_argument('--max-nodes', type=int, default=256)
     args = parser.parse_args(argv)
     try:
         with Captures(args.study, args.captures) as captures:
-            result = analyze(captures, args.depth)
+            if not 1 <= args.max_nodes <= 4096:
+                raise ReadError('--max-nodes must be between 1 and 4096')
+            result = analyze(captures, args.depth, args.max_nodes)
     except (ReadError, OSError, struct.error) as exc:
         print(f'ABORT: {exc}', file=sys.stderr)
         return 2
