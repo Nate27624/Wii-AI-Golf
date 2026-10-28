@@ -213,12 +213,12 @@ the source paths with paths VERIFIED in the currently running
 old crash-prone `FelkDolphin` installation or AppData.
 
 ```powershell
-$cleanUser = "D:\\Projects\\Wii Golf AI\\tools\\FelkDolphin-Clean\\User"
+$cleanUser = "D:\Projects\Wii Golf AI\tools\FelkDolphin-Clean\User"
 # These two filenames are a likely Felk GUI export convention,
 # NOT verified for every installation. S001/operator MUST confirm.
-$srcMem1 = Join-Path $cleanUser "Dump\\mem1.raw"
-$srcMem2 = Join-Path $cleanUser "Dump\\mem2.raw"
-$session = Join-Path $data ("captures\\SHOT-" +
+$srcMem1 = Join-Path $cleanUser "Dump\mem1.raw"
+$srcMem2 = Join-Path $cleanUser "Dump\mem2.raw"
+$session = Join-Path $data ("captures\SHOT-" +
                             (Get-Date -Format 'yyyyMMdd-HHmmss') + "-PRIVATE")
 if (Test-Path -LiteralPath $session) { throw "Preserve existing session" }
 New-Item -ItemType Directory -Path $session | Out-Null
@@ -229,13 +229,13 @@ New-Item -ItemType Directory -Path $session | Out-Null
 $preExportStartedAfter = Get-Date
 # --- HUMAN GUI PAUSE + MEM1 & MEM2 EXPORT, under approved S001 steps ---
 # Only when the attestation is true:
-& .\\scripts\\preserve_golf_paused_pair_private.ps1 \`
-    -CleanDolphinUserRoot $cleanUser \`
-    -SourceMem1Path $srcMem1 -SourceMem2Path $srcMem2 \`
-    -PrivateDataRoot $data -SessionFolder $session -Phase PRE \`
-    -ExportStartedAfter $preExportStartedAfter \`
-    -ConfirmBothExportsUnderSameGuiPause \`
-    -ConfirmCorrectVisibleShotPhase \`
+& .\scripts\preserve_golf_paused_pair_private.ps1 `
+    -CleanDolphinUserRoot $cleanUser `
+    -SourceMem1Path $srcMem1 -SourceMem2Path $srcMem2 `
+    -PrivateDataRoot $data -SessionFolder $session -Phase PRE `
+    -ExportStartedAfter $preExportStartedAfter `
+    -ConfirmBothExportsUnderSameGuiPause `
+    -ConfirmCorrectVisibleShotPhase `
     -ConfirmNoHoleOrDolphinProcessChange
 if (-not $?) { throw "PRE preservation failed: stop" }
 
@@ -246,13 +246,13 @@ if (-not $?) { throw "PRE preservation failed: stop" }
 $postExportStartedAfter = Get-Date
 # --- HUMAN GUI POST PAUSE + BOTH EXPORTS, under approved S001 steps ---
 # Only when the attestation is true:
-& .\\scripts\\preserve_golf_paused_pair_private.ps1 \`
-    -CleanDolphinUserRoot $cleanUser \`
-    -SourceMem1Path $srcMem1 -SourceMem2Path $srcMem2 \`
-    -PrivateDataRoot $data -SessionFolder $session -Phase POST \`
-    -ExportStartedAfter $postExportStartedAfter \`
-    -ConfirmBothExportsUnderSameGuiPause \`
-    -ConfirmCorrectVisibleShotPhase \`
+& .\scripts\preserve_golf_paused_pair_private.ps1 `
+    -CleanDolphinUserRoot $cleanUser `
+    -SourceMem1Path $srcMem1 -SourceMem2Path $srcMem2 `
+    -PrivateDataRoot $data -SessionFolder $session -Phase POST `
+    -ExportStartedAfter $postExportStartedAfter `
+    -ConfirmBothExportsUnderSameGuiPause `
+    -ConfirmCorrectVisibleShotPhase `
     -ConfirmNoHoleOrDolphinProcessChange
 if (-not $?) { throw "POST preservation failed: stop" }
 ```
