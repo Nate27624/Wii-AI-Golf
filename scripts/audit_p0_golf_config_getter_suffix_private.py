@@ -112,9 +112,9 @@ def evaluate_windows(windows:dict[str,bytes])->dict:
         _add(_word(a,0x68),4,6,5),
         _add(_word(a,0x6C),3,3,0),
         _lwz(_word(a,0x70),4,4,4),
-        _lwz(_word(a,0x74),3,3,4),
+        _lwz(_word(a,0x74),0,3,4),
     ))
-    a_subf=_subf(_word(a,0x78),3,4,3)
+    a_subf=_subf(_word(a,0x78),3,4,0)
     b16=all((
         _slwi(_word(b,0x50),0,4,2),
         _slwi(_word(b,0x54),3,3,4),
