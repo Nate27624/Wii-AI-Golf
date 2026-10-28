@@ -1,0 +1,41 @@
+name: P0 global source XREF canonical wrapper synthetic
+
+on:
+  push:
+    paths:
+      - 'research/tools/Invoke-P0GlobalSourceXrefsCanonical.ps1'
+      - '.github/workflows/p0-global-xref-canonical-wrapper.yml'
+  pull_request:
+    paths:
+      - 'research/tools/Invoke-P0GlobalSourceXrefsCanonical.ps1'
+      - '.github/workflows/p0-global-xref-canonical-wrapper.yml'
+  workflow_dispatch:
+
+jobs:
+  windows-powershell51:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Parse wrapper with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $tok=$null; $errors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile('research/tools/Invoke-P0GlobalSourceXrefsCanonical.ps1',[ref]$tok,[ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
+      - name: Run exact wrapper without any real bank or Dolphin
+        shell: powershell
+        run: |
+          & .\research\tools\Invoke-P0GlobalSourceXrefsCanonical.ps1 -SyntheticOnly
+          if (-not $?) { throw 'PowerShell 5.1 wrapper synthetic failed' }
+
+  linux-fabricated:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -I -m unittest discover -s tests -p 'test_p0_global_ball_source_xrefs_private.py' -v
