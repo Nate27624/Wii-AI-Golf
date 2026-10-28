@@ -54,7 +54,8 @@ def inspect_text(text: str, *, actual_sha256: str) -> dict:
     # deliberately never returned, even on failures.
     if not flags["exact_historical_hit_source_sha256"]:
         reason = "ORIGINAL_SHA256_DIFFERENT"
-    elif not all(flags.values()):
+    elif not all(value for key, value in flags.items()
+                 if key != "single_structurally_verified_frame_loop_tick"):
         reason = "SOURCE_MARKER_POLICY_MISMATCH"
     elif not (counts["handler_table"] == 1 and counts["swing_handler_registration"] == 1
               and frame_loop_valid):
