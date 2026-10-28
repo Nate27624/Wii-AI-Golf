@@ -20,6 +20,12 @@
 
 **Interpretation:** This **clears the native stationary watcher startup/source/performance gate** previously blocked by the Qt crash. It is stronger than GUI-only startup: canonical game+bridge setup and read-only 51-word source-selected RAM reads worked in one operator session. **It does not prove the previous Qt crash came from the Memory GUI**: resetting portable user settings changed multiple independent variables, and no isolated old/new `Qt.ini` A/B was performed. Bridge callback ticks are still not verified as game-applied physics frames. In-motion watcher noninterference, observed ball contact, and physical ball XYZ remain untested. S001/S002/S000 owner review is required before a live watched V1 shot.
 
+### Subsequent instrumented swing: operator-reported no contact
+
+Following the real passing stationary read-only watch, the operator reported **"Missed contact with the ball, everything else was almost perfect."** This is a **human-observed no-contact attempt**, not a successful shot. No sanitized full collector report or local private JSON path has yet been examined, so do **not** claim that the 280-tick capture completed, that all 70 expected samples were collected, or that the 89-frame trace/45-observed-frame lead passed their live gates.
+
+**Next before another attempt:** inspect the latest local private `selected-ball-frame-watch-v1-*-PRIVATE.json` **only if it exists**, sharing sanitized `safe_summary`, `watch_status.state/max_read_us`, `bridge_trace_status.state/total_frames/applied_frames`, `controller_timing` observed deltas, and distinct operator visual contact/movement labels. Preserve original private evidence, do not print or upload `PRIVATE_UNVERIFIED_NUMERIC_VECTORS` or 51 u32 words. If complete, analyze the no-contact control against future contact-positive evidence using `scripts/analyze_selected_player_swing_words_private.py`; keep training false and no automatic retry. Investigate actual observed V1 input/trace parity before changing the canonical waveform.
+
 ## Repro and native crash evidence
 
 - Windows executable `D:\Projects\Wii Golf AI\tools\FelkDolphin-Clean\Dolphin.exe`.
