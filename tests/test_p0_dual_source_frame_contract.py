@@ -90,9 +90,10 @@ class DualObjectTests(unittest.TestCase):
 
     def test_shot_label_global_only_change_is_accepted_as_candidate(self):
         rows = self.cohort()
-        for row in rows:
+        for i, row in enumerate(rows):
             row["selected_ball_translation_words"] = (1, 2, 3)
             row["selected_ball_cache_cc_words"] = (7, 8, 9)
+            row["source_global_translation_words"] = (7 + i, 8, 9)
         report = mod.summarize_private_samples(rows)
         self.assertTrue(report["candidate_vector_change_observed"])
         self.assertFalse(report["candidate_change_proves_rendered_ball_motion"])
