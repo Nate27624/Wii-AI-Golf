@@ -128,27 +128,44 @@ def verify_source(b0: bytes, airborne: bytes) -> bytes:
 
 
 def prior_definition(unit: bytes, site_offset: int, register: int) -> dict:
+    """Nearest linear definition, never across a previous LR/CTR branch boundary.
+
+    In the real Rev1 source +0x2C80 is a bclr (likely prior function return)
+    and +0x2C84 starts a new stack-frame prologue. An earlier unrelated
+    arithmetic definition at +0x2C4C MUST NOT be attributed to the new r3
+    receiver. Conditional branches within the remaining range are recorded
+    as hazards; a recognized definition is still not a dataflow proof.
+    """
     begin=max(0,site_offset-MAX_PREVIOUS_BYTES)
+    boundary=None
+    for o in range(site_offset-4,begin-1,-4):
+        name=decode(instr_u32(unit,o))["kind"]
+        if name in ("bclr","bcctr"):
+            boundary=o
+            begin=o+4
+            break
     found=None
     for o in range(site_offset-4, begin-1,-4):
         item=decode(instr_u32(unit,o))
         if item["defines"]==register:
             found=(o,item)
             break
-    if found is None:
-        return {"nearest_linear_definition_found":False,
-                "bounded_window_crosses_branch":any(
-                    decode(instr_u32(unit,o))["branch"]
-                    for o in range(begin,site_offset,4)),
-                "not_proven_register_receiver_identity":True}
-    o,item=found
-    return {"nearest_linear_definition_found":True,
-            "source_relative_pc":source_offset(UNIT_LO+o),
-            "operation":item["kind"],
-            "bounded_window_crosses_branch":any(
-                decode(instr_u32(unit,q))["branch"]
-                for q in range(o+4,site_offset,4)),
-            "not_proven_register_receiver_identity":True}
+    basis=begin if found is None else found[0]+4
+    result={
+        "nearest_linear_definition_found":found is not None,
+        "bounded_window_crosses_branch":any(
+            decode(instr_u32(unit,o))["branch"]
+            for o in range(basis,site_offset,4)),
+        "preceding_lr_or_ctr_boundary_found":boundary is not None,
+        "not_proven_register_receiver_identity":True,
+    }
+    if boundary is not None:
+        result["source_relative_boundary"]=source_offset(UNIT_LO+boundary)
+    if found is not None:
+        o,item=found
+        result["source_relative_pc"]=source_offset(UNIT_LO+o)
+        result["operation"]=item["kind"]
+    return result
 
 
 def report(unit: bytes) -> dict:
