@@ -1,0 +1,38 @@
+name: P0 player two-store PowerShell JSON report contract
+
+on:
+  push:
+    branches:
+      - 'agent/review/p0-player-two-store-wrapper-schema-20261028'
+  pull_request:
+    paths:
+      - 'scripts/Invoke-P0PlayerTwoStoreLink.ps1'
+      - 'tests/test_p0_player_two_store_report_contract.ps1'
+      - '.github/workflows/p0-player-two-store-report-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-free-wrapper-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: PowerShell 5.1 fixture must accept correct schema and reject unsafe values
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: .\tests\test_p0_player_two_store_report_contract.ps1
+      - name: PowerShell Core cross-platform fixture
+        if: runner.os != 'Windows'
+        shell: pwsh
+        run: ./tests/test_p0_player_two_store_report_contract.ps1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Existing source-only same-receiver synthetic tests
+        run: python -B -m unittest discover -s tests -p "test_p0_player_two_store_same_receiver_private.py" -v
