@@ -1,3 +1,18 @@
+## NEW SEVEN OPERATOR-LABELED SNAPSHOTS — validation plan (2026-10-28)
+
+**Observation provenance only:** S002 has recorded the seven separate human labels in [S002 seven-dump research branch](https://github.com/Nate27624/Wii-AI-Golf/blob/agent/research/s002-seven-human-dumps-20261028/research/studies/S002-SEVEN-HUMAN-DUMPS-01.md). The agent had NOT opened the native RAM at the time of this entry; filenames, lengths, exact distinctness, source-selected pointer/slot/scene/hole, frame timing and all memory interpretations are unverified. Avoid treating the one visible `1.1.raw` path as proof all seven unique captures still exist.
+
+| Operator IDs | Human-only annotation | Highest-value P0 test, conditional on unique verified native file identity |
+| --- | --- | --- |
+| 1 -> 2 | SAME driver shot airborne rising power meter (~27 then ~56 estimated), then stationary before transition; 100.0 ft off-green game UI | Source selected ball +0x30 per-component differences and possible return-to-start or settled state; avoid treating 100 ft as Euclidean ball-cup distance |
+| 3 versus 4 | Putter backswing A not held versus driver medium backswing A held | Confounded by club, pose and A; do not claim button-state or power variable |
+| 5 -> 6 -> 7 | SAME wedge shot near peak (~31 meter), descending a few frames later, then flag strike/"Nice on" with UI 15.2 ft | First-priority same-shot selected-ball +0x30 X/Y/Z transition + cache +0xCC/+0xF0/+0xFC and pin/start/scene controls; collision/UI state secondary |
+
+**Ordered gates:** (1) inventory and preserve distinct raw bank files with original names, byte lengths, SHA256 and human phase mapping, private only; if one `1.1.raw` has been overwritten, flag missing captures rather than fabricate phases; (2) identify MEM1/MEM2/native Rev1 and source object owners for each independently, using #223/#224 validated source chain; (3) compare within-driver and within-wedge same-shot source ball/current/cache/start/pin, with independent camera and game UI confounds; (4) only after independent guest-frame labels and directional visual control, investigate vertical axis/velocity/collision and score; (5) retain training.approved=false until reviewed physics semantics. B0-B3 aim controls and the prior single human-airborne archive are independent evidence, **not** one of these seven unless hashes prove identity. The earlier flight's same-paused-frame pairing is operator-attested, not machine-frame-index verified.
+
+**Separate P0 scene selector source:** S002 [PR #219](https://github.com/Nate27624/Wii-AI-Golf/pull/219) newly traced source candidate writes into FieldManager selected START `+0x50` and PIN `+0x44` from distinct arrays with raw GolfConfig `+0xBC/+0xC0/+0xC4` input dependencies; exact index/CFG and executed runtime selection remain unverified. Therefore unchanged raw hole index does not imply unchanged pin selected instance. Do not label pin changes within a one-shot sequence until comparing source-selected object identity across verified frames.
+
+
 ## New independent three-study P0 consistency validator (S000, 2026-10-28)
 
 S002 independently owns [#223](https://github.com/Nate27624/Wii-AI-Golf/pull/223) (original B0 vs flight), [#224](https://github.com/Nate27624/Wii-AI-Golf/pull/224) (PIN identity/geometry), and [#225](https://github.com/Nate27624/Wii-AI-Golf/pull/225) (ball+cache equality). We must **not** fork their source-owned private RAM readers; this PR instead adds:
