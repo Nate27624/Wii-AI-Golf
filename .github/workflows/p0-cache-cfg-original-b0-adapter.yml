@@ -1,0 +1,30 @@
+name: P0 original B0 cache receiver CFG adapter synthetic
+
+on:
+  push:
+    branches:
+      - 'agent/research/p0-cache-cfg-original-b0-adapter-20261028'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_cache_cfg_original_b0_adapter.py'
+      - 'tests/test_p0_cache_cfg_original_b0_adapter.py'
+      - '.github/workflows/p0-cache-cfg-original-b0-adapter.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-only:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Source adapter synthetics only (no original RAM)
+        run: python -B -m unittest discover -s tests -p "test_p0_cache_cfg_original_b0_adapter.py" -v
