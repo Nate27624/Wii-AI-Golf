@@ -70,6 +70,10 @@ class GolfMapCandidateTests(unittest.TestCase):
         self.assertTrue(safe["selected_objects"]["pin"]["constructor_layout_consistent_candidate"])
         self.assertTrue(safe["selected_objects"]["start"]["constructor_layout_consistent_candidate"])
         self.assertTrue(safe["selected_objects"]["pin"]["two_unverified_triplets_agree_within_tolerance"])
+        self.assertEqual(safe["selected_objects"]["pin"]["hypothetical_map_entry_axis_agreement"],
+                         {"x": True, "y": True, "z": True})
+        self.assertTrue(safe["selected_objects"]["pin"]["hypothetical_map_entry_horizontal_xz_agree"])
+        self.assertTrue(safe["selected_objects"]["pin"]["hypothetical_map_entry_vertical_y_agrees"])
         self.assertTrue(safe["candidate_vectors_separated_by_nonzero_distance"])
         self.assertTrue(safe["mapobj_base_documented_offset_overlap"])
         for key in ("pin_world_xyz_verified", "start_world_xyz_verified",
@@ -104,6 +108,9 @@ class GolfMapCandidateTests(unittest.TestCase):
             "hypothetical_pmp_plus_0x08_triplet_finite_and_bounded",
             "hypothetical_pmp_plus_0x08_triplet_nonzero",
             "two_unverified_triplets_agree_within_tolerance",
+            "hypothetical_map_entry_axis_agreement",
+            "hypothetical_map_entry_horizontal_xz_agree",
+            "hypothetical_map_entry_vertical_y_agrees",
         })
 
     def test_false_self_reference_does_not_promote_float_to_world_xyz(self):
@@ -147,12 +154,37 @@ class GolfMapCandidateTests(unittest.TestCase):
         self.assertFalse(safe["selected_objects"]["pin"]["two_unverified_triplets_agree_within_tolerance"])
         self.assertFalse(safe["runtime_pmp_layout_verified"])
 
+    def test_vertical_only_disagreement_is_not_assumed_world_height(self):
+        one, two = fixture()
+        vector(two, 0x1C00 + 0x08, (0.0, 250.0, 4.0))
+        safe, _ = audit_paired_map_candidates(one, two, strict_size=False)
+        start = safe["selected_objects"]["start"]
+        self.assertEqual(start["hypothetical_map_entry_axis_agreement"],
+                         {"x": True, "y": False, "z": True})
+        self.assertTrue(start["hypothetical_map_entry_horizontal_xz_agree"])
+        self.assertFalse(start["hypothetical_map_entry_vertical_y_agrees"])
+        self.assertFalse(safe["start_world_xyz_verified"])
+
+    def test_horizontal_only_disagreement_is_not_actual_pin_shift(self):
+        one, two = fixture()
+        vector(two, 0x1B00 + 0x08, (500.0, 2.0, -20.0))
+        safe, _ = audit_paired_map_candidates(one, two, strict_size=False)
+        pin = safe["selected_objects"]["pin"]
+        self.assertEqual(pin["hypothetical_map_entry_axis_agreement"],
+                         {"x": False, "y": True, "z": True})
+        self.assertFalse(pin["hypothetical_map_entry_horizontal_xz_agree"])
+        self.assertTrue(pin["hypothetical_map_entry_vertical_y_agrees"])
+        self.assertFalse(safe["pin_world_xyz_verified"])
+
     def test_null_or_unmapped_inner_reference_is_not_dereferenced(self):
         one, two = fixture()
         put(two, 0x1880 + 0x08, 0)
         safe, _ = audit_paired_map_candidates(one, two, strict_size=False)
         self.assertFalse(safe["selected_objects"]["pin"]["base_mMapObj_plus_0x08_pointer_readable"])
         self.assertFalse(safe["selected_objects"]["pin"]["hypothetical_pmp_plus_0x08_triplet_finite_and_bounded"])
+        self.assertIsNone(safe["selected_objects"]["pin"]["hypothetical_map_entry_axis_agreement"])
+        self.assertIsNone(safe["selected_objects"]["pin"]["hypothetical_map_entry_horizontal_xz_agree"])
+        self.assertIsNone(safe["selected_objects"]["pin"]["hypothetical_map_entry_vertical_y_agrees"])
 
     def test_invalid_selected_object_fails_closed(self):
         one, two = fixture()
