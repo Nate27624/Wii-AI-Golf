@@ -1,6 +1,7 @@
 """Offline tests for the source-constrained golf outcome RAM snapshot/ranker."""
 import struct
 import unittest
+from itertools import count
 from pathlib import Path
 import sys
 
@@ -14,9 +15,16 @@ from wii_ai_golf.audit.outcome_transition import (
     capture_outcome_windows, rank_outcome_candidates)
 
 
+_NEXT_FRAME = count(100, 3)
+
+
 def snapshot(phase, words, base=0x91000000):
     payload = b"".join(struct.pack(">I", w) for w in words)
+    frame = next(_NEXT_FRAME)
     return {"phase": phase, "game_id": "RSPE01", "disc_revision": 1,
+            "game_mode_raw": 4,
+            "frame_start": frame, "frame_end": frame + 1,
+            "non_atomic_frame_span": 1,
             "windows": {"golf_config": {
                 "address": f"0x{base:08X}", "bytes_hex": payload.hex()}}}
 
@@ -120,6 +128,58 @@ class OutcomeTransitionTests(unittest.TestCase):
                 snapshot("settled", [2]), snapshot("settled", [2])]
         with self.assertRaises(ValueError):
             rank_outcome_candidates(rows, human_distance=float("nan"))
+
+
+    def test_guest_frame_brackets_monotonic_but_not_a_physics_clock(self):
+        rows = [snapshot("pre", [0]), snapshot("pre", [0]),
+                snapshot("post", [1]),
+                snapshot("settled", [2]), snapshot("settled", [2])]
+        report = rank_outcome_candidates(rows)
+        self.assertEqual(report["all_phase_stable_change_count"], 1)
+        self.assertTrue(report["guest_frame_brackets_monotonic"])
+        self.assertFalse(report["same_boot_or_simulation_step_verified"])
+
+    def test_reversed_guest_frames_refuse_false_terminal_match(self):
+        rows = [snapshot("pre", [0]), snapshot("pre", [0]),
+                snapshot("settled", [100]), snapshot("settled", [100])]
+        # Phase names remain sorted, but the 'settled' frame is older.
+        rows[2]["frame_start"] = rows[0]["frame_start"] - 12
+        rows[2]["frame_end"] = rows[2]["frame_start"] + 1
+        rows[3]["frame_start"] = rows[2]["frame_end"] + 1
+        rows[3]["frame_end"] = rows[3]["frame_start"] + 1
+        with self.assertRaisesRegex(ValueError, "reversed or overlapping"):
+            rank_outcome_candidates(rows, human_distance=100.0)
+
+    def test_overlapping_snapshots_refused_even_with_ordered_phase_names(self):
+        rows = [snapshot("pre", [0]), snapshot("pre", [0]),
+                snapshot("settled", [100]), snapshot("settled", [100])]
+        rows[2]["frame_start"] = rows[1]["frame_end"] - 1
+        rows[2]["frame_end"] = rows[2]["frame_start"] + 1
+        with self.assertRaisesRegex(ValueError, "overlapping"):
+            rank_outcome_candidates(rows)
+
+    def test_invalid_or_missing_frame_metadata_fail_closed(self):
+        for key, value in (("frame_start", None), ("frame_end", True),
+                           ("frame_start", -1), ("frame_end", 0x100000000),
+                           ("non_atomic_frame_span", "1"),
+                           ("non_atomic_frame_span", 12)):
+            with self.subTest(key=key, value=value):
+                rows = [snapshot("pre", [1]), snapshot("pre", [1]),
+                        snapshot("settled", [2]), snapshot("settled", [2])]
+                rows[2][key] = value
+                with self.assertRaisesRegex(ValueError, "frame bracket or span"):
+                    rank_outcome_candidates(rows)
+
+    def test_mismatched_mode_and_revision_are_rejected(self):
+        for field, invalid in (("game_mode_raw", 3), ("game_mode_raw", None),
+                               ("game_mode_raw", True), ("disc_revision", 0),
+                               ("disc_revision", True), ("game_id", "RSPE02")):
+            with self.subTest(field=field, invalid=invalid):
+                rows = [snapshot("pre", [1]), snapshot("pre", [1]),
+                        snapshot("settled", [2]), snapshot("settled", [2])]
+                rows[3][field] = invalid
+                with self.assertRaisesRegex(ValueError, "game/revision/mode-4"):
+                    rank_outcome_candidates(rows)
 
 
 if __name__ == "__main__":
