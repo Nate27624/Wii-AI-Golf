@@ -99,6 +99,17 @@ class OperatorContractDocsTests(unittest.TestCase):
                 self.assertNotIn("Start-Process", block)
                 self.assertNotIn("bash ", block)
 
+    def test_contributor_and_pr_template_enforce_operator_contract(self):
+        contrib = read("CONTRIBUTING.md")
+        template = read(".github/pull_request_template.md")
+        self.assertIn("docs/operator-powershell-contract.md", contrib[:1700])
+        self.assertIn("docs/repository-map.md", contrib[:1700])
+        self.assertIn("Windows PowerShell", contrib[:1700])
+        for word in ("PowerShell", "A45", "S001", "Dolphin", "owner",
+                     "synthetic", "FULL Windows suite", "human"):
+            with self.subTest(word=word):
+                self.assertIn(word.casefold(), template.casefold())
+
     def test_no_draft_feature_claimed_as_merged(self):
         text = read("docs/operator-powershell-contract.md")
         self.assertIn("draft until merged", text)
