@@ -26,6 +26,17 @@ class VectorReceiverTests(unittest.TestCase):
         self.assertTrue(second["float_triplet_store_source_verified"])
         self.assertIn("0x80290D18",first["r29_preserved_from_r3_literal_pcs"])
         self.assertIn("0x80290D04",first["possible_prologue_pcs_not_cfg_verified"])
+        self.assertTrue(first["field_r29_from_r31_before_loop_static_verified"])
+        self.assertTrue(first["field_pointer_table_like_word_stride_4_static_verified"])
+        self.assertTrue(first["field_two_alternative_child_vector_stores_static_verified"])
+        self.assertFalse(first["field_r31_origin_proven"])
+        self.assertFalse(first["field_effect_object_pointer_proven"])
+        self.assertTrue(second["ball_method_shaped_entry_static_verified"])
+        self.assertTrue(second["ball_incoming_r3_saved_to_r31_static_verified"])
+        self.assertTrue(second["ball_direct_receiver_conditional_float_reset_static_verified"])
+        self.assertTrue(second["ball_r3_preserved_across_exact_straight_line_interval"])
+        self.assertFalse(second["ball_reset_float_literal_value_verified"])
+        self.assertFalse(second["ball_source_selected_runtime_instance_verified"])
         self.assertFalse(first["function_boundary_proven"])
         self.assertFalse(first["minimap_effect_object_receiver_verified"])
         self.assertFalse(second["active_ball_object_receiver_verified"])
@@ -42,6 +53,16 @@ class VectorReceiverTests(unittest.TestCase):
             with self.subTest(pc=hex(pc)),self.assertRaisesRegex(
                     ValueError,"signature mismatch"):
                 receiver.analyze(lambda addr:bad.get(addr,0))
+
+    def test_field_loop_and_conditional_ball_branch_tampering_fails(self):
+        good=fixtures()
+        for pc in (0x80290E4C, 0x80290E98, 0x80290EB8,
+                   0x802977C8, 0x802977D8, 0x802977E0,
+                   0x802977F8, 0x80297804):
+            bad=dict(good)
+            bad[pc]=0
+            with self.subTest(pc=f"0x{pc:08X}"), self.assertRaises(ValueError):
+                receiver.analyze(lambda x:bad.get(x,0))
 
     def test_no_unbounded_context_and_no_unrelated_byte_values(self):
         words=fixtures()
