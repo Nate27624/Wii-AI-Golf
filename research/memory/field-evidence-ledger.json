@@ -4,7 +4,7 @@
   "game_id": "RSPE01",
   "target_revision": 1,
   "status": "research_only_no_verified_power_fields",
-  "source_state": "Rev1 source-verified Base constructor plus selected map selfref matches and PPC writer/indexer leads to ball-related translation destination; no verified active ball/club pose/power, world units or frame-synchronous state.",
+  "source_state": "Source trace identifies four record/simulator links and nested translation writer; runtime selected candidate0, only 1/4 nested vector matches (which slot still unreported in current public result), plus source-indexed raw wind direction/speed lookup; no verified world ball, units or same-frame readings.",
   "evidence_levels_note": "Identity and behavior are separate axes; runtime candidate and observed change are NOT verified gameplay meaning.",
   "training_gate": "No field can be used as a verified game-state training feature or target without verified code writer, independent boot, same-shot frame provenance and gameplay semantics. Stored booleans are evidence claims, not inferred from numerical correlations.",
   "fields": [
@@ -362,7 +362,7 @@
         "https://github.com/Nate27624/Wii-AI-Golf/pull/151",
         "https://github.com/Nate27624/Wii-AI-Golf/pull/157"
       ],
-      "notes": "Source-named field pointer present; 6 pin objects in one inventory. Historical phase windows changed jointly with selected start, not a ball-trajectory signal."
+      "notes": "Operator source-gated MEM2 current pin pointer; DOL-derived FieldManager getter follows selected pointer+0x4C to a three-f32 translation pointer. Actual selected pin Base constructor selfrefs match +0x48/+0x4C, and candidate inline Base VEC3 agrees with hypothetical backing entry in X/Y/Z. No independently proven world units/geometry, same-frame capture or active ball identity."
     },
     {
       "field_id": "environment.current_start_ref",
@@ -383,7 +383,7 @@
         "https://github.com/Nate27624/Wii-AI-Golf/pull/151",
         "https://github.com/Nate27624/Wii-AI-Golf/pull/157"
       ],
-      "notes": "Source-named field pointer present; 31 start entries. Distinguish static map start from true ball position, velocity and player pose."
+      "notes": "Operator source-gated MEM2 start marker pointer. DOL-derived FieldManager getter follows selected pointer+0x4C to Base translation. Source start->player record->ball writer path reported, but operator start Base XYZ agrees with hypothetical backing map-entry only X/Z, not Y. Not live moving ball or calibrated world position."
     },
     {
       "field_id": "environment.cup_ref",
@@ -567,7 +567,7 @@
         "https://github.com/Nate27624/Wii-AI-Golf/pull/159",
         "https://github.com/Nate27624/Wii-AI-Golf/pull/160"
       ],
-      "notes": "S002 reported DOL dataflow a bounded Rev1 Player source writer range, `lwz r4,136(r3)` then `lwz r4,76(r4)` then 3 stfs at derived target+0,+4,+8 from player-record+0x54..0x5C. Base DOL constructor separately sets `obj+0x4C=obj+0x30`. This is source writer path, but live object type and exact active world ball semantics remain unverified."
+      "notes": "S002 source traces indexed player-record+0x88 sim pointer, sim child's +0x4C three-f32 destination, player record f32 +0x60..+0x68 copied to +0x54..+0x5C then three stores to translation pointer. Operator 1/4 exact word-triplet matches across four slots, selected source index candidate0. Individual selected-slot equality not emitted in user's sanitized report. No active-ball identity or world units verified."
     },
     {
       "field_id": "golfer.player_manager_inline_roster",
@@ -587,7 +587,47 @@
         "https://github.com/Nate27624/Wii-AI-Golf/pull/159",
         "https://github.com/Nate27624/Wii-AI-Golf/pull/160"
       ],
-      "notes": "S002 DOL reports manager array constructor with count4 stride204 and record initializer calls in the Rev1 PlayerManager constructor code range; observed 4 candidate ball/player reference pairs in one saved image. No active player index, frame identity or game ball coordinates verified."
+      "notes": "Source DOL constructs 4 records at manager+4 with 0xCC stride; SimulateManager separately constructs 4 ball-related objects at simManager+4 with 0x1AC stride. Actual operator preserved pair: 4/4 candidate paired types, 4 exact subobject firstwords. Source-gated selector candidate index0; runtime active object and same-frame motion not verified."
+    },
+    {
+      "field_id": "environment.wind_direction_table_raw",
+      "object_role": "source_RPGolConfig_GetWind",
+      "relative_offset": null,
+      "semantic_hypothesis": "Source-level raw 32-bit wind-direction integer table indexed by current hole raw index; units/sign/game display unverified",
+      "identity_level": "source_lead",
+      "behavior_level": "unobserved",
+      "source_typed_member_verified": true,
+      "writer_instruction_verified": false,
+      "independent_boot_replication_verified": false,
+      "same_shot_frame_join_verified": false,
+      "gameplay_value_verified": false,
+      "negative_control": false,
+      "training_eligible": false,
+      "evidence_refs": [
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/162",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/150"
+      ],
+      "notes": "S002 Rev1 DOL GetWind routine reads config raw hole index at +0x98 and accesses a nine-entry runtime MEM1 BSS direction table; value returned by first out-pointer. Only source indexed lookup is established, not numeric runtime values or meaning."
+    },
+    {
+      "field_id": "environment.wind_speed_table_raw",
+      "object_role": "source_RPGolConfig_GetWind",
+      "relative_offset": null,
+      "semantic_hypothesis": "Source-level raw 32-bit wind-speed integer table indexed by current hole raw index; physical units/game display unverified",
+      "identity_level": "source_lead",
+      "behavior_level": "unobserved",
+      "source_typed_member_verified": true,
+      "writer_instruction_verified": false,
+      "independent_boot_replication_verified": false,
+      "same_shot_frame_join_verified": false,
+      "gameplay_value_verified": false,
+      "negative_control": false,
+      "training_eligible": false,
+      "evidence_refs": [
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/162",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/150"
+      ],
+      "notes": "S002 Rev1 DOL GetWind routine reads config raw hole index at +0x98 and accesses a distinct nine-entry runtime MEM1 BSS speed table; value returned by second out-pointer. Source index/return semantics known, but no runtime values, unit calibration or UI comparison."
     }
   ]
 }
