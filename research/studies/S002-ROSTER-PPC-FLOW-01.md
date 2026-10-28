@@ -74,3 +74,22 @@ The updated analyzer separately counts how many of the four joined sites exhibit
 - Conservative stop reasons: branch, multi-register GPR load, unknown PPC opcode, or bounded-window end.
 
 These are **site counts**, not exhaustive dynamic dataflow or inferred class members. The updated test suite adds four synthetic tests (13 total expected): joined zero-offset load, addi-member then zero-load, PPC indexed load, unknown-opcode fail-closed. Run the focused/full Windows suites and same saved input from the existing worktree after refreshing the clean branch. Do NOT interpret any positive shape as source-level object class identity; after this, assign S002 a source-backed receiver and constructor/xref review using PRs #144/#146.
+
+
+## Operator evidence: second real run and decision on next gate
+
+The user reran the updated #161 source-unit audit against existing MEM1 (no new Dolphin data):
+- Four of four mulli 0xCC sites reached a syntactic index-plus-base add.
+- Three of four continued into a different addi displacement (not +0x8C or +0xC8); one reached a different small-offset load.
+- None reached a zero-offset load/store, indexed X-form memory access, addi +0x8C/+0xC8, or direct +0x8C/+0xC8 memory access.
+- **Two** joined traces stopped at a PPC branch; **two** stopped at an unsupported PPC opcode. No 20-instruction window ended normally.
+- Static source code unit had three +0x8C loads at unspecified unrelated base registers and zero +0xC8 loads/stores; these are independent totals, not evidence of roster membership.
+- All receiver/provenance/class/physics flags remain unverified.
+
+Interpretation: the original 20-instruction bounded straight-line tracker is the bottleneck in half of the sites due to control-flow boundaries, and in the other half due to unhandled instruction families. Do not broaden the full memory scan or run shots yet. One bounded final diagnostic per site was added to **the same #161 helper**:
+- ordinal 1–4, boolean join/member flags;
+- early termination class and *primary opcode family or opcode31 XO family* (not raw instruction word);
+- observed post-join shapes and a small capped list of source-code signed addi immediates in hex (not raw memory).
+These fields enable S002 to prioritize 2 unknown-family decoders vs source-level branch CFG review. The scan still does NOT prove the other input register points to a player-manager base or that class construction uses the candidate slot layout. The richer per-site report requires Windows targeted/full tests and an operator real-data rerun before interpreting the categories. The current helper adds two additional synthetic tests, bringing the intended total to 15.
+
+Success decision: nominate one or two exact unsupported opcode families for S002 manual PPC dataflow review, then prove constructor base-register ownership with a bounded cross-reference. Positive syntactic matches never authorize field promotion; no new training or live capture is justified solely by this result.
