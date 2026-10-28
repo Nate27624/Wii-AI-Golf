@@ -1,0 +1,24 @@
+name: S002 native full-bank fault-injection review
+
+on:
+  pull_request:
+    paths:
+      - 'tests/test_s002_fullbanks_guard_review.py'
+      - 'scripts/capture_golf_fullbanks_private.py'
+      - '.github/workflows/s002-fullbanks-guard-review.yml'
+  workflow_dispatch:
+
+jobs:
+  synthetic:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Falsify native bank reader failure paths (no Dolphin)
+        run: python -m unittest discover -s tests -p 'test_s002_fullbanks_guard_review.py' -v

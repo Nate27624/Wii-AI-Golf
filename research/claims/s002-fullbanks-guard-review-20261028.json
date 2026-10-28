@@ -1,0 +1,17 @@
+{
+  "worker_id": "s002-fullbanks-guard-review-20261028",
+  "role": "review",
+  "study_id": "S002",
+  "issue_or_pr": "#201",
+  "claim_comment": "https://github.com/Nate27624/Wii-AI-Golf/pull/201#issuecomment-6460807035",
+  "branch": "agent/review/s002-fullbanks-fault-injection-20261028",
+  "paths": [
+    "tests/test_s002_fullbanks_guard_review.py",
+    ".github/workflows/s002-fullbanks-guard-review.yml",
+    "research/claims/s002-fullbanks-guard-review-20261028.json",
+    "research/review-s002-fullbanks-guard/README.md"
+  ],
+  "boundaries": "Testing only; no changes to owner reader/wrapper/keeper; no new capture implementation, no live Dolphin or RAW RAM.",
+  "status": "review-only",
+  "downstream": "S002 owner #201, S000 coordination"
+}
