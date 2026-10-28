@@ -47,8 +47,6 @@ def reg_syntax(word: int, reg: int) -> str | None:
             return "mr_from_r" + str(src)
         if dest == reg:
             return "other_x_form_possible_destination"
-        if src == reg:
-            return "other_x_form_possible_register_write"
     # Some legitimate GPR writes use other PPC primary/X forms.
     return None
 
