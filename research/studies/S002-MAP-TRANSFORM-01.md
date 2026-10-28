@@ -63,3 +63,7 @@ if (-not (Test-Path $mem1 -PathType Leaf) -or -not (Test-Path $mem2 -PathType Le
 ## Validation and stop
 
 Ten new synthetic tests (no ROM/data), including invalid revision/mode/selected object, NaN, out-of-range, false data-range hint, PMP discordance, empty map-ref, overlapping misleading +0x40/+0x44 content and no private leakage. They are **authored but require targeted and full Windows execution**; no actual user-native B0 run has occurred in this contributor's session. Draft must NOT merge until S002/S000 owner review, dependency #151 and full tests, source contradiction remains an explicit blocker for any verified XYZ claim.
+
+## CI evidence: first cross-platform synthetic run
+
+GitHub Actions run [40610389713](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40610389713) **SUCCEEDED** on Windows and Ubuntu using Python 3.13; both compile and targeted 10-case synthetic suite passed. This is source/mock validation only, **NOT** the canonical full Windows regression or an actual user's B0 MEM2 candidate-vector result. Upstream #151 remains draft and must not be bypassed.
