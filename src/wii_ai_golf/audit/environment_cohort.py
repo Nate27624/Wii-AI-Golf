@@ -27,14 +27,17 @@ def summarize_environment_cohort(reports: list[dict]) -> dict:
     flag_all_true = Counter()
     flag_changed = Counter()
     current_hole_transitions = 0
+    unstable_counts = Counter()
     pin_counts: list[int] = []
     start_counts: list[int] = []
     max_span = 0
     total_samples = 0
     for report in reports:
         if (type(report) is not dict
+            or type(report.get("schema_version")) is not int
             or report.get("schema_version") != 1
             or report.get("kind") != "local-golf-environment-source-candidates"
+            or type(report.get("source_candidate_game_mode")) is not int
             or report.get("source_candidate_game_mode") != 4):
             raise ValueError("Unsupported candidate report")
         sample_count = report.get("sample_count")
@@ -65,6 +68,7 @@ def summarize_environment_cohort(reports: list[dict]) -> dict:
                 or not _plain_int(count["first_observed"], 0, 256)):
                 raise ValueError("Inconsistent map object count")
             dest.append(count["first_observed"])
+            unstable_counts[name] += int(count["distinct_values"] > 1)
         object_refs = report.get("object_refs")
         if type(object_refs) is not dict or set(object_refs) != set(PTR_KEYS):
             raise ValueError("Incomplete source object-reference set")
@@ -101,6 +105,8 @@ def summarize_environment_cohort(reports: list[dict]) -> dict:
                                              "distinct_file_values": len(set(pin_counts))},
         "start_object_count_first_observed": {"min": min(start_counts), "max": max(start_counts),
                                                "distinct_file_values": len(set(start_counts))},
+        "map_count_changed_within_capture_file_count": {
+            k: unstable_counts[k] for k in ("pin_count", "start_count")},
         "reference_present_all_samples_file_count": {k: ref_present[k] for k in PTR_KEYS},
         "reference_changed_within_capture_file_count": {k: ref_changed[k] for k in PTR_KEYS},
         "visual_true_all_samples_file_count": {k: flag_all_true[k] for k in FLAG_KEYS},
