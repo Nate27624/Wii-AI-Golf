@@ -17,6 +17,8 @@ on:
       - tests/test_golf_aim_ppc_context_private.py
       - scripts/audit_golf_selected_aim_callers_private.py
       - tests/test_golf_selected_aim_callers_private.py
+      - scripts/audit_golf_manager_r29_private.py
+      - tests/test_golf_manager_r29_private.py
       - .github/workflows/s002-golf-object-windows-offline.yml
 permissions:
   contents: read
@@ -39,6 +41,7 @@ jobs:
       - run: python -m unittest discover -s tests -p test_golf_aim_ppc_offsets_private.py -v
       - run: python -m unittest discover -s tests -p test_golf_aim_ppc_context_private.py -v
       - run: python -m unittest discover -s tests -p test_golf_selected_aim_callers_private.py -v
+      - run: python -m unittest discover -s tests -p test_golf_manager_r29_private.py -v
       - run: python -m unittest discover -s tests -p test_selected_player_state_word_private.py -v
       - run: python -m unittest discover -s tests -p test_selected_ball_four_phase_private.py -v
       - run: python -m unittest discover -s tests -p test_selected_ball_start_link_private.py -v
