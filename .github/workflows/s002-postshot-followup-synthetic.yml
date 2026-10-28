@@ -86,7 +86,16 @@ jobs:
           $two = & ./scripts/preserve_golf_paused_pair_private.ps1 @stage -Phase RESULT -ConfirmSameDolphinProcess -ConfirmResultScreenVisible
           if (-not $?) { throw 'RESULT staging failed' }
           if (($one + $two) -match '(?i)[0-9a-f]{64}|mem1.raw|mem2.raw') { throw 'Private content leaked' }
-          $output = & ./scripts/prepare_golf_shot_followup_manifest_private.ps1 -PrivateDataRoot $data -SessionFolder $session -ConfirmSameDolphinProcess -ConfirmSameOneShot -ConfirmBothExportsUnderSamePauseForEachPresentPhase -ConfirmSettledBallVisiblyStoppedBeforeReset -ConfirmResultScreenVisible -DisplayedDistance 12.5 -DisplayedUnit feet
+          # CI dummy-only diagnostic: strip the generic redaction catch from
+          # a COPY, to expose the exact synthetic PowerShell error. The
+          # shipped helper remains private and fails closed.
+          $scriptText = Get-Content -LiteralPath './scripts/prepare_golf_shot_followup_manifest_private.ps1' -Raw
+          $catch = "catch {"+[Environment]::NewLine+"    Stop-Private 'native file, consent, SHA or exclusive manifest preparation failed'"+[Environment]::NewLine+"}"
+          $debugText = $scriptText.Replace($catch,"catch { throw }")
+          if ($debugText -eq $scriptText) { throw 'Unable to prepare synthetic-only debug copy' }
+          $debugPath = Join-Path $env:RUNNER_TEMP 'synthetic-debug-followup.ps1'
+          Set-Content -LiteralPath $debugPath -Value $debugText
+          $output = & $debugPath -PrivateDataRoot $data -SessionFolder $session -ConfirmSameDolphinProcess -ConfirmSameOneShot -ConfirmBothExportsUnderSamePauseForEachPresentPhase -ConfirmSettledBallVisiblyStoppedBeforeReset -ConfirmResultScreenVisible -DisplayedDistance 12.5 -DisplayedUnit feet
           if (-not $?) { throw 'Follow-up manifest generation failed' }
           if ($output -match '12.5|[0-9a-f]{64}') { throw 'Private distance or SHA leaked' }
           $m = Get-Content -LiteralPath (Join-Path $session 'shot-followup-manifest-PRIVATE.json') -Raw | ConvertFrom-Json
