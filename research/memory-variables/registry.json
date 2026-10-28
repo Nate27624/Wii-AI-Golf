@@ -581,7 +581,7 @@
         "expression": "be_u32(golf.main_ptr+0x74)",
         "root_static_address": null,
         "steps": [],
-        "corroboration": "Object membership unverified; could be counter, timer or unrelated data"
+        "corroboration": "Source-checked SceneManager -> active Golf scene -> RPGolMain (vtable interval in MAIN_DATA), then BE-u32 Main+0x74 in native MEM2; seven preserved Rev1 captures passed source owner/geometry gates. Field type, frame/timer writer, scene lifetime/reset behavior remain UNVERIFIED."
       },
       "evidence": {
         "source_urls": [
