@@ -26,6 +26,7 @@ PINS = {
 TESTS = {
     "omega": "test_p0_omega_offline_private.py",
     "operand": "test_p0_outer_operand_r4_r30_source.py",
+    "operand_canonical": "test_p0_r4_r30_canonical_integration_private.py",
     "receiver": "test_p0_authenticated_receiver_chain_private.py",
     "outer": "test_p0_outer_receiver_argument_source.py",
     "canonical": "test_p0_seven_numbered_source_pairs_private.py",
@@ -257,7 +258,7 @@ def study(repo, archive=None, *, tests=True):
         if any(path.parent != repo.parent for path in checked.values()):
             raise Abstain("source worktree and canonical data root are not siblings")
         if tests:
-            for task in ("receiver", "outer", "operand", "omega"):
+            for task in ("receiver", "outer", "operand", "operand_canonical", "omega"):
                 _run_test(repo, "omega", TESTS[task])
             for name in PINS:
                 _run_test(checked[name], name, TESTS[name])
