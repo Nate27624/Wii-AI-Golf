@@ -27,3 +27,17 @@ All seven human-labeled shots remain first-hole-only, phase labels unverified. N
 ## Operator follow-up
 
 Only after cross-platform CI and S002 source review, fetch an immutable reviewed branch SHA by `gh api` and `git fetch`, worktree-detach the reviewer-pinned #254 helper at `abd875dc83f3cf8e773c1790272ffb4759f37ef7` and this branch, run focused synthetic tests, then `py -I` new analyzer with existing `--private-session`, `--data-root`, and `--helper-root`. Print only `source_opcode_class`, public callee file/relative offset, and all scientific false flags.
+
+
+## Real operator authenticated B0 call-target results — 2026-10-28
+
+The operator ran exact immutable #264 SHA `7d9d3a4559c81a00d8c7d82dfc0af368bcb840b2`, #257 inherited authenticated original B0 source adapter, and exact diagnostic CFG #254 `abd875dc83f3cf8e773c1790272ffb4759f37ef7` through gh-pinned clean worktrees. Local **15/15 new target**, **19/19 adapter** and **34/34 CFG** synthetic tests PASS (total 68). Original private B0 full SHA pre/post and RSPE01 Rev1/public owner gates passed; `P0_INTERVENING_CALL_TARGETS=COMPLETE`; no Dolphin, new shot, original bank write or native bytes published.
+
+| Proven source caller first unresolved BL | Native direct-call syntax | Public callee compiled source object | Source-object-relative callee destination |
+| --- | --- | --- | --- |
+| `fn_80299ACC +0x001C` | `DIRECT_BL_TARGET_IN_PUBLIC_SOURCE_UNIT` | `Pack/RPSports/RPGolScene/RPGolScene_unsplit.o` | `+0xB048` |
+| `fn_80299C20 +0x0020` | `DIRECT_BL_TARGET_IN_PUBLIC_SOURCE_UNIT` | `Pack/RPSports/RPGolScene/RPGolMapObjBall.cpp` | `+0x3614` |
+
+Both `ReturnSemanticsVerified=False`, `RuntimeReceiverVerified=False`. **This is two AUTHENTICATED STATIC direct PPC BL target source-unit placements**, not an exact named function/symbol identity or proof calls execute in a recorded shot. The named compiled source unit `RPGolScene_unsplit.o` cannot by itself assign a higher-level function, code effect or data owner. The #254 CFG for both inner functions remains `ABSTAIN_SOURCE_UNRESOLVED` on `INTERVENING_CALL`. No justified all-path entry r3 preservation, r31 callee effect, selected-vs-global receiver, actual cache writer activation, rendered physical ball, velocity, XYZ, time, impact, score or training.
+
+**Handoff / ROI decision:** Share these two public callee object placements with #254 CFG and #219 source owners, then STOP this child lane as requested in central #121 triage. Only source-owner review of the *existing published compiled code/symbols* is reasonable if it can directly change the conservative call-effects/receiver proof; do not run another unowned per-call decoder or ask operator for duplicate B0 scans. More effective parallel priorities remain #240 constructor return semantics and S001/#248 dual-object same-guest-frame evidence, with user approval for any new runtime input. Existing seven shot captures are all hole 1, human phase labels not machine validated.
