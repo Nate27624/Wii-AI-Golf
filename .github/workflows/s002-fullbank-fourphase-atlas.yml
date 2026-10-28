@@ -1,0 +1,32 @@
+name: S002 full-bank four-phase memory atlas tests
+on:
+  pull_request:
+    paths:
+      - "scripts/audit_golf_fullbank_fourphase_private.py"
+      - "tests/test_golf_fullbank_fourphase_private.py"
+      - "scripts/audit_golf_aim_pose_math_private.py"
+      - "tests/test_golf_aim_pose_math_private.py"
+      - ".github/workflows/s002-fullbank-fourphase-atlas.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-atlas:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+    matrix:
+      os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile full-bank atlas
+        run: python -m compileall -q scripts/audit_golf_fullbank_fourphase_private.py tests/test_golf_fullbank_fourphase_private.py
+      - name: Compile selected-record aim/pose math audit
+        run: python -m compileall -q scripts/audit_golf_aim_pose_math_private.py tests/test_golf_aim_pose_math_private.py
+      - name: Validate selected-record math constraints across B0-B3
+        run: python -m unittest discover -s tests -p 'test_golf_aim_pose_math_private.py' -v
+      - name: Validate source overlays and four-phase full-bank differential
+        run: python -m unittest discover -s tests -p 'test_golf_fullbank_fourphase_private.py' -v
