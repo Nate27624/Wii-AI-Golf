@@ -227,7 +227,8 @@
       },
       "limitations": [
         "Likely scene object transform, NOT necessarily ball actual XYZ",
-        "Subobject base offset, coordinate axes, world origin, units not independently proven"
+        "Subobject base offset, coordinate axes, world origin, units not independently proven",
+        "All present shot-transition captures are operator-attested FIRST-HOLE ONLY; no independently source-gated hole-2+ shot control or cross-hole semantic generalization."
       ],
       "required_controls": [
         "change tee/hole in separate captured scenario",
@@ -321,7 +322,8 @@
         "Scene pin transform, not verified physical cup or ball target",
         "Axes and unit conversions unknown",
         "Pin placement may vary between Hitting the Green attempts without changing the hole index or tee; changed cross-session pin words are not by themselves evidence of dynamic pin motion or invalid ball data",
-        "Community training guide documents variable pin locations but does not verify the specific pin placement chosen in either preserved snapshot"
+        "Community training guide documents variable pin locations but does not verify the specific pin placement chosen in either preserved snapshot",
+        "All present shot-transition captures are operator-attested FIRST-HOLE ONLY; no independently source-gated hole-2+ shot control or cross-hole semantic generalization."
       ],
       "required_controls": [
         "independently vary current pin/hole",
@@ -668,7 +670,8 @@
       "limitations": [
         "Do not substitute tee/start object translation for ball XYZ",
         "Do not infer from variable-looking floats or UI penalty distances",
-        "Do not label a snapshot settled solely from filename"
+        "Do not label a snapshot settled solely from filename",
+        "All present shot-transition captures are operator-attested FIRST-HOLE ONLY; no independently source-gated hole-2+ shot control or cross-hole semantic generalization."
       ],
       "required_controls": [
         "verified same-shot before/contact/flight/settled snapshots",
@@ -1010,7 +1013,8 @@
       "limitations": [
         "Relative +0x4C is a pointer, not itself three floats",
         "No observed active ball motion causality",
-        "Current role of object (render vs physics) not fully resolved"
+        "Current role of object (render vs physics) not fully resolved",
+        "All present shot-transition captures are operator-attested FIRST-HOLE ONLY; no independently source-gated hole-2+ shot control or cross-hole semantic generalization."
       ],
       "required_controls": [
         "verify +0x4C points within ball object to +0x30 vector",
@@ -1776,7 +1780,8 @@
       "limitations": [
         "Source-global pointer distinct from selected player ball does not identify which is physical or visual projectile",
         "Real operator report is same original seven capture cohort; no independent shot replication",
-        "Review #240 source drift/provenance blockers before treating negative identity as authoritative"
+        "Review #240 source drift/provenance blockers before treating negative identity as authoritative",
+        "All present shot-transition captures are operator-attested FIRST-HOLE ONLY; no independently source-gated hole-2+ shot control or cross-hole semantic generalization."
       ],
       "required_controls": [
         "repair #240 source-global slot and exact BL/source code drift gates before physics interpretation",
@@ -1985,12 +1990,13 @@
         "capture_groups": [
           "Original seven human-labeled native MEM1/MEM2 pairs; operator phase mapping not machine verified"
         ],
-        "observed_behavior": "REAL local operator #239 SHA/source-gated all seven original pairs, standard GolfConfig::mPlayerScores[4][9] at +0x04: ZERO of 36 words changed in D1->D2, W5->W6, W6->W7, W5->W7; selected+hole candidate cell unchanged and all four player row change counts zero while selected ball+0x30 changes 3/3. This is a negative for an IMMEDIATE result delta in these sampled mode4 transitions ONLY. It does not disprove score updates at later frames or alternative result backing stores. Distinct SequenceMgr mGolfScores[9][4] +0x14 remains separate untested source field.",
+        "observed_behavior": "REAL local operator #239 SHA/source-gated all seven original pairs, standard GolfConfig::mPlayerScores[4][9] at +0x04: ZERO of 36 words changed in D1->D2, W5->W6, W6->W7, W5->W7; selected+hole candidate cell unchanged and all four player row change counts zero while selected ball+0x30 changes 3/3. This is a negative for an IMMEDIATE result delta in these sampled mode4 transitions ONLY. It does not disprove score updates at later frames or alternative result backing stores. Distinct SequenceMgr mGolfScores[9][4] +0x14 remains separate untested source field. | 2026-10-28 USER PROVENANCE: all current driver/wedge/putter captures were made on the FIRST HOLE ONLY. Source-defined score arrays remaining unchanged through these snapshots cannot rule out hole-completion, second-hole, delayed, or different-mode score updates; no second-hole comparison has been conducted or requested.",
         "source_confidence": "source_selected_real_snapshot_correlation_not_physical"
       },
       "limitations": [
         "Source-defined standard scores may be unused in Hitting the Green mode4",
-        "No verified score, feet/meter conversion, hit or reward semantics"
+        "No verified score, feet/meter conversion, hit or reward semantics",
+        "All present shot-transition captures are operator-attested FIRST-HOLE ONLY; no independently source-gated hole-2+ shot control or cross-hole semantic generalization."
       ],
       "required_controls": [
         "independently source trace Hitting-the-Green mode4 score/result UI producer",
@@ -2203,13 +2209,14 @@
         "capture_groups": [
           "Seven operator-numbered source/SHA-gated native bank capture cohort, phase names human-only not machine-linked"
         ],
-        "observed_behavior": "2026-10-28 REAL OPERATOR #245 SCORE AND #235 AFFINE NEGATIVES: exact PR #245 pinned 102a84ab8b9e6e6ea8f399ae0ed4e57843de1364, 14/14 Windows synthetic tests and REAL 14-bank original manifest/Rev1/scene/source selected actor/ball/tee/pin/Config controls PASS. Separate SequenceMgr instance present and mSport Golf=2 in D1,D2,W5,W6,W7; 36 source score u32 values unchanged (0/36), selected hole/player cell changed=false, source training-game/golf-mode enums unchanged across D1->D2, W5->W6, W6->W7, W5->W7. Selected ball changed 3/3 each edge; GolfConfig independent [player][hole] score 0/36 also stable #239. This is a NEGATIVE immediate-score-change observation in mode4 human-numbered captures; no machine event aligned, W7 display result provenance may be mislabeled. No proof table contains live Hitting-the-Green outcome, no per-shot feet/meters scale, impact, reward, velocity/power or training.",
+        "observed_behavior": "2026-10-28 REAL OPERATOR #245 SCORE AND #235 AFFINE NEGATIVES: exact PR #245 pinned 102a84ab8b9e6e6ea8f399ae0ed4e57843de1364, 14/14 Windows synthetic tests and REAL 14-bank original manifest/Rev1/scene/source selected actor/ball/tee/pin/Config controls PASS. Separate SequenceMgr instance present and mSport Golf=2 in D1,D2,W5,W6,W7; 36 source score u32 values unchanged (0/36), selected hole/player cell changed=false, source training-game/golf-mode enums unchanged across D1->D2, W5->W6, W6->W7, W5->W7. Selected ball changed 3/3 each edge; GolfConfig independent [player][hole] score 0/36 also stable #239. This is a NEGATIVE immediate-score-change observation in mode4 human-numbered captures; no machine event aligned, W7 display result provenance may be mislabeled. No proof table contains live Hitting-the-Green outcome, no per-shot feet/meters scale, impact, reward, velocity/power or training. | 2026-10-28 USER PROVENANCE: all current driver/wedge/putter captures were made on the FIRST HOLE ONLY. Source-defined score arrays remaining unchanged through these snapshots cannot rule out hole-completion, second-hole, delayed, or different-mode score updates; no second-hole comparison has been conducted or requested.",
         "source_confidence": "source_named_runtime_present_real_snapshot_stability_not_result_semantic"
       },
       "limitations": [
         "Source-defined hole-major 9x4 is distinct from Config's player-major 4x9; never exchange offsets/indices",
         "Score table present and sport Golf does not prove Hitting-the-Green mode4 live result or score event",
-        "Stable 36 u32 does not rule out delayed update after W7, separate result UI backing, or operator phase label error"
+        "Stable 36 u32 does not rule out delayed update after W7, separate result UI backing, or operator phase label error",
+        "All present shot-transition captures are operator-attested FIRST-HOLE ONLY; no independently source-gated hole-2+ shot control or cross-hole semantic generalization."
       ],
       "required_controls": [
         "trace mode4 result UI/distance-to-pin producer and consumers of SequenceMgr GetGolfScore/SetGolfScore to establish applicability",
@@ -2224,7 +2231,7 @@
     "path": "research/memory/field-evidence-ledger.json",
     "note": "Existing 33-entry evidence ledger owns granular identity/behavior evidence; this access registry adds typed resolver/feature-eligibility index, not replacement evidence"
   },
-  "notes": "Use #160/#162/#181/#183 source-work as upstream; operational selection of ball/player record requires S002 source verifier. A pointer-chain expression with symbolic parent is NOT an independently deployable extractor.",
+  "notes": "Use #160/#162/#181/#183 source-work as upstream; operational selection of ball/player record requires S002 source verifier. A pointer-chain expression with symbolic parent is NOT an independently deployable extractor.\nOPERATOR COVERAGE UPDATE 2026-10-28: User explicitly states ALL current human-labeled shot captures were taken on the FIRST HOLE (hole 1); NO second-hole shot data is included. This is human provenance, not an independently verified hole-index conversion or frame stamp. Every cross-shot conclusion in the preserved seven captures is therefore first-hole-only; do not claim generalized per-hole scoring, ball-object selection, cache behavior, pin/tee geometry, or training-mode result semantics for hole 2+. A future independently source/scene/mode-validated different-hole comparison could be useful, but user has intentionally deferred it and no new Dolphin shot/capture is authorized.",
   "authority_boundary": "This is the typed discovery/extraction access index and training-eligibility gate. PR #154 research/memory/field-evidence-ledger.json remains the more detailed source-evidence/identity/behavior ledger; this registry DOES NOT supersede its records. Reconcile references during PR reviews.",
   "last_operator_evidence": {
     "date": "2026-10-28",
