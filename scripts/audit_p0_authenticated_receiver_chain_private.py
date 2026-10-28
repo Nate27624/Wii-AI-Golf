@@ -16,6 +16,10 @@ import mmap
 from pathlib import Path
 import sys
 
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE in sys.path:
+    sys.path.remove(_HERE)
+sys.path.insert(0, _HERE)
 import review_p0_outer_receiver_argument_source as outer
 
 FIRST_SOURCE_PC = 0x80299EE4
