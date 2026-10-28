@@ -207,7 +207,10 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
             return {"cancelled": True, "raw_data_created": True,
                     "partial_samples": len(rows), "swing_dispatch": stroke}
         stage_valid = label == ""
-        capture_stage("settled", settled_samples)
+        # A transition may already show a different game phase: keep PRE/POST
+        # raw evidence but do not call subsequent RAM samples "settled".
+        if stage_valid:
+            capture_stage("settled", settled_samples)
     annotation = _visual_label(input_fn)
     if ask_power:
         while True:
@@ -228,7 +231,24 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         annotation["initial_club_pose_human"] = start_pose
         annotation["initial_club_pose_verified_by_memory"] = False
         annotation["shot_start_frame_before_controller_trace"] = shot_start_frame
-    ranked = rank_outcome_candidates(rows, human_distance=annotation["displayed_distance_human"])
+    # A fixed 100-ft miss is censored, NOT ball-to-hole distance. Never
+    # prioritize arbitrary RAM words that happen to equal that penalty.
+    distance = annotation["displayed_distance_human"]
+    measured_candidate = (
+        distance if stage_valid and annotation["finished_on_green_human"] == "yes"
+        and not (distance == 100 and annotation["displayed_unit_human"] == "ft")
+        else None
+    )
+    if stage_valid:
+        ranked = rank_outcome_candidates(rows, human_distance=measured_candidate)
+    else:
+        ranked = {
+            "schema_version": 1, "candidates": [],
+            "all_phase_stable_change_count": 0,
+            "candidate_ranking_quarantined": True,
+            "not_ranked_reason": "terminal_screen_already_transitioned",
+            "game_score_verified": False, "ball_position_verified": False,
+        }
     return {"schema_version": 1, "source": "live-emulator-read-only-US-Rev1+human-result-label",
             "utc": datetime.now(timezone.utc).isoformat(),
             "study_id": "S002-HG-OUTCOME-TRANSITION-EXPLORATORY",
@@ -270,6 +290,7 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--run-token", default=None, help="Private invocation-matching nonce")
     p.add_argument("--send-live-swing", action="store_true",
                    help="Explicit opt-in to ONE forward stroke using the current known-good generator")
     p.add_argument("--port", type=int, default=55355)
@@ -294,6 +315,9 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
     if not args.send_live_swing:
         p.error("Requires --send-live-swing and the canonical fresh-launch wrapper")
+    if args.run_token is not None and (
+            len(args.run_token) != 32 or any(c not in "0123456789abcdef" for c in args.run_token)):
+        p.error("--run-token must be exactly 32 lowercase hexadecimal characters")
     if not 1 <= args.port <= 65535:
         p.error("port must be 1..65535")
     if not (2 <= args.pre_samples <= 10 and 2 <= args.post_samples <= 40
@@ -327,8 +351,12 @@ def main(argv: list[str] | None = None) -> int:
                              trial_seed=args.trial_seed,
                              ask_power=args.ask_power)
     if result.get("cancelled"):
-        print("Session cancelled:", result)
-        return 0
+        print("Session cancelled (NOT a completed shot):", result)
+        # Distinct from a successful 0 exit. The outer launcher may forward
+        # arbitrary exit codes; parent must still fail closed on ANY nonzero.
+        return 41 if "swing_dispatch" in result else 40
+    if args.run_token is not None:
+        result["run_token"] = args.run_token
     summary_file.parent.mkdir(parents=True, exist_ok=True)
     with summary_file.open("x", encoding="utf-8") as stream:
         json.dump(result, stream, indent=2, sort_keys=True, allow_nan=False)
