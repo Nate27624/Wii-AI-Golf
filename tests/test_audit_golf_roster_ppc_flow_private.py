@@ -104,6 +104,22 @@ class TestRosterPPCFlow(unittest.TestCase):
         self.assertNotIn('0x7C000378', str(site))
         self.assertFalse(r['ball_xyz_verified'])
 
+    def test_primary19_isync_is_unsupported_not_branch(self):
+        isync = (19 << 26) | (150 << 1)
+        w = [dform(7, 8, 6, 0xCC), add(9, 8, 10),
+             isync, dform(32, 3, 9, 0x8C)]
+        site = m.analyze_words(w)['bounded_mulli_site_diagnostics'][0]
+        self.assertEqual(site['stop_reason'], 'unsupported_ppc_opcode')
+        self.assertEqual(site['stop_instruction_family'], 'primary_19')
+
+    def test_primary19_bclr_is_real_branch_barrier(self):
+        bclr = (19 << 26) | (16 << 1)
+        w = [dform(7, 8, 6, 0xCC), add(9, 8, 10),
+             bclr, dform(32, 3, 9, 0x8C)]
+        site = m.analyze_words(w)['bounded_mulli_site_diagnostics'][0]
+        self.assertEqual(site['stop_reason'], 'branch_before_complete_trace')
+        self.assertEqual(site['stop_instruction_family'], 'primary19_xo16')
+
     def test_addi_0xcc_not_mulli(self):
         w = [dform(14, 8, 6, 0xCC), dform(32, 3, 9, 0x8C)]
         r = m.analyze_words(w)
