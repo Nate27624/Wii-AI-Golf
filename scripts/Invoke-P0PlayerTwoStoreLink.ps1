@@ -43,7 +43,7 @@ if ($r.kind -ne 'S002-P0-PLAYER-TWO-FLOAT-STORE-SAME-RECEIVER-LOCAL-POSSIBILITY'
     $r.same_object_runtime_write_proven -ne $false -or
     $r.true_function_boundary_or_typed_receiver_verified -ne $false -or
     $r.store_executed_in_same_shot_verified -ne $false -or
-    $r.approved_for_training -ne $false -or
+    $r.training_approved -ne $false -or
     $r.allowed_to_publish -ne $false) {
     throw 'ABSTAIN: integrity/interpretation/training invariant unexpected'
 }
