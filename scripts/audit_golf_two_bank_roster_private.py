@@ -250,9 +250,29 @@ def triage(read_u32, header: bytes) -> dict:
         if player_match:
             players.append(player)
 
+    # This dereference is source-controlled: the separately validated PPC
+    # player code reads record+0x88 then follows child+0x4C before storing a
+    # three-word vector. Compare equality only; no f32/XYZ decoding here.
+    source_flow = source_member_flow_evidence(read_u32)
+    nested_pointer_count = 0
+    local_triplet_equal_count = 0
+    if source_flow["ball_child_plus_0x4c_three_float_writer_source_supported"]:
+        for index in range(ROSTER_SLOTS):
+            ball = read_u32(pm + BALL_CANDIDATE_MEMBER + index * ROSTER_STRIDE)
+            if (_bank(ball, 0x50) != "MEM2"
+                    or not _in_data(read_u32(ball), BALL_DATA)):
+                continue
+            vec = read_u32(ball + 0x4C)
+            if _bank(vec, 12) != "MEM2":
+                continue
+            nested_pointer_count += 1
+            record = pm + 4 + index * ROSTER_STRIDE
+            local_triplet_equal_count += all(
+                read_u32(record + 0x54 + j * 4) == read_u32(vec + j * 4)
+                for j in range(3)
+            )
     all_pairs = all(paired)
     source_code_stride = _code_stride_instruction_counts(read_u32)
-    source_flow = source_member_flow_evidence(read_u32)
     exact_subobject_vtable_matches = sum(
         _bank(p) == "MEM2" and read_u32(p) == 0x803C7D28
         for p in players
@@ -275,6 +295,9 @@ def triage(read_u32, header: bytes) -> dict:
         "bounded_source_register_flow_evidence": source_flow,
         "exact_constructor_firstword_matches_for_plus_0xc4_subobjects":
             exact_subobject_vtable_matches,
+        "ball_related_child_plus_0x4c_mapped_triplet_count": nested_pointer_count,
+        "nested_triplets_equal_record_triplet_count": local_triplet_equal_count,
+        "nested_three_word_destination_is_world_ball_xyz_verified": False,
         "source_supported_record_layout_not_gameplay_semantics":
             bool(source_flow["four_inline_0xcc_record_loop_source_supported"]
                  and source_flow["record_plus_0x88_ball_code_path_source_supported"]),
