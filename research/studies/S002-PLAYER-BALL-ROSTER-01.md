@@ -35,3 +35,14 @@ Adjust only the private filenames. Never copy raw dumps into a Git worktree or p
 Review the actual PowerPC object-constructor/init/access callsites in RPGolPlayerManager.cpp .text 0x802A2210..0x802A3560, RPGolPlayer.cpp .text 0x8029E62C..0x802A2210, and RPGolMapObjBall.cpp .text 0x80296FD8..0x8029B240. Independently verify register receiver provenance and the repeated 0xCC layout before calling these real player/ball members. Existing PR #144 D-form atlas provides operand hypotheses but not receiver identity. Use only the locally extracted Rev1 main.dol, no ROM or raw bytes on GitHub.
 
 Stop if class/constructor linkage cannot be supported. Only after source proof propose narrowly bounded same-shot read-only player/ball field sampling; no power model, repeated broad RAM sweep or new shot yet.
+
+
+## New independent static-code corroboration from this same MEM1 image
+
+The live game's CPU-code bank also contains the public RSPE01_01 RPGolPlayerManager.cpp compilation-unit .text 0x802A2210..0x802A3560. A bounded PPC D-form immediate-only scan of precisely 1,236 4-byte words found:
+
+- 4 PowerPC mulli (primary opcode 7) instructions with immediate 0xCC.
+- 7 PowerPC addi (primary opcode 14) instructions with immediate 0xCC.
+
+That repeated immediate agrees with the 0xCC interval in the speculative RAM records. The tool now checks both code-immediate families separately from the four candidate pairs, and reports only counts. **Crucial:** this STILL DOES NOT establish which base register points to the actual manager record, that the same instructions index these candidate object fields, or the C++ meanings of members +0x8C/+0xC8. Verification now requires a bounded register/dataflow review of those PPC callsites. Source-code unit boundaries from splits.txt are not named function boundaries. No full code dump, assembler instructions or private binary bytes are published.
+
