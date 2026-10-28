@@ -26,6 +26,12 @@ Each script command runs the existing trusted `lab.github_sync.sync_merged_main`
 - If blocked, no Dolphin or test job starts. The sync-only command does not publish a result.
 - Stale GUI lock files no longer block this script-first workflow. Keep one live CLI session at a time and close Dolphin between experiments.
 
+## Mandatory result-upload coverage for new studies
+
+**Operator rule:** Approved operator study/test runs must automatically upload a **sanitized and explicitly allowlisted GitHub result** in the same PowerShell command, without a separate manual upload. The current scripts/research_cli.py already does this for its reviewed test and v1 modes by default; not every arbitrary scripts/*.py P0 analyzer is integrated. Agents introducing new methods must first add S000/S002-reviewed safe adapters using that existing publisher, with synthetic tests for success, blocked private fields and failed remote; never claim an unmerged adapter works on main. A deliberate --no-upload request or privacy block takes precedence.
+
+Keep native RAM, PRIVATE JSON, arbitrary terminal output and savestates local. A failed push preserves the local sanitized summary and must report **NOT UPLOADED**, not a fabricated URL. Important positive or negative findings require a dated owning issue/PR FINDING comment plus reviewed research/ledger.md entry linked to the uploaded safe run; see [operator contract](operator-powershell-contract.md#automatic-github-publication-and-durable-research-findings-mandatory).
+
 ## How GitHub output upload works
 
 The operator grants one automatic publication per run unless `--no-upload`. The script generates a compact allowlisted JSON record in the private sibling `Wii-AI-Golf-Data/research-cli/` and publishes a copy to the isolated `research/observations` branch under `research/observations/<ID>.json`. For publication, it clones only that results branch into a temporary directory, adds the one output file, commits and pushes normally, and cleans up. The operator's checked-out `main` is not modified by results commits.
