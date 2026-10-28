@@ -57,3 +57,23 @@ The operator will explicitly type SWING to authorize the controller input and th
 First confirm stationary negative-control vector, stable current-start marker, stable source-selected slot/hole, then visually verified ball movement correlated to a ball-vector change. Verify read overhead and intact known-good contact behavior. Repeat across independent clean boots and distinguish actual guest frame time from scheduler tick before assigning physics meaning. None of this proves XYZ units, active human ball, velocity, impact/contact timing, or swing power. All model-training permissions remain false. Abort on gate failure, too-slow sample, inconsistent scene, or failed tests.
 
 S001 owns canonical bridge/swing; S002 owns source fields; S000 owns privacy; S003 models only after causal verification. No extra full-RAM scans, savestate creation or automatic publication.
+
+
+## First actual operator trial: no visible ball movement, incomplete watch
+
+The operator ran the opt-in watched Swing V2 session and reported visible ball movement NO. Sanitized output: 50 bridge callback ticks sampled (18 pretrace, 22 active trace, 10 after); candidate ball translation unchanged all 50; selected record vector equals nested ball vector in all 50; start, selected slot and hole stable. This is an internally consistent stationary negative result, NOT proof that the vector senses an actual moving physics ball.
+
+Important scientific defect in ORIGINAL version: the watch requested 256 frame-callback ticks but runner drained at ~200, with just 50 observed samples; original runner accepted a nonterminal recording status. Therefore treat this capture as PARTIAL exploratory no-contact, not a complete temporal study. The exact private status was not supplied; incompleteness is inferred from source loop behavior and sample count.
+
+### Fixes on same draft PR #166
+
+- Bridge refuses to drain unless terminal state is complete. Runner now performs bounded read-only polling to completion; no partial positive studies.
+- Stage tags idle_control, a_prime, trace, posttrace separate button-only priming from genuine idle control, still without proving game-applied A or contact.
+- Across-sample owner tuple validated only inside bridge; all heap pointers are stripped before RPC.
+- Exact 89-sample canonical waveform SHA256 b63a1818ba5086c64b0fe7338236a498240e4be97bbd111809a772d783699891 checked prior to any input, not just sample count.
+- Temporal summary accepts a positive candidate only with terminal complete state, >=2 idle control samples, stable pretrace, stable source identity, stable start/hole/slot, acceptable read overhead, stable non-null trace ID, all four stages, ball candidate change after active trace begins and explicit human ball-moved YES. Still not world coordinates, ball velocity, impact or power.
+- New code passed 19/19 synthetic tests Windows and Ubuntu in CI run 40615327108. Full canonical Windows suite and instrumented-vs-uninstrumented actual shot parity remain unverified; owner approval is still required.
+
+### Next task: restore ball contact
+
+Earlier repository docs/bridge-compatibility-audit.md records successful game-visible contacts with an earlier V1 bridge and later no-contact sessions under modified Swing V2, but this is confounded, NOT proven causation. Request offline local source audit with scripts/audit_local_swing_bridge.py, and learn whether the club actually animated and A was held. Do not repeat a blind live shot or change power until canonical input/contact works consistently. Position traces from no-hit sessions cannot calibrate moving ball, and model training remains disabled.
