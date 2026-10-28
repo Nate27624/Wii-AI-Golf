@@ -25,3 +25,5 @@ jobs:
         run: python -m unittest discover -s tests -p test_outcome_transition.py -v
       - name: Existing collector synthetic tests (NO Dolphin)
         run: python -m unittest discover -s tests -p test_outcome_capture_cli.py -v
+      - name: Repository regression suite (NO Dolphin)
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
