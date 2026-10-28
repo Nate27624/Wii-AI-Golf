@@ -1,0 +1,35 @@
+name: P0 Golf OnUserDraw two-word source discriminator (native-free)
+on:
+  push:
+    paths:
+      - scripts/audit_p0_golf_onuserdraw_dispatch_private.py
+      - scripts/review_p0_golf_draw_main_13word_source.py
+      - tests/test_p0_golf_onuserdraw_dispatch_private.py
+      - tests/test_p0_golf_draw_main_13word_source.py
+      - .github/workflows/p0-golf-onuserdraw-dispatch.yml
+  pull_request:
+    paths:
+      - scripts/audit_p0_golf_onuserdraw_dispatch_private.py
+      - scripts/review_p0_golf_draw_main_13word_source.py
+      - tests/test_p0_golf_onuserdraw_dispatch_private.py
+      - tests/test_p0_golf_draw_main_13word_source.py
+      - .github/workflows/p0-golf-onuserdraw-dispatch.yml
+  workflow_dispatch:
+jobs:
+  fabricated:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Source-bounded OnUserDraw two-word synthetic gates
+        run: python -m unittest discover -s tests -p test_p0_golf_onuserdraw_dispatch_private.py -v
+      - name: Draw main 13 exact source words and control classes
+        run: python -m unittest discover -s tests -p test_p0_golf_draw_main_13word_source.py -v
+      - name: Existing OnCalculate two-word original gates
+        run: python -m unittest discover -s tests -p test_p0_golf_oncalculate_dispatch_private.py -v
