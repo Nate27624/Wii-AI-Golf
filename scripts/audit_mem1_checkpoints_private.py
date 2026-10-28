@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from contextlib import ExitStack
+import hashlib
 import json
 from pathlib import Path
 import stat
@@ -63,10 +64,13 @@ def compare(paths: tuple[Path, Path, Path, Path], *,
     phase_counts: Counter[str] = Counter()
     detailed = []
     relevant_total = 0
+    hashes = [hashlib.sha256() for _ in paths]
     with ExitStack() as stack:
         readers = [stack.enter_context(p.open("rb")) for p in paths]
         for page_index in range(nbytes // page_bytes):
             buffers = [fp.read(page_bytes) for fp in readers]
+            for hash_state, chunk in zip(hashes, buffers):
+                hash_state.update(chunk)
             if any(len(b) != page_bytes for b in buffers):
                 raise ValueError("short checkpoint read")
             n_idle = n_pointer = n_recovery = 0
@@ -90,10 +94,9 @@ def compare(paths: tuple[Path, Path, Path, Path], *,
             phase_counts["recovery_comparison_changed_words"] += n_recovery
             if n_idle or n_pointer or n_recovery:
                 relevant_total += 1
-                # Private report is restricted and capped; the totals are exact
-                # even if the page-level detail is truncated.
-                if len(detailed) < MAX_PRIVATE_PAGES:
-                    detailed.append({
+                # Collect all bounded 6,144 pages first, then rank and cap.
+                # Truncating *before* ranking would miss late high-signal pages.
+                detailed.append({
                         "page_index_private": page_index,
                         "idle_changed_words": n_idle,
                         "pointer_changed_words": n_pointer,
@@ -109,6 +112,7 @@ def compare(paths: tuple[Path, Path, Path, Path], *,
         -p["category_counts"].get("pointer_phase_reverted_candidate", 0),
         -p["category_counts"].get("pointer_phase_persistent_candidate", 0),
         p["idle_changed_words"], p["page_index_private"]))
+    detailed = detailed[:MAX_PRIVATE_PAGES]
     total_words = nbytes // 4
     summary = {
         "kind": "offline_private_mem1_control_diff_sanitized",
@@ -138,6 +142,7 @@ def compare(paths: tuple[Path, Path, Path, Path], *,
         "mem1_address_base_hypothesis": "0x80000000",
         "source_region_mapping_verified": False,
         "page_bytes": page_bytes,
+        "checkpoint_sha256_PRIVATE": [h.hexdigest() for h in hashes],
         "pages_ranked": detailed,
         "pages_ranked_truncated": relevant_total > MAX_PRIVATE_PAGES,
         "must_not_publish": True,
