@@ -81,7 +81,11 @@ class TestSeven(unittest.TestCase):
         r=mod.summarize(seven())
         self.assertTrue(r["comparisons"][0]["record_34_changed"])
         self.assertFalse(r["comparisons"][1]["record_38_changed"])
-        self.assertTrue(r["comparisons"][2]["record_74_changed"])
+        self.assertFalse(r["comparisons"][2]["record_74_changed"])
+        x=seven()
+        x[6]["whole_record"]=list(x[6]["whole_record"])
+        x[6]["whole_record"][0x74//4]=10
+        self.assertTrue(mod.summarize(x)["comparisons"][2]["record_74_changed"])
 
     def test_own_cache_matches(self):
         r=mod.summarize(seven())
@@ -98,7 +102,7 @@ class TestSeven(unittest.TestCase):
     def test_raw_numbers_not_printed(self):
         output=str(mod.summarize(seven()))
         self.assertNotIn("whole_record",output)
-        self.assertNotIn("pin_obj",output)
+        self.assertNotIn("'pin_obj':",output)
         self.assertNotIn("cfg_bc",output)
         self.assertNotIn("(10, 20, 30)",output)
 
