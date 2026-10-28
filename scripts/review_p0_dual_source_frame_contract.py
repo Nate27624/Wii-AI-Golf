@@ -57,12 +57,20 @@ def _u32(x: object) -> bool:
     return type(x) is int and 0 <= x <= 0xFFFFFFFF
 
 
-# The source-qualified RPGolMapObjBall pointers (selected and global)
-# both have a PPC dereference of their +0x4C member. Requiring one u32 at
-# the object base admits a final-bank-word pointer that cannot supply that
-# member. This checks only the outer ball object, NOT the nested +0x4C
-# pointer's target, its type, or whether the emulator executed the read.
-BALL_MEMBER_4C_MIN_SPAN = 0x50
+# These minimums are independently enforced by the already qualified
+# RSPE01 Rev1 source readers (#231/#240), not guessed object sizes.
+# selected: _sample requires MEM2 through +0xFC triple (end +0x108).
+# global: runtime_global requires MEM2 through +0x4C (end +0x50).
+# pin/start: seven._get and selected.analyze_one require MEM2 +0x50.
+# field: selected.analyze_one requires MEM2 +0xA8.
+# These guards do NOT validate any nested +0x4C target or actual instance.
+SOURCE_MEM2_OBJECT_MIN_SPANS = {
+    "selected_ball_object_pointer": 0x108,
+    "source_global_ball_object_pointer": 0x50,
+    "pin_object_pointer": 0x50,
+    "start_object_pointer": 0x50,
+    "field_manager_pointer": 0xA8,
+}
 
 
 def _canonical_native_guest_pointer(x: object, *, min_bytes: int = 4) -> bool:
@@ -118,14 +126,13 @@ def _checked_row(row: object) -> dict[str, Any]:
         if type(row[key]) is not str or not 1 <= len(row[key]) <= 128:
             raise ValueError("missing frame provenance identity")
     for key in POINTERS:
-        # The two ball objects are source-qualified to expose a +0x4C
-        # member, so the entire 4-byte field must fit inside one bank.
-        # Other pointer types have NO independently confirmed minimum
-        # source span here: retain the original conservative 1-word gate.
-        span = (BALL_MEMBER_4C_MIN_SPAN if key in (
-            "selected_ball_object_pointer", "source_global_ball_object_pointer"
-        ) else 4)
-        if not _canonical_native_guest_pointer(row[key], min_bytes=span):
+        # Independently source-qualified readers require MEM2 and an exact
+        # minimum contiguous object span, not merely any in-range u32.
+        span = SOURCE_MEM2_OBJECT_MIN_SPANS[key]
+        pointer = row[key]
+        if (not _canonical_native_guest_pointer(pointer, min_bytes=span)
+                or not (NATIVE_GUEST_RAM_RANGES[1][0] <= pointer
+                        and pointer + span <= NATIVE_GUEST_RAM_RANGES[1][1])):
             raise ValueError("missing bounded canonical source-object identity")
     for key in (*VECTORS, "config_bc_c0_c4_words"):
         _vector(row[key])
