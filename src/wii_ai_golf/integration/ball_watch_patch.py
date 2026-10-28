@@ -209,12 +209,12 @@ def extend_swing_bridge_with_ball_watch(source: str) -> str:
     patches = (
         ("HANDLERS = {", _BALL_WATCH_HANDLER + "HANDLERS = {"),
         ('    "trace.swing_capabilities": _wii_ai_swing_capabilities,',
-         '    "trace.swing_capabilities": _wii_ai_swing_capabilities,\\n'
-         '    "golf.ball_watch.arm": _wii_ball_watch_arm,\\n'
-         '    "golf.ball_watch.status": _wii_ball_watch_status,\\n'
+         '    "trace.swing_capabilities": _wii_ai_swing_capabilities,\n'
+         '    "golf.ball_watch.arm": _wii_ball_watch_arm,\n'
+         '    "golf.ball_watch.status": _wii_ball_watch_status,\n'
          '    "golf.ball_watch.drain": _wii_ball_watch_drain,'),
-        ("    _wii_ai_tick()\\n    _poll_sockets()",
-         "    _wii_ball_watch_tick()\\n    _wii_ai_tick()\\n    _poll_sockets()"),
+        ("    _wii_ai_tick()\n    _poll_sockets()",
+         "    _wii_ball_watch_tick()\n    _wii_ai_tick()\n    _poll_sockets()"),
     )
     for old, new in patches:
         if source.count(old) != 1:
