@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'scripts/capture_golf_fullbanks_private.py'
+      - 'scripts/capture_golf_fullbanks_private.ps1'
       - 'research/studies/S002-FULL-RAM-SCRIPTED-01.md'
       - '.github/workflows/s002-scripted-fullbanks.yml'
   workflow_dispatch:
@@ -24,3 +25,11 @@ jobs:
         run: python -m py_compile scripts/capture_golf_fullbanks_private.py
       - name: Validate inherited paused-pair keeper (synthetic)
         run: python -m unittest discover -s tests -p 'test_golf_shot_cup_distance_private.py' -v
+      - name: Parse native capture PowerShell (no Dolphin)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $errors = $null
+          $tokens = $null
+          [System.Management.Automation.Language.Parser]::ParseFile('scripts/capture_golf_fullbanks_private.ps1',[ref]$tokens,[ref]$errors) | Out-Null
+          if ($errors.Count -ne 0) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
