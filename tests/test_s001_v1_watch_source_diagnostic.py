@@ -19,7 +19,9 @@ def synthetic():
         + "HANDLERS = {\n"
         + '    "trace.submit_swing": _wii_ai_submit_swing,\n'
         + "}\n"
-        + "async def frame():\n"
+        + "while True:\n"
+        + "    await event.frameadvance()\n"
+        + "    _frame_count += 1\n"
         + "    _wii_ai_tick()\n"
         + "    _poll_sockets()\n"
     )
@@ -71,6 +73,14 @@ class DiagnosisTests(unittest.TestCase):
             self.assertIn(report["preflight"], {"SOURCE_PATH_REJECTED", "SOURCE_NOT_FOUND"})
             self.assertTrue(path.exists())
             self.assertFalse(report["new_bridge_created"])
+
+    def test_interleaved_source_loop_uses_ast_not_literal_adjacency(self):
+        source = synthetic().replace("    _wii_ai_tick()\n    _poll_sockets()",
+                                     "    _wii_ai_tick()\n    unrelated_housekeeping()\n    _poll_sockets()")
+        report = m.inspect_text(source, actual_sha256=m.KNOWN_CONTACT_V1_SHA256)
+        self.assertEqual(report["preflight"], "SOURCE_PREFLIGHT_PASS")
+        self.assertEqual(report["source_anchor_counts_capped_at_three"]["frame_loop_tick"], 0)
+        self.assertTrue(report["marker_checks"]["single_structurally_verified_frame_loop_tick"])
 
 
 if __name__ == "__main__":
