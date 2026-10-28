@@ -130,6 +130,25 @@ class GetterSuffixReview(unittest.TestCase):
         self.assertEqual(z["strokes_getter_r5_r13_load_sites"],["+0x40"])
         self.assertIs(z["config_score_root_r7_function1_and_r5_function2_verified"],False)
 
+    def test_published_HoleInfo_literal_is_source_matched_not_runtime_typed(self):
+        x=m.evaluate_windows(source_fixture())
+        self.assertTrue(x["public_HoleInfo_static_root_literal_matches_source_rev1_symbol"])
+        self.assertFalse(x["metadata_root_r6_function1_verified"])
+        wrong=m.evaluate_windows(replace_word(
+            source_fixture(),"get_nth_hole_score",0x60,d(14,6,6,0x7aa4)))
+        self.assertFalse(wrong["public_HoleInfo_static_root_literal_matches_source_rev1_symbol"])
+
+    def test_different_config_sda_load_displacements_are_not_equivalent(self):
+        x=m.evaluate_windows(replace_word(
+            source_fixture(),"get_nth_hole_strokes",0x40,d(32,5,13,-1856)))
+        self.assertFalse(x["both_getters_load_candidate_config_root_from_same_r13_slot"])
+        self.assertFalse(x["actual_sda_runtime_pointer_value_verified"])
+
+    def test_two_root_loads_in_first_function_are_ambiguous(self):
+        x=m.evaluate_windows(replace_word(
+            source_fixture(),"get_nth_hole_score",0x24,d(32,7,13,-1852)))
+        self.assertFalse(x["both_getters_load_candidate_config_root_from_same_r13_slot"])
+
     def test_no_raw_native_source_words_or_paths(self):
         s=json.dumps(m.evaluate_windows(source_fixture()))
         for key in ("private_archive","0x60000000","0x9000", "0x803c",
