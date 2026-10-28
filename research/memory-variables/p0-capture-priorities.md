@@ -17,6 +17,14 @@ Important cross-check from S001 [#166](https://github.com/Nate27624/Wii-AI-Golf/
 
 Inventory scanner update (draft PR #205) ignores its own previously generated JSON inventory reports to avoid polluting later scans, explicitly lists skipped file IDs/sizes, and recognizes the S001 frame watcher's whitelisted `safe_summary` booleans / human observation without publishing raw vectors. Rerun at `--max-file-mib 64 --max-total-mib 256` to assess the earlier oversize skip; this is bounded JSON parsing, not any new Dolphin or RAM capture. Even a moving candidate vector requires exact per-shot clock/frame and physical verification.
 
+## Independent source-object JSON interpretation (read-only, no new RAM scan)
+
+New `scripts/triage_private_object_windows_summary.py` consumes ONLY the S002 #178 existing `golf-object-windows-PRIVATE.json` from the operator's original B0–B3 study. This is a cheap audit of the ALREADY decoded source-object-window JSON, not a replacement for S002's source gate, fullbank atlas, or in-motion watcher. It requires exact private schema `PRIVATE-golf-source-object-windows-four-phase`, US RSPE01 rev1, original source phase labels (`idle_baseline`, `idle_delayed`, `wasd_aim_only`, `idle_after_aim`), and four fixed-size word arrays per source window.
+
+It emits **only change counts** for source-selected record+0x54/+0x60 and current nested ball vector, selected start/pin controls, all four ball-object windows and their current +0x30, initial/history +0xCC and conditional caches +0xF0/+0xFC, plus four player-record windows. It never emits raw values, dynamic heap addresses or new training labels. The original JSON has NO selected-ball-object slot-index field, so this tool deliberately does not assert which of `ball_object_0..3` is active. If a cache changes while current vector does not, it's only an unexplained cache update; a fixed field while WASD aim changes is a negative control. **Human-observed moving-ball JSON remains unidentified** and B0–B3 never become a flight-positive by inference.
+
+The operator may run this directly with the already pinned draft PR #205 script and synthetic tests; output is safe source-relative counts to paste back. No Dolphin launched.
+
 ## Immediate, zero-Dolphin analysis (first)
 
 1. Run the new private read-only `scripts/inventory_private_golf_json_motion.py` on the existing ignored `Wii-AI-Golf-Data` directory, after targeted tests. Index only JSON/JSONL field-name shapes, phase/shot/frame key presence, and whether a JSON file has repeated distinct numerical candidate ball-position vectors. The result is a **PRIVATE** local manifest; stdout omits numerical values.
