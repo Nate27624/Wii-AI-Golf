@@ -122,6 +122,30 @@ def _visual_first_label(input_fn: Callable[[str], str]) -> dict[str, Any]:
         }
 
 
+def _build_v1_trace_and_digest(*, motion_scale: float, speed_scale: float,
+                               backswing_scale: float):
+    """One canonical waveform transform for producer and parent identity checks.
+
+    The digest attests requested trace *bytes*, NOT execution by the game.
+    """
+    samples = build_probe("forward", follow_through_frames=30)
+    if backswing_scale != 1.0:
+        samples = [replace(s, distance_m=s.distance_m * backswing_scale)
+                   if s.direction == (0.0, -1.0, 0.0) else s for s in samples]
+    if motion_scale != 1.0:
+        samples = [replace(s, distance_m=s.distance_m * motion_scale,
+                           speed_m_s=s.speed_m_s * motion_scale,
+                           return_speed_m_s=s.return_speed_m_s * motion_scale)
+                   for s in samples]
+    if speed_scale != 1.0:
+        samples = [replace(s, speed_m_s=s.speed_m_s * speed_scale) for s in samples]
+    digest = hashlib.sha256(json.dumps(
+        [[s.hold_a, *s.direction, s.distance_m, s.speed_m_s,
+          s.return_speed_m_s, s.angle_rad] for s in samples],
+        separators=(",", ":")).encode()).hexdigest()
+    return samples, digest
+
+
 def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 post_samples: int, settled_samples: int, interval: float,
                 input_fn: Callable[[str], str] = operator_input,
@@ -162,21 +186,9 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         raise ValueError("backswing scale must be 0.8/1.0/1.2")
     if backswing_scale != 1.0 and (speed_scale != 1.0 or motion_scale != 1.0):
         raise ValueError("backswing study changes one physical parameter only")
-    samples = build_probe("forward", follow_through_frames=30)
-    if backswing_scale != 1.0:
-        samples = [replace(s, distance_m=s.distance_m * backswing_scale)
-                   if s.direction == (0.0, -1.0, 0.0) else s for s in samples]
-    if motion_scale != 1.0:
-        samples = [replace(s, distance_m=s.distance_m * motion_scale,
-                           speed_m_s=s.speed_m_s * motion_scale,
-                           return_speed_m_s=s.return_speed_m_s * motion_scale)
-                   for s in samples]
-    if speed_scale != 1.0:
-        samples = [replace(s, speed_m_s=s.speed_m_s * speed_scale) for s in samples]
-    trace_sha256 = hashlib.sha256(json.dumps(
-        [[s.hold_a, *s.direction, s.distance_m, s.speed_m_s,
-          s.return_speed_m_s, s.angle_rad] for s in samples],
-        separators=(",", ":")).encode()).hexdigest()
+    samples, trace_sha256 = _build_v1_trace_and_digest(
+        motion_scale=motion_scale, speed_scale=speed_scale,
+        backswing_scale=backswing_scale)
     canonical_swing = swing_fn is None
     a_lead_report: dict[str, Any] | None = None
     if canonical_swing:
@@ -204,7 +216,11 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 return SwingTraceClient(client, port=0).run(samples)
             finally:
                 release_buttons(client, remote=0)
-    ready = input_fn("Visually verify golfer is ready. ENTER starts capture; type q to cancel: ")
+    ready = input_fn(
+        "Visually confirm Hitting the Green FIRST BALL, expected tee/hole, club, "
+        "pin, wind and aim; ENTER confirms this HUMAN check; q cancels: "
+        if visual_first else
+        "Visually verify golfer is ready. ENTER starts capture; type q to cancel: ")
     if ready.strip():
         return {"cancelled": True, "raw_data_created": False}
     start_pose = None
@@ -289,9 +305,14 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         annotation["initial_club_pose_human"] = start_pose
         annotation["initial_club_pose_verified_by_memory"] = False
         annotation["shot_start_frame_before_controller_trace"] = shot_start_frame
+    if visual_first:
+        annotation["hitting_green_first_ball_context_human_confirmed"] = True
+        annotation["game_context_verified_by_memory"] = False
     ranked = None if visual_first else rank_outcome_candidates(
         rows, human_distance=annotation["displayed_distance_human"])
-    return {"schema_version": 1, "source": "live-emulator-read-only-US-Rev1+human-result-label",
+    return {"schema_version": 1,
+            "source": ("human-terminal-result-no-ram-game-context-unverified"
+                       if visual_first else "live-emulator-read-only-US-Rev1+human-result-label"),
             "utc": datetime.now(timezone.utc).isoformat(),
             "study_id": "S002-HG-OUTCOME-TRANSITION-EXPLORATORY",
             "raw_data_created": not visual_first, "swing_dispatch": stroke,
