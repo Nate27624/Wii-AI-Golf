@@ -171,6 +171,9 @@ def main(argv=None) -> int:
         parser.error("invalid port")
     try:
         verify_local_bridge(ROOT.parent / "tools" / WATCHED_BRIDGE_NAME)
+        if input("At the stationary first ball, type READY for read-only RAM sampling: ").strip() != "READY":
+            print("Cancelled: no watcher armed and no input sent.")
+            return 0
         with watched_v1_rpc(port=args.port) as rpc:
             report = qualify_running(rpc)
         print(json.dumps(report, indent=2, sort_keys=True))
