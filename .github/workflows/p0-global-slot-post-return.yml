@@ -1,0 +1,33 @@
+name: S002 global pointer store post-return callflow
+
+on:
+  push:
+    paths:
+      - 'scripts/review_p0_global_slot_post_return_paths.py'
+      - 'tests/test_p0_global_slot_post_return_paths_private.py'
+      - 'scripts/audit_p0_global_ball_source_xrefs_private.py'
+      - '.github/workflows/p0-global-slot-post-return.yml'
+  pull_request:
+    paths:
+      - 'scripts/review_p0_global_slot_post_return_paths.py'
+      - 'tests/test_p0_global_slot_post_return_paths_private.py'
+      - 'scripts/audit_p0_global_ball_source_xrefs_private.py'
+      - '.github/workflows/p0-global-slot-post-return.yml'
+  workflow_dispatch:
+
+jobs:
+  synthetic:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Post-return PPC BL and BC candidate path tests
+        run: python -m unittest discover -s tests -p 'test_p0_global_slot_post_return_paths_private.py' -v
+      - name: Historical earlier-window PPC gate regression
+        run: python -m unittest discover -s tests -p 'test_p0_global_slot_store_cfg_private.py' -v
