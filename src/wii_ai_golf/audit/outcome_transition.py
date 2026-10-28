@@ -110,8 +110,12 @@ def capture_outcome_windows(rpc: Any, phase: str) -> dict[str, Any]:
 
 def _words(sample: dict[str, Any]) -> dict[int, tuple[int, set[str]]]:
     """Big-endian word-aligned addresses, deduplicated across overlapping windows."""
-    if sample.get("game_id") != "RSPE01" or sample.get("disc_revision") != 1:
-        raise ValueError("invalid game identification in snapshot")
+    if (sample.get("game_id") != "RSPE01"
+            or type(sample.get("disc_revision")) is not int
+            or sample["disc_revision"] != 1
+            or type(sample.get("game_mode_raw")) is not int
+            or sample["game_mode_raw"] != 4):
+        raise ValueError("invalid game/revision/mode-4 identification in snapshot")
     result: dict[int, tuple[int, set[str]]] = {}
     conflicting: set[int] = set()
     for window, data in sample.get("windows", {}).items():
@@ -169,6 +173,24 @@ def rank_outcome_candidates(samples: list[dict[str, Any]], *,
         raise ValueError("require >=2 pre and >=2 settled observations")
     if phases != sorted(phases, key={"pre": 0, "post": 1, "settled": 2}.get):
         raise ValueError("observations must be chronological pre/post/settled")
+    # Phase names alone cannot prove time order. A stale or reversed terminal
+    # sample must never be ranked as a post-shot source-field change. These
+    # brackets are per-sample, non-atomic guest frame observations; they do
+    # NOT authenticate same boot, shot identity, or a completed physics step.
+    previous_end = None
+    for sample in samples:
+        if type(sample) is not dict:
+            raise ValueError("malformed outcome sample")
+        start, end = sample.get("frame_start"), sample.get("frame_end")
+        span = sample.get("non_atomic_frame_span")
+        if (type(start) is not int or type(end) is not int
+                or not 0 <= start <= end <= 0xFFFFFFFF
+                or type(span) is not int or span != end - start):
+            raise ValueError("missing/invalid guest frame bracket or span")
+        if previous_end is not None and start < previous_end:
+            raise ValueError("reversed or overlapping guest frame brackets")
+        previous_end = end
+
     rows = [_words(sample) for sample in samples]
     masks = {phase: [r for sample, r in zip(samples, rows) if sample["phase"] == phase]
              for phase in ("pre", "post", "settled")}
@@ -207,6 +229,8 @@ def rank_outcome_candidates(samples: list[dict[str, Any]], *,
         "candidates": ranked[:top_n],
         "human_displayed_distance_raw_unverified": human_distance,
         "human_label_tolerance_no_unit_conversion": tolerance,
+        "guest_frame_brackets_monotonic": True,
+        "same_boot_or_simulation_step_verified": False,
         "ball_position_verified": False, "game_score_verified": False,
         "warning": ("Big-endian u32/s32/f32 raw changes; a numeric match may be "
                     "coincidental. Multi-frame snapshots and unknown display units "
