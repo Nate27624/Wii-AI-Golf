@@ -20,6 +20,16 @@ Lab session locks must be OS-released on crash; inspect previous JSON PID conser
 ---
 
 
+## Felk Dolphin native Qt crash recovery (2026-10-28)
+
+If the Windows Felk emulator exits with `3221225477` (`0xC0000005`) in
+`Qt6Widgets.dll` before Felk bridge preflight, read
+[Felk Qt/Memory startup crash recovery](docs/felk-dolphin-qt-memory-crash-recovery.md)
+**before** reinstalling, resetting settings, retrying live S001/S002 captures
+or blaming the memory watcher. A preserved-data portable User reset restored
+**GUI-only** startup; scripting-bridge runtime and a watched shot remain unverified.
+Never overwrite historical V1 bridges, the portable User backup, savestates or raw RAM.
+
 ## Mission and trust model
 
 Coordinate separate AI coding/research sessions to develop a scientifically reproducible agent for Wii Sports Golf's Hitting the Green. **Roles are logical responsibilities, not persistent autonomous processes.** No agent should claim a run happened unless logs show it.
