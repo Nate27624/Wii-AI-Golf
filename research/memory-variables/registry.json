@@ -585,20 +585,24 @@
       },
       "evidence": {
         "source_urls": [
-          "https://github.com/Nate27624/Wii-AI-Golf/pull/192"
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/192",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/238",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/135"
         ],
         "capture_groups": [
           "B0–B3 single study"
         ],
-        "observed_behavior": "Monotonic values 6048, 6410, 9012, 9591; no paired frame count proof",
+        "observed_behavior": "Monotonic values 6048, 6410, 9012, 9591; no paired frame count proof | 2026-10-28 P0 SEVEN MAIN-COUNTER PR #238 STUDY-PENDING, no operator real result yet. An independent seven-capture full-14-bank SHA + source-selected owner/Rev1 scene/mode/geometry read-only auditor now targets this EXACT previously observed Golf scene Main+0x74 BE-u32 under a vtable/MEM2 guard and reports only numerical change categories across D1->D2 and W5->W6->W7. Hosted 14 synthetic tests pass on Windows and Ubuntu. **Do not conflate** source RPGolMain+0x74 with separate selected-player record+0x74; older B0-B3 idle/aim samples and 19/19 within-idle changes (PR #135) strongly confound any power/impact interpretation. Even a strictly increasing 7-phase value does not prove a game-accepted frame clock, time-rate, same boot or frame alignment. Await actual local operator output before adding empirical cohort claims; training remains false.",
         "source_confidence": "offline_diff_only"
       },
       "limitations": [
         "Not validated as emulation frame or timer",
-        "No training use permitted"
+        "No training use permitted",
+        "Idle/aim changes make a shot-power or impact-clock claim unjustified; Main+0x74 is NOT the selected player's record+0x74"
       ],
       "required_controls": [
-        "compare against exact emulated frame increments and fresh boots"
+        "compare against exact emulated frame increments and fresh boots",
+        "run PR #238 on SHA-validated seven-pair archive, then independently trace source Main+0x74 writer and compare known guest-frame deltas across boot/pause/idle before classifying it as time"
       ],
       "owner": "S002",
       "game": {
