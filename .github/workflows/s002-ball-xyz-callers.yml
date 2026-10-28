@@ -1,0 +1,29 @@
+name: S002 ball XYZ source callers offline synthetic
+
+on:
+  push:
+    branches:
+      - agent/research/p0-ball-xyz-source-caller-audit-20261028
+  pull_request:
+    paths:
+      - scripts/audit_ball_xyz_source_callers_private.py
+      - tests/test_ball_xyz_source_callers_private.py
+      - .github/workflows/s002-ball-xyz-callers.yml
+
+permissions:
+  contents: read
+
+jobs:
+  ppc-source-callers:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Source-only PPC synthetic callsite regressions
+        run: python -m unittest discover -s tests -p test_ball_xyz_source_callers_private.py -v
