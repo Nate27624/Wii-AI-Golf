@@ -57,10 +57,20 @@ def _u32(x: object) -> bool:
     return type(x) is int and 0 <= x <= 0xFFFFFFFF
 
 
-def _canonical_native_guest_pointer(x: object) -> bool:
-    """Canonical 4-byte-aligned MEM1/MEM2 pointer, NOT a typed object proof."""
+# The source-qualified RPGolMapObjBall pointers (selected and global)
+# both have a PPC dereference of their +0x4C member. Requiring one u32 at
+# the object base admits a final-bank-word pointer that cannot supply that
+# member. This checks only the outer ball object, NOT the nested +0x4C
+# pointer's target, its type, or whether the emulator executed the read.
+BALL_MEMBER_4C_MIN_SPAN = 0x50
+
+
+def _canonical_native_guest_pointer(x: object, *, min_bytes: int = 4) -> bool:
+    """Aligned native RAM span; not a live object or nested-chain proof."""
+    if type(min_bytes) is not int or min_bytes < 4 or min_bytes % 4:
+        return False
     return (_u32(x) and x % 4 == 0
-            and any(start <= x <= end - 4
+            and any(start <= x and x + min_bytes <= end
                     for start, end in NATIVE_GUEST_RAM_RANGES))
 
 
@@ -108,7 +118,14 @@ def _checked_row(row: object) -> dict[str, Any]:
         if type(row[key]) is not str or not 1 <= len(row[key]) <= 128:
             raise ValueError("missing frame provenance identity")
     for key in POINTERS:
-        if not _canonical_native_guest_pointer(row[key]):
+        # The two ball objects are source-qualified to expose a +0x4C
+        # member, so the entire 4-byte field must fit inside one bank.
+        # Other pointer types have NO independently confirmed minimum
+        # source span here: retain the original conservative 1-word gate.
+        span = (BALL_MEMBER_4C_MIN_SPAN if key in (
+            "selected_ball_object_pointer", "source_global_ball_object_pointer"
+        ) else 4)
+        if not _canonical_native_guest_pointer(row[key], min_bytes=span):
             raise ValueError("missing bounded canonical source-object identity")
     for key in (*VECTORS, "config_bc_c0_c4_words"):
         _vector(row[key])
