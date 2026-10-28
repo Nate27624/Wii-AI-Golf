@@ -28,4 +28,4 @@ This helper intentionally does not itself read native code, ROM, saved RAM or th
 - Source original SHA and 14-bank controls remain owned by #231/#246/#247/#249. Human phase labels are provisional and potentially wrong; do not infer motion direction, flight stage or endpoint semantics.
 - Nothing in this PR modifies source owner scripts, gameplay, Dolphin, controller, bridge, registry, S001 watcher, publication or training.
 
-22 synthetic adversarial tests plus Windows/Ubuntu CI validate conservative branch paths, r31/r3 overwrites, indirect/jump hazards, source bounds, zero code, privacy and false validation flags. **Real original PPC result not yet calculated.** Owners should review before any integration or native run.
+26 synthetic adversarial tests plus Windows/Ubuntu CI validate conservative branch paths, r31/r3 overwrites (including lmw/stmw, ori, stwu base-update), indirect/jump hazards, source bounds, zero code, privacy and false validation flags. **Real original PPC result not yet calculated.** Owners should review before any integration or native run.
