@@ -24,6 +24,7 @@ import audit_p0_seven_numbered_source_pairs_private as seven
 import audit_golf_two_bank_roster_private as roster
 import review_p0_golf_main_update_direct_calls as main_update
 import review_p0_three_sim_callee_footprints as sim_footprints
+import review_p0_main_postcall_cfg as postcall_cfg
 
 # Public header annotation and reviewed .text split source regions only.
 CALCULATE_PC = 0x8028DFA8
@@ -147,6 +148,11 @@ def analyze(archive: Path) -> dict:
     sim_report = (sim_footprints.analyze(main_source_words[0],
                 sim_callee_source_windows[0], main_report)
                 if main_report is not None else None)
+    # Same already SHA-gated 101 source words; zero extra private reads.
+    # This MAY-CFG cannot independently prove any callee's writes or actual
+    # post-ball-physics-completion PC. It reports source-only hazards.
+    cfg_report = (postcall_cfg.review_source_words(main_source_words[0])
+                  if main_report is not None else None)
     seven._check_archive(archive)  # full hash again after readers close
     return {
         "kind": "P0-SANITIZED-REV1-GOLF-ONCALCULATE-THUNK-AUDIT",
@@ -158,6 +164,7 @@ def analyze(archive: Path) -> dict:
         "main_entry_direct_BL_and_control_source_inventory": main_report,
         "three_sim_callee_source_windows_unchanged_across_seven": sim_stable,
         "three_sim_callee_bounded_source_footprints": sim_report,
+        "main_postcall_control_flow_source_only": cfg_report,
         **report,
         "public_header_annotation_correlates_with_two_word_native_pattern":
             bool(report["oncalculate_to_main_direct_thunk_supported"]),
