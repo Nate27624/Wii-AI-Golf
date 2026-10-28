@@ -114,7 +114,7 @@ class TailOwnershipTests(unittest.TestCase):
         # Mutating only an overlapping *single window* is a contradiction,
         # not a new physics vector.
         raw = bytearray.fromhex(rows[4]["windows"]["minimap_shot_line_effect"]["bytes_hex"])
-        struct.pack_into(">I", raw, 0x110, 0xAABBCCDD)
+        struct.pack_into(">I", raw, 0x108, 0xAABBCCDD)
         rows[4]["windows"]["minimap_shot_line_effect"]["bytes_hex"] = raw.hex()
         with self.assertRaises(ValueError):
             m.audit(summary, rows)
