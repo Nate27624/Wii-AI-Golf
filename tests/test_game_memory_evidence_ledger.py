@@ -29,12 +29,12 @@ class GameMemoryEvidenceLedgerTests(unittest.TestCase):
 
     def test_current_ledger_is_valid_without_training_claims(self):
         fields = validate_memory_ledger(self.doc)
-        self.assertEqual(len(fields), 30)
+        self.assertEqual(len(fields), 32)
         self.assertFalse(any(x["training_eligible"] for x in fields))
         self.assertEqual(len([x for x in fields if x["negative_control"]]), 4)
         self.assertEqual(len([x for x in fields if x["identity_level"] == "unlocated"]), 10)
         self.assertEqual(len([x for x in fields if x["object_role"] == "golf_field_manager"]), 6)
-        self.assertEqual(len(read_memory_ledger(SOURCE)), 30)
+        self.assertEqual(len(read_memory_ledger(SOURCE)), 32)
 
     def test_environment_reference_is_not_a_physical_quantity(self):
         entries = validate_memory_ledger(self.doc)
