@@ -106,19 +106,47 @@ class Source101Tests(unittest.TestCase):
             0x90:0x8029B43C,
         }
         ops={off:direct_b(m.MAIN_ENTRY+off,dest) for off,dest in linked.items()}
+        # The independent native original first 0x100 has exactly five BC.
+        for off in (0x08,0x18,0x28,0x38,0x88):
+            ops[off]=(16<<26)|(12<<21)|(2<<16)|8
         positive=classify(ops)
-        self.assertTrue(m.require_prior_prefix_match(positive))
+        self.assertTrue(m.require_prior_prefix_match(positive, words(ops)))
         self.assertFalse(positive["guest_physics_step_clock_verified"])
         bad_target=dict(ops)
         bad_target[0x90]=direct_b(m.MAIN_ENTRY+0x90,0x8029B554)
         with self.assertRaisesRegex(ValueError,"prefix"):
-            m.require_prior_prefix_match(classify(bad_target))
+            m.require_prior_prefix_match(classify(bad_target), words(bad_target))
         with self.assertRaisesRegex(ValueError,"prefix"):
-            m.require_prior_prefix_match(classify({0x7C:ops[0x7C],0x90:ops[0x90]}))
+            m.require_prior_prefix_match(classify({0x7C:ops[0x7C],0x90:ops[0x90]}), words({0x7C:ops[0x7C],0x90:ops[0x90]}))
         altered=classify(ops)
         altered["source_direct_linked_calls"][0]["source_main_unit_relative_pc"]="+0x0004"
         with self.assertRaisesRegex(ValueError,"crosswalk"):
-            m.require_prior_prefix_match(altered)
+            m.require_prior_prefix_match(altered, words(ops))
+
+    def test_original_prefix_requires_five_BC_not_merely_ten_BL(self):
+        linked={
+            0x04:0x800A3244,0x14:0x8028E3A4,0x24:0x8029A5EC,
+            0x34:0x8028E2EC,0x44:0x8028E3A4,0x54:0x802A28DC,
+            0x64:0x8028E2EC,0x74:0x8029A5EC,0x7C:0x8029B554,
+            0x90:0x8029B43C,
+        }
+        ops={off:direct_b(m.MAIN_ENTRY+off,dest) for off,dest in linked.items()}
+        five=(0x08,0x18,0x28,0x38,0x88)
+        for off in five:
+            ops[off]=(16<<26)|(12<<21)|(2<<16)|8
+        self.assertTrue(m.require_prior_prefix_match(classify(ops),words(ops)))
+        modified=dict(ops)
+        modified[five[0]]=0x60000000
+        with self.assertRaisesRegex(ValueError,"control-flow"):
+            m.require_prior_prefix_match(classify(modified),words(modified))
+        modified=dict(ops)
+        modified[0x48]=direct_b(m.MAIN_ENTRY+0x48,m.MAIN_ENTRY+0x50,lk=0)
+        with self.assertRaisesRegex(ValueError,"control-flow"):
+            m.require_prior_prefix_match(classify(modified),words(modified))
+        modified=dict(ops)
+        modified[0x48]=(19<<26)|(16<<1)  # blr
+        with self.assertRaisesRegex(ValueError,"control-flow"):
+            m.require_prior_prefix_match(classify(modified),words(modified))
 
     def test_wrong_thunk_target_and_length_abstain(self):
         with self.assertRaises(ValueError):
