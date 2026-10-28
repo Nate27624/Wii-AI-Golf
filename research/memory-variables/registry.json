@@ -2056,17 +2056,19 @@
         "capture_groups": [
           "Original seven human-labeled native MEM1/MEM2 pairs; operator phase mapping not machine verified"
         ],
-        "observed_behavior": "REAL seven-pair source/owner-gated operator D1->D2 and W5->W6->W7: selected RPGolPlayer record+0x030 changes on driver and both wedge edges. Wedge has three distinct BE-f32 finite bounded nonpointer values, numerically increases twice, trends same direction as selected ball object source component0 (NOT the same owner), 0/9 exact word matches against selected ball current/cacheCC/tee/pin triplets. #235 new three-point affine relation check pending real audit; two sign coincidences insufficient for causal/velocity/power interpretation.",
+        "observed_behavior": "REAL seven-pair source/owner-gated operator D1->D2 and W5->W6->W7: selected RPGolPlayer record+0x030 changes on driver and both wedge edges. Wedge has three distinct BE-f32 finite bounded nonpointer values, numerically increases twice, trends same direction as selected ball object source component0 (NOT the same owner), 0/9 exact word matches against selected ball current/cacheCC/tee/pin triplets. #235 new three-point affine relation check pending real audit; two sign coincidences insufficient for causal/velocity/power interpretation. | 2026-10-28 REAL OPERATOR #245 SCORE AND #235 AFFINE NEGATIVES: exact SHA-pinned 2c7aadcbdf60bc3e636304e55fd551d6b25c2d62 and canonical #231 original seven-bank manifest source/owner controls PASS on operator Windows; 13 + 18 synthetic tests PASS (31 total). Wedge W5,W6,W7 player record +0x030 vs +0x090 exact u32 equality FALSE in each phase, numeric ordering record030<record090 at W5/W6 but record030>record090 at W7; constant signed f32 difference FALSE. Three-point affine-collinearity candidate record090 versus record030 FALSE; EACH record scalar versus selected ball object component0 also FALSE. This invalidates single constant-offset, exact word alias or simple 3-point affine link in this observed cohort; doesn't rule out nonlinear relationships, hidden time variable, or physical role. Float units, source writer receiver, velocity/power/impact, timestamp and training remain unverified. Distinguish selected record+0x30 from ball object+0x30.",
         "source_confidence": "source_selected_real_snapshot_correlation_not_physical"
       },
       "limitations": [
         "Selected player record+0x030 is NOT the nested selected ball object+0x030",
-        "Finite f32 shape and direction correlation are not verified physical position/speed/power"
+        "Finite f32 shape and direction correlation are not verified physical position/speed/power",
+        "Real wedge 3-point record030/record090 difference was not constant and neither field was affine to ball component0; do not infer a scalar transform or copy from same direction signs"
       ],
       "required_controls": [
         "run #235 exact source-gated relation test +0x030 vs +0x090 and ball component0 privately",
         "trace typed PPC writer/reader for selected record+0x030",
-        "repeat same-club controlled motion and idle/aim negative with verified game frame timing"
+        "repeat same-club controlled motion and idle/aim negative with verified game frame timing",
+        "prioritize typed source store receiver/prologue and f0 producer at PR #244 RPGolPlayer +0x0FAC/+0x0FE4/+0x0FF8/+0x1C18 with branch dominance; no further three-point fitting"
       ],
       "evidence_ledger_field_ids": []
     },
@@ -2127,17 +2129,92 @@
         "capture_groups": [
           "Original seven human-labeled native MEM1/MEM2 pairs; operator phase mapping not machine verified"
         ],
-        "observed_behavior": "REAL source-gated seven-pair selected RPGolPlayer record+0x090 changes D1->D2 and both W5->W6/W6->W7; 3 distinct wedge values, finite bounded BE-f32 shape and nonpointer 5/5, numerically increases twice same direction as selected ball component0. No exact word equality to current ball/cacheCC/tee/pin across W5,W6,W7 (0/9). #235 three-point affine relation pending; no typed physical/velocity/power association.",
+        "observed_behavior": "REAL source-gated seven-pair selected RPGolPlayer record+0x090 changes D1->D2 and both W5->W6/W6->W7; 3 distinct wedge values, finite bounded BE-f32 shape and nonpointer 5/5, numerically increases twice same direction as selected ball component0. No exact word equality to current ball/cacheCC/tee/pin across W5,W6,W7 (0/9). #235 three-point affine relation pending; no typed physical/velocity/power association. | 2026-10-28 REAL OPERATOR #245 SCORE AND #235 AFFINE NEGATIVES: exact SHA-pinned 2c7aadcbdf60bc3e636304e55fd551d6b25c2d62 and canonical #231 original seven-bank manifest source/owner controls PASS on operator Windows; 13 + 18 synthetic tests PASS (31 total). Wedge W5,W6,W7 player record +0x030 vs +0x090 exact u32 equality FALSE in each phase, numeric ordering record030<record090 at W5/W6 but record030>record090 at W7; constant signed f32 difference FALSE. Three-point affine-collinearity candidate record090 versus record030 FALSE; EACH record scalar versus selected ball object component0 also FALSE. This invalidates single constant-offset, exact word alias or simple 3-point affine link in this observed cohort; doesn't rule out nonlinear relationships, hidden time variable, or physical role. Float units, source writer receiver, velocity/power/impact, timestamp and training remain unverified. Distinguish selected record+0x30 from ball object+0x30.",
         "source_confidence": "source_selected_real_snapshot_correlation_not_physical"
       },
       "limitations": [
         "Unknown role, float-shaped bitpattern not a verified float-typed source member",
-        "Two monotonic wedge intervals cannot establish physical velocity or power"
+        "Two monotonic wedge intervals cannot establish physical velocity or power",
+        "Real wedge 3-point record030/record090 difference was not constant and neither field was affine to ball component0; do not infer a scalar transform or copy from same direction signs"
       ],
       "required_controls": [
         "run #235 three-point relation checks to +0x030 and ball component0",
         "locate independent source writer/readers and distinguish animation/render/physics",
-        "test idle/aim/clock confounds and independently frame-time same-shot reproduction"
+        "test idle/aim/clock confounds and independently frame-time same-shot reproduction",
+        "prioritize typed source store receiver/prologue and f0 producer at PR #244 RPGolPlayer +0x0FAC/+0x0FE4/+0x0FF8/+0x1C18 with branch dominance; no further three-point fitting"
+      ],
+      "evidence_ledger_field_ids": []
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "human_labeled_native_bank_archive_not_machine_guest_frame_aligned",
+      "owner": "S002",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "No source/runtime link to mode4 per-shot result or frame-aligned outcome and units",
+        "allowed_when": "Only after S002 source-mode result provenance, machine-aligned positive/negative control and approved dataset contract"
+      },
+      "id": "golf.sequence_mgr.golf_scores_hole_major_9x4",
+      "name": "RPSportsSequenceMgr::mGolfScores hole-major 9 by 4 table at +0x14",
+      "priority": "P0",
+      "role": "sequence_score_table_source_candidate",
+      "status": "snapshot_correlated",
+      "datatype": "be_u32_matrix_9x4",
+      "unit": "unknown",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_u32x36(read_ptr(RPSportsSequenceMgr::sInstance[Rev1 0x804BF708]) + 0x14)",
+        "steps": [
+          {
+            "op": "read_ptr",
+            "from": "RPSportsSequenceMgr::sInstance",
+            "type": "be_u32"
+          },
+          {
+            "op": "add",
+            "offset": "0x14"
+          },
+          {
+            "op": "read",
+            "type": "be_u32x36"
+          }
+        ],
+        "corroboration": "Public Rev1 SequenceMgr sInstance source root 0x804BF708 points to instance with mGolfScores[hole=9][player=4] at +0x14; 7 native archive source and Golf enum 2 gates passed, instance present; actual mode4 UI score producer not verified. Distinct from GolfConfig player-major +0x04."
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/245",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/239"
+        ],
+        "capture_groups": [
+          "Seven operator-numbered source/SHA-gated native bank capture cohort, phase names human-only not machine-linked"
+        ],
+        "observed_behavior": "2026-10-28 REAL OPERATOR #245 SCORE AND #235 AFFINE NEGATIVES: exact PR #245 pinned 102a84ab8b9e6e6ea8f399ae0ed4e57843de1364, 14/14 Windows synthetic tests and REAL 14-bank original manifest/Rev1/scene/source selected actor/ball/tee/pin/Config controls PASS. Separate SequenceMgr instance present and mSport Golf=2 in D1,D2,W5,W6,W7; 36 source score u32 values unchanged (0/36), selected hole/player cell changed=false, source training-game/golf-mode enums unchanged across D1->D2, W5->W6, W6->W7, W5->W7. Selected ball changed 3/3 each edge; GolfConfig independent [player][hole] score 0/36 also stable #239. This is a NEGATIVE immediate-score-change observation in mode4 human-numbered captures; no machine event aligned, W7 display result provenance may be mislabeled. No proof table contains live Hitting-the-Green outcome, no per-shot feet/meters scale, impact, reward, velocity/power or training.",
+        "source_confidence": "source_named_runtime_present_real_snapshot_stability_not_result_semantic"
+      },
+      "limitations": [
+        "Source-defined hole-major 9x4 is distinct from Config's player-major 4x9; never exchange offsets/indices",
+        "Score table present and sport Golf does not prove Hitting-the-Green mode4 live result or score event",
+        "Stable 36 u32 does not rule out delayed update after W7, separate result UI backing, or operator phase label error"
+      ],
+      "required_controls": [
+        "trace mode4 result UI/distance-to-pin producer and consumers of SequenceMgr GetGolfScore/SetGolfScore to establish applicability",
+        "require machine-linked accepted guest game result frame and independent UI capture before treating any table cell as score",
+        "keep source per-player persisted mGolTrainingBests[3] +0x296 separate; no guess of dynamic save data pointer or units"
       ],
       "evidence_ledger_field_ids": []
     }
