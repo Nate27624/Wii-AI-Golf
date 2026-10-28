@@ -126,6 +126,21 @@ def summarize(pre,post,*,distinct_bank_mem1,distinct_bank_mem2,
         "result_golf_source_chain_still_valid":result_source_valid,
         "operator_typed_result_ui_distance":meta.get("ui_displayed_distance_value"),
         "operator_typed_result_ui_unit":meta.get("ui_displayed_distance_unit"),
+        # Hitting-the-Green may display a fixed miss penalty, a cumulative
+        # result, or a value from a different scene/frame. In the absence of
+        # on-green and guest-frame evidence none is an observed physical length.
+        "ui_observation_outcome_semantics_verified":False,
+        "ui_observation_single_shot_distance_verified":False,
+        "ui_observation_on_green_verified":False,
+        "ui_observation_same_guest_frame_as_post_verified":False,
+        "ui_observation_may_be_off_green_100ft_penalty":(
+            meta.get("ui_displayed_distance_unit")=="ft"
+            and type(meta.get("ui_displayed_distance_value")) in (int,float)
+            and meta.get("ui_displayed_distance_value")==100.0
+        ),
+        "fixed_off_green_penalty_rule_verified_in_rev1_code":False,
+        "ui_value_usable_as_game_unit_calibration":False,
+        "exploratory_ui_to_game_unit_ratio_suppressed":True,
         "ui_distance_same_quantity_as_computed_ball_to_cup_verified":False,
         "game_unit_scale_verified":False,
         "coordinate_axis_semantics_verified":False,
@@ -142,8 +157,11 @@ def summarize(pre,post,*,distinct_bank_mem1,distinct_bank_mem2,
           "or yards. Planar components 0 and 2 are suggested by Rev1 source "
           "goal comparisons, not independently confirmed course axes. "
           "Result UI is operator-entered and may report a DIFFERENT metric "
-          "or round differently. If the ball reset before POST, the study "
-          "cannot determine the landing distance."
+          "or round differently. Training Near Pin may score a fixed "
+          "off-green penalty or accumulate multiple shots: UI numbers "
+          "are NOT safe distance calibrators without independent outcome "
+          "and same-guest-frame evidence. If the ball reset before POST, "
+          "the study cannot determine its final resting distance."
         ),
     }
     # If the RESULT UI still retains a source-valid golfer/ball object,
@@ -170,11 +188,12 @@ def summarize(pre,post,*,distinct_bank_mem1,distinct_bank_mem2,
     else:
         result["result_selected_owner_hole_and_cup_same_as_post"]=False
 
-    if (meta.get("ui_displayed_distance_value") is not None and
-            result["candidate_ball_to_cup_planar_after_game_units"]>0):
-        result["exploratory_display_units_per_game_unit_ratio"]=_round(
-            meta["ui_displayed_distance_value"]/after_cup[0])
-        result["ratio_validated_as_calibration"]=False
+    # Do NOT derive UI-units/game-units from a manually typed result.
+    # For Near Pin, an off-green shot may be scored as fixed 100 ft,
+    # and the displayed result can be an accumulated 10-shot total.
+    # Neither is necessarily the POST candidate's resting distance.
+    # Even a non-100 result has no independently attested same-guest-frame
+    # or physics ball identity in this offline PRE/POST/RESULT study.
     return result
 
 
