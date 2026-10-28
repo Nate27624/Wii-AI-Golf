@@ -37,7 +37,7 @@ or that three numbers in an arbitrary RAM block represent world XYZ.
 
 | Rev1 PPC | Exact pointer follow | Source meaning |
 | --- | --- | --- |
-| `0x802922A8/A C/B0` | `lwz r3,+0x44(r3)`; `lwz r3,+0x4C(r3)`; `blr` | current Pin object, then its translation VEC3 pointer |
+| `0x802922A8/AC/B0` | `lwz r3,+0x44(r3)`; `lwz r3,+0x4C(r3)`; `blr` | current Pin object, then its translation VEC3 pointer |
 | `0x802922EC/F0/F4` | `lwz r3,+0x50(r3)`; `lwz r3,+0x4C(r3)`; `blr` | current Player START object, then its translation VEC3 pointer |
 
 First is part of a bounded branch path around `0x80292294`,
