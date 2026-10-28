@@ -5,12 +5,16 @@ on:
       - 'scripts/audit_p0_player_record_store_candidates_private.py'
       - 'scripts/Invoke-P0PlayerStoreProvenance.ps1'
       - 'tests/test_p0_player_record_store_candidates_private.py'
+      - 'scripts/audit_p0_r31_store_slice_private.py'
+      - 'tests/test_p0_r31_store_slice_private.py'
       - '.github/workflows/p0-player-record-store-candidates.yml'
   pull_request:
     paths:
       - 'scripts/audit_p0_player_record_store_candidates_private.py'
       - 'scripts/Invoke-P0PlayerStoreProvenance.ps1'
       - 'tests/test_p0_player_record_store_candidates_private.py'
+      - 'scripts/audit_p0_r31_store_slice_private.py'
+      - 'tests/test_p0_r31_store_slice_private.py'
       - '.github/workflows/p0-player-record-store-candidates.yml'
   workflow_dispatch:
 permissions:
@@ -29,8 +33,10 @@ jobs:
           python-version: '3.13'
       - name: Source-only synthetic negative controls
         run: python -m unittest discover -s tests -p 'test_p0_player_record_store_candidates_private.py' -v
+      - name: Extra bounded r31 site source-only synthetic regressions
+        run: python -m unittest discover -s tests -p 'test_p0_r31_store_slice_private.py' -v
       - name: Parse scripts without native ROM or RAM
-        run: python -m compileall -q scripts/audit_p0_player_record_store_candidates_private.py tests/test_p0_player_record_store_candidates_private.py
+        run: python -m compileall -q scripts/audit_p0_player_record_store_candidates_private.py tests/test_p0_player_record_store_candidates_private.py scripts/audit_p0_r31_store_slice_private.py tests/test_p0_r31_store_slice_private.py
       - name: PowerShell 5.1 operator wrapper syntax only
         if: runner.os == 'Windows'
         shell: pwsh
