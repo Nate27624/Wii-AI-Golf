@@ -79,6 +79,35 @@ class DualObjectTests(unittest.TestCase):
         self.assertTrue(result["accepted_for_offline_relationship_review"])
         self.assertFalse(result["rendered_ball_object_identity_verified"])
 
+    def test_reject_shot_label_with_all_candidate_vectors_stationary(self):
+        rows = self.cohort()
+        for row in rows:
+            row["selected_ball_translation_words"] = (1, 2, 3)
+            row["source_global_translation_words"] = (7, 8, 9)
+            row["selected_ball_cache_cc_words"] = (7, 8, 9)
+        with self.assertRaisesRegex(ValueError, "no changing source ball"):
+            mod.summarize_private_samples(rows)
+
+    def test_shot_label_global_only_change_is_accepted_as_candidate(self):
+        rows = self.cohort()
+        for row in rows:
+            row["selected_ball_translation_words"] = (1, 2, 3)
+            row["selected_ball_cache_cc_words"] = (7, 8, 9)
+        report = mod.summarize_private_samples(rows)
+        self.assertTrue(report["candidate_vector_change_observed"])
+        self.assertFalse(report["candidate_change_proves_rendered_ball_motion"])
+        self.assertFalse(report["rendered_ball_object_identity_verified"])
+
+    def test_idle_report_is_never_misreported_as_motion(self):
+        rows = [sample(i, stage="idle_control") for i in range(4)]
+        for row in rows:
+            row["selected_ball_translation_words"] = (1, 2, 3)
+            row["source_global_translation_words"] = (7, 8, 9)
+            row["selected_ball_cache_cc_words"] = (7, 8, 9)
+        report = mod.summarize_private_samples(rows)
+        self.assertFalse(report["candidate_vector_change_observed"])
+        self.assertFalse(report["candidate_change_proves_rendered_ball_motion"])
+
     def test_no_real_frame_claim_from_attestation(self):
         r=mod.summarize_private_samples(self.cohort())
         self.assertFalse(r["actual_guest_physics_time_verified_by_analyzer"])
