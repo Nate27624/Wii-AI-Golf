@@ -2,7 +2,7 @@
 
 **Owner:** S000 schema/claims gate. S002 owns source and capture facts; S001 owns controller/frame-callback timing; S003 reviews identifiability before any training. **Status:** proposal, not merged, no new live capture.
 
-The machine-readable [field-evidence-ledger.json](field-evidence-ledger.json) contains **30 entries**: twenty source/runtime structural, base-class, source-writer or negative-control candidates (including eight named environment references, one constructor-backed Base member, two unverified selected-object hypotheses and three PPC writer/roster leads), plus ten deliberately **unlocated** gameplay variables. Nothing is labelled verified game power, ball velocity or club pose. Synthetic tests reject guessed offsets, untrusted URLs, raw runtime pointers, unsupported private fields, and unsupported training promotion.
+The machine-readable [field-evidence-ledger.json](field-evidence-ledger.json) contains **32 entries**: twenty-two source/runtime structural, base-class, source-writer or negative-control candidates (including eight named environment references, one constructor-backed Base member, two unverified selected-object hypotheses, three PPC writer/roster leads and two source-identified raw wind lookup tables), plus ten deliberately **unlocated** gameplay variables. Nothing is labelled verified game power, ball velocity or club pose. Synthetic tests reject guessed offsets, untrusted URLs, raw runtime pointers, unsupported private fields, and unsupported training promotion.
 
 ## Exactly what a field claim must establish
 
@@ -161,6 +161,46 @@ self-pointer and player-record float triplet, emitting counts only.
 Only when independent frame observations across controlled conditions
 show the correct moving ball may S003 discuss physics labels. Neither
 study needs more Dolphin input now.
+
+## Latest selected-record source and saved B0 candidate evidence
+
+The user executed the current S002 #160 source-gated roster CLI on the already
+preserved 24MiB MEM1 + 64MiB MEM2 pair. It returned four distinct ball-like
+and four player-like source-data hints, exact constructor firstword matches
+for all four allocated player subobjects, four valid nested ball-like +0x4C
+translation destination pointers, **one** exact equality between a player's
+three-word record translation and its nested candidate vector, and selected
+record **index zero** as a source-backed hypothesis.
+
+**Important precision:** the sanitized operator JSON says `1/4` nested
+vectors match and separately says selector candidate `0`. It does **not**
+identify which of four slots matched. Another S002 source researcher's
+private B0 note asserts the matching slot was selector0 and that it equals
+the source-named start translation, but the currently shared safe report
+does **not** independently reproduce that association. To close this
+specific gap, S002 #160 should add **three boolean/count-only
+source-controlled checks** to the SAME canonical private reader:
+selected slot triple equals nested translation; selected nested vector
+equals current start marker getter translation; nonselected slot exact
+match count (0..3). Also independently match each source-derived
+SimulateManager+4+0x1AC*i pointer to the corresponding roster record+0x88.
+No addresses, words or floats should leave the private environment.
+Negative mocks should cover wrong selected index, matching stale unselected
+slot, scene transition and false pointer aliases.
+
+PR #162 [Rev1 PPC source evidence](https://github.com/Nate27624/Wii-AI-Golf/pull/162)
+also identifies a distinct `RPGolConfig::GetWind` lookup that uses
+the source-backed raw current-hole index to select **two** nine-element
+MEM1 BSS arrays (raw wind direction and speed values).
+The raw integer storage and indexing are code-backed, but no safe
+runtime value/category, physical units, display matching or changed-hole
+control has been validated. These have separate ledger entries from the
+still-unlocated `gameplay.wind` quantity.
+
+**Training remains blocked:** source-typed lookup or an exact single-frame
+source/runtime equality is not equivalent to actual dynamic ball-motion
+labels. No same-frame independent snapshot, ball-on-screen intervention,
+velocity, contact, club pose or power has been established.
 
 ## Full-MEM1 checkpoints are discovery data, NOT instant semantic labels
 
