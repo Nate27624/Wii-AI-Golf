@@ -17,6 +17,21 @@ from test_selected_ball_start_link_private import fixture
 
 def synthetic_observation():
     data, refs = fixture()
+    # Original #160 synthetic fixture uses 0x100-spaced ball references and
+    # separate synthetic vec destinations. For bounded source object windows,
+    # instantiate the source-backed 0x1AC ball layout without overlap and
+    # give each base constructor its +0x4C -> +0x30 self reference.
+    pm = refs["pm"]
+    for i in range(roster.ROSTER_SLOTS):
+        record = pm + 4 + i * roster.ROSTER_STRIDE
+        old_ball = data[record + 0x88]
+        old_vec = data[old_ball + 0x4C]
+        ball = 0x91010000 + i * 0x200
+        data[record + 0x88] = ball
+        data[ball] = data[old_ball]
+        data[ball + 0x4C] = ball + 0x30
+        for j in range(3):
+            data[ball + 0x30 + 4*j] = data[old_vec + 4*j]
     return expanded.sample_one(lambda address: data.get(address, 0),
                                b"RSPE01\x00\x01"), data, refs
 
