@@ -1,7 +1,7 @@
 ## MANDATORY new agent read-attestation and latest baseline
 
 - [ ] I **read**, not just linked, root README ACTIVE header, AGENTS.md, docs/agent-session-protocol.md, docs/operator-powershell-contract.md, docs/repository-map.md, research/coordination.md, relevant owning issue/PR, last HANDOFF/FINDING, and source/tests before work. I can name actual HEAD and current owner. If I could not access something, I said NOT CHECKED; no fictitious attestation.
-- [ ] **Every substantive response re-baselined** against the latest operator terminal output and fresh relevant GitHub branch/head, PR/CI/issues/claims; no stale draft-as-merged or inferred live Dolphin process.
+- [ ] **Every substantive response must rebaseline** (re-baselined) against the latest operator terminal output and fresh relevant GitHub branch/head, PR/CI/issues/claims; no stale draft-as-merged or inferred live Dolphin process.
 - [ ] I posted a compact **Current baseline**: current source SHA/PR, P0 goal, verified-vs-candidate evidence, open blocker, next safe action/owner.
 - [ ] I posted an owning GitHub HANDOFF with actual code/tests, sanitized UPLOADED/NOT UPLOADED evidence, negative results and next owner so another agent context can resume.
 
