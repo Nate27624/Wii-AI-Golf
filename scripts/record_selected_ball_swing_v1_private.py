@@ -41,6 +41,11 @@ WATCH_FRAMES = 280
 SAMPLE_INTERVAL = 4
 TRACE_FRAMES = 89
 
+# 70 source-selected records with 51 u32 words and JSON field metadata can
+# exceed the transport's generic 64-KiB response limit. Keep a bounded,
+# PRIVATE-only drain capacity; do not change the shared RPC default.
+WATCH_RESPONSE_CAP_BYTES = 262144
+
 
 def _count(rpc: Any) -> int:
     value = rpc.call("frame.get_count", [])
@@ -168,6 +173,26 @@ def capture_one(
     raise TimeoutError("bounded watch polling exhausted")
 
 
+
+def watched_v1_rpc(*, port: int) -> FelkRPC:
+    """Apply a bounded larger transport limit only to private watched drains."""
+    return FelkRPC(port=port, timeout_s=15,
+                   max_response_bytes=WATCH_RESPONSE_CAP_BYTES)
+
+
+def ask_distinct_human_labels(input_fn: Callable[[str], str] = input) -> dict:
+    """Human-visible contact and visible motion are separate observations."""
+    labels = {}
+    for key, prompt in (
+        ("contact_human", "Was the ball visibly struck? [yes/no/unknown]: "),
+        ("ball_movement_human", "Did the ball visibly move? [yes/no/unknown]: "),
+    ):
+        answer = input_fn(prompt).strip().lower() or "unknown"
+        if answer not in ("yes", "no", "unknown"):
+            answer = "unknown"
+        labels[key] = answer
+    return labels
+
 def _private_report_file() -> Path:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     return _private_output(PRIVATE_ROOT / "captures" /
@@ -203,19 +228,20 @@ def main(argv=None) -> int:
         samples = build_probe("forward", follow_through_frames=30, a_setup_frames=12)
         validate_frozen_trace(samples)
         output = _private_report_file()
-        with FelkRPC(port=a.port, timeout_s=15) as rpc:
+        with watched_v1_rpc(port=a.port) as rpc:
             preflight(rpc)
             print("Read-only provenance passed. One V1 swing would be sent only if explicitly approved.")
             if input("At first stationary ball, type SWING to proceed (anything else cancels): ").strip() != "SWING":
                 print("Cancelled. No controller input sent.")
                 return 0
             result = capture_one(rpc, samples)
-        answer = (input("Human visual contact? [yes/no/unknown]: ").strip().lower() or "unknown")
-        if answer not in ("yes", "no", "unknown"):
-            answer = "unknown"
+        human = ask_distinct_human_labels()
         samples_private = result["report"]["samples"]
-        safe = summarize(samples_private, human_ball_moved=answer,
+        safe = summarize(samples_private,
+                         human_ball_moved=human["ball_movement_human"],
                          watch_state=result["report"]["status"]["state"])
+        safe["contact_human"] = human["contact_human"]
+        safe["contact_and_movement_are_separate_human_labels"] = True
         safe["a_lead_observed_frames"] = result["hold"]["observed_frame_delta"]
         safe["idle_observed_frames"] = result["idle"]["observed_idle_frame_delta"]
         safe["trace_sha256"] = result["digest"]
@@ -223,7 +249,8 @@ def main(argv=None) -> int:
         raw = {
             "kind": "PRIVATE-UNVERIFIED-selected-ball-frame-watch",
             "utc": datetime.now(timezone.utc).isoformat(),
-            "operator_observation": answer,
+            "operator_observation": human["ball_movement_human"],
+            "operator_contact_human": human["contact_human"],
             "watch_status": result["report"]["status"],
             "bridge_trace_status": result["trace"],
             "controller_timing": {"idle": result["idle"], "observed_A_lead": result["hold"]},

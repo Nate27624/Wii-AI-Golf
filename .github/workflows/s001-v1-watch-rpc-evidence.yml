@@ -1,0 +1,55 @@
+name: S001 V1 private 51-word RPC sizing and human evidence
+on:
+  pull_request:
+    paths:
+      - 'scripts/record_selected_ball_swing_v1_private.py'
+      - 'tests/test_s001_v1_watch_rpc_and_labels.py'
+      - '.github/workflows/s001-v1-watch-rpc-evidence.yml'
+  workflow_dispatch:
+jobs:
+  private-evidence-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Synthetic private transport/labels tests
+        run: PYTHONPATH=src python -m unittest discover -s tests -p test_s001_v1_watch_rpc_and_labels.py -v
+      - name: Prior V1 observed-frame collector regression
+        run: PYTHONPATH=src python -m unittest discover -s tests -p test_s001_v1_observed_45_watched_collector.py -v
+      - name: Compile
+        run: python -m compileall -q scripts/record_selected_ball_swing_v1_private.py tests/test_s001_v1_watch_rpc_and_labels.py
+  private-evidence-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Synthetic private transport/labels tests
+        run: |
+          $env:PYTHONPATH = 'src'
+          python -m unittest discover -s tests -p test_s001_v1_watch_rpc_and_labels.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s tests -p test_s001_v1_observed_45_watched_collector.py -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compile
+        run: python -m compileall -q scripts/record_selected_ball_swing_v1_private.py tests/test_s001_v1_watch_rpc_and_labels.py
+
+  complete-offline-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      TEMP: ${{ runner.temp }}
+      TMP: ${{ runner.temp }}
+      TMPDIR: ${{ runner.temp }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile complete source tree
+        run: python -m compileall -q src scripts tests
+      - name: Full offline unit tests (no Dolphin)
+        run: python -m unittest discover -s tests -v
