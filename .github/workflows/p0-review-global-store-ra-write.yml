@@ -1,0 +1,32 @@
+name: P0 review PowerPC rA destination register tracking
+
+on:
+  push:
+    paths:
+      - 'scripts/review_p0_global_slot_store_cfg.py'
+      - 'tests/test_p0_global_slot_store_cfg_private.py'
+      - '.github/workflows/p0-review-global-store-ra-write.yml'
+  pull_request:
+    paths:
+      - 'scripts/review_p0_global_slot_store_cfg.py'
+      - 'tests/test_p0_global_slot_store_cfg_private.py'
+      - '.github/workflows/p0-review-global-store-ra-write.yml'
+  workflow_dispatch:
+
+jobs:
+  fabricated-ra-form:
+    name: ${{ matrix.os }} PPC rA-write tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Static micro CFG positive/negative tests
+        run: python -I -B -m unittest discover -s tests -p test_p0_global_slot_store_cfg_private.py -v
+      - name: Existing bounded source store tests
+        run: python -I -B -m unittest discover -s tests -p test_p0_global_ball_writer_value_private.py -v
