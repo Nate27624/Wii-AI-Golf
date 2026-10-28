@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 import sys
 import unittest
-from copy import deepcopy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from wii_ai_golf.audit.environment_cohort import summarize_environment_cohort
@@ -51,8 +50,23 @@ class EnvironmentCohortTests(unittest.TestCase):
         self.assertEqual(r["max_non_atomic_frame_span"], 22)
         self.assertFalse(r["independent_sessions_verified"])
         self.assertFalse(r["ball_xyz_verified"])
-        self.assertNotIn("address", json.dumps(r))
-        self.assertNotIn("bytes_hex", json.dumps(r))
+        # Privacy check JSON structure and concrete leaked pointer patterns,
+        # not harmless English in the fixed warning (e.g. "addresses").
+        def check_public_shape(value):
+            if isinstance(value, dict):
+                for key, nested in value.items():
+                    self.assertNotIn(key, {
+                        "address", "bytes_hex", "raw_bytes", "local_path",
+                        "runtime_address", "source_path", "file_name",
+                    })
+                    check_public_shape(nested)
+            elif isinstance(value, list):
+                for nested in value:
+                    check_public_shape(nested)
+        check_public_shape(r)
+        output = json.dumps(r)
+        self.assertNotRegex(output, r"0x[0-9a-fA-F]{8}\\b")
+        self.assertNotIn("bytes_hex", output)
 
     def test_same_hole_does_not_imply_independent_replication(self):
         r = summarize_environment_cohort([report(), report()])
