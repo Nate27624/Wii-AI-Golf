@@ -49,6 +49,14 @@ def _branch(pc,word):
 
 def _r3_written(word):
     op,rt,ra,imm=_d(word)
+    # PowerPC rotate/mask and immediate logical operations write rA,
+    # while bits 21..25 name SOURCE rS. Ignoring these would let a previous
+    # addi-to-r3 appear to reach the global-pointer store after e.g.
+    # `ori r3,r4,0` or `rlwinm r3,r4,...` overwrote it. Conversely,
+    # `xori r4,r3,1` reads r3 and must NOT invalidate its provenance.
+    # Classify conservatively without inferring the resulting r3 value.
+    if op in (20,21,23,24,25,26,27,28,29):
+        return "ra_form_r3_assignment_unknown" if ra==3 else None
     if op in (14,15,32,33,34,35,40,41,42,43,46,47):
         if rt!=3:
             return None
