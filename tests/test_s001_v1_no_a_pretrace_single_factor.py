@@ -172,6 +172,24 @@ class NoAPretraceReviewTests(unittest.TestCase):
                 self.assertEqual(v1.main(["--pretrace-mode", "neutral-45"]), 0)
         self.assertIn('"pretrace_control_mode": "neutral-45"', out.getvalue())
 
+    def test_canonical_launcher_accepts_no_a_after_separator(self):
+        import run_golf_experiment as runner
+        boot, action = runner.build_commands(
+            action="record_selected_ball_swing_v1_private.py",
+            action_args=["--pretrace-mode", "neutral-45", "--send-live-swing"],
+            game=None, dolphin="C:/Felk/Dolphin.exe",
+            bridge="C:/tools/mcp_bridge_swing_legacy_watch_eval.py",
+            config="C:/repo/research/launch.local.json",
+            catalog="C:/repo/research/savestates.local.json",
+            dolphin_user="C:/Felk/User",
+            scripts_dir=ROOT / "scripts", python="python",
+        )
+        self.assertEqual(action[2:6], [
+            "--attach-running", "--pretrace-mode",
+            "neutral-45", "--send-live-swing",
+        ])
+        self.assertIn("--config", boot)
+        self.assertNotIn("--attach-running", boot)
     def test_analyzer_does_not_mislabel_neutral_as_A_only(self):
         result = audit.analyze(mock_report())
         self.assertEqual(result["pretrace_control_mode"], "neutral-45")
