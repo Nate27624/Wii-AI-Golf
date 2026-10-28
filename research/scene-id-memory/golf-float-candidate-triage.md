@@ -19,6 +19,12 @@
 - Both require automatic retrieval from the draft PR's pinned GitHub commit when running from an ordinary local main checkout. No GUI or Dolphin launch.
 - A float window with two or three varying components is **not** a verified dynamic ball coordinate: demand shot-ID, frame-anchored pre/flight/post and controlled camera/aim-only negative trials, with stable tee/pin geometry and independently observed ball movement.
 
+## Critical operator correction: a capture may show a ball still moving (2026-10-28)
+
+The operator has explicitly recalled that **at least one of the JSON/capture observations did not show a fully settled ball**; the ball may have been falling or slowing down when memory was recorded. **Which JSON and which B0–B3 phase is affected is not yet identified**. Earlier assumptions treating all captures as settled/end-of-shot are therefore invalid. Do not resolve the uncertainty by assigning B2 or any other capture a phase based only on memory toggles or changed bits.
+
+This makes the two moving BE-float-compatible words in the offline audit worth controlled follow-up, including the possibility of a real trajectory with one constant component. It does **not** establish that those words belong to the ball, nor does it justify training labels. Trace back local private manifests, exact run/shot identity, capture frames, visual status and any non-atomic read timing. Once a plausible true in-motion phase is located, compare **same-shot** before/during/after samples with human-confirmed movement and a stationary control, while checking static tee/pin/cup translation values remain fixed.
+
 ## Next validation gates
 
 1. Verify the third neighboring 32-bit word and whether any candidate triplet forms a coherent float vector.
