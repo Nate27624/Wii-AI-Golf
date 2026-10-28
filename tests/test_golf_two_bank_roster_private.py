@@ -107,9 +107,43 @@ def source_flow_fixture(mapping):
         0x802A31F0: add(3, 29, 0),
         0x802A31F4: dform(14, 0, 3, 4),
         0x802A31F8: dform(36, 0, 29, 0x334),
+        0x802922EC: dform(32, 3, 3, 0x50),
+        0x802922F0: dform(32, 3, 3, 0x4C),
+        0x8029F244: dform(32, 3, 13, -23320),
+        0x8029F248: bl(0x8029F248, 0x802922EC),
+        0x8029F24C: dform(48, 0, 3, 0),
+        0x8029F254: dform(52, 0, 29, 0x60),
+        0x8029F258: dform(48, 0, 3, 4),
+        0x8029F25C: dform(52, 0, 29, 0x64),
+        0x8029F260: dform(48, 0, 3, 8),
+        0x8029F264: dform(52, 0, 29, 0x68),
+        0x8029F300: dform(32, 3, 29, 0x88),
+        0x8029F304: dform(32, 4, 3, 0x4C),
+        0x8029F308: dform(48, 0, 4, 0),
+        0x8029F30C: dform(52, 0, 29, 0x60),
+        0x8029F310: dform(48, 0, 4, 4),
+        0x8029F314: dform(52, 0, 29, 0x64),
+        0x8029F318: dform(48, 0, 4, 8),
+        0x8029F31C: dform(52, 0, 29, 0x68),
+        0x802A038C: dform(48, 2, 3, 0x60),
+        0x802A0390: dform(48, 1, 3, 0x64),
+        0x802A0394: dform(48, 0, 3, 0x68),
+        0x802A03A4: dform(52, 2, 3, 0x54),
+        0x802A03A8: dform(52, 1, 3, 0x58),
+        0x802A03AC: dform(52, 0, 3, 0x5C),
+        0x802A03BC: dform(48, 0, 3, 0x58),
+        0x802A03C4: dform(48, 0, 3, 0x5C),
     }
     mapping.update(patterns)
     manager_ptr = mapping[x.PLAYER_MANAGER_STATIC_CANDIDATE]
+    field_obj = mapping[x.GOLF_FIELD_STATIC]
+    start_obj = 0x91040000
+    mapping[field_obj + 0x50] = start_obj
+    mapping[start_obj + 0x4C] = start_obj + 0x30
+    for component in range(3):
+        mapping[start_obj + 0x30 + 4 * component] = (
+            0x3F800000 + component
+        )
     for idx in range(x.ROSTER_SLOTS):
         record = manager_ptr + 4 + idx * x.ROSTER_STRIDE
         ball = mapping[record + 0x88]
@@ -121,6 +155,9 @@ def source_flow_fixture(mapping):
             mapping[record + 0x54 + component * 4] = (
                 word if idx == 0 else 0
             )
+            mapping[record + 0x60 + component * 4] = (
+                word if idx == 0 else 0
+            )
     return patterns
 
 
@@ -128,7 +165,8 @@ class PlayerBallRosterTests(unittest.TestCase):
     def analyze(self, words, header=b"RSPE01\x00\x01"):
         def read(addr):
             if (x.PLAYER_MANAGER_CODE[0] <= addr < x.PLAYER_MANAGER_CODE[1]
-                    or 0x8029E62C <= addr < 0x802A2210):
+                    or 0x8029E62C <= addr < 0x802A2210
+                    or 0x80290B44 <= addr < 0x80294184):
                 return words.get(addr, 0)
             if addr not in words:
                 raise ValueError("unmapped synthetic word")
@@ -257,7 +295,7 @@ class PlayerBallRosterTests(unittest.TestCase):
             words[obj] = 0x803C7D28  # fake constructor vtable value
         report = self.analyze(words)
         flow = report["bounded_source_register_flow_evidence"]
-        self.assertEqual(len(patterns), 26)
+        self.assertGreaterEqual(len(patterns), 26)
         self.assertTrue(flow["four_inline_0xcc_record_loop_source_supported"])
         self.assertTrue(flow["record_plus_0x88_ball_code_path_source_supported"])
         self.assertTrue(flow["ball_child_plus_0x4c_three_float_writer_source_supported"])
@@ -270,6 +308,19 @@ class PlayerBallRosterTests(unittest.TestCase):
         self.assertEqual(report["nested_triplets_equal_record_triplet_count"], 1)
         self.assertFalse(report["nested_three_word_destination_is_world_ball_xyz_verified"])
         self.assertFalse(flow["world_space_ball_xyz_or_units_verified"])
+        v = report["start_to_selected_ball_source_code_evidence"]
+        self.assertTrue(v["start_object_translation_getter_source_supported"])
+        self.assertTrue(v["start_translation_to_record_plus_0x60_source_supported"])
+        self.assertTrue(v["ball_translation_to_record_plus_0x60_source_supported"])
+        self.assertTrue(v["record_plus_0x60_through_0x54_to_ball_translation_source_supported"])
+        eq = report["selected_start_three_word_equality_component_counts"]
+        self.assertTrue(eq["current_start_pointer_mapped"])
+        self.assertTrue(eq["current_start_translation_selfref"])
+        self.assertEqual(eq["selected_record_054"], 3)
+        self.assertEqual(eq["selected_record_060"], 3)
+        self.assertEqual(eq["selected_ball_nested"], 3)
+        self.assertEqual(eq["unselected_ball_nested_full_match_count"], 0)
+        self.assertFalse(report["start_vector_physically_ball_xyz_verified"])
 
     def test_source_flow_rejects_corrupted_four_slot_indexing(self):
         words, _ = synthetic()
@@ -331,6 +382,39 @@ class PlayerBallRosterTests(unittest.TestCase):
         self.assertIsNone(result["source_gated_selected_record_index_hypothesis"])
         self.assertFalse(result["bounded_source_register_flow_evidence"]
                          ["manager_selected_record_pointer_offset_source_supported"])
+
+    def test_start_component_mismatch_is_reported_not_hidden(self):
+        words, refs = synthetic()
+        source_flow_fixture(words)
+        selected = refs["pm"] + 4
+        words[selected + 0x60 + 8] = 0
+        out = self.analyze(words)
+        eq = out["selected_start_three_word_equality_component_counts"]
+        self.assertEqual(eq["selected_record_054"], 3)
+        self.assertEqual(eq["selected_record_060"], 2)
+        self.assertEqual(eq["selected_ball_nested"], 3)
+        self.assertFalse(out["start_vector_physically_ball_xyz_verified"])
+
+    def test_corrupt_source_getter_disables_all_start_equality_inferences(self):
+        words, _ = synthetic()
+        source_flow_fixture(words)
+        words[0x802922F0] = dform(32, 3, 3, 0x48)
+        out = self.analyze(words)
+        self.assertFalse(out["start_to_selected_ball_source_code_evidence"]
+                         ["start_object_translation_getter_source_supported"])
+        self.assertEqual(out["selected_start_three_word_equality_component_counts"]
+                         ["selected_ball_nested"], 0)
+
+    def test_bad_start_pointer_has_zero_comparisons(self):
+        words, _ = synthetic()
+        source_flow_fixture(words)
+        field = words[x.GOLF_FIELD_STATIC]
+        words[field + 0x50] = 0
+        result = self.analyze(words)
+        self.assertFalse(result["selected_start_three_word_equality_component_counts"]
+                         ["current_start_pointer_mapped"])
+        self.assertEqual(result["selected_start_three_word_equality_component_counts"]
+                         ["selected_ball_nested"], 0)
 
 if __name__ == "__main__":
     unittest.main()
