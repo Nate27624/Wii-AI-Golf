@@ -14,42 +14,55 @@
 
 If the game resets the ball, switches holes, or moves the selected actor before you pause POST, do not call the late scene POST or set `--shot-observed`. PRE→RESULT-only data are insufficient to verify moving ball memory. You can still transcribe the UI distance manually and keep your screenshot privately, then collaborate with S001 to configure the existing in-frame watcher for a repeat approved shot. Do not re-create the B0–B3 controls; they already passed.
 
-## Preflight PowerShell, Windows
+## Preflight and AUTO-ENTER Hitting the Green — canonical repository launcher
 
-Open a FRESH PowerShell session. These paths are for the user's established `D:\Projects\Wii Golf AI` root. The clean portable emulator is `tools\FelkDolphin-Clean`; do NOT use old crash-prone `tools\FelkDolphin`. Use one running clean Dolphin process and one intentionally human-executed shot.
+**Correction after operator feedback:** do **NOT** manually open a bare `Dolphin.exe` or walk the menus. The MAIN REPOSITORY already contains `scripts/launch_golf.py`: it loads the named `green-pre-start` save and runs the calibrated **A → A+B → A** into Hitting the Green. This study provides a thin `scripts/launch_golf_shot_study.py` adapter which delegates to that **main-checkout** canonical launcher rather than maintaining another menu sequence or shipping unreviewed controller waveform. It uses the separate known clean FelkDolphin-Clean portable installation and the bridge previously booted successfully on it; **NO `--swing`** is sent. If the clean portable User does not actually contain the registered savestate bytes, source-safe failure is expected; a JSON catalog entry is merely a name/slot mapping, not a transferred save. Never assume the menu succeeded without visual confirmation.
+
+Use a NEW PowerShell terminal. This is a fully repo-scripted startup, but it needs an existing Wii Sports path (`$repo\research\launch.local.json`) and registered named checkpoint (`$repo\research\savestates.local.json`) from the MAIN checkout. Do not use the isolated worktree's missing ignored config.
 
 ```powershell
 $root = 'D:\Projects\Wii Golf AI'
 $repo = "$root\Wii-AI-Golf"
 $branch = 'agent/research/shot-cup-distance-cohort-20261027'
 $work = "$root\Wii-AI-Golf-Shot-Cup-Study"
+$clean = "$root\tools\FelkDolphin-Clean"
 $session = "$root\Wii-AI-Golf-Data\captures\SHOT-$(Get-Date -Format yyyyMMdd-HHmmss)-PRIVATE"
 git -C $repo fetch origin "refs/heads/${branch}:refs/remotes/origin/${branch}"
 if ($LASTEXITCODE -ne 0) { throw 'Git fetch failed' }
-if (Test-Path $work) { throw 'A shot-study worktree exists; inspect rather than overwrite' }
-git -C $repo worktree add --detach $work "origin/$branch"
-if ($LASTEXITCODE -ne 0) { throw 'Worktree creation failed' }
+if (-not (Test-Path $work)) {
+  git -C $repo worktree add --detach $work "origin/$branch"
+  if ($LASTEXITCODE -ne 0) { throw 'Worktree creation failed' }
+} else {
+  $upstream = git -C $repo rev-parse "origin/$branch"
+  $installed = git -C $work rev-parse HEAD
+  if ($upstream -ne $installed) { throw 'Existing shot study worktree is stale; inspect it rather than force resetting' }
+}
 py -m unittest discover -s "$work\tests" -p 'test_golf_shot_cup_distance_private.py' -v
 if ($LASTEXITCODE -ne 0) { throw 'Shot study tests failed; stop' }
-py -m unittest discover -s "$work\tests" -p 'test_selected_ball_prepost_shot_private.py' -v
-if ($LASTEXITCODE -ne 0) { throw 'Upstream shot contract tests failed; stop' }
-New-Item -ItemType Directory -Path $session -Force -ErrorAction Stop | Out-Null
-Write-Host 'Private shot session:' $session
+py -m unittest discover -s "$work\tests" -p 'test_launch_golf_shot_study.py' -v
+if ($LASTEXITCODE -ne 0) { throw 'Auto-intro tests failed; stop' }
+New-Item -ItemType Directory -Path $session -ErrorAction Stop | Out-Null
 
-# If clean Dolphin is NOT already running, launch ONLY this clean build.
-$clean = "$root\tools\FelkDolphin-Clean"
-$running = Get-CimInstance Win32_Process -Filter "name='Dolphin.exe'"
-$running | Select-Object ExecutablePath
-if (-not $running) {
-  $exe = Join-Path $clean 'Dolphin.exe'
-  if (-not (Test-Path $exe)) { throw 'Clean Felk Dolphin.exe not found' }
-  Start-Process -FilePath $exe
-} elseif (@($running | Where-Object { $_.ExecutablePath -notlike "$clean*" }).Count -gt 0) {
-  throw 'A non-clean Dolphin process is running. Inspect it; do not launch a second instance.'
+# Fresh launch only. Do not start another Dolphin or kill a working session.
+$running = @(Get-CimInstance Win32_Process -Filter "Name='Dolphin.exe'")
+if ($running.Count -gt 0) {
+  $running | Select-Object ExecutablePath
+  throw 'Dolphin already open. Close it normally for fresh canonical startup, or use the explicitly attached intro in the advanced workflow.'
 }
+# Offline preflight of MAIN local game profile and clean portable user.
+py "$work\scripts\launch_golf_shot_study.py" --dry-run
+if ($LASTEXITCODE -ne 0) { throw 'Auto-intro preflight failed; repair the named profile/game/config first' }
+
+# This DOES launch the clean Dolphin, restore green-pre-start, send A/A+B/A.
+# It DOES NOT swing, capture RAM, alter the game image, or create a savestate.
+py "$work\scripts\launch_golf_shot_study.py"
+if ($LASTEXITCODE -ne 0) { throw 'Canonical Hitting Green intro did not complete. Do NOT claim PRE' }
+Write-Host 'Visually verify Golf > Training > Hitting the Green at first stationary ball.'
 ```
 
-Use Dolphin GUI File→Open to select your **existing privately owned Wii Sports image** or use its game list. Navigate through Sports→Golf→Training→Hitting the Green (mode4) manually using your *already configured* controller mapping. Do not presume new portable User contains old savestate/profile. Avoid menu script automation or new bridge-watcher injection.
+**If Dolphin is already open:** do not run a second instance. Once you have confirmed that it is specifically the clean portable FelkDolphin-Clean process running Wii Sports with the correct bridge, the existing canonical `scripts/launch_hitting_green.py --attach-running --send-live --profile green-pre-start` can load the saved profile and dispatch the intro **in that existing process**. This is intentional state reset and button input, not a read-only probe; use only when you actually intend to restart the green training mode. The study's simple launch above deliberately fails if a bridge is already using its port.
+
+**Known setup caveat:** official clean Preview4 boot and read-only RPC were observed with the legacy bridge, but an old configured game path/savestate in the original emulator is NOT evidence that the clean isolated `User` contains that savestate. The wrapper intentionally validates MAIN local config and clean controller config, and reports `live_savestate_bytes_independently_verified=false`. If it cannot load the named checkpoint, preserve the clean install, inspect saved state files and named catalog rather than randomly entering menus or copying old emulator state behind the user's back.
 
 ### Find native Export/Dump folder AFTER first PRE export
 
