@@ -172,21 +172,30 @@ translation destination pointers, **one** exact equality between a player's
 three-word record translation and its nested candidate vector, and selected
 record **index zero** as a source-backed hypothesis.
 
-**Important precision:** the sanitized operator JSON says `1/4` nested
-vectors match and separately says selector candidate `0`. It does **not**
-identify which of four slots matched. Another S002 source researcher's
-private B0 note asserts the matching slot was selector0 and that it equals
-the source-named start translation, but the currently shared safe report
-does **not** independently reproduce that association. To close this
-specific gap, S002 #160 should add **three boolean/count-only
-source-controlled checks** to the SAME canonical private reader:
-selected slot triple equals nested translation; selected nested vector
-equals current start marker getter translation; nonselected slot exact
-match count (0..3). Also independently match each source-derived
-SimulateManager+4+0x1AC*i pointer to the corresponding roster record+0x88.
-No addresses, words or floats should leave the private environment.
-Negative mocks should cover wrong selected index, matching stale unselected
-slot, scene transition and false pointer aliases.
+**New independently pasted operator source-gated result:** the selected
+record candidate index is **0**, and its record `+0x54` and `+0x60`
+3-word vectors, nested ball-like translation through `+0x4C`, and
+source-selected current start translation all match **3/3** words. The
+other three ball-like nested vectors match the selected start **0/3**
+whole triplets. This resolves the earlier ambiguity about which of the
+four `1/4` matching records was selected. It is strong evidence for
+*initialization at the start marker* and for the writer/storage
+relationship, but not an independently frame-aligned dynamic ball
+position: operator data are from one non-atomic preserved native
+MEM1/MEM2 pair. `source_selected_record_identity_confirmed=false`,
+`actual_player_or_ball_identity_verified=false`, and
+`start_vector_physically_ball_xyz_verified=false` remain correct.
+
+**Next available OFFLINE discriminator:** stacked S002 [PR #163](https://github.com/Nate27624/Wii-AI-Golf/pull/163)
+already has a strict saved-pair candidate equality reader. It can
+compare the preserved `roster-existing` and `unclassified-20261027-203338`
+pairs and emit only full-bank SHA equality booleans and relative
+3-word triplet same/different flags, never hashes or numeric words.
+If pairs are bitwise duplicates, they are **not independent evidence**.
+If different, no same-boot, same-frame, swing or actual motion
+can be inferred from those differences without acquisition
+provenance; stop and require a future controlled frame-aligned
+read-only game observation before semantic promotion.
 
 PR #162 [Rev1 PPC source evidence](https://github.com/Nate27624/Wii-AI-Golf/pull/162)
 also identifies a distinct `RPGolConfig::GetWind` lookup that uses
