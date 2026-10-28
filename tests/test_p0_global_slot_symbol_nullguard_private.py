@@ -35,7 +35,7 @@ class PublicMapAndBranchBOTests(unittest.TestCase):
         self.assertTrue(o["source_function_entry_matches_public_map"])
         self.assertEqual(o["first_callee_public_symbol"],"__nw__FUl")
         self.assertEqual(o["second_callee_public_symbol"],"fn_8029AB78")
-        self.assertTrue(o["null_allocation_skip_constructor_pattern_verified"])
+        self.assertTrue(o["null_allocation_skips_second_call_pattern_verified"])
         self.assertTrue(o["second_call_possible_per_BO_category"])
         self.assertEqual(o["post_return_store_r3_candidate_classes_after_BO"],
                          ["return_from_first_bl","return_from_second_bl"])
@@ -50,7 +50,7 @@ class PublicMapAndBranchBOTests(unittest.TestCase):
         self.assertFalse(o["second_call_possible_per_BO_category"])
         self.assertEqual(o["post_return_store_r3_candidate_classes_after_BO"],
                          ["return_from_first_bl"])
-        self.assertFalse(o["null_allocation_skip_constructor_pattern_verified"])
+        self.assertFalse(o["null_allocation_skips_second_call_pattern_verified"])
 
     def test_BNE_zero_compare_not_null_failure_skip(self):
         words=setup()
@@ -58,39 +58,39 @@ class PublicMapAndBranchBOTests(unittest.TestCase):
         o=m.analyze(words.__getitem__,-100)
         self.assertTrue(o["branch_to_store"]["CR0_EQ_bit_selected"])
         self.assertFalse(o["branch_to_store"]["CR0_EQ_desired_true"])
-        self.assertFalse(o["null_allocation_skip_constructor_pattern_verified"])
+        self.assertFalse(o["null_allocation_skips_second_call_pattern_verified"])
 
     def test_unknown_CR_bit_abstains_on_null_semantics(self):
         words=setup()
         words[m.BRANCH_PC]=bc(m.BRANCH_PC,m.prior.STORE_PC,bo=12,bi=6)
         o=m.analyze(words.__getitem__,-100)
-        self.assertFalse(o["null_allocation_skip_constructor_pattern_verified"])
+        self.assertFalse(o["null_allocation_skips_second_call_pattern_verified"])
 
     def test_cmpwi_signed_zero_also_satisfies_zero_guard(self):
         words=setup()
         words[m.COMPARE_PC]=d(11,0,3,0)
         o=m.analyze(words.__getitem__,-100)
-        self.assertTrue(o["null_allocation_skip_constructor_pattern_verified"])
+        self.assertTrue(o["null_allocation_skips_second_call_pattern_verified"])
         self.assertEqual(o["compare_after_operator_new"]["kind"],"cmpwi_cr0_r3_zero")
 
     def test_compare_wrong_register_refuses_semantic_claim(self):
         words=setup()
         words[m.COMPARE_PC]=d(10,0,4,0)
         o=m.analyze(words.__getitem__,-100)
-        self.assertFalse(o["null_allocation_skip_constructor_pattern_verified"])
+        self.assertFalse(o["null_allocation_skips_second_call_pattern_verified"])
 
     def test_compare_nonzero_refuses_semantic_claim(self):
         words=setup()
         words[m.COMPARE_PC]=d(11,0,3,1)
         o=m.analyze(words.__getitem__,-100)
-        self.assertFalse(o["null_allocation_skip_constructor_pattern_verified"])
+        self.assertFalse(o["null_allocation_skips_second_call_pattern_verified"])
 
     def test_unknown_compare_must_abstain(self):
         words=setup()
         words[m.COMPARE_PC]=0x60000000
         o=m.analyze(words.__getitem__,-100)
         self.assertFalse(o["compare_after_operator_new"]["compare_r3_zero_verified"])
-        self.assertFalse(o["null_allocation_skip_constructor_pattern_verified"])
+        self.assertFalse(o["null_allocation_skips_second_call_pattern_verified"])
 
     def test_wrong_operator_new_call_refuses(self):
         words=setup()
@@ -115,7 +115,7 @@ class PublicMapAndBranchBOTests(unittest.TestCase):
         words[m.BRANCH_PC]=bc(m.BRANCH_PC,m.prior.STORE_PC,bo=16,bi=2)
         o=m.analyze(words.__getitem__,-100)
         self.assertEqual(o["branch_to_store"]["BO_category"],"CTR_condition")
-        self.assertFalse(o["null_allocation_skip_constructor_pattern_verified"])
+        self.assertFalse(o["null_allocation_skips_second_call_pattern_verified"])
 
     def test_safe_categorical_output_no_runtime_addresses_or_bits(self):
         o=m.analyze(setup().__getitem__,-100)
