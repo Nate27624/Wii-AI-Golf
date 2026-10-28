@@ -135,7 +135,7 @@ def summarize(before: dict, after: dict, *,
     start_stable = changes["source_current_start"] == 0
     ball_changed = changes["selected_nested_ball"] > 0
     both_banks_changed = mem1_changed and mem2_changed
-    plausible = owner_stable and both_banks_changed and start_stable and ball_changed
+    plausible = owner_stable and mem2_changed and start_stable and ball_changed
     return {
         "kind": "local_private_selected_ball_prepost_shot_candidate",
         "schema_version": 1,
