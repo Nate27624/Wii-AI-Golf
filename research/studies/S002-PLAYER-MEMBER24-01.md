@@ -31,7 +31,7 @@ No additional capture is needed. Use an isolated, unmodified worktree of this st
 $repo = "D:\Projects\Wii Golf AI\Wii-AI-Golf"
 $work = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Player24-Audit"
 if (Test-Path $work) { throw "Preserve existing checkout" }
-git -C $repo fetch origin pull/174/head
+git -C $repo fetch origin pull/177/head
 if ($LASTEXITCODE -ne 0) { throw "PR fetch failed" }
 git -C $repo worktree add --detach $work FETCH_HEAD
 if ($LASTEXITCODE -ne 0) { throw "Worktree creation failed" }
