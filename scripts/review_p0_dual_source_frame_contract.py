@@ -15,6 +15,13 @@ MIN_SAMPLES = 3
 MAX_SAMPLES = 256
 MAX_READ_US = 5000
 MAX_GUEST_FRAME_GAP = 4
+# Native RSPE01 MEM1/MEM2 guest address regions, not host pointers.
+# Reject uncached aliases and fabricated pointers until the source owner
+# establishes that exact address mapping. This is a range gate ONLY.
+NATIVE_GUEST_RAM_RANGES = (
+    (0x80000000, 0x81800000),  # 24 MiB MEM1
+    (0x90000000, 0x94000000),  # 64 MiB MEM2
+)
 VECTORS = (
     "selected_ball_translation_words",
     "source_global_translation_words",
@@ -48,6 +55,13 @@ CONTEXT = (
 
 def _u32(x: object) -> bool:
     return type(x) is int and 0 <= x <= 0xFFFFFFFF
+
+
+def _canonical_native_guest_pointer(x: object) -> bool:
+    """Canonical 4-byte-aligned MEM1/MEM2 pointer, NOT a typed object proof."""
+    return (_u32(x) and x % 4 == 0
+            and any(start <= x <= end - 4
+                    for start, end in NATIVE_GUEST_RAM_RANGES))
 
 
 def _vector(v: object) -> tuple[int, int, int]:
@@ -94,8 +108,8 @@ def _checked_row(row: object) -> dict[str, Any]:
         if type(row[key]) is not str or not 1 <= len(row[key]) <= 128:
             raise ValueError("missing frame provenance identity")
     for key in POINTERS:
-        if not _u32(row[key]) or row[key] == 0:
-            raise ValueError("missing bounded source-object identity")
+        if not _canonical_native_guest_pointer(row[key]):
+            raise ValueError("missing bounded canonical source-object identity")
     for key in (*VECTORS, "config_bc_c0_c4_words"):
         _vector(row[key])
     return row
