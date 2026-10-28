@@ -57,6 +57,17 @@ try {
             [StringComparison]::OrdinalIgnoreCase)) {
         Stop-Redacted 'unexpected private Data root'
     }
+    # Do not follow an intermediate directory junction out of the Data root.
+    $walk = Get-Item -LiteralPath $session -Force
+    while ($null -ne $walk) {
+        if ($walk.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            Stop-Redacted 'linked private session ancestor refused'
+        }
+        if ([string]::Equals($walk.FullName, $dataRoot,
+                             [StringComparison]::OrdinalIgnoreCase)) { break }
+        $walk = $walk.Parent
+    }
+    if ($null -eq $walk) { Stop-Redacted 'private session ancestry invalid' }
 
     $hashes = @{}
     foreach ($phase in @('PRE', 'POST')) {
