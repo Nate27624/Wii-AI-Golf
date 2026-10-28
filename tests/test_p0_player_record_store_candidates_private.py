@@ -61,6 +61,43 @@ class Tests(unittest.TestCase):
         self.assertTrue(all(v['dform_store_count']==0 for v in x['candidates']))
         self.assertFalse(x['indexed_store_and_other_unit_coverage_complete'])
 
+    def test_linear_register_load_hypothesis_never_verified_owner(self):
+        instructions=[0x60000000]*16
+        instructions[0]=w(32,30,3,0x88)  # fabricated lwz r30, +0x88(r3)
+        instructions[1]=w(52,2,30,0x30)
+        data=b''.join(struct.pack('>I',x) for x in instructions)
+        result=s.scan_candidate_stores(data,BASE,UNITS)
+        hint=result['candidates'][0]['candidate_sites'][0]['local_base_definition_hint']
+        self.assertEqual(hint['origin_class'],'memory_load_candidate')
+        self.assertEqual(hint['source_relative_definition'],'+0x0000')
+        self.assertFalse(hint['runtime_selected_record_base_verified'])
+        self.assertFalse(result['straightline_register_hints_are_full_dataflow_proof'])
+
+    def test_branch_before_candidate_prevents_linear_attribution(self):
+        instructions=[0x60000000]*16
+        instructions[0]=w(32,30,3,0x88)
+        instructions[1]=18<<26  # fabricated b, control-flow barrier
+        instructions[2]=w(52,2,30,0x30)
+        data=b''.join(struct.pack('>I',x) for x in instructions)
+        hint=s.scan_candidate_stores(data,BASE,UNITS)['candidates'][0]['candidate_sites'][0]['local_base_definition_hint']
+        self.assertEqual(hint['origin_class'],'control_flow_barrier')
+        self.assertFalse(hint['runtime_selected_record_base_verified'])
+
+    def test_zero_base_is_not_record_object(self):
+        instructions=[0x60000000]*16
+        instructions[0]=w(36,2,0,0x90)
+        data=b''.join(struct.pack('>I',x) for x in instructions)
+        hint=s.scan_candidate_stores(data,BASE,UNITS)['candidates'][-1]['candidate_sites'][0]['local_base_definition_hint']
+        self.assertEqual(hint['origin_class'],'zero_base_not_object_pointer')
+
+    def test_unknown_gpr_writer_abstains(self):
+        instructions=[0x60000000]*16
+        instructions[0]=(31<<26)|(30<<21)
+        instructions[1]=w(52,2,30,0x30)
+        data=b''.join(struct.pack('>I',x) for x in instructions)
+        hint=s.scan_candidate_stores(data,BASE,UNITS)['candidates'][0]['candidate_sites'][0]['local_base_definition_hint']
+        self.assertEqual(hint['origin_class'],'unknown_xform_possible_definition')
+
     def test_cli_failure_hides_private_path(self):
         err=io.StringIO()
         with contextlib.redirect_stderr(err):
