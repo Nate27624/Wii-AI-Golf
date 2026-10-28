@@ -91,6 +91,28 @@ def _scan_bank(four, bank, *, top_blocks):
             x.get("idle",0),
             -x.get("aim",0),
             x["bank_relative_block_index"]))
+        # Preserve exact LOCAL bank-relative changed-word offsets in each
+        # selected hotspot. No need to request another dump or guess which
+        # member inside a 256-byte candidate actually changed.
+        for block in blocks[:top_blocks]:
+            base_word=block["bank_relative_block_index"]*(BLOCK//4)
+            word_detail=[]
+            for local_word in range(BLOCK//4):
+                wi=base_word+local_word
+                a,b,c,d=(v[wi] for v in view)
+                idle,aim,release,persist,revert=_shape(a,b,c,d)
+                if idle or aim or release:
+                    word_detail.append({
+                        "offset_in_256byte_block":f"+0x{4*local_word:02X}",
+                        "bank_relative_word_index":wi,
+                        "idle_change":idle,
+                        "visible_aim_transition_change":aim,
+                        "post_aim_change":release,
+                        "aim_persisted":persist,
+                        "aim_reverted":revert,
+                        "unknown_field_semantics":True,
+                    })
+            block["changed_word_relative_details"]=word_detail
         return {
             "bank":bank,
             "all_aligned_words_examined":words_total,
