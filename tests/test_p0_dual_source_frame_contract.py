@@ -163,7 +163,7 @@ class DualObjectTests(unittest.TestCase):
     def test_good_distinct_native_ram_pointers_still_accepted(self):
         rows = self.cohort()
         for row in rows:
-            row["selected_ball_object_pointer"] = 0x817FFFB0
+            row["selected_ball_object_pointer"] = 0x93FFFEF8  # end - 0x108
             row["source_global_ball_object_pointer"] = 0x90000000
         result = mod.summarize_private_samples(rows)
         self.assertTrue(result["selected_global_object_pointers_distinct"])
@@ -190,25 +190,80 @@ class DualObjectTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "bounded canonical"):
                     mod.summarize_private_samples(rows)
 
-    def test_selected_and_global_balls_can_reach_last_full_4c_field(self):
-        rows = self.cohort()
-        for row in rows:
-            row["selected_ball_object_pointer"] = 0x817FFFB0
-            row["source_global_ball_object_pointer"] = 0x93FFFFB0
-        result = mod.summarize_private_samples(rows)
-        self.assertTrue(result["accepted_for_offline_relationship_review"])
-        self.assertTrue(result["selected_global_object_pointers_distinct"])
-        self.assertFalse(result["actual_guest_physics_time_verified_by_analyzer"])
+    def test_selected_and_global_balls_reach_exact_source_mem2_boundaries(self):
+        for key, minimum in (
+            ("selected_ball_object_pointer", 0x108),
+            ("source_global_ball_object_pointer", 0x50),
+        ):
+            with self.subTest(key=key):
+                rows = self.cohort()
+                for row in rows:
+                    row[key] = 0x94000000 - minimum
+                result = mod.summarize_private_samples(rows)
+                self.assertTrue(result["accepted_for_offline_relationship_review"])
+                self.assertFalse(result["actual_guest_physics_time_verified_by_analyzer"])
 
-    def test_other_object_types_retain_one_word_only_not_guessed_spans(self):
-        # No evidence here for pin/start/field-manager member sizes.
+    def test_all_five_source_pointer_minimum_mem2_spans(self):
+        # Same original Rev1 reader gates: selected +0xFC triplet, global
+        # +0x4C, pin/start +0x4C, FieldManager through +0xA8.
+        minimums = {
+            "selected_ball_object_pointer": 0x108,
+            "source_global_ball_object_pointer": 0x50,
+            "pin_object_pointer": 0x50,
+            "start_object_pointer": 0x50,
+            "field_manager_pointer": 0xA8,
+        }
+        self.assertEqual(mod.SOURCE_OBJECT_MEM2_MIN_SPANS, minimums)
+        for key, span in minimums.items():
+            with self.subTest(key=key):
+                # Exact end-of-MEM2 footprint is allowed by the source gate.
+                rows = self.cohort()
+                for row in rows:
+                    row[key] = 0x94000000 - span
+                self.assertTrue(mod.summarize_private_samples(rows)[
+                    "accepted_for_offline_relationship_review"])
+                # One word too close to end crosses a required source field.
+                rows = self.cohort()
+                for row in rows:
+                    row[key] = 0x94000000 - span + 4
+                with self.assertRaisesRegex(ValueError, "bounded canonical"):
+                    mod.summarize_private_samples(rows)
+
+    def test_all_five_source_object_types_refuse_mem1_even_when_aligned(self):
+        for key in mod.POINTERS:
+            with self.subTest(key=key):
+                rows = self.cohort()
+                for row in rows:
+                    row[key] = 0x80001000
+                with self.assertRaisesRegex(ValueError, "bounded canonical"):
+                    mod.summarize_private_samples(rows)
+
+    def test_source_selected_ball_cache_mem2_0x108_gate(self):
+        # +0xCC is a three-word cache; original B0 reader also accesses
+        # +0xFC triplet, and therefore requires a whole +0x108 footprint.
         rows = self.cohort()
         for row in rows:
-            row["pin_object_pointer"] = 0x817FFFFC
-            row["start_object_pointer"] = 0x93FFFFFC
-            row["field_manager_pointer"] = 0x817FFFF8
+            row["selected_ball_object_pointer"] = 0x93FFFF80
+        with self.assertRaisesRegex(ValueError, "bounded canonical"):
+            mod.summarize_private_samples(rows)
+        for row in rows:
+            row["selected_ball_object_pointer"] = 0x93FFFEF8
         self.assertTrue(mod.summarize_private_samples(rows)[
             "accepted_for_offline_relationship_review"])
+
+    def test_pin_start_field_manager_mem2_exact_ranges(self):
+        # Independent source reader requires pin/start +0x50, field +0xA8.
+        for key, span in (
+            ("pin_object_pointer", 0x50),
+            ("start_object_pointer", 0x50),
+            ("field_manager_pointer", 0xA8),
+        ):
+            with self.subTest(key=key):
+                rows = self.cohort()
+                for row in rows:
+                    row[key] = 0x94000000 - span
+                self.assertTrue(mod.summarize_private_samples(rows)[
+                    "accepted_for_offline_relationship_review"])
 
     def test_4c_span_helper_fails_closed_on_bad_minimums(self):
         for minimum in (0, 1, 3, 5, -4, True, 2.0):
