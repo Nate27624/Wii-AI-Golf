@@ -6,6 +6,7 @@ on:
       - "scripts/collect_outcome_transition.py"
       - "scripts/research_cli.py"
       - "tests/test_m15_visual_first.py"
+      - "tests/test_research_cli_clean_dolphin.py"
       - "tests/test_outcome_capture_cli.py"
       - "tests/test_research_cli.py"
       - ".github/workflows/m15-visual-first.yml"
@@ -26,6 +27,7 @@ jobs:
       - name: Focused offline M1.5 + preexisting collector/publisher tests
         run: |
           python -m unittest discover -s tests -p "test_m15_visual_first.py" -v
+          python -m unittest discover -s tests -p "test_research_cli_clean_dolphin.py" -v
           python -m unittest discover -s tests -p "test_outcome_capture_cli.py" -v
           python -m unittest discover -s tests -p "test_research_cli.py" -v
       - name: Full offline Python suite (single OS)
