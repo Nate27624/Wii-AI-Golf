@@ -1328,9 +1328,10 @@
         ],
         "capture_groups": [
           "2026-10-28 operator positive-human hit newest capture; paired PRIVATE raw/summary; 8 persistent candidates",
-          "11 matched human_contact_yes captures found; earlier 10 NOT YET independently audited for recurrent offsets"
+          "11 matched human_contact_yes captures found; earlier 10 NOT YET independently audited for recurrent offsets",
+          "11 validated contact=yes capture pairs across 2026-10-24/25/28; only source-relative word identity compared, not physical ball motion"
         ],
-        "observed_behavior": "Four relative offsets appeared in latest actual positive-human hit under overlapping minimap visual effects; not source game ball XYZ. Across the newest 3 PRE, 2 POST, 3 SETTLED samples, eight unique absolute words changed persistently; some are pointer-shaped and all were assigned visual_effect_confound family. The S002 audit showed human_contact_yes=true, human_green_yes=false, no semantic verification, maximum sampled bracket span 22 frames. C01..C08 are study-local IDs, NOT stable registry IDs.",
+        "observed_behavior": "Four relative offsets appeared in latest actual positive-human hit under overlapping minimap visual effects; not source game ball XYZ. Across the newest 3 PRE, 2 POST, 3 SETTLED samples, eight unique absolute words changed persistently; some are pointer-shaped and all were assigned visual_effect_confound family. The S002 audit showed human_contact_yes=true, human_green_yes=false, no semantic verification, maximum sampled bracket span 22 frames. C01..C08 are study-local IDs, NOT stable registry IDs. | CROSS-RUN 2026-10-28: Operator cross-run analysis of 11 S002 validated human-contact=yes captures: 13 distinct alias signature groups were found in 10/11 runs each (not necessarily the SAME missing run). Per-shot candidate counts were 8,13,13,19,45,13,9,13,45,45,45. One human_green_yes=true and ten human_green_yes=false in S002 *boolean projection*, but false can mean human-label NO OR UNKNOWN; must inspect original exact labels before defining off-green. The latest no-green-yes capture lacks five 10/11 minimap_ball_effect +0x1EC..0x1FC recurring words but contains other 10/11 signatures, demonstrating differing missing runs. All sample brackets max 22 guest frames; no no-contact control, no verified physics or trainable label.",
         "source_confidence": "private_source_relative_hit_change_only_nonatomic"
       },
       "limitations": [
@@ -1400,9 +1401,10 @@
         ],
         "capture_groups": [
           "2026-10-28 operator positive-human hit newest capture; paired PRIVATE raw/summary; 8 persistent candidates",
-          "11 matched human_contact_yes captures found; earlier 10 NOT YET independently audited for recurrent offsets"
+          "11 matched human_contact_yes captures found; earlier 10 NOT YET independently audited for recurrent offsets",
+          "11 validated contact=yes capture pairs across 2026-10-24/25/28; only source-relative word identity compared, not physical ball motion"
         ],
-        "observed_behavior": "Six relative offsets appeared in latest actual positive-human hit. Several alias the other effect windows; no independent physics meaning. Across the newest 3 PRE, 2 POST, 3 SETTLED samples, eight unique absolute words changed persistently; some are pointer-shaped and all were assigned visual_effect_confound family. The S002 audit showed human_contact_yes=true, human_green_yes=false, no semantic verification, maximum sampled bracket span 22 frames. C01..C08 are study-local IDs, NOT stable registry IDs.",
+        "observed_behavior": "Six relative offsets appeared in latest actual positive-human hit. Several alias the other effect windows; no independent physics meaning. Across the newest 3 PRE, 2 POST, 3 SETTLED samples, eight unique absolute words changed persistently; some are pointer-shaped and all were assigned visual_effect_confound family. The S002 audit showed human_contact_yes=true, human_green_yes=false, no semantic verification, maximum sampled bracket span 22 frames. C01..C08 are study-local IDs, NOT stable registry IDs. | CROSS-RUN 2026-10-28: Operator cross-run analysis of 11 S002 validated human-contact=yes captures: 13 distinct alias signature groups were found in 10/11 runs each (not necessarily the SAME missing run). Per-shot candidate counts were 8,13,13,19,45,13,9,13,45,45,45. One human_green_yes=true and ten human_green_yes=false in S002 *boolean projection*, but false can mean human-label NO OR UNKNOWN; must inspect original exact labels before defining off-green. The latest no-green-yes capture lacks five 10/11 minimap_ball_effect +0x1EC..0x1FC recurring words but contains other 10/11 signatures, demonstrating differing missing runs. All sample brackets max 22 guest frames; no no-contact control, no verified physics or trainable label.",
         "source_confidence": "private_source_relative_hit_change_only_nonatomic"
       },
       "limitations": [
@@ -1472,9 +1474,10 @@
         ],
         "capture_groups": [
           "2026-10-28 operator positive-human hit newest capture; paired PRIVATE raw/summary; 8 persistent candidates",
-          "11 matched human_contact_yes captures found; earlier 10 NOT YET independently audited for recurrent offsets"
+          "11 matched human_contact_yes captures found; earlier 10 NOT YET independently audited for recurrent offsets",
+          "11 validated contact=yes capture pairs across 2026-10-24/25/28; only source-relative word identity compared, not physical ball motion"
         ],
-        "observed_behavior": "Six relative offsets appeared in latest actual positive-human hit; repeated aliases shared with player/ball visual effects. Across the newest 3 PRE, 2 POST, 3 SETTLED samples, eight unique absolute words changed persistently; some are pointer-shaped and all were assigned visual_effect_confound family. The S002 audit showed human_contact_yes=true, human_green_yes=false, no semantic verification, maximum sampled bracket span 22 frames. C01..C08 are study-local IDs, NOT stable registry IDs.",
+        "observed_behavior": "Six relative offsets appeared in latest actual positive-human hit; repeated aliases shared with player/ball visual effects. Across the newest 3 PRE, 2 POST, 3 SETTLED samples, eight unique absolute words changed persistently; some are pointer-shaped and all were assigned visual_effect_confound family. The S002 audit showed human_contact_yes=true, human_green_yes=false, no semantic verification, maximum sampled bracket span 22 frames. C01..C08 are study-local IDs, NOT stable registry IDs. | CROSS-RUN 2026-10-28: Operator cross-run analysis of 11 S002 validated human-contact=yes captures: 13 distinct alias signature groups were found in 10/11 runs each (not necessarily the SAME missing run). Per-shot candidate counts were 8,13,13,19,45,13,9,13,45,45,45. One human_green_yes=true and ten human_green_yes=false in S002 *boolean projection*, but false can mean human-label NO OR UNKNOWN; must inspect original exact labels before defining off-green. The latest no-green-yes capture lacks five 10/11 minimap_ball_effect +0x1EC..0x1FC recurring words but contains other 10/11 signatures, demonstrating differing missing runs. All sample brackets max 22 guest frames; no no-contact control, no verified physics or trainable label.",
         "source_confidence": "private_source_relative_hit_change_only_nonatomic"
       },
       "limitations": [
@@ -1504,6 +1507,71 @@
       "last_evidence_date": "2026-10-28",
       "evidence_ledger_field_ids": [],
       "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+    },
+    {
+      "id": "golf.config.unknown_result_words_bc_c0",
+      "name": "Golf configuration +0xBC/+0xC0 post-hit changing words",
+      "role": "unknown_game_state_or_rendering_candidate",
+      "priority": "P1",
+      "status": "unresolved",
+      "datatype": "two_be_u32_words_untyped",
+      "unit": "unknown",
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "human_contact_yes_pre_post_settled_samples_nonatomic_max_22_frames",
+      "memory_locator": {
+        "kind": "unresolved",
+        "expression": null,
+        "root_static_address": null,
+        "steps": [],
+        "relative_candidate_word_offsets": [
+          "+0x0BC",
+          "+0x0C0"
+        ],
+        "reference_window": "golf_config",
+        "corroboration": "Exact S002 #199 source window offset identities recur in six of eleven reported-hit captures; independent static Config singleton/root mapping not wired here"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/199",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
+        ],
+        "capture_groups": [
+          "11 S002-source-validated outcome PRE/POST/SETTLED capture pairs"
+        ],
+        "observed_behavior": "Configuration window +0x0BC and +0x0C0 each persistently differed PRE vs SETTLED in six of eleven human-reported-contact captures; no value/type/semantics, change direction or no-hit specificity verified.",
+        "source_confidence": "only_source_relative_crossrun_posthit_diff"
+      },
+      "limitations": [
+        "Source field meaning unknown",
+        "No-hit control and phase atomicity unverified",
+        "Observed in mixed run conditions so not a proven outcome variable or training feature"
+      ],
+      "required_controls": [
+        "compare human yes/no/unknown green labels from raw private summaries and original mode/hole",
+        "reproduce with matched no-contact controls",
+        "source trace Config posthit writer and pointer identity",
+        "measure guest-frame bounded temporal relationship"
+      ],
+      "owner": "S002",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Source-relative posthit word changes with unknown type and no controls; prohibited as training input/label",
+        "allowed_when": "After S002 control proof and reviewed experiment/dataset contract"
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "evidence_ledger_field_ids": []
     }
   ],
   "related_evidence_ledger": {
@@ -1515,8 +1583,8 @@
   "authority_boundary": "This is the typed discovery/extraction access index and training-eligibility gate. PR #154 research/memory/field-evidence-ledger.json remains the more detailed source-evidence/identity/behavior ledger; this registry DOES NOT supersede its records. Reconcile references during PR reviews.",
   "last_operator_evidence": {
     "date": "2026-10-28",
-    "study": "Human-contact-positive S002 PR #199 source-relative 8-sample PRIVATE audit plus B0-B3 negative",
-    "summary": "Eleven valid raw/summary matched contact=yes pairs discovered. Newest contact trial: 8 persistent changing u32, visual-effect window aliases only, four pointer-like, non-atomic max 22 frame bracket; selected player and ball objects NOT covered. B0–B3 selected ball/start/cache 0 changing components with player-record aim changes 1/18/1. No verified ball physics or velocity.",
+    "study": "S002 11/11 PR #199 source-relative hit cross-run review",
+    "summary": "Operator cross-run analysis of 11 S002 validated human-contact=yes captures: 13 distinct alias signature groups were found in 10/11 runs each (not necessarily the SAME missing run). Per-shot candidate counts were 8,13,13,19,45,13,9,13,45,45,45. One human_green_yes=true and ten human_green_yes=false in S002 *boolean projection*, but false can mean human-label NO OR UNKNOWN; must inspect original exact labels before defining off-green. The latest no-green-yes capture lacks five 10/11 minimap_ball_effect +0x1EC..0x1FC recurring words but contains other 10/11 signatures, demonstrating differing missing runs. All sample brackets max 22 guest frames; no no-contact control, no verified physics or trainable label.",
     "source": "https://github.com/Nate27624/Wii-AI-Golf/pull/199",
     "training_allowed": false
   }
