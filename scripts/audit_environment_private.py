@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from wii_ai_golf.audit.environment_state_candidate import audit_environment_snapshots
 
-RAW_NAME = re.compile(r"outcome-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,12}-RAW-PRIVATE\\.jsonl\\Z")
+RAW_NAME = re.compile(r"outcome-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8,12}-RAW-PRIVATE\.jsonl\Z")
 MAX_BYTES = 8_000_000
 
 
