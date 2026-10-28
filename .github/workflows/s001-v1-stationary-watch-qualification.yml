@@ -1,0 +1,33 @@
+name: S001 V1 stationary 51-word watcher preflight (offline tests)
+on:
+  pull_request:
+    paths:
+      - 'scripts/qualify_v1_selected_watch_readonly.py'
+      - 'tests/test_s001_v1_stationary_watch_qualification.py'
+      - '.github/workflows/s001-v1-stationary-watch-qualification.yml'
+  workflow_dispatch:
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Stationary watch synthetic tests
+        run: PYTHONPATH=src python -m unittest discover -s tests -p test_s001_v1_stationary_watch_qualification.py -v
+      - name: Compile
+        run: python -m compileall -q scripts/qualify_v1_selected_watch_readonly.py tests/test_s001_v1_stationary_watch_qualification.py
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Stationary watch synthetic tests
+        run: |
+          $env:PYTHONPATH = 'src'
+          python -m unittest discover -s tests -p test_s001_v1_stationary_watch_qualification.py -v
+      - name: Compile
+        run: python -m compileall -q scripts/qualify_v1_selected_watch_readonly.py tests/test_s001_v1_stationary_watch_qualification.py
