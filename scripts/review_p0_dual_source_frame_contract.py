@@ -180,6 +180,17 @@ def summarize_private_samples(samples: list[dict]) -> dict:
     # This gate is only a relationship check, not renderer identification.
     if alias[0]:
         raise ValueError("source-global and selected ball must be distinct")
+    # Distinct integer bases can still overlap in guest RAM. These source-
+    # qualified ball objects must occupy disjoint full outer spans.
+    # Half-open intervals correctly accept immediately adjacent objects.
+    selected_start = first["selected_ball_object_pointer"]
+    global_start = first["source_global_ball_object_pointer"]
+    selected_end = selected_start + SOURCE_OBJECT_MEM2_MIN_SPANS[
+        "selected_ball_object_pointer"]
+    global_end = global_start + SOURCE_OBJECT_MEM2_MIN_SPANS[
+        "source_global_ball_object_pointer"]
+    if selected_start < global_end and global_start < selected_end:
+        raise ValueError("selected and source-global ball object spans overlap")
     sel = [_vector(r[VECTORS[0]]) for r in rows]
     glob = [_vector(r[VECTORS[1]]) for r in rows]
     cc = [_vector(r[VECTORS[2]]) for r in rows]
@@ -206,6 +217,7 @@ def summarize_private_samples(samples: list[dict]) -> dict:
         "candidate_change_proves_rendered_ball_motion": False,
         "max_observed_read_overhead_under_5ms": True,
         "selected_global_object_pointers_distinct": not alias[0],
+        "selected_global_object_spans_disjoint": True,
         "source_global_equals_selected_current_components_per_sample":
             [3 - _count_changed(a, b)
              for a, b in zip(sel, glob)],
