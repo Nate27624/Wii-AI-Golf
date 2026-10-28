@@ -1,0 +1,34 @@
+name: Operator PowerShell contract docs (synthetic only)
+
+on:
+  pull_request:
+    paths:
+      - 'AGENTS.md'
+      - 'README.md'
+      - 'docs/operator-powershell-contract.md'
+      - 'docs/repository-map.md'
+      - 'docs/cli-only-workflow.md'
+      - 'docs/cli.md'
+      - 'tests/test_operator_contract_docs.py'
+      - '.github/workflows/operator-contract-docs.yml'
+  workflow_dispatch:
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Static operator instruction tests (no Dolphin)
+        run: python -m unittest discover -s tests -p test_operator_contract_docs.py -v
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Static operator instruction tests (no Dolphin)
+        run: python -m unittest discover -s tests -p test_operator_contract_docs.py -v
