@@ -24,11 +24,11 @@ import audit_selected_ball_four_phase_private as phase
 # Exact register/owner provenance must agree on every observation.
 RECEIVER_SITE = 0x8029F0C0
 LITERAL_AND_STORE = (
-    (0x8029F0C8, 0x8029F0CC, 5),
-    (0x8029F0D8, 0x8029F0DC, 1),
-    (0x8029F0F4, 0x8029F0F8, 2),
-    (0x8029F134, 0x8029F138, 3),
-    (0x8029F1BC, 0x8029F1C0, 4),
+    (0x8029F0C8, 0x8029F0CC, 5, 3),
+    (0x8029F0D4, 0x8029F0DC, 1, 3),
+    (0x8029F0F4, 0x8029F0F8, 2, 29),
+    (0x8029F134, 0x8029F138, 3, 29),
+    (0x8029F1BC, 0x8029F1C0, 4, 29),
 )
 STATE_LITERALS = frozenset(x[2] for x in LITERAL_AND_STORE)
 STATE_MEMBER = 0x24
@@ -36,13 +36,15 @@ STATE_MEMBER = 0x24
 
 def source_write_sites_match(read_u32) -> bool:
     # This is a BOUNDED PPC instruction-shape test, not a dynamic execution
-    # trace. Even a source match DOES NOT imply the word is gameplay "state".
+    # trace. First two stores use r3; later three use saved r29.
+    # A single receiver move does not prove all conditional register dataflow.
+    # Even a source match DOES NOT imply the word is gameplay "state".
     if not roster._mr_matches(read_u32, RECEIVER_SITE, 29, 3):
         return False
     return all(
         roster._dform_matches(read_u32, li_pc, 14, 0, 0, imm)
-        and roster._dform_matches(read_u32, store_pc, 36, 0, 29, STATE_MEMBER)
-        for li_pc, store_pc, imm in LITERAL_AND_STORE
+        and roster._dform_matches(read_u32, store_pc, 36, 0, base, STATE_MEMBER)
+        for li_pc, store_pc, imm, base in LITERAL_AND_STORE
     )
 
 
