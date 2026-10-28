@@ -81,7 +81,14 @@ function Invoke-SourceTests {
 
 function Read-Sanitized {
     param([string]$Script, [string]$ExpectedKind, [string]$Saved)
-    $text = @(& py -I $Script --baseline $Baseline --flight $Flight)
+    # S002 #223 base module imports source-gated sibling modules without
+    # a -I sys.path bootstrap. Use -E -s for the PINNED source file only;
+    # #224/#225 have their own -I sibling import bootstrap.
+    if ((Split-Path -Leaf $Script) -ceq 'audit_p0_inflight_vs_b0_private.py') {
+        $text = @(& py -E -s $Script --baseline $Baseline --flight $Flight)
+    } else {
+        $text = @(& py -I $Script --baseline $Baseline --flight $Flight)
+    }
     if ($LASTEXITCODE -ne 0) { throw 'P0 source analysis rejected banks; no claim allowed' }
     $joined = $text -join [Environment]::NewLine
     try { $payload = $joined | ConvertFrom-Json -ErrorAction Stop }
