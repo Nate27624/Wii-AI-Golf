@@ -32,6 +32,11 @@ jobs:
         with:
           python-version: '3.13'
       - run: python -I -m unittest discover -s tests -p 'test_p0_seven_cache_update_tags_private.py' -v
+      - name: PowerShell 5.1 verbose unittest stderr regression
+        shell: powershell
+        run: |
+          & .\scripts\Invoke-P0SevenCacheTagStudy.ps1 -SyntheticOnly
+          if (-not $?) { throw 'Windows PowerShell 5.1 wrapper test failed' }
       - name: Parse PowerShell wrapper
         shell: pwsh
         run: |
