@@ -25,6 +25,14 @@ It emits **only change counts** for source-selected record+0x54/+0x60 and curren
 
 The operator may run this directly with the already pinned draft PR #205 script and synthetic tests; output is safe source-relative counts to paste back. No Dolphin launched.
 
+## B0–B3 source-object JSON analysis actually run by operator (2026-10-28)
+
+Operator ran 10/10 local synthetic tests **PASS**, then `scripts/triage_private_object_windows_summary.py` on the original PRIVATE source-object JSON. Actual source-selected `selected_ball`, `selected_start`, `selected_pin`, `record+0x54` and `record+0x60` all changed **0/0/0 components** across B0→B1→B2→B3. For **each of four ball-object windows**, all current-translation `+0x30` and initialization/cache `+0xCC/+0xF0/+0xFC` three-word vectors also changed **0/0/0**. Selected source ball remained **bitwise equal** to selected start at all four phases. Player record slot 0 changed **1/18/1 aligned words** across the transitions; the other three records each **0/0/0**. No actual guest frame atomicity, real ball movement, vertical velocity or training approval established.
+
+This makes B0–B3 a strong **aim/idle no-shot negative control**, NOT a flight-positive. The separate operator observation of a nonstationary ball (possibly downward) must not be attached to B0–B3 without source run IDs. The previous 27 changing words found in an unrelated two-level alias graph have not been demonstrated to represent selected ball motion. Stop further unanchored B0–B3 RAM-search expansion.
+
+**Next useful evidence**: S002 [successful hit PR #199](https://github.com/Nate27624/Wii-AI-Golf/pull/199) analyzes an actual separate human-observed hit with 3 PRE / 2 POST / 3 SETTLED samples and 8 persistent changing words (source windows: field, config, sequence, minimap effects). Unlike the source-object B0–B3 JSON, these successful-shot windows **do not include selected player record and selected ball current/cache vectors**. Do not conflate changing minimap/sequence words with physics. Prioritize matching its saved `-candidates.json` to the exact `-RAW-PRIVATE.jsonl` by stable file stem and S002-verified shot/frame records; then plan one source-selected player+ball whole-object time sample in an **owner-approved witnessed hit** to close this coverage gap. Existing S001 #166 watcher has a no-hit trial and must restore contact reliably before inferring any motion. No new unreviewed swing, dynamic pointer publication or training.
+
 ## Immediate, zero-Dolphin analysis (first)
 
 1. Run the new private read-only `scripts/inventory_private_golf_json_motion.py` on the existing ignored `Wii-AI-Golf-Data` directory, after targeted tests. Index only JSON/JSONL field-name shapes, phase/shot/frame key presence, and whether a JSON file has repeated distinct numerical candidate ball-position vectors. The result is a **PRIVATE** local manifest; stdout omits numerical values.
