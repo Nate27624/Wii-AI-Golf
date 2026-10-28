@@ -25,7 +25,7 @@ def fixture():
                        "guest_bases_by_phase_hex": ["0x91ABCDEF"] * 4}
     vec = {"word_u32_hex": ["0x3F800000", "0x00000000", "0x40000000"]}
     return {"kind": mod.GAME_KIND, "schema_version": 1,
-            "game_id": "RSPE01", "revision": 1, "phase_names": list(mod.PHASES),
+            "game_id": "RSPE01", "revision": 1, "phase_names": list(mod.PHASE_LABELS),
             "all_bank_pairs_distinct": True, "selected_slot_and_hole_stable": True,
             "windows": words,
             "vec3_by_phase": [
