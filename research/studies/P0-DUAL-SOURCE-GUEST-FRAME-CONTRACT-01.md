@@ -33,3 +33,10 @@ This study deliberately has NO input-file or live mode. Running `python scripts/
 ## Current verification
 
 21 fabricated, entirely native-free tests challenge wrong frame clock, non-atomic provenance, malformed source chain, pointer relocation, changed pin/start with same pointers, Config drift, mixed boot/shot, frame rollback/gap, 5ms budget, idle motion, privacy and false training. Hosted Windows+Ubuntu CI is necessary but **does not validate real in-game behavior**.
+
+
+## Review-only correction — distinct identities are mandatory
+
+The original seven source-selected private pairs in S002 #240 source-qualified the selected player's ball and the separate source-global ball as **different runtime object pointers in every snapshot**. This contract previously only checked that the equality/alias relationship was *unchanged* over the sample sequence. A fabricated trace with the same pointer in **every** sample wrongly passed `accepted_for_offline_relationship_review=true` (with a contradictory `selected_global_object_pointers_distinct=false`). That is unsafe evidence selection: it admits a one-object trace to a required *dual-object* comparison.
+
+This child review makes the contract fail closed if any row aliases selected and global object pointers. It retains the prior stable-pointer and no-physics-frame/renderer/training claims, all output privacy guards, and all sampling thresholds. Three fabricated tests require rejection of persistent same-object alias and one-frame collision while preserving acceptance for correctly distinct but stable source objects. **A passing contract still does not authenticate machine guest frames or visual/physics world XYZ.** No new live witness, emulator, RAM, controller or capture has been used.
