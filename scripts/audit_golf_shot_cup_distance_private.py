@@ -69,7 +69,7 @@ def _round(x):
 
 def summarize(pre,post,*,distinct_bank_mem1,distinct_bank_mem2,
               result_metadata=None,result_native_present=False,
-              result_source_valid=None):
+              result_source_valid=None,result_source_snapshot=None):
     if any(type(x) is not bool for x in (
             distinct_bank_mem1,distinct_bank_mem2,result_native_present)):
         raise ValueError("Invalid checkpoint provenance")
@@ -146,6 +146,30 @@ def summarize(pre,post,*,distinct_bank_mem1,distinct_bank_mem2,
           "cannot determine the landing distance."
         ),
     }
+    # If the RESULT UI still retains a source-valid golfer/ball object,
+    # inspect it without interpreting it as flight or as necessarily
+    # representing the landed point: game may reset the ball here.
+    if result_source_valid is True and result_source_snapshot is not None:
+        res=result_source_snapshot
+        linked=(res["slot"]==post["slot"] and res["hole"]==post["hole"]
+                and res["owner"]==post["owner"]
+                and res["map_owners"]==post["map_owners"]
+                and res["cup_words"]==post["cup_words"])
+        result["result_selected_owner_hole_and_cup_same_as_post"]=linked
+        if linked:
+            rball=_vec(res["ball_words"])
+            rcup=_vec(res["cup_words"])
+            result["result_candidate_ball_to_cup_planar_game_units"]=_round(
+                _distance(rball,rcup)[0])
+            result["result_candidate_ball_to_cup_3d_game_units"]=_round(
+                _distance(rball,rcup)[1])
+            result["result_candidate_ball_same_as_post"]=(
+                res["ball_words"]==post["ball_words"])
+            result["result_candidate_ball_equal_to_original_start"]=(
+                res["ball_words"]==pre["start_words"])
+    else:
+        result["result_selected_owner_hole_and_cup_same_as_post"]=False
+
     if (meta.get("ui_displayed_distance_value") is not None and
             result["candidate_ball_to_cup_planar_after_game_units"]>0):
         result["exploratory_display_units_per_game_unit_ratio"]=_round(
@@ -188,6 +212,7 @@ def run_local(folder):
             hashes.append(saved)
         has_result="RESULT" in study["checkpoints"]
         result_valid=None
+        result_snapshot=None
         result_meta=study["checkpoints"].get("RESULT",{})
         if has_result:
             paths=[shot._approved_bank(private,f"RESULT-{b}.bin",size)
@@ -203,7 +228,7 @@ def run_local(folder):
                     f.fileno(),0,access=mmap.ACCESS_READ)))
             rd=roster.TwoBankReader(*images)
             try:
-                snapshot(rd.u32,rd.header())
+                result_snapshot=snapshot(rd.u32,rd.header())
             except (ValueError,KeyError,TypeError):
                 result_valid=False
             else:
@@ -213,7 +238,8 @@ def run_local(folder):
                          distinct_bank_mem2=hashes[0]["MEM2"]!=hashes[1]["MEM2"],
                          result_metadata=result_meta,
                          result_native_present=has_result,
-                         result_source_valid=result_valid)
+                         result_source_valid=result_valid,
+                         result_source_snapshot=result_snapshot)
 
 
 def main(argv=None):
