@@ -50,12 +50,8 @@ def _manifest(folder: Path):
                 or item.get("phase_operator_label") != label
                 or item.get("operator_reports_gui_paused") is not True
                 or item.get("operator_reports_mem1_mem2_export_same_pause") is not True
-                or item.get("operator_reports_game_was_running_between_phases") is not True
-                   if phase == "POST" else
-                (not isinstance(item, dict)
-                 or item.get("phase_operator_label") != label
-                 or item.get("operator_reports_gui_paused") is not True
-                 or item.get("operator_reports_mem1_mem2_export_same_pause") is not True)):
+                or (phase == "POST" and
+                    item.get("operator_reports_game_was_running_between_phases") is not True)):
             raise ValueError("Shot checkpoint pause / phase provenance invalid")
         hashes = item.get("sha256")
         if (not isinstance(hashes, dict) or set(hashes) != {"MEM1", "MEM2"}
