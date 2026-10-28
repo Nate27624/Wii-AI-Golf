@@ -1,5 +1,16 @@
 # AI agent coordination protocol
 
+## Mandatory memory-variable documentation (S000–S005)
+
+**EVERY agent context MUST read** [research/memory-variables/README.md](research/memory-variables/README.md) and [the canonical machine-readable registry](research/memory-variables/registry.json) before doing any game-memory research or using memory values for modeling/training. This is the **single discovery index**, not a second experiment runner, dataset, or publisher.
+
+For each candidate/confirmed/rejected game RAM variable, add or update a stable-ID registry record **in your own reviewed PR** with: exact RSPE01 revision; endian/type/unit and phase; source-backed static root plus relative pointer/dereference steps, or explicitly `unresolved`; sanitized positive/negative evidence and confidence; capture/shot/frame provenance; missing controls; ownership; and separate `training.approved` plus feature-versus-label eligibility. Keep per-session heap addresses, raw vector values, RAM, savestates, ROMs, raw JSON and local paths private; use safe source-relative locators rather than one boot's heap pointer.
+
+**Never promote a source guess, finite float, GUI observation, byte diff, score penalty, or unaligned same-shot capture to a verified training feature.** S002 must independently validate movement/phase, units, negative controls and reproducibility; S000/S002 must review any schema/training-contract change. Until then `training.approved=false`. The operator specifically observed a **nonstationary ball** in at least one JSON-associated capture and **suspects** downward velocity, but the direction, velocity values and association to B0–B3 are unverified. Do not silently label that capture settled.
+
+Run `py scripts/validate_memory_registry.py` and `py -m unittest discover -s tests -p test_memory_registry.py -v` on PR changes; full-suite/merge requirements still apply. Include the registry ID in each related GitHub issue/PR handoff. A variable discovery without a corresponding reviewed registry update is unfinished work.
+
+
 ## Delegated self-merging
 
 **Agents may merge their own PRs** when every gate in [merging requirements](docs/merging-requirements.md) is met and posted as a `MERGE READY` checklist. S000 is not a routine approval bottleneck; shared interface changes require acknowledgment by canonical owners and S000 before the author self-merges. Draft/conflicted/untested PRs cannot self-merge. Preserve GitHub protection rules and exact test evidence.
