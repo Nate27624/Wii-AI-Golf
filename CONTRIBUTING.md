@@ -1,5 +1,7 @@
 # Contributing to Wii AI Golf
 
+**ACTIVE operator rule (2026-10-27):** Every command an agent asks the operator to run MUST be a complete Windows PowerShell block (set repo directory, exact existing code, exit guard, safe output), NOT manual Dolphin, GUI or Git Bash. Reuse the source-validated A-button protocol and frozen S001 swing; never conflate the distinct A45 operations. Read [PowerShell operator contract](docs/operator-powershell-contract.md) and [repository map](docs/repository-map.md) BEFORE writing instructions. This rule overrides historical CLI/GUI examples and applies to all S000–S005 PRs.
+
 This is **one project with multiple owned modules**, not independent competing golf launchers. Read [AGENTS.md](AGENTS.md), [research/README.md](research/README.md) and [docs/cli.md](docs/cli.md) before adding new scripts.
 
 ## Standard development commands
@@ -32,6 +34,10 @@ The source-local `scripts/golf.py` intentionally imports the **current checkout*
 - Keep personal Dolphin game paths, savestate catalogs, traces, ROMs, screenshots and binaries out of Git (local `Wii-AI-Golf-Data`).
 
 ## PR checklist
+
+- [ ] Operator command is one fully copy/paste-ready PowerShell block, auto-cd + `$LASTEXITCODE`, or explicitly no action; no GUI/manual Dolphin/Git Bash
+- [ ] Reused the canonical, proven S001 launch/menu and source-frozen 89-sample swing; distinguished A45 menu / A-prime / V1 lead / trace-neutral / follow-through semantics without swapping implementations
+- [ ] Cross-owner changes, overlapping PRs and draft-only commands identified; source/privacy/live authorization gates checked
 
 - [ ] Claimed paths and nonoverlapping agent ownership
 - [ ] User-facing command is consistent with `golf` or documented advanced-only
