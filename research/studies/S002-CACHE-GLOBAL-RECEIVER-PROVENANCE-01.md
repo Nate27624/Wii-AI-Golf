@@ -128,3 +128,19 @@ Public source unit split index is independently pinned from #219's `research/sou
 
 Keep all critical gates FALSE: physical rendered-ball XYZ, velocity, impact/contact, power, score, frame atomicity/guest frame IDs, function actual execution, second constructor identification, global ball role as forecast, model training, publishing. All original memory remains local read-only; owner review and canonical manifest hardening PRs pending.
 
+
+## REAL 2026-10-28 W5/W6/W7: BO/BI and zero check authenticate allocator-null guard
+
+The user executed exact reviewed pinned #240 source `fd39683205056d67e82fe1a3a5518011940365e1` against original W5/W6/W7 private native banks after 13/13 focused native-free source tests PASS. The source verifier reported `source_code_identical_across_wedge=true`, stable global slot and source-selected geometry. The new report's `single_direct_slot_store_public_symbols_and_BO` records:
+
+- `source_function_entry_symbol=fn_8029A038` with exact public source-map entry authenticated.
+- First `bl` is exact `__nw__FUl`, C++ `operator new(size_t)` (EGG Heap), public source unit entry +0x0618.
+- PPC instruction after the allocation call is **`cmpwi cr0,r3,0`** (`compare_r3_zero_verified=true`), not a guessed null test.
+- Branch to global store has `BO_category=CR_condition`, `CR0_EQ_bit_selected=true`, `CR0_EQ_desired_true=true`, `branch_to_store_unconditionally=false`, `requires_ctr_state=false`.
+- `null_allocation_skips_second_call_pattern_verified=true`: on a zero pointer from `operator new`, the `beq`-type branch skips `fn_8029AB78` and heads to the sole r13 global-pointer slot `stw`. On nonzero pointer, the branch falls through to the second direct `bl` in the static code.
+- Exact second public symbol remains `fn_8029AB78` source unit `RPGolMapObjBall.cpp+0x3BA0`; syntax checker conservatively leaves `second_callee_is_ball_constructor_verified=false`. **Independent earlier SOURCE report** `research/memory/rev1-coordinate-ball-wind-source-trace.md` (PR #162) already documents this same function at 0x8029AB78 as an RPGolMapObjBall constructor that calls RPGolMapObjBase at 0x8029AB90 and stores a class-table/data-word hint at 0x8029ABA4; it is also reused by four inline SimulateManager ball objects via the 0x8029BACC array-ctor wrapper. This evidence is distinct from this #240 BO/BI checker and strengthens the constructor interpretation, but does not by itself prove the constructor returns the same pointer on every executable path.
+
+CRITICAL qualifiers: the two possible r3 sources at the global store are the return value from `operator new` on its **null** path and `fn_8029AB78` on its **non-null** path; these sources are not arbitrary unconditional choices. Code supports allocation → null check → candidate constructor → global assignment in `fn_8029A038`, but construction **at runtime during the captured shot**, actual return-pointer identity, independent guest frame, rendered-ball ownership, physical world XYZ/velocity/power/impact/score and training remain unverified. The separate global MapObjBall-like object pointer lies outside all four player roster balls 7/7; W5-W7 global current equals selected CC while only W7 live catches up. Do not promote cache to predicted landing target without full ownership and timing.
+
+Next owner scope: **avoid duplicating PR #262** (already maps two BL targets to public .text compilation units) or #254/#255 receiver CFG. Narrow useful new offline work is *return-value preservation through `fn_8029AB78`* and whether the source-global runtime object's class/table/base selfrefs match `fn_8029AB78` initialization; reuse the authenticated private archive #231/#253 once integrated. Source construction semantics from original trace should be linked rather than reinvented.
+
