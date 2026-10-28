@@ -183,6 +183,65 @@ class CfgReceiverMustDefTests(unittest.TestCase):
         s[E+24]=NOP  # no post-clobber mr r3,r31 repair
         self.assertEqual(check(s)["status"],"NOT_PROVEN_FOR_ALL_REACHING_PATHS")
 
+    def test_unresolved_xform_reports_reason_and_location(self):
+        s=fixture();s[E+20]=0x7C000214
+        r=check(s)
+        self.assertEqual(r["status"],"ABSTAIN_SOURCE_UNRESOLVED")
+        self.assertEqual(r["abstain_reason_category"],"UNSUPPORTED_XFORM")
+        self.assertEqual(r["first_encountered_unresolved_source_relative_offset"],"+0x0014")
+        self.assertFalse(r["all_reaching_paths_pass_entry_r3_through_r31_to_call_r3"])
+
+    def test_unresolved_non_target_call_reports_sanitized_reason(self):
+        s=fixture();s[E+16]=bl(E+16,mod.CACHE_TARGET)
+        r=check(s)
+        self.assertEqual(r["abstain_reason_category"],"INTERVENING_CALL")
+        self.assertEqual(r["first_encountered_unresolved_source_relative_offset"],"+0x0010")
+
+    def test_unresolved_indirect_branch_reason(self):
+        s=fixture();s[E+20]=0x4E800420
+        r=check(s)
+        self.assertEqual(r["abstain_reason_category"],"INDIRECT_OR_UNSUPPORTED_BRANCH")
+        self.assertEqual(r["first_encountered_unresolved_source_relative_offset"],"+0x0014")
+
+    def test_unresolved_direct_branch_out_of_window_reason(self):
+        s=fixture();s[E+16]=bc(E+16,E+0x50)
+        r=check(s)
+        self.assertEqual(r["abstain_reason_category"],"OUT_OF_WINDOW_BRANCH")
+        self.assertEqual(r["first_encountered_unresolved_source_relative_offset"],"+0x0010")
+
+    def test_target_mismatch_reports_callsite_relative_offset(self):
+        s=fixture();s[C]=bl(C,mod.CACHE_TARGET+4)
+        r=check(s)
+        self.assertEqual(r["abstain_reason_category"],"TARGET_CALL_MISMATCH")
+        self.assertEqual(r["first_encountered_unresolved_source_relative_offset"],"+0x001C")
+
+    def test_no_reachable_target_is_not_runtime_nonexecution(self):
+        s=fixture();s[E+12]=BLR
+        r=check(s)
+        self.assertEqual(r["status"],"ABSTAIN_TARGET_UNREACHABLE")
+        self.assertEqual(r["abstain_reason_category"],"NO_REACHABLE_TARGET_PATH")
+        self.assertIsNone(r["first_encountered_unresolved_source_relative_offset"])
+        self.assertFalse(r["executed_cache_write_verified"])
+
+    def test_proven_static_and_rejected_path_have_no_reason(self):
+        s=fixture()
+        r=check(s)
+        self.assertIsNone(r["abstain_reason_category"])
+        self.assertIsNone(r["first_encountered_unresolved_source_relative_offset"])
+        s[E+4]=bc(E+4,E+16)
+        r=check(s)
+        self.assertEqual(r["status"],"NOT_PROVEN_FOR_ALL_REACHING_PATHS")
+        self.assertIsNone(r["abstain_reason_category"])
+
+    def test_reason_report_contains_no_raw_word_or_pointer(self):
+        s=fixture();s[E+20]=0x7C000214
+        r=check(s)
+        report=str(r)
+        self.assertNotIn("7C000214",report)
+        self.assertNotIn("0x80299",report)
+        self.assertNotIn("private",report.lower())
+        self.assertFalse(r["training_approved"])
+
     def test_native_free_cli(self):
         p=subprocess.run([sys.executable,str(SCRIPT)],capture_output=True,text=True,timeout=10)
         self.assertEqual(p.returncode,0,p.stderr)
