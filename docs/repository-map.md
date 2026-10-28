@@ -57,7 +57,7 @@ D:\Projects\Wii Golf AI\
     +-- mcp_bridge_swing.py              Existing bridge; its revision must be inspected
 ~~~
 
-This tree illustrates expected locations, not proof every optional artifact currently exists. A registered savestate catalog entry is **not** proof the clean Dolphin User contains that save. Other isolated worktrees are developer checkouts, not the live operator runtime. No raw game RAM, DOL/ROM images, savestates, generated bridge source or secrets belong in Git.
+This tree illustrates expected locations, not proof every optional artifact currently exists. A named savestate catalog entry is **not** proof the clean Dolphin User contains that save. Other isolated worktrees are developer checkouts, not the live operator runtime. No raw game RAM, DOL/ROM images, savestates, generated bridge source or secrets belong in Git.
 
 ## One canonical path per responsibility
 
@@ -65,7 +65,7 @@ This tree illustrates expected locations, not proof every optional artifact curr
 | --- | --- | --- | --- |
 | Research sync/test and sanitized summary | scripts/research_cli.py, docs/cli-only-workflow.md | S000 | Invent GitHub tokens / custom unreviewed publisher |
 | Source-local doctor, state read-only, broad CLI | scripts/golf.py | S000 | Launch new GUI, shell dashboard or clone a CLI |
-| Live experiment fresh boot | scripts/run_golf_experiment.py -> launch_golf.py | S001 | Start Dolphin manually, copy A/A+B/A delays |
+| Live experiment fresh boot | scripts/run_golf_experiment.py -> scripts/launch_golf.py | S001 | Start Dolphin manually, copy A/A+B/A delays |
 | Physical savestate load/menu navigation | launch_hitting_green.py, menu_sequence.py, StateCatalog | S001 | Load guessed slot / overwrite save |
 | Controller trace / A setup / swing | wii_ai_golf.integration, source-pinned current trace | S001 | Reimplement a waveform, alternate RPC or A45 meaning |
 | RAM memory audit / ball-to-target measurements | S002 source-gated studies, read-only offline scripts | S002 | Dump random pointers to public Git |
