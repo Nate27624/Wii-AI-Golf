@@ -1,0 +1,26 @@
+name: P0 Golf PSVEC distance args and F1 source syntax
+on:
+  push:
+    branches: [ 'agent/research/p0-golf-vector-distance-f1-args-*' ]
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_golf_vec_f1_return_private.py'
+      - 'scripts/audit_p0_golf_vec_arguments_private.py'
+      - 'tests/test_p0_golf_vec_f1_and_arguments_private.py'
+      - '.github/workflows/p0-golf-vec-f1-args.yml'
+jobs:
+  source-only:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile standalone Python readers
+        run: python -m py_compile scripts/audit_p0_golf_vec_f1_return_private.py scripts/audit_p0_golf_vec_arguments_private.py tests/test_p0_golf_vec_f1_and_arguments_private.py
+      - name: Execute fabricated source-only regressions
+        run: python -I tests/test_p0_golf_vec_f1_and_arguments_private.py
