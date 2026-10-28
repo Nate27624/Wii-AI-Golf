@@ -101,6 +101,46 @@ class PairAuditTests(unittest.TestCase):
         finally:
             put(self.m1, self.m2, addr, 4)
 
+    def test_source_labeled_ui_and_vec_shapes(self):
+        ui_addr = self.field + 0x6C
+        course = 0x9000A000
+        old_flag = self.m2[ui_addr - MEM2_BASE]
+        vec_addr = course + 0x30
+        old_vec = self.m2[vec_addr - MEM2_BASE:vec_addr - MEM2_BASE + 12]
+        try:
+            self.m2[ui_addr - MEM2_BASE] = 1
+            struct.pack_into(">fff", self.m2, vec_addr - MEM2_BASE,
+                             1.5, -2.25, 10.0)
+            r = audit(self.m1, self.m2)
+            self.assertTrue(r["source_labeled_ui_flag_candidates"]["wind_arrow"])
+            self.assertTrue(r["source_course_base_mtrans_vec3_shape"]["mapped"])
+            self.assertTrue(r["source_course_base_mtrans_vec3_shape"]["three_finite_components"])
+            self.assertTrue(r["source_course_base_mtrans_vec3_shape"]["nonzero"])
+            self.assertTrue(r["source_labeled_green_slope_opacity_in_unit_interval"])
+            self.assertNotIn("1.5", str(r))
+            self.assertFalse(r["ball_xyz_verified"])
+        finally:
+            self.m2[ui_addr - MEM2_BASE] = old_flag
+            self.m2[vec_addr - MEM2_BASE:vec_addr - MEM2_BASE + 12] = old_vec
+
+    def test_invalid_ui_bool_and_nan_vec_never_become_gameplay_fields(self):
+        ui_addr = self.field + 0x88
+        sun_addr = self.field + 0x5C
+        old_flag = self.m2[ui_addr - MEM2_BASE]
+        old_sun = self.m2[sun_addr - MEM2_BASE:sun_addr - MEM2_BASE + 12]
+        try:
+            self.m2[ui_addr - MEM2_BASE] = 255
+            struct.pack_into(">fff", self.m2, sun_addr - MEM2_BASE,
+                             float("nan"), 0.0, 2.0)
+            r = audit(self.m1, self.m2)
+            self.assertIsNone(r["source_labeled_ui_flag_candidates"]["minimap"])
+            self.assertFalse(r["source_labeled_sun_vec3_shape"]["three_finite_components"])
+            self.assertFalse(r["wind_speed_direction_verified"])
+            self.assertFalse(r["terrain_verified"])
+        finally:
+            self.m2[ui_addr - MEM2_BASE] = old_flag
+            self.m2[sun_addr - MEM2_BASE:sun_addr - MEM2_BASE + 12] = old_sun
+
 
 if __name__ == "__main__":
     unittest.main()
