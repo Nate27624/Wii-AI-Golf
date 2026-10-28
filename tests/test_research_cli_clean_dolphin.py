@@ -90,6 +90,7 @@ class P0CleanCliV1Tests(unittest.TestCase):
             stack.enter_context(patch.object(research_cli, "_fresh_human_labels",
                                              return_value={
                                                  "capture_status": "sanitized_human_annotation_only",
+                                                 "settled_screen_observation": "operator_confirmed_before_transition",
                                                  "human": {"contact_human": "unknown"}
                                              }))
             result = research_cli.main(commands)
