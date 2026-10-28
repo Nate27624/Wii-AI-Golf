@@ -1,0 +1,29 @@
+name: S002 P0 cache global receiver provenance synthetic
+
+on:
+  push:
+    paths:
+      - 'scripts/audit_p0_cache_global_receiver_private.py'
+      - 'tests/test_p0_cache_global_receiver_private.py'
+      - '.github/workflows/p0-cache-global-receiver.yml'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_cache_global_receiver_private.py'
+      - 'tests/test_p0_cache_global_receiver_private.py'
+      - '.github/workflows/p0-cache-global-receiver.yml'
+  workflow_dispatch:
+
+jobs:
+  synthetic:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Run source-global receiver fake PPC tests
+        run: python -m unittest discover -s tests -p 'test_p0_cache_global_receiver_private.py' -v
