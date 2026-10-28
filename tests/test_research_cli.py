@@ -89,7 +89,8 @@ class ResearchCliTests(unittest.TestCase):
                    return_value={"revision": "V1-neutral-swing-calls",
                                  "safe_for_isolated_legacy_copy": True}), \
              patch.object(research_cli, "_fresh_human_labels",
-                          return_value={"capture_status": "sanitized_human_annotation_only"}), \
+                          return_value={"capture_status": "sanitized_human_annotation_only",
+                                        "settled_screen_observation": "operator_confirmed_before_transition"}), \
              patch.object(research_cli, "_fallback_human_observation",
                           return_value={"human": {"contact_human": "unknown"}}):
             self.assertEqual(research_cli.main(
@@ -125,7 +126,8 @@ class ResearchCliTests(unittest.TestCase):
                    return_value={"revision": "V1-neutral-swing-calls",
                                  "safe_for_isolated_legacy_copy": True}), \
              patch.object(research_cli, "_fresh_human_labels",
-                          return_value={"capture_status": "sanitized_human_annotation_only"}):
+                          return_value={"capture_status": "sanitized_human_annotation_only",
+                                        "settled_screen_observation": "operator_confirmed_before_transition"}):
             self.assertEqual(research_cli.main(["v1", "--live", "--a-lead", "45",
                                                "--backswing-scale", "0.8"]), 0)
             command = runner.call_args.args[0]
@@ -313,6 +315,33 @@ class ResearchCliTests(unittest.TestCase):
                 self.assertEqual(leak["capture_status"],
                                  "unqualified_terminal_timing")
                 self.assertNotIn("SECRET", json.dumps(leak))
+
+    def test_late_terminal_result_is_private_attempt_not_completed_outcome(self):
+        from wii_ai_golf.lab.github_sync import SyncReport
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(research_cli, "sync_merged_main",
+                          return_value=SyncReport("up_to_date")), \
+             patch.object(research_cli, "_run", return_value=0), \
+             patch.object(research_cli, "v1_clean_boot_args", return_value=[]), \
+             patch.object(research_cli, "DATA", Path(folder)), \
+             patch.object(research_cli, "_fresh_human_labels",
+                          return_value={
+                              "capture_status": "sanitized_human_annotation_only",
+                              "settled_screen_observation":
+                                  "screen_had_already_transitioned_before_settled_samples",
+                              "human": {"contact_human": "yes"}}), \
+             patch.object(research_cli, "publish_summary") as publish, \
+             patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
+                   return_value={"revision": "V1-neutral-swing-calls",
+                                 "safe_for_isolated_legacy_copy": True}):
+            self.assertEqual(research_cli.main(["v1", "--live"]), 2)
+            publish.assert_not_called()
+            row_path, = (Path(folder) / "research-cli").glob("*.json")
+            row = json.loads(row_path.read_text())
+            self.assertEqual(row["kind"], "v1_attempt")
+            self.assertEqual(row["attempt_status"],
+                             "terminal_result_not_seen_before_transition")
+            self.assertFalse(row["trial_valid_for_action_outcome"])
 
 
 if __name__ == "__main__":
