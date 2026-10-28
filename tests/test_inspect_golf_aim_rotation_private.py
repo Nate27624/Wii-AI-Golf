@@ -30,6 +30,12 @@ def filled(before=math.radians(37.25), after=math.radians(12.13)):
         rows[i][0x44 // 4] = _f32(-s)
         rows[i][0x48 // 4] = _f32(s)
         rows[i][0x4C // 4] = _f32(c)
+        # Synthetic unit quaternion encoding a Y rotation; second Q is identity.
+        for off, value in zip((0xA0, 0xA4, 0xA8, 0xAC),
+                              (0, math.sin(angle / 2), 0, math.cos(angle / 2))):
+            rows[i][off // 4] = _f32(value)
+        for off, value in zip((0xB0, 0xB4, 0xB8, 0xBC), (0, 0, 0, 1)):
+            rows[i][off // 4] = _f32(value)
     return report
 
 
@@ -54,6 +60,27 @@ class RotationHypothesisTests(unittest.TestCase):
                      "ball_motion_verified", "swing_power_verified",
                      "approved_for_training", "allowed_to_publish"):
             self.assertFalse(out[flag])
+
+    def test_two_quaternion_candidates_and_matrix_yaw_alignment(self):
+        out = rotation.inspect(filled())
+        self.assertTrue(out["all_phases_quaternion_A_Y_rotation_agrees"])
+        self.assertTrue(out["all_phases_quaternion_B_norm_consistent"])
+        self.assertTrue(out["quaternion_A_B_idle_controls_stable"])
+        for obs in out["phase_observations"]:
+            self.assertLess(
+                abs(obs["quaternion_A_candidate"]["norm_residual"]), 1e-5)
+            self.assertLess(
+                abs(obs["quaternion_A_candidate"]
+                    ["yaw_matrix_angle_discrepancy_degrees"]), 0.01)
+            self.assertFalse(out["quaternion_semantics_verified"])
+
+    def test_quaternion_other_axis_or_nonunit_does_not_promote(self):
+        data = filled()
+        rows = data["windows"]["player_record_0"]["all_words_by_phase_hex"]
+        rows[2][0xA4 // 4] = _f32(-0.9)
+        out = rotation.inspect(data)
+        self.assertFalse(out["all_phases_quaternion_A_Y_rotation_agrees"])
+        self.assertFalse(out["approved_for_training"])
 
     def test_incorrect_off_diagonal_sign_abstains(self):
         report = filled()
