@@ -1,6 +1,21 @@
 # Canonical game-memory variable registry — required agent workflow
 
-**Single source of truth:** [registry.json](registry.json), with all findings for Wii Sports RSPE01 **US Revision 1**. This is the game-state variable **catalog**, not the trainable shot dataset or memory-dump storage. S000 coordinates shared semantics; S002 owns validation/provenance, S001 owns live frame/capture mechanics, S003–S005 consume only approved features/labels.
+**Single training-access index:** [registry.json](registry.json), with typed source-derived locators, candidate evidence, and training-eligibility gates for Wii Sports RSPE01 **US Revision 1**. The existing [33-field evidence ledger (PR #154)](https://github.com/Nate27624/Wii-AI-Golf/pull/154) remains the deeper provenance/identity/behavior record; this index references it and **does not supersede or duplicate its evidence ownership**. This is the game-state variable **catalog**, not the trainable shot dataset or memory-dump storage. S000 coordinates shared semantics; S002 owns validation/provenance, S001 owns live frame/capture mechanics, S003–S005 consume only approved features/labels.
+
+## Current P0 research and private-capture discovery
+
+- [P0 capture and analysis priorities](p0-capture-priorities.md): reuse S002's source-selected ball-object +0x4C vector, +0xCC/+0xF0/+0xFC cached vectors, selected record +0x54/+0x60, and angle-like +0x3C; do not confuse source layout with physical world XYZ.
+- [Read-only local private JSON inventory](../../scripts/inventory_private_golf_json_motion.py): helps locate the *specific* JSON associated with the operator-observed moving ball without opening Dolphin, downloading full memory, or publishing raw numeric values.
+- The [source/behavior evidence ledger PR #154](https://github.com/Nate27624/Wii-AI-Golf/pull/154) tracks 33 existing claims. Index records include `evidence_ledger_field_ids` so a future training extractor can trace their provenance. Both PRs are pending review; **neither schema is automatically on `main` yet**.
+
+Offline PowerShell JSON index after this PR is available locally:
+
+```powershell
+Set-Location -LiteralPath 'D:\Projects\Wii Golf AI\Wii-AI-Golf'
+py -I scripts/inventory_private_golf_json_motion.py --data-root 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data' --top 20
+```
+
+This scans bounded local `.json`/`.jsonl` only and writes `json-motion-inventory-PRIVATE-*.json` **inside the ignored sibling private data directory**; stdout prints anonymized file IDs, field counts and phase annotations, no raw ball values, world-space coordinates or local file paths. Review the local index to locate the relevant file, then correlate via actual shot/frame IDs. An apparent velocity field or changing pair of floats is still **not a measured vertical velocity or verified ball XYZ**.
 
 ## Before and after every memory investigation
 
@@ -25,6 +40,9 @@
 Use **literal source-backed offsets** in `memory_locator` so later extractors can resolve variables against new RAM sessions; never bake the heap address of one Dolphin instance into a training feature definition. Any automatic extractor must additionally validate game revision, scene, pointer range, endian type, snapshot consistency and per-field control proofs.
 
 ## The important current distinctions
+
+There are now seventeen seeded entries including the source-derived selected ball translation and position caches, selected player-record start/position copies, and angle-like aim candidate. **All seventeen are research candidates and zero are training-approved.**
+
 
 | Registry ID | What we know | Missing before training |
 | --- | --- | --- |
