@@ -96,7 +96,8 @@ class TestAliasAudit(unittest.TestCase):
     def test_bad_snapshot_scene_rejected(self):
         fake = FakeCaptures()
         fake.word_put('B2', 0x9000801C, 9)
-        self.assertNotEqual(fake.word('B2', 0x9000801C), 5)
+        with self.assertRaises(audit.ReadError):
+            audit.Captures.validate_root(fake)
 
 
 if __name__ == '__main__':
