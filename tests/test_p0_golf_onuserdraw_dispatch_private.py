@@ -155,7 +155,7 @@ class DrawThunkTests(unittest.TestCase):
 
     def test_fabricated_full_seven_sha_before_after_and_two_word_scene(self):
         self._run_fabricated_seven_with_calculate_target(
-            d.prior.main_update.MAIN_ENTRY,expect_success=True)
+            0x8028E158,expect_success=True)
 
     def test_in_unit_but_noncanonical_calculate_target_abstains(self):
         # Published RPGolMain unit membership is insufficient: user's real
