@@ -1,0 +1,29 @@
+name: P0 private swing trace link (synthetic only)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_swing_trace_link_private.py'
+      - 'tests/test_p0_swing_trace_link_private.py'
+      - '.github/workflows/p0-private-trace-link.yml'
+  workflow_dispatch:
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Offline private trace-link unit tests (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_p0_swing_trace_link_private.py -v
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Offline private trace-link unit tests (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_p0_swing_trace_link_private.py -v
