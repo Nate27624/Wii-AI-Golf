@@ -19,3 +19,12 @@ The new `scripts/audit_p0_cache_cfg_original_b0_adapter.py` loads **only** a hel
 13 fabricated-only tests cover helper revision/dirty/blob mismatch, invalid ROM revision, wrong published code owner, shortened source bounds, malformed helper/premature training promotion, output redaction, strict B0 SHA pre/post, and missing bank. Source CI runs Windows/Ubuntu **without actual private B0 or helper Git checkout**. S002 #219/#254 owner must review helper SHA and adapter privacy first. The operator can then provide **existing** private B0 folder and separate reviewed helper worktree with a single pinned PowerShell block; do **not** run this from an unreviewed PR revision.
 
 No GitHub action reads local game RAM or native dumps. No operator capture or live Dolphin is requested. No automatic merge, no training approval; all P0 physics/score/shot/UI controls remain open. Source finding can later inform the S001/#248 same-guest-frame watcher contract only if all owners approve.
+
+
+## Hosted qualification of this new adapter
+
+At revised code+test HEAD `74535ef22009d7643c391437a8d924d63dcc1c27`, dedicated [GitHub Actions run 40650802424](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40650802424) **PASS** on both Windows and Ubuntu (**13/13** fabricated tests per OS). PR #257 contains exactly **four new files** relative to #219 and stays DRAFT. No original B0 native bank was available to GitHub CI and **the adapter has not yet been run on the operator's real B0 source**.
+
+Independent early review detected a scientific provenance bug: the internal `report_from_bytes` helper could have claimed SHA/helper verification if called directly on fabricated bytes. This was fixed in HEAD `74535ef2`: its trust flags are FALSE until the external `audit` wrapper completes **both original-bank SHA checks, published source ownership check and exact pinned helper Git/blob verification**. New focused tests enforce this distinction.
+
+The `CFG_SHA` pin is `8696a46a315499f220ee7c87580a21dc99f21462`, an earlier already-reviewed #254 code version, not a promise of automatic compatibility with later #254 source edits. The parent authors must review this adapter, target helper SHA and original B0 evidence before any interpretation.
