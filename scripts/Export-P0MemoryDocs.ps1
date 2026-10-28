@@ -115,7 +115,7 @@ foreach ($v in $variables) {
     if ($v.owner -isnot [string] -or
         $v.owner -cnotmatch '^[A-Za-z0-9._/-]{1,32}$' -or
         $v.phase_provenance -isnot [string] -or
-        $v.phase_provenance -cnotmatch '^[A-Za-z][A-Za-z0-9_]{0,119}) {
+        $v.phase_provenance -cnotmatch '^[A-Za-z][A-Za-z0-9_]{0,119}$') {
         throw 'Unsafe owner or phase provenance value'
     }
     if ($null -eq $v.evidence -or @($v.evidence.source_urls).Count -eq 0 -or
