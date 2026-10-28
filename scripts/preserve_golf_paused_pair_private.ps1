@@ -90,6 +90,18 @@ try {
         -not (Is-StrictChild $session $dataRoot)) {
         Stop-Private 'session must be inside ignored sibling Data root'
     }
+    # Also reject junctions/symlinks in *intermediate* session folders.
+    # Checking just the final session folder is insufficient on Windows.
+    $cursor = Get-Item -LiteralPath $session -Force
+    while ($null -ne $cursor) {
+        if ($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            Stop-Private 'linked private session ancestor refused'
+        }
+        if ([string]::Equals($cursor.FullName, $dataRoot,
+                             [StringComparison]::OrdinalIgnoreCase)) { break }
+        $cursor = $cursor.Parent
+    }
+    if ($null -eq $cursor) { Stop-Private 'private session ancestry invalid' }
     $src1 = Resolve-SafeSource $SourceMem1Path $cleanRoot (24MB) $ExportStartedAfter.ToUniversalTime()
     $src2 = Resolve-SafeSource $SourceMem2Path $cleanRoot (64MB) $ExportStartedAfter.ToUniversalTime()
     if ([string]::Equals($src1, $src2, [StringComparison]::OrdinalIgnoreCase)) {
