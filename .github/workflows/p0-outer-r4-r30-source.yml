@@ -1,0 +1,37 @@
+name: P0 seven-source r4/r30 provenance (synthetic)
+on:
+  push:
+    paths:
+      - 'scripts/review_p0_outer_operand_r4_r30_source.py'
+      - 'scripts/audit_p0_outer_operand_r4_r30_private.py'
+      - 'scripts/omega_p0_offline_private.py'
+      - 'tests/test_p0_outer_operand_r4_r30_source.py'
+      - 'tests/test_p0_r4_r30_canonical_integration_private.py'
+      - '.github/workflows/p0-outer-r4-r30-source.yml'
+  pull_request:
+    paths:
+      - 'scripts/review_p0_outer_operand_r4_r30_source.py'
+      - 'scripts/audit_p0_outer_operand_r4_r30_private.py'
+      - 'scripts/omega_p0_offline_private.py'
+      - 'tests/test_p0_outer_operand_r4_r30_source.py'
+      - 'tests/test_p0_r4_r30_canonical_integration_private.py'
+      - '.github/workflows/p0-outer-r4-r30-source.yml'
+  workflow_dispatch:
+jobs:
+  fabricated:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: PPC GPR r4/r30 instruction effects and hazard synthetics
+        run: python -m unittest discover -s tests -p test_p0_outer_operand_r4_r30_source.py -v
+      - name: Original 14-bank source callback and Omega synthesized flags (fabricated)
+        run: python -m unittest discover -s tests -p test_p0_r4_r30_canonical_integration_private.py -v
+      - name: Previously reviewed omega baseline regressions
+        run: python -m unittest discover -s tests -p test_p0_omega_offline_private.py -v
