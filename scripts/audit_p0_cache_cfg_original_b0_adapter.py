@@ -165,9 +165,9 @@ def report_from_bytes(bank: Path, module, *, public_units):
         "kind": "P0-SOURCE-AUTHENTICATED-ORIGINAL-B0-CACHE-CFG-ADAPTER",
         "game_id": "RSPE01",
         "revision": 1,
-        "original_B0_SHA_and_manifest_verified_before_after": True,
-        "public_Golf_source_window_gated": True,
-        "reviewed_pure_CFG_helper_commit_verified": True,
+        "original_B0_SHA_and_manifest_verified_before_after": False,
+        "public_Golf_source_window_gated": False,
+        "reviewed_pure_CFG_helper_commit_verified": False,
         "source_only_two_callers": rows,
         "entry_r3_object_class_or_identity_verified": False,
         "runtime_cache_receiver_or_executed_writer_verified": False,
@@ -186,6 +186,9 @@ def audit(session: Path, data_root: Path, helper_root: Path):
     # Source ownership and original bank hash are checked again after reads.
     if source.checked_private_b0(session, data_root) != original:
         raise QualificationError
+    result["original_B0_SHA_and_manifest_verified_before_after"] = True
+    result["public_Golf_source_window_gated"] = True
+    result["reviewed_pure_CFG_helper_commit_verified"] = True
     return result
 
 
