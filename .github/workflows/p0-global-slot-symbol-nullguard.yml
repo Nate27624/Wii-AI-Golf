@@ -1,0 +1,33 @@
+name: S002 global slot public symbol and BO null check
+
+on:
+  push:
+    paths:
+      - 'scripts/review_p0_global_slot_symbol_nullguard.py'
+      - 'tests/test_p0_global_slot_symbol_nullguard_private.py'
+      - 'scripts/audit_p0_global_ball_source_xrefs_private.py'
+      - '.github/workflows/p0-global-slot-symbol-nullguard.yml'
+  pull_request:
+    paths:
+      - 'scripts/review_p0_global_slot_symbol_nullguard.py'
+      - 'tests/test_p0_global_slot_symbol_nullguard_private.py'
+      - 'scripts/audit_p0_global_ball_source_xrefs_private.py'
+      - '.github/workflows/p0-global-slot-symbol-nullguard.yml'
+  workflow_dispatch:
+
+jobs:
+  source-gated-synthetic:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify Rev1 symbol and PPC BO/BI gate synthetic
+        run: python -m unittest discover -s tests -p 'test_p0_global_slot_symbol_nullguard_private.py' -v
+      - name: Recheck earlier post-return source traversal
+        run: python -m unittest discover -s tests -p 'test_p0_global_slot_post_return_paths_private.py' -v
