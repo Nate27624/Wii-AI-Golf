@@ -183,3 +183,26 @@ Added `scripts/review_p0_ball_ctor_return_register_risks.py` and source-gated in
 
 This intentionally remains **weaker than a complete PPC must-definition proof**. Some X-form effects are only conservatively POSSIBLE GPR writes; the full opcode semantics and ABI preservation across calls are NOT verified. Direct static branches are not fully path-exhaustive; a clean result only means no classified hazards were found in the inspected source. `whole_function_receiver_to_return_must_def_verified=false`, `actual_global_pointer_runtime_identity_verified=false`, `actual_inflight_execution_verified=false`, `training_approved=false`. New real native run PENDING. Existing #258 independently corrects the OTHER source-global-slot writer r3 classifier, #254/#255 independently own cache receiver, #262 owns two-BL code-unit lookup; no duplicates.
 
+
+## 2026-10-28 REAL operator return-register hazard audit — exact reviewed source
+
+Operator executed exact [#240](https://github.com/Nate27624/Wii-AI-Golf/pull/240) `25f9660cc068983999f3cc6f44915f3803f8b614` on original W5/W6/W7 private banks after **19/19 fabricated register-risk tests + 11/11 previous constructor tests PASS** on local Windows. `P0 CONSTRUCTOR REGISTER AUDIT COMPLETE`, original source/selected ball and geometry gates PASS. Exact sanitized actual source findings:
+
+| Source claim | Observed result |
+| --- | --- |
+| Entry receiver source | `mr r31,r3` at `RPGolMapObjBall+0x3BB0` |
+| r31 writes recognized after save before return copy | **0**, empty list |
+| Return value source | `mr r3,r31` at `+0x3DA4` |
+| r3 writes recognized after copy before blr | **0**, empty list |
+| Bypassing direct branches to return | **false**, empty list |
+| External direct branch sites and indirect branch sites | **empty lists** |
+| Return instruction | `blr` at `+0x3DB8` |
+| No classified r31/r3 clobber or direct bypass | **true** |
+| Full PPC register classifier / whole-function must-def | **false / false** |
+
+The result is now a particularly strong **static constructor receiver-preserving return** hypothesis. Existing independent source evidence verified first BL `operator new(size_t)`, compare r3==0, branch on CR0.EQ to store for allocation failure, second BL `fn_8029AB78` for nonnull, and global r13 singleton `stw r3`. Separate native runtime source-global object is outside all four roster balls in all seven snapshots and its translation matches selected CC in W5/W6/W7. This source result does **NOT** prove actual constructor execution during shot, source-global object class at runtime via vtable, global-vs-renderer association, predicted endpoint, same guest physics frame, physical XYZ/velocity/power/contact/score or training readiness. `all_callee_nonvolatile_r31_preservation_verified=false` and `whole_function_receiver_to_return_must_def_verified=false` remain correct; a clean bounded risk scan cannot exclude unmodeled PPC writes, dynamic branches or ABI issues.
+
+### Research priority decision
+
+Do NOT spend more operator compute on additional 10–20 instruction linear proximity searches to reconfirm the already strong static constructor pathway. Best next **distinct P0** is owner-approved *guest-physics-frame-qualified* dual-object observation during a human-verified no-shot control and one controlled shot, keeping source-global and selected player ball separate and checking rendered projectile association. The current [PR #248](https://github.com/Nate27624/Wii-AI-Golf/pull/248) defines a PURE offline frame contract; [PR #215](https://github.com/Nate27624/Wii-AI-Golf/pull/215) only qualifies stationary source watcher; [PR #166](https://github.com/Nate27624/Wii-AI-Golf/pull/166) is an opt-in source-selected live watcher, **NOT** a proven source-global dual-object or physics guest-frame sampler. These owners must review/integrate and pass S001/S002/S000 gates before any real Dolphin run. Do not call an ordinary bridge tick an emulated guest physics frame. Do not use the disputed operator W7 on-green label as verified physical landing or training target; see #205 corrections. No background, auto-run or writes.
+
