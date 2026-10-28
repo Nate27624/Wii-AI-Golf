@@ -1,0 +1,34 @@
+name: P0 CLI clean Felk V1 safety (synthetic only)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/research_cli.py'
+      - 'tests/test_research_cli_clean_dolphin.py'
+      - '.github/workflows/p0-clean-v1-cli.yml'
+  workflow_dispatch:
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Clean V1 CLI tests (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_research_cli_clean_dolphin.py -v
+      - name: Existing CLI tests (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_research_cli.py -v
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Clean V1 CLI tests (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_research_cli_clean_dolphin.py -v
+      - name: Existing CLI tests (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_research_cli.py -v
