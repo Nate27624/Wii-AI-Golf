@@ -120,3 +120,29 @@ that training mode 4 executes this method.
 This finding raises the expected value of **typed outcome tracing**
 over running the current unconfirmed +0x0C..+0x18 pointer reader.
 No new native run, Dolphin, shot, frame or training data is authorized.
+
+
+## Additional independent source discrepancy: singleton symbol class-length
+
+The pinned Kokeshi `base/symbols_sports.txt` entry is literally
+`spInstance__16RPGolSequenceManager=0x804bf920`, but the pinned
+C++ header declares `class RPGolSequenceManager`, whose identifier
+has **20 characters**; `RPGolSequenceMgr` has 16. The
+`RP_SINGLETON_DECL(T)` macro in pinned `RPTypes.h` really
+declares `static T* spInstance` so this difference is not a
+benign macro-rewritten field name. The source symbol file may have
+a stale/manual typo or may refer to a differently named binary
+class; this discrepancy **does not establish** which interpretation
+is true.
+
+Therefore the pair `0x804BF920` + `RPGolSequenceManager`
+has **only candidate confidence**. No operator execution of the
+#277 private pointer reader is warranted based on this header/symbol
+join alone. Require exact Rev1 PPC code xrefs/load/store or a
+second independently mapped symbol with full object provenance.
+A global static pointer-looking word or a successful test against
+fabricated RAM would not resolve the class ownership.
+
+The named `RPGolPhase::CommitResult` API is a distinct source
+declaration; the singleton symbol typo does not establish
+its machine-code address or whether mode 4 invokes it.
