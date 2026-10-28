@@ -129,6 +129,18 @@ def caller_input_probe(read_u32) -> list[dict]:
     return result
 
 
+def verify_caller_snapshot(expected: list[dict] | None, read_u32) -> list[dict]:
+    """Verify exact caller BL on every phase, not only phase one.
+
+    The bounded receiver-def labels are static hints. If the code changes,
+    abstain rather than treating different binaries as one provenance cohort.
+    """
+    observed = caller_input_probe(read_u32)
+    if expected is not None and observed != expected:
+        raise ValueError("source cache caller PPC differs between phases")
+    return observed
+
+
 def source_global_slot(read_u32) -> dict:
     """Strict static PPC anchor + lwz + translation-follow verification.
 
@@ -210,8 +222,24 @@ def summarize(samples, codes, callers) -> dict:
         if any(x["refs"][name]!=y["refs"][name] for name in
                ("scene_field","ball","pin","start")):
             raise ValueError("source object pointers changed in same-shot pair")
-    # Verified source code should remain immutable across all phases.
-    signature=[(c["global_load_type"],c["static_source_global_slot_supported"]) for c in codes.values()]
+        # A stable pin/start pointer is insufficient: earlier cross-session
+        # evidence demonstrated coordinate changes behind stable identities.
+        for field in ("source_selected_pin", "source_current_start"):
+            va=x["triplets"].get(field)
+            vb=y["triplets"].get(field)
+            if (type(va) is not tuple or type(vb) is not tuple
+                    or len(va)!=3 or len(vb)!=3 or va!=vb):
+                raise ValueError("source pin/start geometry changed or incomplete")
+        # Golf Config selectors must also remain identical within one shot.
+        ca=x.get("_private_config_selectors")
+        cb=y.get("_private_config_selectors")
+        if (type(ca) is not tuple or type(cb) is not tuple
+                or len(ca)!=3 or len(cb)!=3 or ca!=cb):
+            raise ValueError("source mode/config selector changed or incomplete")
+    # Store exact global-slot identities PRIVATELY; identical PPC decode
+    # categories alone can conceal changed r13 displacements across phases.
+    signature=[(c["global_load_type"],c["static_source_global_slot_supported"],
+                c.get("slot")) for c in codes.values()]
     if len(set(signature))!=1:
         raise ValueError("PPC global source dataflow changed between snapshots")
     rows=[]
@@ -270,11 +298,17 @@ def run_local(directory:Path) -> dict:
                     fh.fileno(),0,access=mmap.ACCESS_READ))
             rd=ROSTER.TwoBankReader(mm["MEM1"],mm["MEM2"])
             samples[phase]=seven._source_sample(mm["MEM1"],mm["MEM2"])
+            cfg=rd.u32(ROSTER.GOLF_CONFIG_STATIC)
+            if ROSTER._bank(cfg,0xC8)!="MEM2":
+                raise ValueError("source golf Config object invalid")
+            samples[phase]["_private_config_selectors"]=tuple(
+                rd.u32(cfg+off) for off in (0xBC,0xC0,0xC4))
             code=source_global_slot(rd.u32)
-            codes[phase]={k:v for k,v in code.items() if k!="slot"}
+            # Keep private source slot for cross-phase consistency checking.
+            # summarize() emits only a categorical load class, never slot.
+            codes[phase]=code.copy()
             codes[phase]["runtime"]=sample_runtime(rd.u32,samples[phase],code)
-            if callers is None:
-                callers=caller_input_probe(rd.u32)
+            callers=verify_caller_snapshot(callers,rd.u32)
         for bank,p in pair.items():
             if seven._hash(p)!=before[bank]:
                 raise ValueError("raw source bank changed during inspection")
