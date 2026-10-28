@@ -1,0 +1,29 @@
+name: P0 offline seven numbered source pairs
+on:
+  push:
+    branches:
+      - agent/research/p0-numbered-new-dump-cohort-20261028
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_seven_numbered_source_pairs_private.py'
+      - 'tests/test_p0_seven_numbered_source_pairs_private.py'
+      - '.github/workflows/p0-seven-numbered-source-pairs.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run fabricated negative-control tests
+        run: python -m unittest discover -s tests -p test_p0_seven_numbered_source_pairs_private.py -v
+      - name: Check script syntax
+        run: python -m compileall -q scripts/audit_p0_seven_numbered_source_pairs_private.py tests/test_p0_seven_numbered_source_pairs_private.py
