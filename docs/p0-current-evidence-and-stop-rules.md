@@ -28,6 +28,8 @@
 5. **Integrate accepted safety fixes once:** #215 adopted #275 first-anchor stationary guard (duplicate #274); #248 adopted #276 alias/motion gating and #290/#292 canonical MEM2 object span checks, **42/42 synthetic Win+Ubuntu**. Child authors should confirm parent readback and close duplicate branches, not merge twice. #248 `same_callback_guest_frame_observation_attested` is still EXTERNAL; the pure analyzer cannot supply the guest physics-frame producer. Retain drafts and S001/S002/S000 review.
 
 6. **Do not repeat installed PE revision check:** #282 local identity and #295 real positive full public preview4 marker are already reported. #296 is an overlapping optional switch; owners should consolidate/defer rather than ask the operator for the identical marker again. Exact active-process/source equivalence is NOT proved.
+   **Launcher path decision (source-only):** reviewed current `main` `scripts/launch_golf.py` blob `7a0d490f6fc7ab3672897404e5047181815b1706` defaults `--dolphin` to sibling `tools/FelkDolphin/Dolphin.exe`; `scripts/run_golf_experiment.py` blob `e855dc1ac3dc7f2ac5c829e0235933e25303d269` forwards an optional explicit override. The operator previously identified `tools/FelkDolphin-Clean/Dolphin.exe` as the file they normally use. These are distinct possible executables; **do NOT assume** the full embedded revision witness, prior binary SHA, or actual gameplay runs used the same one. Launcher `research/launch.local.json` stores game/checkpoint/user directory, not an executable selection in the examined source. S001 must reconcile the actual **invocation's** explicit/default Dolphin path, without printing local paths/hashes or launching an instance merely to check.
+
 
 ## Minimum bar for another user PowerShell test
 
