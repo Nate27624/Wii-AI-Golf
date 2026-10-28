@@ -16,13 +16,13 @@ def post_boot_action_args(script_name: str, arguments: list[str]) -> list[str]:
     """Return exact child arguments for a *completed* canonical first-shot boot.
 
     The attach flag is injected only for reviewed S001 post-boot scripts. A
-    caller cannot explicitly request attach mode; this avoids ambiguous
-    ownership of the already-running Dolphin session.
+    caller cannot explicitly request attach mode THROUGH THIS HELPER. The
+    child flag is manually supplyable; it does not attest the boot sequence.
     """
     if not isinstance(arguments, list) or not all(isinstance(a, str) for a in arguments):
         raise ValueError("Post-boot action arguments must be a list of strings")
     if any(a.split("=", 1)[0] == ATTACH_FLAG for a in arguments):
-        raise ValueError("Only the canonical post-boot dispatcher can authorize attach mode")
+        raise ValueError("Caller cannot pass attach mode through canonical dispatcher")
     return ([ATTACH_FLAG] if script_name in (PROBE_SCRIPT, WATCHED_SWING_COLLECTOR_SCRIPT,
                                               V1_WATCHED_SWING_COLLECTOR_SCRIPT,
                                               STATIONARY_WATCH_QUALIFIER_SCRIPT) else []) + arguments
