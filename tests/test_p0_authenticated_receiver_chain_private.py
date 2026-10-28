@@ -76,27 +76,27 @@ class ReceiverIntegrationTests(unittest.TestCase):
         disp=-120
         entry=outer.SOURCES[0][1]
         read=lambda pc: lwz(3,13,disp) if pc==entry+0x1C else 0
-        kind=runner._classification(outer_rows[0],read,disp,inner_rows[0])
+        kind=runner._classification(outer_rows[0],read,disp)
         self.assertEqual(kind,"DIRECT_GLOBAL_R13_LOAD_SYNTAX_CANDIDATE")
 
     def test_roster_like_88_load_not_assigned_owner(self):
         outer_rows, inner_rows = samples()
         entry=outer.SOURCES[0][1]
         read=lambda pc: lwz(3,31,0x88) if pc==entry+0x1C else 0
-        kind=runner._classification(outer_rows[0],read,-120,inner_rows[0])
+        kind=runner._classification(outer_rows[0],read,-120)
         self.assertEqual(kind,"BALL_CHILD_OFFSET_0x88_UNOWNED_BASE_CANDIDATE")
 
     def test_wrong_disp_or_unknown_source_never_promoted(self):
         a,b=samples()
         entry=outer.SOURCES[0][1]
         read=lambda pc: lwz(3,13,-119) if pc==entry+0x1C else 0
-        self.assertEqual(runner._classification(a[0],read,-120,b[0]),
+        self.assertEqual(runner._classification(a[0],read,-120),
                          "OTHER_OR_UNRESOLVED_GPR_R3_SOURCE")
         a[0]["nearest_r3_definition_distance_words"]=None
-        self.assertEqual(runner._classification(a[0],read,-120,b[0]),
+        self.assertEqual(runner._classification(a[0],read,-120),
                          "UNRESOLVED_R3_INPUT")
         a[0]["exact_direct_calls_found_within_window"]=0
-        self.assertEqual(runner._classification(a[0],read,-120,b[0]),
+        self.assertEqual(runner._classification(a[0],read,-120),
                          "UNRESOLVED_OUTER_CALLSITE")
 
     def test_all_native_roster_balls_distinct_from_global_pointer(self):
@@ -171,6 +171,20 @@ class ReceiverIntegrationTests(unittest.TestCase):
         payload=json.dumps(out)
         for word in ("0x90005000","0x80400010","-120","0x8029"):
             self.assertNotIn(word,payload)
+
+    def test_wrong_source_caller_pairing_fails_closed(self):
+        a,b=samples()
+        b[0], b[1] = b[1], b[0]
+        code={}
+        for _, entry, *_ in outer.SOURCES:
+            code[entry+0x1C] = lwz(3,13,-120)
+        with self.assertRaises(ValueError):
+            runner.synthesize(
+                {"outer_call_windows":a},
+                {"sources":b,"both_static_proofs_succeeded":True},
+                [{"all_four_source_roster_balls_valid_and_distinct":True,
+                  "source_global_ball_is_outside_four_roster_balls":True}]*7,
+                lambda pc:code[pc], -120)
 
     def test_incomplete_samples_abstain(self):
         a,b=samples()
