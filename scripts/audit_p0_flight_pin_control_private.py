@@ -16,6 +16,11 @@ from pathlib import Path
 import struct
 import sys
 
+# Python -I intentionally excludes the script directory from sys.path.
+# Admit only this checked-out script's own directory for sibling source
+# modules; do not accept arbitrary cwd files or user-supplied Python paths.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import audit_p0_inflight_vs_b0_private as audit
 import audit_golf_two_bank_roster_private as roster
 
