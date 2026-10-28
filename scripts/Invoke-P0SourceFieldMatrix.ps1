@@ -41,10 +41,22 @@ function Read-P0U32([hashtable]$Banks, [uint64]$Address) {
     return [uint32](([uint64]$v[0] -shl 24) -bor ([uint64]$v[1] -shl 16) -bor ([uint64]$v[2] -shl 8) -bor [uint64]$v[3])
 }
 function Read-P0Words([hashtable]$Banks, [uint64]$Address, [int]$Count) {
-    Assert-P0 ($Count -ge 1 -and $Count -le 4) 'unexpected field component count'
+    Assert-P0 ($Count -ge 1 -and $Count -le 36) 'unexpected field component count'
     $out = @()
     for ($i = 0; $i -lt $Count; $i++) { $out += [uint32](Read-P0U32 $Banks ($Address + 4 * $i)) }
     return ,([uint32[]]$out)
+}
+function Read-P0Flag([hashtable]$Banks, [uint64]$Address) {
+    # Source struct bool is one byte, not a BE u32. Reject malformed bools.
+    [byte[]]$v = Read-P0Bytes $Banks $Address 4
+    Assert-P0 ($v[0] -eq 0 -or $v[0] -eq 1) 'source UI flag is not a boolean byte'
+    return [uint32]$v[0]
+}
+function Read-P0PointerPresent([hashtable]$Banks, [uint64]$Address) {
+    $ptr = Read-P0U32 $Banks $Address
+    if ($ptr -eq 0) { return [uint32]0 }
+    Assert-P0 ((Test-P0MemoryRange $ptr 4 'MEM1') -or (Test-P0MemoryRange $ptr 4 'MEM2')) 'source object pointer outside RAM'
+    return [uint32]1
 }
 function Assert-P0FloatWords([uint32[]]$Words) {
     foreach ($word in $Words) {
@@ -117,9 +129,32 @@ function Get-P0Snapshot([hashtable]$Banks) {
     # Cup inherited Base offset is a *hypothesis*, independently falsifiable.
     $words['golf.cup.map_translation_xyz'] = Read-P0Words $Banks ($cup + 0x30) 3
     foreach ($name in $words.Keys) { Assert-P0FloatWords ([uint32[]]$words[$name]) }
+
+    # Additional source-defined context and negative-control fields.
+    # Config: RPGolConfig.h US Rev1 mPlayerScores[4][9]+0x04,
+    # mGameMode+0x94, mCurrentHole+0x98.
+    # Field: RPGolFieldManager.h mTreeShadowUpdateTimer+0x10,
+    # mNumTargetObjs+0x30, mNumPinObjs+0x3C, mNumPlayerObjs+0x48,
+    # mWindObj+0x68, flags +0x6C/+0x7C/+0x88/+0xA4.
+    # Values are private; only changed-component counts leave this scope.
+    $context = [ordered]@{}
+    $context['golf.config.mode_id'] = Read-P0Words $Banks ($config + 0x94) 1
+    $context['golf.config.current_hole_index'] = Read-P0Words $Banks ($config + 0x98) 1
+    $context['golf.config.player_scores_4x9_candidate'] = Read-P0Words $Banks ($config + 0x04) 36
+    $context['golf.field.target_object_count'] = Read-P0Words $Banks ($field + 0x30) 1
+    $context['golf.field.pin_object_count'] = Read-P0Words $Banks ($field + 0x3C) 1
+    $context['golf.field.player_start_object_count'] = Read-P0Words $Banks ($field + 0x48) 1
+    $context['golf.field.tree_shadow_update_timer'] = Read-P0Words $Banks ($field + 0x10) 1
+    $context['golf.field.wind_object_pointer_present'] = [uint32[]]@((Read-P0PointerPresent $Banks ($field + 0x68)))
+    $context['golf.field.wind_arrow_visible'] = [uint32[]]@((Read-P0Flag $Banks ($field + 0x6C)))
+    $context['golf.field.green_slope_visible'] = [uint32[]]@((Read-P0Flag $Banks ($field + 0x7C)))
+    $context['golf.field.minimap_visible'] = [uint32[]]@((Read-P0Flag $Banks ($field + 0x88)))
+    $context['golf.field.target_emitter_kill_flag'] = [uint32[]]@((Read-P0Flag $Banks ($field + 0xA4)))
+
     return [pscustomobject]@{
         Identity = @([uint64]$sceneMgr, [uint64]$scene, [uint64]$config, [uint64]$field, [uint64]$pm, [uint64]$record, [uint64]$ball, [uint64]$ballTrans, [uint64]$start, [uint64]$startTrans, [uint64]$pin, [uint64]$cup, [uint64]$hole, [uint64]$indices[0])
         Words = $words
+        ContextWords = $context
     }
 }
 function Get-P0ComponentDifference([uint32[]]$Left, [uint32[]]$Right) {
@@ -187,6 +222,29 @@ try {
             changed_components_B0_B1 = [int]$dims[0]
             changed_components_B1_B2 = [int]$dims[1]
             changed_components_B2_B3 = [int]$dims[2]
+            source_candidate_not_physics_verified = $true
+        }
+    }
+    foreach ($key in $snapshots[0].ContextWords.Keys) {
+        $dims = @((0..2) | ForEach-Object {
+            $index = $_
+            Get-P0ComponentDifference ([uint32[]]$snapshots[$index].ContextWords[$key]) ([uint32[]]$snapshots[($index + 1)].ContextWords[$key])
+        })
+        $class = if ($key -like '*scores*') {
+            'score_table_source_defined_not_verified_shot_label'
+        } elseif ($key -like '*wind_object_pointer*') {
+            'pointer_presence_not_wind_speed_or_direction'
+        } elseif ($key -like '*mode_id' -or $key -like '*hole_index' -or $key -like '*object_count') {
+            'context_source_defined'
+        } else { 'render_or_ui_negative_control_not_ball_physics' }
+        $matrix += [ordered]@{
+            registry_id = $key
+            changed_components_B0_B1 = [int]$dims[0]
+            changed_components_B1_B2 = [int]$dims[1]
+            changed_components_B2_B3 = [int]$dims[2]
+            component_count = [int]([uint32[]]$snapshots[0].ContextWords[$key]).Count
+            evidence_class = $class
+            proposed_registry_mapping_only = $true
             source_candidate_not_physics_verified = $true
         }
     }
