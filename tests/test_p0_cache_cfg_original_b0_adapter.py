@@ -82,6 +82,22 @@ class AdapterTests(unittest.TestCase):
             with self.assertRaises(adapter.QualificationError):
                 adapter.report_from_bytes(bank, FakeCFG(), public_units=bad)
 
+    def test_same_golf_family_wrong_object_source_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            bank = synthetic_b0(Path(td))
+            bad = ((0x80296FD8, 0x8029B240,
+                    "Pack/RPSports/RPGolScene/RPGolPlayer.cpp"),)
+            with self.assertRaises(adapter.QualificationError):
+                adapter.report_from_bytes(bank, FakeCFG(), public_units=bad)
+
+    def test_overlapping_duplicate_source_owners_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            bank = synthetic_b0(Path(td))
+            bad = PUBLIC + ((0x80296FD8, 0x8029B240,
+                             "Pack/RPSports/RPGolScene/RPGolMapObjBall.cpp"),)
+            with self.assertRaises(adapter.QualificationError):
+                adapter.report_from_bytes(bank, FakeCFG(), public_units=bad)
+
     def test_incomplete_source_bounds_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             bank = synthetic_b0(Path(td))
