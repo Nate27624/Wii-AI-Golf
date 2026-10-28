@@ -29,7 +29,7 @@ def fixture():
     # exactly 24MiB/64MiB; this helper cannot bypass the CLI file-size gate.
     m1 = bytearray(0x4BF8D4)
     m2 = bytearray(0x6000)
-    m1[:8] = b"RSPE01\\x00\\x01"
+    m1[:8] = b"RSPE01\x00\x01"
     put(m1, 0x4BF4D8, 0x80001000)
     put(m1, 0x4BF8C4, 0x90001000)
     put(m1, 0x4BF868, 0x90001100)
