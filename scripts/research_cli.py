@@ -16,6 +16,8 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -83,11 +85,115 @@ def _fresh_human_labels(start_time: datetime) -> dict:
                            and (human[k] is None or type(human[k]) in (str, int, float, bool))}
         result["controller"] = {k: swing[k] for k in SAFE_TRACE if k in swing
                                 and (swing[k] is None or type(swing[k]) in (str, int, float, bool))}
-        result["settled_screen_observation"] = content.get("settled_screen_observation")
+        observed = content.get("settled_screen_observation")
+        # Never transmit arbitrary nested private collector content.
+        result["settled_screen_observation"] = observed if type(observed) is str and observed in {
+            "operator_confirmed_before_transition",
+            "screen_had_already_transitioned_before_settled_samples",
+            "already transitioned",
+            "human_terminal_before_transition",
+            "human_terminal_unseen_or_unknown",
+        } else "unknown"
         return result
     except (OSError, ValueError, UnicodeError):
         return {"capture_status": "unreadable_summary"}
 
+
+
+def _joined_visual_first(run_token: str, start: datetime, *,
+                         a_lead: int, speed: float, backswing: float) -> dict:
+    """Read ONE exactly named child artifact; never infer identity via file mtime.
+
+    All values are unverified human annotations/command metadata. No RAM or
+    private file path is returned. Invalid/incomplete records fail closed.
+    """
+    invalid = {"capture_status": "visual_first_join_refused",
+               "shot_dispatch_verified_by_collector": False}
+    path = CAPTURES / ("outcome-" + run_token + "-candidates.json")
+    try:
+        if (not re.fullmatch(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{10}", run_token)
+                or path.is_symlink() or not path.is_file()
+                or not 0 < path.stat().st_size <= 2_000_000
+                or path.stat().st_mtime < start.timestamp()):
+            return invalid
+        item = json.loads(path.read_text(encoding="utf-8"))
+        if type(item) is not dict or item.get("run_token") != run_token:
+            return invalid
+        if (item.get("source") != "live-emulator-read-only-US-Rev1+human-result-label"
+                or item.get("outcome_collection_mode") != "human_terminal_first_no_ram"
+                or item.get("raw_data_created") is not False
+                or item.get("candidate_ranking") is not None):
+            return invalid
+        dispatch = item.get("swing_dispatch")
+        swing = item.get("known_good_swing_request")
+        human = item.get("human_observation")
+        if not all(type(v) is dict for v in (dispatch, swing, human)):
+            return invalid
+        if (dispatch.get("state") != "complete"
+                or type(swing.get("generated_trace_frames")) is not int
+                or swing["generated_trace_frames"] != 89
+                or type(dispatch.get("applied_frames")) is not int
+                or dispatch["applied_frames"] != swing["generated_trace_frames"]
+                or swing.get("preset") != "forward"
+                or swing.get("motion_scale") != 1.0
+                or swing.get("speed_scale") != speed
+                or swing.get("backswing_scale") != backswing
+                or swing.get("a_lead_requested_frames") != a_lead
+                or type(swing.get("a_lead_observed_frame_delta")) is not int
+                or swing["a_lead_observed_frame_delta"] < a_lead):
+            return invalid
+        digest = swing.get("trace_sha256")
+        if type(digest) is not str or re.fullmatch(r"[a-f0-9]{64}", digest) is None:
+            return invalid
+        contact, green = human.get("contact_human"), human.get("finished_on_green_human")
+        seen = human.get("terminal_screen_seen_before_transition_human")
+        kind = human.get("visible_result_class_human")
+        source = human.get("displayed_distance_source")
+        value = human.get("displayed_distance_human")
+        unit = human.get("displayed_unit_human")
+        if (contact not in ("yes", "no", "unknown") or green not in ("yes", "no", "unknown")
+                or seen not in (True, False, None) or type(kind) is not str
+                or kind not in ("green", "offgreen", "uncertain", "transitioned")
+                or source not in ("offgreen_100ft_penalty", "offgreen_display_unverified",
+                                  "ongreen_display_human", "unseen_or_not_recorded")
+                or unit not in ("ft", "yd", "m", "unknown", "not-visible")
+                or (value is not None and (type(value) not in (int, float)
+                    or not math.isfinite(value) or not 0 <= value <= 100000))
+                or human.get("game_distance_verified_by_memory") is not False):
+            return invalid
+        if ((kind == "green" and (green != "yes" or seen is not True))
+                or (kind == "offgreen" and (green != "no" or seen is not True))
+                or (kind in ("uncertain", "transitioned") and green != "unknown")
+                or (kind == "transitioned" and seen is not False)
+                or (kind == "uncertain" and seen is not None)
+                or (source == "offgreen_100ft_penalty" and
+                    not (kind == "offgreen" and value == 100.0 and unit == "ft"))
+                or (source == "ongreen_display_human" and kind != "green")):
+            return invalid
+        screen = item.get("settled_screen_observation")
+        if screen != ("human_terminal_before_transition" if seen is True
+                      else "human_terminal_unseen_or_unknown"):
+            return invalid
+        return {
+            "capture_status": "visual_first_joined",
+            "shot_dispatch_verified_by_collector": True,
+            "controller": {"trace_sha256": digest, "generated_trace_frames": 89,
+                           "a_lead_requested_frames": a_lead,
+                           "a_lead_observed_frame_delta": swing["a_lead_observed_frame_delta"],
+                           "speed_scale": speed, "backswing_scale": backswing,
+                           "motion_scale": 1.0},
+            "human": {"contact_human": contact, "finished_on_green_human": green,
+                      "terminal_screen_seen_before_transition_human": seen,
+                      "visible_result_class_human": kind,
+                      "displayed_distance_source": source,
+                      "displayed_distance_human": value,
+                      "displayed_unit_human": unit},
+            "settled_screen_observation": screen,
+            "verified_game_score": False,
+            "physical_distance_verified": False,
+        }
+    except (OSError, ValueError, UnicodeError, TypeError, OverflowError):
+        return invalid
 
 
 def _fallback_human_observation(*, answer=input) -> dict:
@@ -209,6 +315,8 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--trial-index", type=int, choices=range(1,11), default=None)
     v.add_argument("--live", action="store_true", help="Explicit consent to launch Dolphin")
     v.add_argument("--no-upload", action="store_true", help="Keep report local")
+    v.add_argument("--visual-first", action="store_true",
+                   help="M1.5 one-shot terminal HUMAN result first; no RAM scoring")
     args = parser.parse_args(argv)
     try:
         report = sync_merged_main(ROOT)  # CLI workflow does not use retired GUI lockfiles
@@ -229,6 +337,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "v1" and args.backswing_scale != 1.0 and args.speed_scale != 1.0:
             parser.error("change either --backswing-scale or --speed-scale, not both")
         if args.command == "v1":
+            if args.visual_first and args.study_id is not None:
+                parser.error("The M1.5 visual-first pilot is not the 10-shot power-map study")
             if (args.study_id is None) != (args.trial_index is None):
                 parser.error("--study-id and --trial-index must be used together")
             if args.study_id:
@@ -238,6 +348,7 @@ def main(argv: list[str] | None = None) -> int:
                     or args.backswing_scale != expected_back):
                     parser.error("Trial settings differ from preregistered plan")
         begin = datetime.now(timezone.utc)
+        run_token = begin.strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:10]
         if args.command == "test":
             exit_code = _run([sys.executable, "-m", "unittest", "discover",
                               "-s", "tests", "-p", args.pattern, "-v"])
@@ -248,16 +359,19 @@ def main(argv: list[str] | None = None) -> int:
             if identity["revision"] != "V1-neutral-swing-calls" or not identity["safe_for_isolated_legacy_copy"]:
                 raise RuntimeError("Verified isolated V1 bridge missing; will not launch Dolphin")
             print("Close existing Dolphin before this ONE live trial.", flush=True)
-            exit_code = _run([sys.executable, str(ROOT / "scripts" / "run_golf_experiment.py"),
-                              "--send-live", "--bridge", str(bridge),
-                              "--script", "collect_outcome_transition.py", "--",
-                              "--send-live-swing", "--a-lead-frames", str(args.a_lead),
-                              "--observe-start-pose", "--motion-scale", str(args.motion_scale),
-                              "--speed-scale", str(args.speed_scale),
-                              "--backswing-scale", str(args.backswing_scale),
-                              "--ask-power"])
+            action = [sys.executable, str(ROOT / "scripts" / "run_golf_experiment.py"),
+                      "--send-live", "--bridge", str(bridge),
+                      "--script", "collect_outcome_transition.py", "--",
+                      "--send-live-swing", "--a-lead-frames", str(args.a_lead),
+                      "--observe-start-pose", "--motion-scale", str(args.motion_scale),
+                      "--speed-scale", str(args.speed_scale),
+                      "--backswing-scale", str(args.backswing_scale),
+                      "--ask-power"]
+            if args.visual_first:
+                action.extend(["--visual-first", "--run-token", run_token])
+            exit_code = _run(action)
         summary = {"schema": 1,
-                   "id": begin.strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:10],
+                   "id": run_token,
                    "kind": args.command, "started_utc": begin.isoformat(),
                    "git_commit": _head(), "process_exit_code": exit_code,
                    "verified_game_score": False}
@@ -274,11 +388,23 @@ def main(argv: list[str] | None = None) -> int:
                 summary["trial_index"] = args.trial_index
                 summary["trial_count"] = len(POWER_MAP_STUDY)
             summary["bridge_sha256"] = _sha_file(bridge)
-            summary.update(_fresh_human_labels(begin))
-            if _missing_capture_needs_fallback(summary):
-                print("No unambiguous completed collector summary. "
-                      "Recording HUMAN-only observation to avoid losing this trial.", flush=True)
-                summary.update(_fallback_human_observation())
+            if args.visual_first:
+                summary["visual_first"] = True
+                if exit_code == 0:
+                    summary.update(_joined_visual_first(
+                        run_token, begin, a_lead=args.a_lead,
+                        speed=args.speed_scale, backswing=args.backswing_scale))
+                else:
+                    summary.update({"capture_status": "failed_or_cancelled_action",
+                                    "shot_dispatch_verified_by_collector": False})
+            elif exit_code == 0:
+                summary.update(_fresh_human_labels(begin))
+                if _missing_capture_needs_fallback(summary):
+                    print("No unambiguous completed collector summary. "
+                          "Recording HUMAN-only observation to avoid losing this trial.", flush=True)
+                    summary.update(_fallback_human_observation())
+            else:
+                summary["capture_status"] = "failed_or_cancelled_action"
         private = DATA / "research-cli"
         private.mkdir(parents=True, exist_ok=True)
         dest = private / (summary["id"] + ".json")
@@ -286,6 +412,12 @@ def main(argv: list[str] | None = None) -> int:
             json.dump(summary, out, indent=2, sort_keys=True, allow_nan=False)
             out.write("\n")
         print("Local sanitized result:", dest, flush=True)
+        # Never publish a failed/cancelled action, nor a visual result whose
+        # unique child shot/trace token cannot be joined to this exact command.
+        if args.command == "v1" and (exit_code != 0 or
+                (args.visual_first and summary.get("capture_status") != "visual_first_joined")):
+            print("M1.5 outcome NOT eligible; no GitHub publication.", flush=True)
+            return exit_code if exit_code != 0 else 2
         if not args.no_upload:
             try:
                 url = publish_summary(summary)
