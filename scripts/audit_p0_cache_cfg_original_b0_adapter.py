@@ -169,7 +169,7 @@ def report_from_bytes(bank: Path, module, *, public_units):
             raise QualificationError
         if (relative is not None and
                 (type(relative) is not str
-                 or re.fullmatch(r"\\+0x[0-9A-F]{4}", relative) is None
+                 or re.fullmatch(r"\+0x[0-9A-F]{4}", relative) is None
                  or int(relative[3:], 16) > expected[2] - expected[1])):
             raise QualificationError
         if row["status"] == "ABSTAIN_SOURCE_UNRESOLVED" and reason is None:
