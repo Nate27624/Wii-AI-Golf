@@ -1,0 +1,27 @@
+name: P0 outcome RAM chronology guards (synthetic only)
+
+on:
+  pull_request:
+    paths:
+      - 'src/wii_ai_golf/audit/outcome_transition.py'
+      - 'tests/test_outcome_transition.py'
+      - 'tests/test_outcome_capture_cli.py'
+      - '.github/workflows/p0-outcome-chronology-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Outcome source, frame and phase tests (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_outcome_transition.py -v
+      - name: Existing collector synthetic tests (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_outcome_capture_cli.py -v
