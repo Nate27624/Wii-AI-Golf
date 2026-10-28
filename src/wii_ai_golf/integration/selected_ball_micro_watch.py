@@ -158,9 +158,15 @@ class SelectedBallMicroWatch:
             if hole not in range(9):
                 raise WatchRejected("Unknown mode4 course index")
 
+            main = take(scene + 0x9C)
+            if (not _mapped(main, 4, region="MEM2")
+                    or not 0x803C7798 <= take(main) < 0x803C77C0):
+                raise WatchRejected("Golf main constructor-data identity mismatch")
             pm = take(STATIC_PLAYER_MANAGER, region="MEM1")
             if not _mapped(pm, 0x354, region="MEM2"):
                 raise WatchRejected("Roster manager missing")
+            if not 0x803C7DD0 <= take(pm) < 0x803C7DE0:
+                raise WatchRejected("Player manager constructor-data identity mismatch")
             selected = take(pm + 0x334)
             matches = [index for index in range(4)
                        if selected == pm + 4 + index * 0xCC]
