@@ -69,5 +69,5 @@ foreach ($bank in @('MEM1', 'MEM2')) {
         throw "$Phase $bank preserved binary missing or wrong-sized"
     }
 }
-Write-Host "$Phase: Full native MEM1 (24 MiB) and MEM2 (64 MiB) saved privately." -ForegroundColor Green
+Write-Host "${Phase}: Full native MEM1 (24 MiB) and MEM2 (64 MiB) saved privately." -ForegroundColor Green
 Write-Host "Session: $Session"
