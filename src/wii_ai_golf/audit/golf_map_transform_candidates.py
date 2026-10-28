@@ -58,6 +58,15 @@ def inspect_named_map_object(banks, address: int) -> tuple[dict, dict]:
     first = banks.u32(address)
     data_hint = any(a <= first < b for a, b in POSSIBLE_GOLF_MAP_DATA_RANGES)
     v = _candidate_vec(banks, address + BASE_TRANSLATION_OFFSET)
+    # Rev1 FieldManager accessor from actual DOL: selected pin getter at
+    # 0x802922A8/AC and start getter at 0x802922EC/F0 loads *obj+0x4C.
+    # Dereference ONLY this source-backed member, with exact mapped 12-byte
+    # bounds, no scan and no pointer/float value in the safe report.
+    getter_region = banks.region(translation_selfref, 12)
+    getter_vec = (_candidate_vec(banks, translation_selfref)
+                  if getter_region is not None else None)
+    getter_agrees_with_inline = (
+        getter_vec == v if getter_vec is not None and v is not None else None)
     map_pointer = banks.u32(address + BASE_MAPOBJ_POINTER_OFFSET)
     map_region = banks.region(map_pointer, 0x14)
     # PMP file layout uses +0x08; runtime RPUtlMapObject layout is UNKNOWN.
@@ -79,6 +88,9 @@ def inspect_named_map_object(banks, address: int) -> tuple[dict, dict]:
         "base_constructor_translation_selfref_matches": (
             translation_selfref == address + BASE_TRANSLATION_OFFSET),
         "constructor_layout_consistent_candidate": constructor_selfrefs,
+        "source_translation_accessor_pointer_mapped": getter_region is not None,
+        "source_translation_accessor_triplet_finite_and_bounded": getter_vec is not None,
+        "source_translation_accessor_matches_inline_triplet": getter_agrees_with_inline,
         "first_word_in_map_object_module_data_range": data_hint,
         "base_plus_0x30_triplet_finite_and_bounded": v is not None,
         "base_plus_0x30_triplet_nonzero": plaus(v),
