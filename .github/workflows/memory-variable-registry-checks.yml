@@ -8,10 +8,12 @@ on:
       - 'scripts/inventory_private_golf_json_motion.py'
       - 'scripts/triage_private_object_windows_summary.py'
       - 'scripts/contrast_p0_hit_signatures_private.py'
+      - 'scripts/validate_p0_airborne_study_matrix.py'
       - 'tests/test_memory_registry.py'
       - 'tests/test_json_motion_inventory.py'
       - 'tests/test_private_object_windows_summary.py'
       - 'tests/test_p0_hit_signatures_private.py'
+      - 'tests/test_p0_airborne_study_matrix.py'
       - '.github/workflows/memory-variable-registry-checks.yml'
   workflow_dispatch:
 
@@ -38,3 +40,5 @@ jobs:
         run: python -m unittest discover -s tests -p test_private_object_windows_summary.py -v
       - name: Run private P0 cross-hit outcome contrast synthetic tests
         run: python -m unittest discover -s tests -p test_p0_hit_signatures_private.py -v
+      - name: Run P0 independent-source flight evidence matrix synthetic tests
+        run: python -m unittest discover -s tests -p test_p0_airborne_study_matrix.py -v
