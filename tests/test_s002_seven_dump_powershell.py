@@ -104,9 +104,10 @@ class SevenManualDumpTests(unittest.TestCase):
         p = self.fixture(6)
         second = self.folder / "6.2.raw"
         with second.open("r+b") as f:
-            f.truncate(MEM1)
+            f.truncate(32 * 1024 * 1024)  # Neither native bank length
         result = self.run_ps()
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('wrong sizes: 1', result.stdout)
         self.assertIn('MEM2_64MiB', result.stdout)
         self.assertIn("NO WITHIN-SHOT NATIVE PAIRS READY", result.stderr)
         self.assertNotIn("PRIVATE REPORT WRITTEN", result.stdout)
