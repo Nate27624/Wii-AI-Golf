@@ -1,0 +1,38 @@
+name: P0 M1.5 Clean plus result-first integration (synthetic)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/research_cli.py'
+      - 'scripts/collect_outcome_transition.py'
+      - 'tests/test_research_cli_clean_dolphin.py'
+      - 'tests/test_research_cli.py'
+      - 'tests/test_m15_visual_first.py'
+      - '.github/workflows/m15-clean-integration.yml'
+  workflow_dispatch:
+
+jobs:
+  integration:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Exact Clean portable launch + M1.5 boundary (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_research_cli_clean_dolphin.py -v
+      - name: Human result-first and run-token safety (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_m15_visual_first.py -v
+      - name: Existing research CLI regression (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_research_cli.py -v
+      - name: Existing collector mock integration (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_outcome_capture_cli.py -v
+      - name: Existing canonical launch mock tests (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_golf_experiment_boot.py -v
+      - name: Whole-repo audit, inherited failures visible (advisory only)
+        continue-on-error: true
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
