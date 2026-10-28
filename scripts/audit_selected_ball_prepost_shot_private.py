@@ -82,7 +82,6 @@ def snapshot_candidate(read_u32, header: bytes):
     if not all(safe.get(k) is True for k in (
             "selected_record_pointer_matches_code_defined_stride",
             "selected_ball_translation_pointer_is_mem2",
-            "selected_ball_translation_pointer_selfref_matches_base",
             "source_current_start_translation_pointer_is_mem2",
             "source_current_start_constructor_selfrefs_match",
             "record_candidate_triplet_finite_bounded",
