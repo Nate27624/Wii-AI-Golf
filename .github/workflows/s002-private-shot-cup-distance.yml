@@ -4,6 +4,8 @@ on:
     paths:
       - "scripts/preserve_golf_shot_distance_checkpoint_private.py"
       - "scripts/audit_golf_shot_cup_distance_private.py"
+      - "scripts/launch_golf_shot_study.py"
+      - "tests/test_launch_golf_shot_study.py"
       - "tests/test_golf_shot_cup_distance_private.py"
       - ".github/workflows/s002-private-shot-cup-distance.yml"
   workflow_dispatch:
@@ -25,5 +27,7 @@ jobs:
         run: python -m compileall -q scripts/preserve_golf_shot_distance_checkpoint_private.py scripts/audit_golf_shot_cup_distance_private.py tests/test_golf_shot_cup_distance_private.py
       - name: Synthetic shot provenance and source-cup distance checks
         run: python -m unittest discover -s tests -p "test_golf_shot_cup_distance_private.py" -v
+      - name: Synthetic canonical green pre-start auto-launch checks (no emulator)
+        run: python -m unittest discover -s tests -p "test_launch_golf_shot_study.py" -v
       - name: Existing PRE/POST source contract checks
         run: python -m unittest discover -s tests -p "test_selected_ball_prepost_shot_private.py" -v
