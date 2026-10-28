@@ -245,8 +245,51 @@ def _region_analysis(four_pairs, *, max_object_offsets):
             "changed_word_details":diffs[:max_object_offsets],
             "changed_word_details_omitted":max(0,len(diffs)-max_object_offsets),
         }
+    # The selected Ball constructor +0x30 and three OTHER internal
+    # triplets +0xCC/+0xF0/+0xFC matched the source start in the operator's
+    # original B0. Those latter triplets were zero in unselected objects.
+    # Compare all four phases now, without inferring physics/cache roles.
+    buffers=[]
+    for phase_i,pair in enumerate(four_pairs):
+        regions=all_regions[phase_i]
+        chosen=regions["selected_ball_related_object"][0]
+        start=regions["current_start_map_object"][0]
+        _,start_bytes=_address_bytes(pair,start+0x30,0x0C)
+        candidate=[]
+        for off in (0x30,0xCC,0xF0,0xFC):
+            _,ball_vec=_address_bytes(pair,chosen+off,0x0C)
+            inactive_zero=[]
+            for i in range(4):
+                if i == indices[0]:
+                    continue
+                other=regions[f"ball_related_slot_{i}"][0]
+                _,oth=_address_bytes(pair,other+off,0x0C)
+                inactive_zero.append(oth == bytes(12))
+            candidate.append({
+                "ball_object_relative_offset":f"+0x{off:03X}",
+                "selected_matches_source_start_components":sum(
+                    ball_vec[j:j+4] == start_bytes[j:j+4]
+                    for j in (0,4,8)),
+                "inactive_slot_triplets_all_zero":inactive_zero,
+                "buffer_semantics_verified":False,
+            })
+        _,flags=_address_bytes(pair,chosen+0x108,0x10)
+        all_other_zero=True
+        for i in range(4):
+            if i == indices[0]:
+                continue
+            other=regions[f"ball_related_slot_{i}"][0]
+            _,otherflags=_address_bytes(pair,other+0x108,0x10)
+            all_other_zero &= otherflags==bytes(16)
+        buffers.append({
+            "phase":f"B{phase_i}",
+            "candidate_triplets":candidate,
+            "selected_four_flag_words_all_ffffffff":flags==b"\\xff"*16,
+            "inactive_four_flag_words_zero":all_other_zero,
+        })
     return {"selected_record_index":indices[0],
             "source_raw_hole_index_stable":True,
+            "ball_related_candidate_buffers_by_phase":buffers,
             "source_resolved_regions":out}
 
 
