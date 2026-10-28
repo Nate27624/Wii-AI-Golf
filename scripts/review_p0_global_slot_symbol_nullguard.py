@@ -99,7 +99,7 @@ def analyze(read,source_global_displacement:int)->dict:
         "source_map_public_ogws_symbols_pinned":True,
         "branch_to_store":bo,
         "compare_after_operator_new":cmp,
-        "null_allocation_skip_constructor_pattern_verified":is_null_guard,
+        "null_allocation_skips_second_call_pattern_verified":is_null_guard,
         "second_call_possible_per_BO_category":second_call_possible,
         "post_return_store_r3_candidate_classes_after_BO":true_sources,
         "intervening_instruction_r3_effect_not_exhaustively_verified":True,
