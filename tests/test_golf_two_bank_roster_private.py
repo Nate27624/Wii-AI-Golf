@@ -38,6 +38,8 @@ def synthetic():
         0x91006000: x.PLAYER_DATA[0] + 8,
         x.PLAYER_MANAGER_STATIC_CANDIDATE: pm,
         pm: x.PLAYER_MANAGER_DATA[0],
+        pm + 0x334: pm + 4,
+        pm + 0x338: 1,
     }
     for index in range(4):
         mapping[x.PLAYER_MANAGER_CODE[0] + index * 4] = (7 << 26) | 0xCC
@@ -65,6 +67,11 @@ def mr(dest, source):
 
 def bl(pc, target):
     return ((18 << 26) | ((target - pc) & 0x03FFFFFC) | 1)
+
+
+def add(dest, lhs, rhs):
+    return ((31 << 26) | (dest << 21) | (lhs << 16)
+            | (rhs << 11) | (266 << 1))
 
 
 def bc(pc, target):
@@ -95,6 +102,11 @@ def source_flow_fixture(mapping):
         0x802A0D7C: dform(14, 3, 3, 32040),
         0x802A0D88: dform(36, 3, 31, 0),
         0x802A0D94: dform(36, 31, 30, 0xC4),
+        0x802A31E8: dform(32, 0, 29, 0x34C),
+        0x802A31EC: dform(7, 0, 0, 0xCC),
+        0x802A31F0: add(3, 29, 0),
+        0x802A31F4: dform(14, 0, 3, 4),
+        0x802A31F8: dform(36, 0, 29, 0x334),
     }
     mapping.update(patterns)
     manager_ptr = mapping[x.PLAYER_MANAGER_STATIC_CANDIDATE]
@@ -245,13 +257,15 @@ class PlayerBallRosterTests(unittest.TestCase):
             words[obj] = 0x803C7D28  # fake constructor vtable value
         report = self.analyze(words)
         flow = report["bounded_source_register_flow_evidence"]
-        self.assertEqual(len(patterns), 21)
+        self.assertEqual(len(patterns), 26)
         self.assertTrue(flow["four_inline_0xcc_record_loop_source_supported"])
         self.assertTrue(flow["record_plus_0x88_ball_code_path_source_supported"])
         self.assertTrue(flow["ball_child_plus_0x4c_three_float_writer_source_supported"])
         self.assertTrue(flow["record_plus_0xc4_allocated_subobject_source_supported"])
         self.assertEqual(report["exact_constructor_firstword_matches_for_plus_0xc4_subobjects"], 4)
         self.assertTrue(report["source_supported_record_layout_not_gameplay_semantics"])
+        self.assertEqual(report["source_gated_selected_record_index_hypothesis"], 0)
+        self.assertFalse(report["source_selected_record_identity_confirmed"])
         self.assertEqual(report["ball_related_child_plus_0x4c_mapped_triplet_count"], 4)
         self.assertEqual(report["nested_triplets_equal_record_triplet_count"], 1)
         self.assertFalse(report["nested_three_word_destination_is_world_ball_xyz_verified"])
@@ -300,6 +314,23 @@ class PlayerBallRosterTests(unittest.TestCase):
         self.assertEqual(result["ball_related_child_plus_0x4c_mapped_triplet_count"], 3)
         self.assertEqual(result["nested_triplets_equal_record_triplet_count"], 0)
         self.assertFalse(result["nested_three_word_destination_is_world_ball_xyz_verified"])
+
+    def test_selected_record_pointer_outside_inline_array_fails_hypothesis(self):
+        words, refs = synthetic()
+        source_flow_fixture(words)
+        words[refs["pm"] + 0x334] = 0x91070000
+        result = self.analyze(words)
+        self.assertIsNone(result["source_gated_selected_record_index_hypothesis"])
+        self.assertFalse(result["source_selected_record_identity_confirmed"])
+
+    def test_selector_code_changed_does_not_promote_index(self):
+        words, _ = synthetic()
+        source_flow_fixture(words)
+        words[0x802A31F0] = add(3, 30, 0)
+        result = self.analyze(words)
+        self.assertIsNone(result["source_gated_selected_record_index_hypothesis"])
+        self.assertFalse(result["bounded_source_register_flow_evidence"]
+                         ["manager_selected_record_pointer_offset_source_supported"])
 
 if __name__ == "__main__":
     unittest.main()
