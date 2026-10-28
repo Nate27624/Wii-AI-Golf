@@ -299,7 +299,7 @@ def main(argv: list[str] | None = None) -> int:
         print("P0_TRANSIENT_AUDIT_OK",
               "unique_transients=" + str(result["transient_unique_word_count"]),
               "persistent_crosscheck=" + str(result["persistent_unique_word_count_crosscheck"]),
-              "non_effect_candidates=" + str(sum(not c["visual_effect_only"] for c in result["candidates"])),
+              "listed_non_effect_candidates=" + str(sum(not c["visual_effect_only"] for c in result["candidates"])),
               "truncated=" + str(result["candidate_list_truncated"]),
               "training_allowed=false", "automatic_upload=false")
         return 0
