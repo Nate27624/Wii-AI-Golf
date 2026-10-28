@@ -79,7 +79,7 @@ try {
             if (-not $ConfirmSettledBallVisiblyStoppedBeforeReset) {
                 Stop-Private 'SETTLED ball stop before reset not confirmed'
             }
-            $checkpoints.SETTLED = [ordered]@{
+            $checkpoints['SETTLED'] = [ordered]@{
                 phase_operator_label = 'settled_before_reset'
                 operator_reports_gui_paused = $true
                 operator_reports_both_exports_same_pause = $true
@@ -91,7 +91,7 @@ try {
             if (-not $ConfirmResultScreenVisible) {
                 Stop-Private 'RESULT screen not independently confirmed'
             }
-            $checkpoints.RESULT = [ordered]@{
+            $checkpoints['RESULT'] = [ordered]@{
                 phase_operator_label = 'visible_results_screen'
                 operator_reports_gui_paused = $true
                 operator_reports_both_exports_same_pause = $true
