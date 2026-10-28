@@ -689,6 +689,545 @@
         "approved_at": null
       },
       "last_evidence_date": "2026-10-28"
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "same_study_B0_B3_phase_labels_not_sufficient_to_prove_ball_motion",
+      "owner": "S002",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Source-linked candidate without independent motion/phase/units validation",
+        "allowed_when": "After source owner review, independent physical positive/negative controls, per-shot frame provenance, units and approved dataset contract"
+      },
+      "id": "golf.player.selected_record.initial_position_candidate",
+      "name": "Selected player record position triple +0x54",
+      "priority": "P0",
+      "role": "ball_position_candidate",
+      "status": "source_candidate",
+      "datatype": "float32_be_triplet",
+      "unit": "game_units_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_f32x3(source_selected_player_record + 0x54)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_selected_player_record",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x54"
+          },
+          {
+            "op": "read",
+            "type": "be_f32x3"
+          }
+        ],
+        "corroboration": "Relative field 0x54 is source-described in source_selected_player_record; dynamic root not independently reproducible; use #160/#162 source-gated resolver, not hard-coded heap addresses"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/160",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/162",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/181"
+        ],
+        "capture_groups": [
+          "one unique still-state source-gated pair",
+          "B0–B3 operator no-shot/aim study"
+        ],
+        "observed_behavior": "Record+0x54 copied into linked ball object's +0x4C translation through verified Rev1 PPC writer; matches start 3/3 in still-state. Not dynamic flight verified.",
+        "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
+      },
+      "limitations": [
+        "Record+0x54 may represent assigned or cached position, not instantaneous physical ball",
+        "Selector and object identity must be re-resolved in every capture"
+      ],
+      "required_controls": [
+        "collect same-shot PRE/flight/POST with verified linkage",
+        "compare to selected child current translation and fixed tee",
+        "stationary/AIM-only negative"
+      ],
+      "upstream_registry_ids": [
+        "golf.main_ptr"
+      ],
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "same_study_B0_B3_phase_labels_not_sufficient_to_prove_ball_motion",
+      "owner": "S002",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Source-linked candidate without independent motion/phase/units validation",
+        "allowed_when": "After source owner review, independent physical positive/negative controls, per-shot frame provenance, units and approved dataset contract"
+      },
+      "id": "golf.player.selected_record.start_copy_candidate",
+      "name": "Selected record source-start-position copy +0x60",
+      "priority": "P0",
+      "role": "start_geometry_candidate",
+      "status": "source_candidate",
+      "datatype": "float32_be_triplet",
+      "unit": "game_units_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_f32x3(source_selected_player_record + 0x60)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_selected_player_record",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x60"
+          },
+          {
+            "op": "read",
+            "type": "be_f32x3"
+          }
+        ],
+        "corroboration": "Relative field 0x60 is source-described in source_selected_player_record; dynamic root not independently reproducible; use #160/#162 source-gated resolver, not hard-coded heap addresses"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/162",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/160"
+        ],
+        "capture_groups": [
+          "one unique still-state source-gated pair",
+          "B0–B3 operator no-shot/aim study"
+        ],
+        "observed_behavior": "Source-selected START getter initializes record+0x60/+0x64/+0x68; 3/3 matches at still-state.",
+        "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
+      },
+      "limitations": [
+        "This may be immutable starting geometry, not current ball position",
+        "PPC initializes from START; no proof of dynamic update"
+      ],
+      "required_controls": [
+        "after hit verify remains stable while current ball moves",
+        "independently vary hole",
+        "verify frame/shot provenance"
+      ],
+      "upstream_registry_ids": [
+        "golf.main_ptr"
+      ],
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "same_study_B0_B3_phase_labels_not_sufficient_to_prove_ball_motion",
+      "owner": "S002",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Source-linked candidate without independent motion/phase/units validation",
+        "allowed_when": "After source owner review, independent physical positive/negative controls, per-shot frame provenance, units and approved dataset contract"
+      },
+      "id": "golf.ball_object.current_translation_candidate",
+      "name": "Source-selected nested ball-related object translation pointer +0x4C",
+      "priority": "P0",
+      "role": "ball_position_candidate",
+      "status": "source_candidate",
+      "datatype": "float32_be_triplet",
+      "unit": "game_units_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_f32x3(source_selected_ball_object + 0x4C)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_selected_ball_object",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x4C"
+          },
+          {
+            "op": "read",
+            "type": "be_f32x3"
+          }
+        ],
+        "corroboration": "Relative field 0x4C is source-described in source_selected_ball_object; dynamic root not independently reproducible; use #160/#162 source-gated resolver, not hard-coded heap addresses"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/160",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/162",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/181"
+        ],
+        "capture_groups": [
+          "one unique still-state source-gated pair",
+          "B0–B3 operator no-shot/aim study"
+        ],
+        "observed_behavior": "Source-checked code loads ball object +0x4C selfref to +0x30 triple, and copies selected record; one still-state 3/3 equality with start, inactive slots differ.",
+        "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
+      },
+      "limitations": [
+        "Relative +0x4C is a pointer, not itself three floats",
+        "No observed active ball motion causality",
+        "Current role of object (render vs physics) not fully resolved"
+      ],
+      "required_controls": [
+        "verify +0x4C points within ball object to +0x30 vector",
+        "read at frame-anchored actual moving ball",
+        "compare stationary tee/pin and unselected ball controls"
+      ],
+      "upstream_registry_ids": [
+        "golf.main_ptr"
+      ],
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "same_study_B0_B3_phase_labels_not_sufficient_to_prove_ball_motion",
+      "owner": "S002",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Source-linked candidate without independent motion/phase/units validation",
+        "allowed_when": "After source owner review, independent physical positive/negative controls, per-shot frame provenance, units and approved dataset contract"
+      },
+      "id": "golf.ball_object.initialized_cache_cc",
+      "name": "Source-linked candidate ball buffer +0xCC",
+      "priority": "P0",
+      "role": "ball_position_cache_candidate",
+      "status": "source_candidate",
+      "datatype": "float32_be_triplet",
+      "unit": "game_units_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_f32x3(source_selected_ball_object + 0xCC)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_selected_ball_object",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0xCC"
+          },
+          {
+            "op": "read",
+            "type": "be_f32x3"
+          }
+        ],
+        "corroboration": "Relative field 0xCC is source-described in source_selected_ball_object; dynamic root not independently reproducible; use #160/#162 source-gated resolver, not hard-coded heap addresses"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/181",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/183",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/162"
+        ],
+        "capture_groups": [
+          "one unique still-state source-gated pair",
+          "B0–B3 operator no-shot/aim study"
+        ],
+        "observed_behavior": "Rev1 PPC initialization copies current translation into +0xCC triple; matched source START 3/3 in still B0. Separate writer may copy from another ball object.",
+        "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
+      },
+      "limitations": [
+        "Not independently current ball XYZ; no proven live writer invocation",
+        "Possible stale cache / source-global receiver"
+      ],
+      "required_controls": [
+        "compare current translation and each cache through same-shot flight phases",
+        "trace receiver object and update callchain; include no-shot controls"
+      ],
+      "upstream_registry_ids": [
+        "golf.main_ptr"
+      ],
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "same_study_B0_B3_phase_labels_not_sufficient_to_prove_ball_motion",
+      "owner": "S002",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Source-linked candidate without independent motion/phase/units validation",
+        "allowed_when": "After source owner review, independent physical positive/negative controls, per-shot frame provenance, units and approved dataset contract"
+      },
+      "id": "golf.ball_object.conditional_cache_f0",
+      "name": "Conditional cached position +0xF0",
+      "priority": "P0",
+      "role": "ball_position_cache_candidate",
+      "status": "source_candidate",
+      "datatype": "float32_be_triplet",
+      "unit": "game_units_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_f32x3(source_selected_ball_object + 0xF0)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_selected_ball_object",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0xF0"
+          },
+          {
+            "op": "read",
+            "type": "be_f32x3"
+          }
+        ],
+        "corroboration": "Relative field 0xF0 is source-described in source_selected_ball_object; dynamic root not independently reproducible; use #160/#162 source-gated resolver, not hard-coded heap addresses"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/183",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/181"
+        ],
+        "capture_groups": [
+          "one unique still-state source-gated pair",
+          "B0–B3 operator no-shot/aim study"
+        ],
+        "observed_behavior": "PPC conditional path writes current position to +0xF0/+0xF4/+0xF8 after goal-related planar first/third-component calculation; B0 matches source START.",
+        "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
+      },
+      "limitations": [
+        "Conditional goal-relative cache; NOT an independent current ball vector",
+        "Receiver identity and branch meaning still uncertain"
+      ],
+      "required_controls": [
+        "observe lag/current difference in actual shot; verify branch and player identity",
+        "vary target/hole and stationary control"
+      ],
+      "upstream_registry_ids": [
+        "golf.main_ptr"
+      ],
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "same_study_B0_B3_phase_labels_not_sufficient_to_prove_ball_motion",
+      "owner": "S002",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Source-linked candidate without independent motion/phase/units validation",
+        "allowed_when": "After source owner review, independent physical positive/negative controls, per-shot frame provenance, units and approved dataset contract"
+      },
+      "id": "golf.ball_object.conditional_cache_fc",
+      "name": "Conditional cached position +0xFC",
+      "priority": "P0",
+      "role": "ball_position_cache_candidate",
+      "status": "source_candidate",
+      "datatype": "float32_be_triplet",
+      "unit": "game_units_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_f32x3(source_selected_ball_object + 0xFC)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_selected_ball_object",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0xFC"
+          },
+          {
+            "op": "read",
+            "type": "be_f32x3"
+          }
+        ],
+        "corroboration": "Relative field 0xFC is source-described in source_selected_ball_object; dynamic root not independently reproducible; use #160/#162 source-gated resolver, not hard-coded heap addresses"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/183",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/181"
+        ],
+        "capture_groups": [
+          "one unique still-state source-gated pair",
+          "B0–B3 operator no-shot/aim study"
+        ],
+        "observed_behavior": "Separate PPC branch writes current position to +0xFC/+0x100/+0x104 following middle-component comparison; B0 matches source START.",
+        "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
+      },
+      "limitations": [
+        "May reflect height-related history/cached state, NOT measured vertical velocity",
+        "Coordinate axes, receiver and conditional write timing unknown"
+      ],
+      "required_controls": [
+        "capture frames while visually moving downward and compare +0xFC vs live +0x30",
+        "stationary/aim-only negative and alternate hole"
+      ],
+      "upstream_registry_ids": [
+        "golf.main_ptr"
+      ],
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "same_study_B0_B3_phase_labels_not_sufficient_to_prove_ball_motion",
+      "owner": "S002",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Source-linked candidate without independent motion/phase/units validation",
+        "allowed_when": "After source owner review, independent physical positive/negative controls, per-shot frame provenance, units and approved dataset contract"
+      },
+      "id": "golf.player.selected_record.aim_rotation",
+      "name": "Selected record angle-like +0x3C with matrix +0x40..0x4C",
+      "priority": "P0",
+      "role": "aim_orientation_candidate",
+      "status": "source_candidate",
+      "datatype": "float32_be_triplet",
+      "unit": "game_units_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_f32x3(source_selected_player_record + 0x3C)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_selected_player_record",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x3C"
+          },
+          {
+            "op": "read",
+            "type": "be_f32x3"
+          }
+        ],
+        "corroboration": "Relative field 0x3C is source-described in source_selected_player_record; dynamic root not independently reproducible; use #160/#162 source-gated resolver, not hard-coded heap addresses"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/181",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+        ],
+        "capture_groups": [
+          "one unique still-state source-gated pair",
+          "B0–B3 operator no-shot/aim study"
+        ],
+        "observed_behavior": "Operator's real B0–B3 aim-only comparison: +0x3C angle-like float; +0x40..+0x4C 2x2 group agrees with sin/cos within ~6e-5; 17 record offsets B0=B1 != B2=B3.",
+        "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
+      },
+      "limitations": [
+        "Single controlled WASD aim direction; not proven club angle or yaw units",
+        "P0 aim should be pre-action feature only after replication; +0x40..0x4C is four floats, not a scalar and expression here is ONLY first angle word"
+      ],
+      "required_controls": [
+        "controlled opposite aim directional trials and visual angle calibration",
+        "prove unaffected by clock-only idle; define angle sign and units",
+        "freeze pre-shot phase"
+      ],
+      "upstream_registry_ids": [
+        "golf.main_ptr"
+      ],
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
     }
-  ]
+  ],
+  "related_evidence_ledger": {
+    "url": "https://github.com/Nate27624/Wii-AI-Golf/pull/154",
+    "path": "research/memory/field-evidence-ledger.json",
+    "note": "Existing 33-entry evidence ledger owns granular identity/behavior evidence; this access registry adds typed resolver/feature-eligibility index, not replacement evidence"
+  },
+  "notes": "Use #160/#162/#181/#183 source-work as upstream; operational selection of ball/player record requires S002 source verifier. A pointer-chain expression with symbolic parent is NOT an independently deployable extractor."
 }
