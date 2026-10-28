@@ -53,6 +53,34 @@ def _in_data(address: int, interval: tuple[int, int]) -> bool:
     return type(address) is int and address % 4 == 0 and interval[0] <= address < interval[1]
 
 
+# Public Rev1 PlayerManager.cpp compilation-unit .text, NOT a function list.
+PLAYER_MANAGER_CODE = (0x802A2210, 0x802A3560)
+
+
+def _code_stride_instruction_counts(read_u32) -> dict:
+    """Only count PPC mulli/addi immediate 0xCC within bounded code unit.
+
+    Source-side correlation is NOT proof that base+0x8C/+0xC8 are typed C++
+    members. No instruction words or source binary bytes are returned.
+    """
+    mulli = addi = 0
+    for address in range(*PLAYER_MANAGER_CODE, 4):
+        word = read_u32(address)
+        if word & 0xFFFF != ROSTER_STRIDE:
+            continue
+        if (word >> 26) == 7:  # mulli
+            mulli += 1
+        elif (word >> 26) == 14:  # addi
+            addi += 1
+    return {
+        "ppc_manager_code_instructions_checked":
+            (PLAYER_MANAGER_CODE[1] - PLAYER_MANAGER_CODE[0]) // 4,
+        "ppc_mulli_immediate_matching_stride": mulli,
+        "ppc_addi_immediate_matching_stride": addi,
+        "ppc_member_register_dataflow_proven": False,
+    }
+
+
 class TwoBankReader:
     def __init__(self, mem1, mem2):
         if len(mem1) != MEM1_SIZE or len(mem2) != MEM2_SIZE:
@@ -134,6 +162,7 @@ def triage(read_u32, header: bytes) -> dict:
             players.append(player)
 
     all_pairs = all(paired)
+    source_code_stride = _code_stride_instruction_counts(read_u32)
     return {
         "kind": "local_golf_source_gated_two_bank_roster_hypothesis",
         "schema_version": 1,
@@ -145,6 +174,10 @@ def triage(read_u32, header: bytes) -> dict:
         "player_manager_candidate_firstword_in_manager_data": pm_firstword_hint,
         "main_direct_child_firstword_in_player_data": main_direct_playerlike,
         "candidate_slot_count_examined": ROSTER_SLOTS,
+        "candidate_stride_has_bounded_source_code_corroboration": (
+            source_code_stride["ppc_mulli_immediate_matching_stride"] > 0
+            and source_code_stride["ppc_addi_immediate_matching_stride"] > 0),
+        "player_manager_source_code_stride_checks": source_code_stride,
         "ball_data_region_firstword_match_count": len(balls),
         "player_data_region_firstword_match_count": len(players),
         "slots_with_both_data_region_hints": sum(paired),
@@ -161,7 +194,8 @@ def triage(read_u32, header: bytes) -> dict:
         "warning": (
             "One cross-bank pair of non-atomic private snapshots. A first "
             "word in a decomp compilation-unit data interval is only a "
-            "plausible vtable hint; repeated candidate slots are not source-"
+            "plausible vtable hint; 0xCC code immediates do not prove "
+            "register receiver or C++ member layout; candidate slots are not source-"
             "verified class members, active golfer, physics ball or power."
         ),
     }
