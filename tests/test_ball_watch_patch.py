@@ -60,6 +60,7 @@ class WatchPatchTests(unittest.TestCase):
         source = extend_swing_bridge_with_ball_watch(swing)
         self.assertIn(BALL_WATCH_MARKER, source)
         self.assertIn('    "golf.ball_watch.arm": _wii_ball_watch_arm,', source)
+        self.assertIn('    "golf.ball_watch.stage": _wii_ball_watch_stage,', source)
         self.assertEqual(source.count("    _wii_ball_watch_tick()\n    _wii_ai_tick()"), 1)
         self.assertIn('    _poll_sockets()', source)
         compile(source, "watched_bridge.py", "exec",
@@ -86,6 +87,7 @@ class WatchPatchTests(unittest.TestCase):
         report = self.ns["_wii_ball_watch_drain"]([])
         self.assertEqual(len(report["samples"]), 6)
         self.assertEqual(report["status"]["state"], "complete")
+        self.assertTrue(all("_source_owner_tuple" not in row for row in report["samples"]))
         self.assertFalse(report["training_allowed"])
         self.assertEqual(self.ns["_wii_ball_watch_status"]([])["state"], "idle")
 
@@ -121,7 +123,43 @@ class WatchPatchTests(unittest.TestCase):
         self.mem.words.pop(0x804BF4D8)
         self.ns["_wii_ball_watch_tick"]()
         self.assertEqual(self.ns["_wii_ball_watch_status"]([])["state"], "source_gate_failed")
-        self.assertEqual(len(self.ns["_wii_ball_watch_drain"]([])["samples"]), 0)
+        with self.assertRaises(RuntimeError):
+            self.ns["_wii_ball_watch_drain"]([])
+
+    def test_phase_progression_and_no_premature_drain(self):
+        self.ns["_wii_ball_watch_arm"]([24, 4])
+        with self.assertRaises(RuntimeError):
+            self.ns["_wii_ball_watch_drain"]([])
+        self.ns["_wii_ball_watch_stage"](["a_prime"])
+        self.ns["_wii_ball_watch_stage"](["trace"])
+        self.ns["_wii_ball_watch_stage"](["posttrace"])
+        with self.assertRaises(ValueError):
+            self.ns["_wii_ball_watch_stage"](["idle_control"])
+        for frame in range(101, 126):
+            self.ns["_frame_count"] = frame
+            self.ns["_wii_ball_watch_tick"]()
+        result = self.ns["_wii_ball_watch_drain"]([])
+        self.assertEqual({x["input_stage"] for x in result["samples"]},
+                         {"posttrace"})
+
+    def test_mid_sample_owner_change_disarms_without_leaking_pointers(self):
+        self.ns["_wii_ball_watch_arm"]([24, 4])
+        self.ns["_frame_count"] = 101
+        self.ns["_wii_ball_watch_tick"]()
+        pm = self.mem.words[0x804BF8D0]
+        previous_ball = self.mem.words[pm + 0x8C]
+        new_ball = 0x90016000
+        self.mem.words[pm + 0x8C] = new_ball
+        self.mem.words[new_ball] = 0x803C7918
+        self.mem.words[new_ball + 0x4C] = new_ball + 0x30
+        for i, v in enumerate((2.5, 0.75, -4.0)):
+            self.mem.words[new_ball + 0x30 + 4*i] = befloat(v)
+        self.ns["_frame_count"] = 105
+        self.ns["_wii_ball_watch_tick"]()
+        self.assertEqual(self.ns["_wii_ball_watch_status"]([])["state"],
+                         "source_gate_failed")
+        with self.assertRaises(RuntimeError):
+            self.ns["_wii_ball_watch_drain"]([])
 
     def test_arm_limits_no_data_leak(self):
         with self.assertRaises(ValueError):
