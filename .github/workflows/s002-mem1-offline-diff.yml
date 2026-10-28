@@ -10,6 +10,8 @@ on:
       - 'tests/test_audit_golf_cross_bank_state.py'
       - 'src/wii_ai_golf/audit/golf_environment_geometry.py'
       - 'tests/test_golf_environment_geometry.py'
+      - 'src/wii_ai_golf/audit/golf_player_owner_evidence.py'
+      - 'tests/test_golf_player_owner_evidence.py'
       - '.github/workflows/s002-mem1-offline-diff.yml'
   workflow_dispatch:
 jobs:
@@ -35,5 +37,7 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_audit_golf_cross_bank_state.py' -v
       - name: Test source-named environmental transforms
         run: python -m unittest discover -s tests -p 'test_golf_environment_geometry.py' -v
+      - name: Test player-object source data and code-range witnesses
+        run: python -m unittest discover -s tests -p 'test_golf_player_owner_evidence.py' -v
       - name: Full repository regression (known shared S000 lock assertion may fail)
         run: python -m unittest discover -s tests -v
