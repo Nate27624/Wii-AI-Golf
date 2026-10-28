@@ -2,6 +2,7 @@
 from __future__ import annotations
 from contextlib import ExitStack
 import json
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -200,6 +201,17 @@ class ReceiverIntegrationTests(unittest.TestCase):
         for value in (-1,2**32,True,None):
             with self.assertRaises(ValueError):
                 runner._digest_code(lambda pc:value,regions)
+
+    def test_isolated_python_help_from_unrelated_working_dir(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = (Path(__file__).resolve().parents[1] / "scripts" /
+                    "audit_p0_authenticated_receiver_chain_private.py")
+            result = subprocess.run(
+                [sys.executable, "-I", str(path), "--help"],
+                cwd=directory, capture_output=True, text=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("--canonical-source-scripts", result.stdout)
+            self.assertIn("--cfg-script", result.stdout)
 
     def test_snapshot_runner_rechecks_canonical_before_and_after(self):
         with tempfile.TemporaryDirectory() as temp:
