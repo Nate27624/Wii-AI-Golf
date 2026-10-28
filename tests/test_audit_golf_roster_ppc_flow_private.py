@@ -53,6 +53,35 @@ class TestRosterPPCFlow(unittest.TestCase):
              add(9, 8, 10), dform(32, 3, 9, 0x8C)]
         self.assertEqual(m.analyze_words(w)['mulli_sites_with_bounded_index_plus_base_add'], 0)
 
+    def test_joined_zero_offset_load(self):
+        w = [dform(7, 8, 6, 0xCC), add(9, 8, 10), dform(32, 3, 9, 0)]
+        r = m.analyze_words(w)
+        self.assertEqual(r['post_join_site_shape_counts']['joined_zero_offset_memory_load'], 1)
+        self.assertEqual(r['mulli_sites_with_bounded_index_add_then_member_access'], 0)
+
+    def test_member_addi_then_zero_load(self):
+        w = [dform(7, 8, 6, 0xCC), add(9, 8, 10),
+             dform(14, 11, 9, 0x8C), dform(32, 3, 11, 0)]
+        r = m.analyze_words(w)
+        self.assertEqual(r['post_join_site_shape_counts']['joined_plus_candidate_member_addi'], 1)
+        self.assertEqual(r['post_join_site_shape_counts']['joined_addi_member_then_zero_memory_load'], 1)
+
+    def test_joined_indexed_load(self):
+        # PPC lwzx r3, r9, r11; X-form XO 23.
+        lwzx = (31 << 26) | (3 << 21) | (9 << 16) | (11 << 11) | (23 << 1)
+        w = [dform(7, 8, 6, 0xCC), add(9, 8, 10), lwzx]
+        r = m.analyze_words(w)
+        self.assertEqual(r['post_join_site_shape_counts']['joined_indexed_memory_load'], 1)
+        self.assertEqual(r['joined_site_trace_stop_reason_counts']['window_end'], 1)
+
+    def test_joined_unknown_instruction_is_stop_not_receiver_proof(self):
+        w = [dform(7, 8, 6, 0xCC), add(9, 8, 10),
+             (31 << 26), dform(32, 3, 9, 0)]
+        r = m.analyze_words(w)
+        self.assertEqual(r['joined_site_trace_stop_reason_counts']['unsupported_ppc_opcode'], 1)
+        self.assertEqual(r['post_join_site_shape_counts']['joined_zero_offset_memory_load'], 0)
+        self.assertFalse(r['index_provenance_and_receiver_identity_verified'])
+
     def test_addi_0xcc_not_mulli(self):
         w = [dform(14, 8, 6, 0xCC), dform(32, 3, 9, 0x8C)]
         r = m.analyze_words(w)
