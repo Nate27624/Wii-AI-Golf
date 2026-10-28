@@ -191,3 +191,44 @@ Source correctness review #259 independently hardens original
 overwritten by this new-only extension. Integrate only with S002
 owner approval. The independent S001 guest frame+visual result contract
 in #248 is unchanged. All training/publication claims remain FALSE.
+
+
+## New real strict format-category result, operator 2026-10-28
+
+Exact reviewed branch source: \`21ad5c9303e32d78ee704af13273abe97bad3ef2\`.
+Original B0 source/manifest SHA PASS; 17/17 real-local focused
+synthetic tests PASS. Of 14 exact \`bl sprintf\` sites, only two had
+strict branch-free source-constant candidates and local NUL-terminated
+ASCII strings with one recognized **integer** conversion:
+\`RPGolScene_unsplit.o+0x18EC0\` and \`+0x19B50\`.
+The other 12 all abstained \`r31_definition_outside_safe_segment\`.
+They are UNKNOWN, not evidence of nonnumeric output.
+Nothing so far ties either result to the Golf Hitting-the-Green
+display, distance units, backing source state or actual execution.
+
+### Follow-up with unique value of information: two literal context flags
+
+\`scripts/audit_p0_golf_two_sprintf_literal_roles_private.py\` reuses
+the same exact 14 direct BL source and original B0 SHA gate, insists
+that only the *two* previously qualified file-relative code positions
+have accepted constant reconstruction, then classifies the two local
+96-byte candidate NUL-terminated ASCII strings into **coarse categories
+only**: explicit distance unit (feet/ft/yard/yd/meters/cm/inches),
+distance/target terms, result words, score/stroke, timer, debug/counter
+or no recognized role token. No text, numeric literal/address, source
+code, raw memory contents, SHA or path is printed.
+
+Even a positive distance-unit flag is an *unverified heuristic* of
+static format-string content, not proof the call executes on the
+actual result screen, its displayed number is a true distance, or
+any source memory field is typed. A negative flag could be an
+abbreviated or localization-specific format; it does not disprove the
+GUI label. If both are unhelpful, stop the sprintf family and
+prioritize NW4R/RPSys layout/message dispatch or independent
+operator-attested result screen evidence with S001/#248.
+
+The dedicated new suite has 17 fabricated tests and runs with the
+four earlier #256 suites on both Windows and Ubuntu. Changes are
+new-only; #259's unrelated GPR-clobber correction remains in a
+separate owner-review PR. Keep private archive unmodified and
+publication/training false.
