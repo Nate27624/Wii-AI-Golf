@@ -93,7 +93,7 @@ class P0CleanCliV1Tests(unittest.TestCase):
                                                  "settled_screen_observation": "operator_confirmed_before_transition",
                                         "terminal_capture_mode": "result_first_human_prompt",
                                         "terminal_human_category": "on_green",
-                                                 "human": {"contact_human": "unknown"}
+                                                 "human": {"contact_human": "yes"}
                                              }))
             result = research_cli.main(commands)
             return result, fake.call_args_list
