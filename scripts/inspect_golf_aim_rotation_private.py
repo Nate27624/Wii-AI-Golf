@@ -13,6 +13,11 @@ import math
 from pathlib import Path
 import sys
 
+# Python -I excludes the script directory; resolve the audited sibling explicitly.
+_SCRIPT_DIR = str(Path(__file__).resolve().parent)
+if _SCRIPT_DIR in sys.path:
+    sys.path.remove(_SCRIPT_DIR)
+sys.path.insert(0, _SCRIPT_DIR)
 import inspect_golf_aim_offsets_private as base
 
 THETA_OFFSET = 0x3C
