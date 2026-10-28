@@ -90,7 +90,9 @@ class ResearchCliTests(unittest.TestCase):
                                  "safe_for_isolated_legacy_copy": True}), \
              patch.object(research_cli, "_fresh_human_labels",
                           return_value={"capture_status": "sanitized_human_annotation_only",
-                                        "settled_screen_observation": "operator_confirmed_before_transition"}), \
+                                        "settled_screen_observation": "operator_confirmed_before_transition",
+                                        "terminal_capture_mode": "result_first_human_prompt",
+                                        "terminal_human_category": "on_green"}), \
              patch.object(research_cli, "_fallback_human_observation",
                           return_value={"human": {"contact_human": "unknown"}}):
             self.assertEqual(research_cli.main(
@@ -127,7 +129,9 @@ class ResearchCliTests(unittest.TestCase):
                                  "safe_for_isolated_legacy_copy": True}), \
              patch.object(research_cli, "_fresh_human_labels",
                           return_value={"capture_status": "sanitized_human_annotation_only",
-                                        "settled_screen_observation": "operator_confirmed_before_transition"}):
+                                        "settled_screen_observation": "operator_confirmed_before_transition",
+                                        "terminal_capture_mode": "result_first_human_prompt",
+                                        "terminal_human_category": "on_green"}):
             self.assertEqual(research_cli.main(["v1", "--live", "--a-lead", "45",
                                                "--backswing-scale", "0.8"]), 0)
             command = runner.call_args.args[0]
@@ -174,6 +178,8 @@ class ResearchCliTests(unittest.TestCase):
                 "schema_version": 1,
                 "candidate_ranking": {"windows": "RAW_RAM_NEVER_PUBLISH"},
                 "settled_screen_observation": "operator_confirmed_before_transition",
+                "terminal_capture_mode": "result_first_human_prompt",
+                "terminal_human_category": "on_green",
             }
             (caps / "outcome-unit-candidates.json").write_text(json.dumps(record))
             with patch.object(research_cli, "CAPTURES", caps):
@@ -288,6 +294,8 @@ class ResearchCliTests(unittest.TestCase):
                     "generated_trace_frames": 89, "trace_sha256": "a" * 64},
                 "swing_dispatch": {"state": "complete", "applied_frames": 89},
                 "settled_screen_observation": "operator_confirmed_before_transition",
+                "terminal_capture_mode": "result_first_human_prompt",
+                "terminal_human_category": "off_green",
             }
             file = caps / "outcome-test-candidates.json"
             file.write_text(json.dumps(row))
@@ -329,6 +337,8 @@ class ResearchCliTests(unittest.TestCase):
                               "capture_status": "sanitized_human_annotation_only",
                               "settled_screen_observation":
                                   "screen_had_already_transitioned_before_settled_samples",
+                              "terminal_capture_mode": "result_first_human_prompt",
+                              "terminal_human_category": "transitioned",
                               "human": {"contact_human": "yes"}}), \
              patch.object(research_cli, "publish_summary") as publish, \
              patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
@@ -340,7 +350,7 @@ class ResearchCliTests(unittest.TestCase):
             row = json.loads(row_path.read_text())
             self.assertEqual(row["kind"], "v1_attempt")
             self.assertEqual(row["attempt_status"],
-                             "terminal_result_not_seen_before_transition")
+                             "terminal_result_missing_or_unqualified")
             self.assertFalse(row["trial_valid_for_action_outcome"])
 
 
