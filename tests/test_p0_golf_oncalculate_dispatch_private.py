@@ -110,5 +110,24 @@ class GolfDispatchTests(unittest.TestCase):
         self.assertIn("--archive", x.stdout)
 
 
+    def test_main_prefix_source_call_is_not_execution_proof(self):
+        words = [0x60000000] * 64
+        dest = 0x8029B270
+        delta = dest - study.CONFIRMED_MAIN_TARGET
+        words[0] = (18 << 26) | (delta & 0x03fffffc) | 1
+        summary = study.classify_main_prefix(words)
+        self.assertEqual(summary["source_direct_bl_to_simulation_unit_count"], 1)
+        self.assertFalse(summary["all_reported_BL_sites_execute_in_game"])
+        self.assertFalse(summary["one_main_callback_one_physics_update_verified"])
+
+    def test_main_prefix_malformed_and_indirect_only(self):
+        with self.assertRaises(ValueError):
+            study.classify_main_prefix([0x60000000]*63)
+        words = [0x60000000] * 64
+        words[0] = 0x4e800421
+        summary = study.classify_main_prefix(words)
+        self.assertEqual(summary["source_direct_bl_lexical_count"], 0)
+        self.assertEqual(summary["source_indirect_bclr_or_bcctr_lexical_count"], 1)
+
 if __name__ == "__main__":
     unittest.main()
