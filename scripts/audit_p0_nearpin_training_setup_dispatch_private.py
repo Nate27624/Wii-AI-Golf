@@ -54,7 +54,10 @@ def classify_window(name: str, start: int, size: int, words: tuple[int,...]) -> 
     allowed = {(n,pc,span) for n,pc,span in WINDOWS}
     if (name,start,size) not in allowed:
         raise ValueError("not a preapproved source function")
-    calls, branches, literal_comps = [], [], []
+    # LK=1 exists in BOTH PPC B/BL (op18) and BC/BCL (op16).
+    # Linked conditional branches can materialize LR (e.g. bcl to pc+4);
+    # they are NOT necessarily function calls or executed game routes.
+    linked, branches, literal_comps = [], [], []
     returns=indirect=unknown=0
     for idx, word in enumerate(words):
         if type(word) is not int or not 0 <= word <= 0xFFFFFFFF:
@@ -65,13 +68,20 @@ def classify_window(name: str, start: int, size: int, words: tuple[int,...]) -> 
         if op == 18:
             target = _branch_target(word,pc,False)
             row = {"site":at,"target_region":_site_class(target,start,size),
-                   "link":bool(word & 1),"absolute":bool(word & 2)}
-            (calls if word & 1 else branches).append(row)
+                   "link":bool(word & 1),"absolute":bool(word & 2),
+                   "conditional":False,"opcode_family":"B"}
+            (linked if word & 1 else branches).append(row)
         elif op == 16:
             target = _branch_target(word,pc,True)
-            branches.append({"site":at,"target_region":_site_class(target,start,size),
-                             "link":bool(word & 1),"absolute":bool(word & 2),
-                             "conditional":True})
+            row = {"site":at,"target_region":_site_class(target,start,size),
+                   "link":bool(word & 1),"absolute":bool(word & 2),
+                   "conditional":True,"opcode_family":"BC",
+                   "pc_plus_four_link_pattern":bool(word & 1) and target == pc+4}
+            branches.append(row)
+            if word & 1:
+                # This is an overlapping *linked-site* view, not a claim
+                # that the conditional branch is a direct function call.
+                linked.append(row)
         elif op in (10,11):
             # These compare a register with an immediate; register's value
             # and controlling branch are NOT typed by this instruction.
@@ -93,8 +103,13 @@ def classify_window(name: str, start: int, size: int, words: tuple[int,...]) -> 
     return {
         "source_public_function_name_candidate":name,
         "source_window_word_count":size//4,
-        "direct_linked_branch_site_count":len(calls),
-        "direct_linked_branch_sites":calls,
+        "direct_linked_branch_site_count":len(linked),
+        "direct_linked_branch_sites":linked,
+        "unconditional_direct_bl_site_count":sum(
+            x["opcode_family"]=="B" for x in linked),
+        "conditional_direct_bcl_site_count":sum(
+            x["opcode_family"]=="BC" for x in linked),
+        "linked_sites_are_executed_calls_verified":False,
         "direct_nonlinked_or_conditional_branches":branches,
         "mode_3_4_5_literal_compare_sites":literal_comps,
         "direct_literal_mode4_compare_syntax_seen":any(x["compares_literal"]==4
