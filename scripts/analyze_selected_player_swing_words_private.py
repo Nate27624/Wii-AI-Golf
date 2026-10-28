@@ -64,7 +64,9 @@ def analyze(report: dict) -> dict:
     if pretrace_mode not in ("hold-a-45", "neutral-45"):
         raise ValueError("unknown pretrace A control mode")
     if pretrace_mode == "neutral-45" and (
-        safe.get("pretrace_control_A_held") is not False
+        safe.get("pretrace_control_A_requested") is not False
+        or safe.get("pretrace_control_A_requests") != 0
+        or safe.get("pretrace_control_game_A_recognition_verified") is not False
         or safe.get("a_lead_observed_frames") != 0
         or safe.get("pretrace_control_observed_frames", 0) < 45
         or safe.get("legacy_a_prime_stage_is_no_A_control") is not True
@@ -140,7 +142,7 @@ def analyze(report: dict) -> dict:
                 "a_only_stable_and_equal_to_idle": (
                     a_only_stable_and_equal if pretrace_mode == "hold-a-45" else None),
                 "pretrace_control_stable_and_equal_to_idle": a_only_stable_and_equal,
-                "pretrace_control_A_held": pretrace_mode == "hold-a-45",
+                "pretrace_control_A_requested": pretrace_mode == "hold-a-45",
                 "motion_specific_candidate_not_verified": motion_specific_candidate,
                 "phase_flags": flags,
             })
