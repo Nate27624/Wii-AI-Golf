@@ -284,7 +284,7 @@ def _region_analysis(four_pairs, *, max_object_offsets):
         buffers.append({
             "phase":f"B{phase_i}",
             "candidate_triplets":candidate,
-            "selected_four_flag_words_all_ffffffff":flags==b"\\xff"*16,
+            "selected_four_flag_words_all_ffffffff":flags==bytes([255])*16,
             "inactive_four_flag_words_zero":all_other_zero,
         })
     return {"selected_record_index":indices[0],
