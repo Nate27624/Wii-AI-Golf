@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from itertools import count
 from pathlib import Path
 import struct
 import subprocess
@@ -17,11 +18,16 @@ from wii_ai_golf.audit.outcome_recovery import (
 )
 
 
+_NEXT_RECOVERY_FRAME = count(50, 12)
+
+
 def shot_row(phase: str, value: int) -> dict:
+    frame = next(_NEXT_RECOVERY_FRAME)
     return {
         "schema_version": 1, "source": "Felk-read-only-US-Rev1-unverified-golf-windows",
-        "phase": phase, "frame_start": 50, "frame_end": 60,
-        "game_id": "RSPE01", "disc_revision": 1,
+        "phase": phase, "frame_start": frame, "frame_end": frame + 10,
+        "non_atomic_frame_span": 10,
+        "game_id": "RSPE01", "disc_revision": 1, "game_mode_raw": 4,
         "windows": {"golf_config": {
             "address": "0x91000000",
             "bytes_hex": struct.pack(">I", value).hex(),
