@@ -77,6 +77,10 @@ This tree illustrates expected locations, not proof every optional artifact curr
 
 An existing public CLI wrapper may delegate to an older internal script. **That is allowed and required**: there is one underlying canonical launch/state/controller implementation, not one Python filename for every operation.
 
+## New agent context — read and refresh, don't guess
+
+Any **new or resumed** S000–S005 agent starts with root AGENTS.md and README's ACTIVE NEW AI AGENT section, then [docs/agent-session-protocol.md](agent-session-protocol.md), the PowerShell contract, this map, research/coordination.md and current owning GitHub issue/PR/HANDOFF/FINDING. It must READ, not merely cite, and attest only to materials actually checked. **Every substantive reply** re-establishes a concise Current baseline from newest operator evidence and current relevant branch/head, PR/CI, source/claim owner, exact validated swing protocol, evidence gate and next action. Unknown state = NOT CHECKED, never inferred from a different chat. Post dated HANDOFF for future contexts. See the mandatory session protocol for precise fields and limits.
+
 ## Which source of truth wins?
 
 1. **Latest direct operator instruction** (for this project, CLI only and paste-ready Windows PowerShell).
