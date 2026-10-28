@@ -1,0 +1,34 @@
+name: S002 P0 native PowerShell session and phase integrity
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/New-GolfNativeShotSession.ps1'
+      - 'scripts/Test-GolfNativeShotPair.ps1'
+      - 'tests/test_s002_native_phase_powershell.py'
+      - '.github/workflows/s002-p0-native-ps-tools.yml'
+  workflow_dispatch:
+
+jobs:
+  synthetic:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Parse scripts (PowerShell; no Dolphin)
+        shell: pwsh
+        run: |
+          foreach ($path in @('scripts/New-GolfNativeShotSession.ps1', 'scripts/Test-GolfNativeShotPair.ps1')) {
+            $parseErrors = $null
+            $tokens = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$parseErrors) | Out-Null
+            if ($parseErrors.Count -gt 0) { $parseErrors | ForEach-Object { Write-Error $_ }; exit 1 }
+          }
+      - name: Validate private synthetic 24MiB/64MiB bank pairs (no game)
+        run: python -m unittest discover -s tests -p 'test_s002_native_phase_powershell.py' -v
