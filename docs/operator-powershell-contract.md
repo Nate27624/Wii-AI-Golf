@@ -2,6 +2,10 @@
 
 **Last operator decision:** 2026-10-27. **Applies to every agent S000–S005, all study/runbook answers, and all user-visible commands.** This is the authoritative current operator-delivery contract. Newer direct operator instructions override it; this document overrides archived GUI, Git Bash, manual-attach, and legacy ad hoc launch recipes elsewhere in the repository. It does not by itself authorize a live experiment or a merge.
 
+## Required context-switch baseline
+
+**Every new or resumed agent context must first READ** root AGENTS.md, ACTIVE README, [mandatory session protocol](agent-session-protocol.md), this contract, [repository map](repository-map.md), [research coordination](../research/coordination.md), the relevant owner issue/PR and source/tests. The first substantive response truthfully identifies what was checked. **Every substantive response must RE-BASELINE** against the newest pasted PowerShell output and relevant current GitHub branch/HEAD/CI/ownership/evidence before advising; provide a concise Current baseline of source | P0 goal | verified-vs-candidate evidence | blocker/owner | next one action. If a document or remote state was not checked, state NOT CHECKED. Do not assume separate agent contexts share memory, approved methods, physical Dolphin state or live consent. Avoid a full historical reread for trivial replies; only refresh changing relevant facts. Record a dated HANDOFF in the owning GitHub issue/PR before context switch. Full details: [agent session protocol](agent-session-protocol.md).
+
 ## Non-negotiable output rules
 
 1. **Give Windows PowerShell, never manual Dolphin steps.** NEVER tell the operator to open/load/configure Dolphin manually, choose any GUI menu, or run a substitute shell workflow. Every action the operator must perform is a single **copy/paste-ready** PowerShell code block. Never say only "open Dolphin", "click File > Open", "load a state", "press A", "start an RPC server", "use the GUI", "run these Git Bash commands" or "manually connect the bridge." Do not provide a Unix/Git Bash command as the operator's action. The operator pastes PowerShell and returns terminal output.
