@@ -1,7 +1,8 @@
 """PRIVATE targeted PPC instruction context for source golfer aim/pose offsets.
 
 Print existing B0 source-code neighborhoods at selected clustered *candidate*
-Rev1 RPGolPlayer.cpp read/write sites, not a new full-bank scan.
+Rev1 RPGolPlayer.cpp read/write sites and 0x802A3894 RPGolMath helper,
+not a new full-bank scan.
 Source scene/selected-record and B0 bank SHA checks reuse the S002 scanner.
 
 Warning: exact literal offsets DO NOT demonstrate that a register contains the
@@ -39,6 +40,28 @@ SPANS = (
     ("position_like_triple", 0x8029FAE4, 0x8029FB30),
     ("integer_copy_candidates", 0x802A0D48, 0x802A0D94),
 )
+# Narrow additional receiver-provenance snippets. These are static PC ranges,
+# NOT inferred function boundaries and never expand into arbitrary RAM reads.
+PROVENANCE_SPANS = (
+    ("r29_predecessor_A", 0x8029ECF0, 0x8029ED60),
+    ("r29_predecessor_B", 0x8029EDC8, 0x8029EE18),
+    ("r30_predecessor_A", 0x802A03C0, 0x802A0410),
+    ("r30_predecessor_B", 0x802A04F0, 0x802A0544),
+    ("r31_predecessor", 0x802A0770, 0x802A07BC),
+)
+# The Rev1 linker split in doldecomp/ogws assigns this region to
+# Pack/RPSports/RPGolScene/RPGolMath.cpp, 0x802A3560..0x802A3A6C.
+# The prior observed Player code called 0x802A3894, 0x802A3864,
+# and 0x802A37C8. Inspect *actual* helper bytes, not a guessed name.
+MATH_START = 0x802A3560
+MATH_END = 0x802A3A6C
+MATH_HELPER_SPANS = (
+    ("math_helper_37C8", 0x802A37C8, 0x802A3810),
+    ("math_helper_3864", 0x802A3864, 0x802A3890),
+    ("math_helper_3894_A", 0x802A3890, 0x802A38D0),
+    ("math_helper_3894_B", 0x802A38D0, 0x802A3910),
+)
+ALL_SPANS = SPANS + PROVENANCE_SPANS + MATH_HELPER_SPANS
 
 
 def _i16(word: int) -> int:
@@ -56,6 +79,10 @@ def decode(word: int, pc: int) -> str:
         name, _ = source.OPS[op]
         target = f"f{rs}" if op in (48, 50, 52, 54) else f"r{rs}"
         return f"{name} {target}, {imm:+#x}(r{ra})"
+    if op == 37:
+        return f"stwu r{rs},{imm:+#x}(r{ra})"
+    if op == 7:
+        return f"mulli r{rs},r{ra},{imm}"
     if op == 14:
         return (f"li r{rs}, {imm}" if ra == 0
                 else f"addi r{rs},r{ra},{imm:+#x}")
@@ -82,9 +109,11 @@ def decode(word: int, pc: int) -> str:
 
 def describe(read_word):
     output = []
-    for name, start, end in SPANS:
-        if not (source.PLAYER_CODE_START <= start < end <= source.PLAYER_CODE_END):
-            raise ValueError("PC span outside bounded Rev1 Player source")
+    for name, start, end in ALL_SPANS:
+        in_player = source.PLAYER_CODE_START <= start < end <= source.PLAYER_CODE_END
+        in_math = MATH_START <= start < end <= MATH_END
+        if not (in_player or in_math) or end - start > 128:
+            raise ValueError("PC span outside bounded Rev1 Player/Math source")
         if (start | end) & 3:
             raise ValueError("Unaligned source PC span")
         lines = []
