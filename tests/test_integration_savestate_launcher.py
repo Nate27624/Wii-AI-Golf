@@ -53,8 +53,10 @@ class SessionLaunchTests(unittest.TestCase):
         self.assertEqual(result["state_load"]["slot"], 20)
         self.assertEqual(result["action"], "launched_and_load_requested")
         self.assertEqual(result["pid"], 1234)
-        self.assertEqual(popen.call_args.args[0],
-                         [str(self.exe), "--script", str(self.bridge), "--exec", str(self.game)])
+        actual = popen.call_args.args[0]
+        self.assertEqual(actual[1::2], ["--script", "--exec"])
+        self.assertEqual([Path(p).resolve() for p in actual[::2]],
+                         [self.exe.resolve(), self.bridge.resolve(), self.game.resolve()])
 
     def test_start_refuses_existing_listener(self):
         with patch.object(session, "_connected", return_value=True), \
