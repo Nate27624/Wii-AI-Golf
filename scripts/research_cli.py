@@ -356,6 +356,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "v1" and args.backswing_scale != 1.0 and args.speed_scale != 1.0:
             parser.error("change either --backswing-scale or --speed-scale, not both")
         if args.command == "v1":
+            # M1.5 is a preregistered B1/B2/X1 pilot, not a free-form sweep.
+            # Refuse mismatched settings BEFORE touching the emulator or bridge.
+            if args.visual_first and (args.a_lead != 45 or args.speed_scale != 1.0
+                                      or args.backswing_scale not in (1.0, 1.2)):
+                parser.error("M1.5 --visual-first requires --a-lead 45, "
+                             "--speed-scale 1.0, and --backswing-scale 1.0 or 1.2")
             if args.visual_first and args.study_id is not None:
                 parser.error("The M1.5 visual-first pilot is not the 10-shot power-map study")
             if (args.study_id is None) != (args.trial_index is None):
