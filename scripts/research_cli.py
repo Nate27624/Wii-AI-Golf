@@ -364,6 +364,12 @@ def main(argv: list[str] | None = None) -> int:
                     else "missing_or_unqualified_child_summary")
                 summary["shot_dispatched"] = "unknown"
                 summary["trial_valid_for_action_outcome"] = False
+            elif summary.get("settled_screen_observation") != (
+                    "operator_confirmed_before_transition"):
+                # A completed trace does not certify the terminal screen.
+                summary["kind"] = "v1_attempt"
+                summary["attempt_status"] = "terminal_result_not_seen_before_transition"
+                summary["trial_valid_for_action_outcome"] = False
             else:
                 summary["trial_valid_for_action_outcome"] = True
         private = DATA / "research-cli"
