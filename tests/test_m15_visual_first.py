@@ -365,14 +365,14 @@ class VisualFirstJoinTests(unittest.TestCase):
         from wii_ai_golf.lab.github_sync import SyncReport
         with tempfile.TemporaryDirectory() as directory:
             with patch.object(research_cli, "sync_merged_main",
-                              return_value=SyncReport("up_to_date")), \\
-                 patch.object(research_cli, "DATA", Path(directory)), \\
-                 patch.object(research_cli, "_run", return_value=0), \\
+                              return_value=SyncReport("up_to_date")), \
+                 patch.object(research_cli, "DATA", Path(directory)), \
+                 patch.object(research_cli, "_run", return_value=0), \
                  patch.object(research_cli, "_joined_visual_first",
                               return_value={"capture_status": "visual_first_joined",
                                             "informative_action_outcome_trial": False,
-                                            "human": {"contact_human": "unknown"}}), \\
-                 patch.object(research_cli, "publish_summary") as publish, \\
+                                            "human": {"contact_human": "unknown"}}), \
+                 patch.object(research_cli, "publish_summary") as publish, \
                  patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
                        return_value={"revision": "V1-neutral-swing-calls",
                                      "safe_for_isolated_legacy_copy": True}):
