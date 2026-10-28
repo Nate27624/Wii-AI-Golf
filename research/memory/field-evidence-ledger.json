@@ -4,7 +4,7 @@
   "game_id": "RSPE01",
   "target_revision": 1,
   "status": "research_only_no_verified_power_fields",
-  "source_state": "Operator confirmed three preserved directories are bitwise copies of ONE complete native MEM1+MEM2 state. Source-selected record0 and ball-like nested vector and selected start are equal on three components at initialization; no independent motion, same-frame verification, world units, power or trainable observations. Future #165 temporal consumer lacks S001 live sampler.",
+  "source_state": "33 evidence entries. One unique preserved MEM1/MEM2 static state establishes source-connected record0 start/nested translation equality (3/3) and 0/3 unselected start matches. B0..B3 main-child 128-byte window stable 32/32, not comprehensive memory. First watched V2 swing visibly weak/no ball move; 50 provisional callback samples showed no candidate movement but watch was incomplete. New Player+0x24 writer is untyped. Guest frame, active ball motion, XYZ, swing power and training remain unverified.",
   "evidence_levels_note": "Identity and behavior are separate axes; runtime candidate and observed change are NOT verified gameplay meaning.",
   "training_gate": "No field can be used as a verified game-state training feature or target without verified code writer, independent boot, same-shot frame provenance and gameplay semantics. Stored booleans are evidence claims, not inferred from numerical correlations.",
   "fields": [
@@ -52,7 +52,7 @@
         "https://github.com/Nate27624/Wii-AI-Golf/pull/151",
         "https://github.com/Nate27624/Wii-AI-Golf/pull/157"
       ],
-      "notes": "Source-suggested scene+0x09C candidate object is MEM2 resident. Initial 0x100 bytes contained 4 MEM1 and 25 MEM2 pointer-shaped 32-bit words, and first word matched one source .data unit range; this does not prove player/club child types, actual C++ vtable or swing power."
+      "notes": "Source-suggested scene+0x09C main object is MEM2 resident; first 0x100 bytes show 4 MEM1 and 25 MEM2 pointer-shaped values, source data firstword hint only. User same-session 4 paired checkpoints B0 idle, B1 idle, B2 WASD, B3 release: 32/32 u32 words in 0x80-byte main+0x030 Player-like child did NOT change in any transition. This window excludes nested ball translation. No club/power/aim inferred."
     },
     {
       "field_id": "golfer.main_0x074",
@@ -568,9 +568,10 @@
         "https://github.com/Nate27624/Wii-AI-Golf/pull/159",
         "https://github.com/Nate27624/Wii-AI-Golf/pull/160",
         "https://github.com/Nate27624/Wii-AI-Golf/pull/163",
-        "https://github.com/Nate27624/Wii-AI-Golf/pull/165"
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/165",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/166"
       ],
-      "notes": "One UNIQUE preserved native source state (three local folders were SHA-equal copies of both full RAM banks). Selected candidate index0: selected record+0x54 and+0x60, nested ball-like object+0x4C three-word destination, and current start getter translation all match 3/3; 0/3 nonselected nested vectors fully match start. Rev1 PPC contains three-f32 source writer and start initialization. Bitwise duplicate files add no replicate; no active visual ball motion, world units, frame-atomicity or verified physics."
+      "notes": "One UNIQUE preserved native source state (three local folders equal across both banks). Selected candidate index0: record+0x54/+0x60, nested ball-related translation via +0x4C, source current start all agree 3/3; 0/3 other slot vectors fully match start. First human-operated watched V2 trial had 50 callback samples and NO visible ball movement, nested/record candidate stable 50/50. Watch drained early in that trial; not valid complete temporal evidence. No guest frame join, physical XYZ or power."
     },
     {
       "field_id": "golfer.player_manager_inline_roster",
@@ -631,6 +632,26 @@
         "https://github.com/Nate27624/Wii-AI-Golf/pull/150"
       ],
       "notes": "S002 Rev1 DOL GetWind routine reads config raw hole index at +0x98 and accesses a distinct nine-entry runtime MEM1 BSS speed table; value returned by second out-pointer. Source index/return semantics known, but no runtime values, unit calibration or UI comparison."
+    },
+    {
+      "field_id": "golfer.player_record_state_word_candidate",
+      "object_role": "source_RPGolPlayer_record",
+      "relative_offset": "+0x024",
+      "semantic_hypothesis": "Source-written small-integer player/ball lifecycle or control-state candidate, but exact enum meanings and possible other values are unknown",
+      "identity_level": "source_lead",
+      "behavior_level": "unobserved",
+      "source_typed_member_verified": false,
+      "writer_instruction_verified": true,
+      "independent_boot_replication_verified": false,
+      "same_shot_frame_join_verified": false,
+      "gameplay_value_verified": false,
+      "negative_control": false,
+      "training_eligible": false,
+      "evidence_refs": [
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/162",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/160"
+      ],
+      "notes": "Private Rev1 source code shows five literal stores 5/1/2/3/4 to same player receiver+0x24, along distinct branches near ball-unit calls. The list is not an exhaustive enum, and no meaning (shot contact, flight, landing, power) is established. No source-gated selected record+0x24 runtime value has been safely reported; do not present numeric values publicly."
     }
   ]
 }
