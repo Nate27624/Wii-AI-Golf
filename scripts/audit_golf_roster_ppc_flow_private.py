@@ -130,10 +130,18 @@ def analyze_words(words: list[int], lookahead: int = MAX_LOOKAHEAD) -> dict:
         stop_opcode_family = "window_end"
         for nxt in words[i + 1: i + 1 + lookahead]:
             n_op = _op(nxt)
-            if n_op in (16, 18, 19):
-                stop_opcode_family = f"primary_{n_op}"
+            # PPC primary 19 includes CR logic and isync, not just branches.
+            # Only bclr (XO 16) and bcctr (XO 528) are transfer opcodes.
+            is_branch = n_op in (16, 18) or (
+                n_op == 19 and ((nxt >> 1) & 0x3FF) in (16, 528)
+            )
+            if is_branch:
+                stop_opcode_family = (
+                    f"primary19_xo{(nxt >> 1) & 0x3FF}"
+                    if n_op == 19 else f"primary_{n_op}"
+                )
                 stop_reason = "branch_before_complete_trace"
-                break  # stop at control-flow boundary
+                break  # stop at a real control-flow boundary
 
             if n_op in (14, 15):  # addi, addis
                 dst, src = _gpr_dest(nxt), _ra(nxt)
