@@ -132,16 +132,27 @@ def summarize_private_samples(samples: list[dict]) -> dict:
     sel = [_vector(r[VECTORS[0]]) for r in rows]
     glob = [_vector(r[VECTORS[1]]) for r in rows]
     cc = [_vector(r[VECTORS[2]]) for r in rows]
+    # These are bitwise source-object words, NOT proven physical positions.
+    # A shot-labeled cohort with no source-object or cache change carries
+    # no movement evidence; do not silently accept it as a shot observation.
+    candidate_change_observed = any(
+        a != b for series in (sel, glob, cc)
+        for a, b in zip(series, series[1:])
+    )
     if first["stage"] == "idle_control":
         if (any(x != sel[0] for x in sel[1:])
                 or any(x != glob[0] for x in glob[1:])
                 or any(x != cc[0] for x in cc[1:])):
             raise ValueError("source objects not stationary in idle control")
+    elif not candidate_change_observed:
+        raise ValueError("shot observation has no changing source ball candidates")
     return {
         "kind": "P0-DUAL-SOURCE-FRAME-TRACE-CONTRACT-REVIEW-ONLY",
         "accepted_for_offline_relationship_review": True,
         "sample_count": len(rows),
         "declared_stage": first["stage"],
+        "candidate_vector_change_observed": candidate_change_observed,
+        "candidate_change_proves_rendered_ball_motion": False,
         "max_observed_read_overhead_under_5ms": True,
         "selected_global_object_pointers_distinct": not alias[0],
         "source_global_equals_selected_current_components_per_sample":
