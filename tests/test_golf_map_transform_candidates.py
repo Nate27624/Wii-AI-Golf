@@ -69,6 +69,10 @@ class GolfMapCandidateTests(unittest.TestCase):
         self.assertTrue(safe["selected_objects"]["pin"]["base_plus_0x30_triplet_finite_and_bounded"])
         self.assertTrue(safe["selected_objects"]["pin"]["constructor_layout_consistent_candidate"])
         self.assertTrue(safe["selected_objects"]["start"]["constructor_layout_consistent_candidate"])
+        self.assertTrue(safe["selected_objects"]["pin"]["source_translation_accessor_pointer_mapped"])
+        self.assertTrue(safe["selected_objects"]["pin"]["source_translation_accessor_triplet_finite_and_bounded"])
+        self.assertTrue(safe["selected_objects"]["pin"]["source_translation_accessor_matches_inline_triplet"])
+        self.assertTrue(safe["selected_objects"]["start"]["source_translation_accessor_matches_inline_triplet"])
         self.assertTrue(safe["selected_objects"]["pin"]["two_unverified_triplets_agree_within_tolerance"])
         self.assertEqual(safe["selected_objects"]["pin"]["hypothetical_map_entry_axis_agreement"],
                          {"x": True, "y": True, "z": True})
@@ -101,6 +105,9 @@ class GolfMapCandidateTests(unittest.TestCase):
             "base_constructor_rotation_selfref_matches",
             "base_constructor_translation_selfref_matches",
             "constructor_layout_consistent_candidate",
+            "source_translation_accessor_pointer_mapped",
+            "source_translation_accessor_triplet_finite_and_bounded",
+            "source_translation_accessor_matches_inline_triplet",
             "first_word_in_map_object_module_data_range",
             "base_plus_0x30_triplet_finite_and_bounded",
             "base_plus_0x30_triplet_nonzero",
@@ -135,6 +142,29 @@ class GolfMapCandidateTests(unittest.TestCase):
         self.assertTrue(pin["base_constructor_rotation_selfref_matches"])
         self.assertFalse(pin["base_constructor_translation_selfref_matches"])
         self.assertFalse(pin["constructor_layout_consistent_candidate"])
+
+    def test_source_accessor_unmapped_does_not_dereference_or_claim_coordinates(self):
+        one, two = fixture()
+        put(two, 0x1880 + 0x4C, 0xDEADBEEF)
+        safe, _ = audit_paired_map_candidates(one, two, strict_size=False)
+        pin = safe["selected_objects"]["pin"]
+        self.assertFalse(pin["source_translation_accessor_pointer_mapped"])
+        self.assertFalse(pin["source_translation_accessor_triplet_finite_and_bounded"])
+        self.assertIsNone(pin["source_translation_accessor_matches_inline_triplet"])
+        self.assertFalse(pin["constructor_layout_consistent_candidate"])
+        self.assertFalse(safe["pin_world_xyz_verified"])
+
+    def test_source_accessor_mapped_different_vector_is_not_a_verified_transform(self):
+        one, two = fixture()
+        vector(two, 0x2200, (12.0, 0.0, 3.0))
+        put(two, 0x1880 + 0x4C, 0x90002200)
+        safe, _ = audit_paired_map_candidates(one, two, strict_size=False)
+        pin = safe["selected_objects"]["pin"]
+        self.assertTrue(pin["source_translation_accessor_pointer_mapped"])
+        self.assertTrue(pin["source_translation_accessor_triplet_finite_and_bounded"])
+        self.assertFalse(pin["source_translation_accessor_matches_inline_triplet"])
+        self.assertFalse(pin["constructor_layout_consistent_candidate"])
+        self.assertFalse(safe["pin_world_xyz_verified"])
 
     def test_nan_and_out_of_range_are_rejected_without_leaking(self):
         one, two = fixture()
