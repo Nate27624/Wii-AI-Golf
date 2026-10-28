@@ -21,7 +21,7 @@ Operator real B0–B3 math validator `audit_golf_aim_pose_math_private.py` PASS:
 | `0x8029F9CC` | `stfs f1,+0x0C0(r28)` | aim-specific scalar candidate | not a swing-power field |
 | `0x8029FB38`, `0x8029FB3C` | computes `r28+0x0A0` and passes it as arg to `bl 0x80295304` | first four-float group processing | actual quaternion encoding not proved |
 | `0x8029FB7C`, `0x8029FB80` | computes `r28+0x0B0` and passes it as arg to same helper | second four-float group processing | target helper semantics not proved |
-| `0x8029F644`, `0x8029F648` | computes `r31+0x0B0`, calls `0x8029528C` | earlier first group's source-consumer/producer | receiver lifetime not proved |
+| `0x8029F644`, `0x8029F648` | computes `r31+0x0B0`, calls `0x8029528C` | earlier second-group source-consumer/producer | receiver lifetime not proved |
 | `0x8029F6C0` | computes `r31+0x0A0` for additional transforms | first four-float group | nearby path, no dynamic identity proven |
 
 These PCs and D-form operands were read directly from the paused Rev1 cached executable in MEM1 (no extracted main.dol needed). Many other Player compilation unit accesses to the same numerical displacements are *stack* `r1`, pointer/vtable-table offsets, or unrelated objects; do not count them as record writers without a `this` register/dataflow proof.
