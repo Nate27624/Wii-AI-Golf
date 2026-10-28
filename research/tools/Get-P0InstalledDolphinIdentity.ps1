@@ -183,6 +183,7 @@ function Invoke-P0SyntheticSelfTest {
 
 if ($SelfTest) {
     Invoke-P0SyntheticSelfTest
+    exit 0
 } else {
     $result = Get-P0BinaryIdentity $DolphinExe
     $result | ConvertTo-Json -Depth 5
