@@ -1,0 +1,28 @@
+name: S002 private MEM1 offline synthetic checks
+on:
+  push:
+    branches:
+      - agent/research/mem1-private-checkpoint-differential
+  pull_request:
+    paths:
+      - scripts/audit_mem1_checkpoints_private.py
+      - tests/test_mem1_checkpoint_contrast.py
+      - .github/workflows/s002-mem1-offline-tests.yml
+jobs:
+  synthetic:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile new files
+        run: python -m py_compile scripts/audit_mem1_checkpoints_private.py tests/test_mem1_checkpoint_contrast.py
+      - name: Run synthetic privacy, shape, and ranking tests
+        run: python -m unittest discover -s tests -p "test_mem1_checkpoint_contrast.py" -v
