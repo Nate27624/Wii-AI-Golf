@@ -149,6 +149,47 @@ def classify_short_writer_entry(data: bytes, start: int) -> str:
     return "straightline_fallthrough_to_adjacent_entry_candidate"
 
 
+def short_entry_unconditional_destination(data: bytes, start: int) -> dict:
+    """Decode first control-transfer in 8-byte 0x802A0318 function.
+
+    Report source-code UNIT-relative addresses, never original native words,
+    raw runtime pointers, hashes or private paths. This is static PPC only.
+    """
+    entry = 0x802A0318
+    if start > entry or start + len(data) < entry + 8:
+        return {"found": False, "reason": "not_captured"}
+    for index in range(2):
+        pc = entry + 4 * index
+        word = struct.unpack_from(">I", data, pc - start)[0]
+        branch = decode_ppc_branch(pc, word)
+        if branch is None:
+            continue
+        dest, link = branch
+        if link:
+            return {"found": False, "reason": "linked_call_not_direct_jump"}
+        unit = source_unit(dest)
+        if unit is None:
+            return {
+                "found": True,
+                "instruction_index": index,
+                "destination_in_scanned_golf_units": False,
+                "destination_source_unit": None,
+                "destination_source_relative_offset": None,
+                "is_main_writer_function_entry": False,
+                "is_main_writer_function_interior": False,
+            }
+        return {
+            "found": True,
+            "instruction_index": index,
+            "destination_in_scanned_golf_units": True,
+            "destination_source_unit": unit[0],
+            "destination_source_relative_offset": f"+0x{unit[1]:04X}",
+            "is_main_writer_function_entry": dest == 0x802A0320,
+            "is_main_writer_function_interior": 0x802A0320 < dest < 0x802A0674,
+        }
+    return {"found": False, "reason": "no_direct_unconditional_branch"}
+
+
 def summarize_code(data: bytes, start: int, *, maximum: int = OUTPUT_CALLSITE_LIMIT) -> dict:
     ensure(start % 4 == 0 and len(data) % 4 == 0 and 0 <= maximum <= 32)
     # Full B0 windows are read as one continuous source-only .text range.
@@ -250,6 +291,8 @@ def summarize_code(data: bytes, start: int, *, maximum: int = OUTPUT_CALLSITE_LI
             source_thunk_forwards_to_writer(data, start),
         "short_writer_entry_control_flow_class":
             classify_short_writer_entry(data, start),
+        "short_writer_entry_direct_branch_destination":
+            short_entry_unconditional_destination(data, start),
         "upstream_function_entry_calls": upstream_results,
         "upstream_calls_do_not_prove_actual_game_update": True,
         "source_function_call_does_not_prove_conditional_stores_executed": True,
