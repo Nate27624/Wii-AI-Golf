@@ -8,6 +8,8 @@ This action does NOT launch Dolphin or reset the savestate a second time.
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
+import re
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -76,6 +78,50 @@ def _visual_label(input_fn: Callable[[str], str]) -> dict[str, Any]:
             "game_distance_verified_by_memory": False}
 
 
+def _visual_first_label(input_fn: Callable[[str], str]) -> dict[str, Any]:
+    """One fast HUMAN terminal-screen note before any post-shot RAM reads.
+
+    G[:distance], M[:distance], U (not sure), T (screen already gone).
+    This is not a machine score or an independently authenticated screenshot.
+    """
+    while True:
+        value = input_fn(
+            "WATCH THE RESULT NOW. BEFORE next screen enter "
+            "G:15.2ft (green), M:100ft (miss), G, M, U (unknown), "
+            "T (transitioned), or q to cancel: ").strip()
+        if value.lower() == "q":
+            raise RuntimeError("Operator canceled terminal result labeling")
+        category, colon, number = value.partition(":")
+        category = category.strip().lower()
+        if category not in ("g", "m", "u", "t") or (colon and category not in ("g", "m")):
+            print("Use G[:number], M[:number], U, T, or q.")
+            continue
+        try:
+            distance, unit = parse_displayed_distance(number) if colon else (None, None)
+        except ValueError:
+            print("Invalid displayed number; use e.g. G:15.2ft or M:100ft.")
+            continue
+        seen = category in ("g", "m")
+        source = (
+            "offgreen_100ft_penalty" if category == "m" and distance == 100.0 and unit == "ft"
+            else "offgreen_display_unverified" if category == "m" and distance is not None
+            else "ongreen_display_human" if category == "g" and distance is not None
+            else "unseen_or_not_recorded"
+        )
+        return {
+            "finished_on_green_human": {"g": "yes", "m": "no", "u": "unknown", "t": "unknown"}[category],
+            "terminal_screen_seen_before_transition_human": (
+                True if seen else False if category == "t" else None),
+            "visible_result_class_human": {
+                "g": "green", "m": "offgreen", "u": "uncertain", "t": "transitioned"
+            }[category],
+            "displayed_distance_human": distance,
+            "displayed_unit_human": unit or ("unknown" if distance is not None else "not-visible"),
+            "displayed_distance_source": source,
+            "game_distance_verified_by_memory": False,
+        }
+
+
 def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 post_samples: int, settled_samples: int, interval: float,
                 input_fn: Callable[[str], str] = operator_input,
@@ -89,7 +135,8 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 speed_scale: float = 1.0,
                 backswing_scale: float = 1.0,
                 trial_seed: int | None = None,
-                ask_power: bool = False) -> dict[str, Any]:
+                ask_power: bool = False,
+                visual_first: bool = False) -> dict[str, Any]:
     """One opted-in forward shot, bounded RAM snapshots and human landing label.
 
     Write private raw JSONL immediately, exclusively; cancellation preserves
@@ -168,7 +215,9 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
             allowed={"back", "center", "forward", "unknown"}, input_fn=input_fn)
     rows: list[dict[str, Any]] = []
     raw_path.parent.mkdir(parents=True, exist_ok=True)
-    with raw_path.open("x", encoding="utf-8") as stream:
+    # The visual-first pilot never produces or ranks raw RAM. Other studies
+    # retain their original pre/post/settled capture contract unchanged.
+    with (nullcontext(None) if visual_first else raw_path.open("x", encoding="utf-8")) as stream:
         def capture_stage(phase: str, count: int) -> None:
             for i in range(count):
                 row = snapshot_fn(rpc, phase)
@@ -179,7 +228,8 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                       flush=True)
                 if i + 1 < count and interval:
                     sleep_fn(interval)
-        capture_stage("pre", pre_samples)
+        if not visual_first:
+            capture_stage("pre", pre_samples)
         approval = input_fn(f"Press ENTER to execute ONE {len(samples)}-frame forward swing; q cancels: ")
         if approval.strip():
             return {"cancelled": True, "raw_data_created": True, "partial_samples": len(rows)}
@@ -193,22 +243,32 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         if not isinstance(stroke, dict):
             raise RuntimeError("Swing scheduler did not return a status dict")
         print("Swing dispatch finished; this does NOT establish ball contact.", flush=True)
-        print("WATCH THE BALL: only brief post-shot snapshots precede the landing prompt. "
-              "Do not wait for the game's automatic next-screen transition.", flush=True)
-        capture_stage("post", post_samples)
-        while True:
-            label = input_fn(
-                "As soon as the ball stops (BEFORE next screen), press ENTER. "
-                "If already transitioned, type t; q cancels: ").strip().lower()
-            if label in ("", "t", "q"):
-                break
-            print("Please use ENTER, t (already transitioned), or q.")
-        if label == "q":
-            return {"cancelled": True, "raw_data_created": True,
-                    "partial_samples": len(rows), "swing_dispatch": stroke}
-        stage_valid = label == ""
-        capture_stage("settled", settled_samples)
-    annotation = _visual_label(input_fn)
+        if visual_first:
+            # No post/settled RPC calls delay the transient terminal result.
+            # Only a single compact human observation is requested here.
+            annotation = _visual_first_label(input_fn)
+            annotation["contact_human"] = _answer(
+                "Was the ball visibly struck? [yes/no/unknown]: ",
+                allowed={"yes", "no", "unknown"}, input_fn=input_fn)
+            stage_valid = annotation["terminal_screen_seen_before_transition_human"] is True
+        else:
+            print("WATCH THE BALL: only brief post-shot snapshots precede the landing prompt. "
+                  "Do not wait for the game's automatic next-screen transition.", flush=True)
+            capture_stage("post", post_samples)
+            while True:
+                label = input_fn(
+                    "As soon as the ball stops (BEFORE next screen), press ENTER. "
+                    "If already transitioned, type t; q cancels: ").strip().lower()
+                if label in ("", "t", "q"):
+                    break
+                print("Please use ENTER, t (already transitioned), or q.")
+            if label == "q":
+                return {"cancelled": True, "raw_data_created": True,
+                        "partial_samples": len(rows), "swing_dispatch": stroke}
+            stage_valid = label == ""
+            capture_stage("settled", settled_samples)
+    if not visual_first:
+        annotation = _visual_label(input_fn)
     if ask_power:
         while True:
             value = input_fn("Observed on-screen power percent (0..100; blank if not visible): ").strip()
@@ -228,11 +288,14 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         annotation["initial_club_pose_human"] = start_pose
         annotation["initial_club_pose_verified_by_memory"] = False
         annotation["shot_start_frame_before_controller_trace"] = shot_start_frame
-    ranked = rank_outcome_candidates(rows, human_distance=annotation["displayed_distance_human"])
+    ranked = None if visual_first else rank_outcome_candidates(
+        rows, human_distance=annotation["displayed_distance_human"])
     return {"schema_version": 1, "source": "live-emulator-read-only-US-Rev1+human-result-label",
             "utc": datetime.now(timezone.utc).isoformat(),
             "study_id": "S002-HG-OUTCOME-TRANSITION-EXPLORATORY",
-            "raw_data_created": True, "swing_dispatch": stroke,
+            "raw_data_created": not visual_first, "swing_dispatch": stroke,
+            "outcome_collection_mode": ("human_terminal_first_no_ram" if visual_first
+                                        else "exploratory_ram_post_first"),
             "known_good_swing_request": {
                 "preset": "forward", "follow_through_frames": 30,
                 "motion_scale": motion_scale, "speed_scale": speed_scale,
@@ -262,7 +325,9 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
             },
             "human_observation": annotation,
             "settled_screen_observation": (
-                "operator_confirmed_before_transition" if stage_valid
+                "human_terminal_before_transition" if visual_first and stage_valid
+                else "human_terminal_unseen_or_unknown" if visual_first
+                else "operator_confirmed_before_transition" if stage_valid
                 else "screen_had_already_transitioned_before_settled_samples"),
             "candidate_ranking": ranked,
             "warning": "Candidate RAM and labels unverified; no automatic game score or ball XYZ."}
@@ -291,6 +356,9 @@ def main(argv: list[str] | None = None) -> int:
                    help="Scale only backward-travel distance; preserve forward travel, speed and A timing")
     p.add_argument("--trial-seed", type=int, default=None)
     p.add_argument("--ask-power", action="store_true",help="Record the visible game power meter if shown")
+    p.add_argument("--visual-first", action="store_true",
+                   help="M1.5 human result-first; no post/settled RAM capture or ranking")
+    p.add_argument("--run-token", help="Strict unique token supplied by the canonical parent CLI")
     args = p.parse_args(argv)
     if not args.send_live_swing:
         p.error("Requires --send-live-swing and the canonical fresh-launch wrapper")
@@ -309,7 +377,9 @@ def main(argv: list[str] | None = None) -> int:
         p.error("cannot combine --a-prime-requests and --a-lead-frames")
     scale = random.Random(args.trial_seed).choice((0.6,0.8,1.0,1.2)) if args.trial_seed is not None else args.motion_scale
     print(f"Motion scale: {scale}; seed: {args.trial_seed}; power unverified",flush=True)
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8]
+    if args.run_token is not None and not re.fullmatch(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{10}", args.run_token):
+        p.error("Invalid parent run token")
+    run_id = args.run_token or (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8])
     raw_file = args.data_dir / f"outcome-{run_id}-RAW-PRIVATE.jsonl"
     summary_file = args.data_dir / f"outcome-{run_id}-candidates.json"
     print("Private raw RAM output:", raw_file)
@@ -325,16 +395,22 @@ def main(argv: list[str] | None = None) -> int:
                              motion_scale=scale,speed_scale=args.speed_scale,
                              backswing_scale=args.backswing_scale,
                              trial_seed=args.trial_seed,
-                             ask_power=args.ask_power)
+                             ask_power=args.ask_power,
+                             visual_first=args.visual_first)
     if result.get("cancelled"):
         print("Session cancelled:", result)
-        return 0
+        # M1.5 cancellation must not be mistaken for a completed shot by parent.
+        return 4 if args.visual_first else 0
+    result["run_token"] = run_id
     summary_file.parent.mkdir(parents=True, exist_ok=True)
     with summary_file.open("x", encoding="utf-8") as stream:
         json.dump(result, stream, indent=2, sort_keys=True, allow_nan=False)
         stream.write("\n")
     print("Candidate summary saved locally:", summary_file)
-    print("Persistent RAM changes:", result["candidate_ranking"]["all_phase_stable_change_count"])
+    if args.visual_first:
+        print("M1.5 human terminal result recorded; no RAM candidate ranking performed.")
+    else:
+        print("Persistent RAM changes:", result["candidate_ranking"]["all_phase_stable_change_count"])
     print("No candidate is yet a verified ball position or official score.")
     return 0
 
