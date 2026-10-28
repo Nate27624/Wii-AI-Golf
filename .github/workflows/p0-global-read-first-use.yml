@@ -11,6 +11,8 @@ on:
   pull_request:
     paths:
       - scripts/review_p0_global_slot_load_consumers.py
+      - scripts/review_p0_global_call_translation_followup.py
+      - tests/test_p0_global_call_translation_followup_private.py
       - scripts/audit_p0_global_ball_source_xrefs_private.py
       - tests/test_p0_global_slot_load_consumers_private.py
       - .github/workflows/p0-global-read-first-use.yml
