@@ -77,7 +77,7 @@ class PlayerBallRosterTests(unittest.TestCase):
             self.assertNotIn(f"{raw_pointer:08x}", encoded.lower())
         self.assertNotIn("0x9100", encoded)
         self.assertNotIn("0x8050", encoded)
-        self.assertNotIn("member_offsets", encoded)  # unless false flag key
+        self.assertNotIn("private_object_address", encoded)
         self.assertFalse(out["allowed_to_publish"])
 
     def test_wrong_game_revision_and_title_fail_closed(self):
