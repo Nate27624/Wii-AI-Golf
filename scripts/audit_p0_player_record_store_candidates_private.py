@@ -33,6 +33,64 @@ def decode_dform_store(word):
     return (op, (word >> 21) & 31, (word >> 16) & 31, d)
 
 
+
+def inspect_local_base_definition(data: bytes, start: int, unit_start: int,
+                                  site_pc: int, base_reg: int) -> dict:
+    """Bounded straight-line register-origin HINT; never a receiver identity proof.
+
+    Stop on branches and unclassified possible GPR writers. Do not cross
+    compilation-unit boundary, a caller, or a dynamic execution path.
+    """
+    if base_reg == 0:
+        return {"origin_class": "zero_base_not_object_pointer",
+                "source_relative_definition": None,
+                "runtime_selected_record_base_verified": False}
+    distance = 0
+    for pc in range(site_pc - 4, max(start, unit_start, site_pc - 64) - 1, -4):
+        distance += 1
+        word = struct.unpack_from(">I", data, pc-start)[0]
+        primary = word >> 26
+        rt = (word >> 21) & 31
+        ra = (word >> 16) & 31
+        # Any flow transfer (including calls) invalidates local linear reach.
+        if primary in (16, 17, 18, 19):
+            kind = "control_flow_barrier"
+        elif primary in (32, 33, 34, 35, 40, 41, 42, 43):
+            kind = "memory_load_candidate" if rt == base_reg else None
+        elif primary in (14, 15):
+            kind = "immediate_arithmetic_candidate" if rt == base_reg else None
+        elif primary in (24, 25, 26, 27, 28, 29):
+            kind = "immediate_logical_candidate" if ra == base_reg else None
+        elif primary == 31:
+            xo = (word >> 1) & 0x3ff
+            if xo == 444 and ra == base_reg and rt == ((word >> 11) & 31):
+                kind = "register_copy_candidate"
+            elif rt == base_reg or ra == base_reg:
+                kind = "unknown_xform_possible_definition"
+            else:
+                kind = None
+        elif primary in (37, 39, 45, 53, 55):
+            kind = "update_form_base_modified" if ra == base_reg else None
+        elif primary in (7, 8, 12, 13, 20, 21, 22, 23, 30):
+            kind = "unknown_integer_possible_definition" if (
+                rt == base_reg or ra == base_reg) else None
+        elif primary not in (36, 38, 44, 52, 54, 59, 63, 4):
+            kind = "unknown_opcode_barrier"
+        else:
+            kind = None
+        if kind is not None:
+            return {
+                "origin_class": kind,
+                "source_relative_definition": f"+0x{pc-unit_start:04X}",
+                "instructions_back": distance,
+                "runtime_selected_record_base_verified": False,
+            }
+    return {"origin_class": "no_qualifying_local_definition",
+            "source_relative_definition": None,
+            "instructions_back": distance,
+            "runtime_selected_record_base_verified": False}
+
+
 def scan_candidate_stores(data: bytes, base: int, units):
     """Only published Player/PlayerManager .text, not a RAM or data scan.
 
@@ -68,6 +126,8 @@ def scan_candidate_stores(data: bytes, base: int, units):
                     "value_register": f"r{rs}" if not op.startswith("stf") else f"f{rs}",
                     "base_register": f"r{ra}",
                     "full_4byte_direct_store_candidate": op in DIRECT_FULL_WORD,
+                    "local_base_definition_hint": inspect_local_base_definition(
+                        data, base, lo, pc, ra),
                 })
         out.append({
             "record_relative_displacement_candidate": f"+0x{member:03X}",
@@ -84,6 +144,7 @@ def scan_candidate_stores(data: bytes, base: int, units):
         "read_only_public_source_code_scan": True,
         "exact_dform_displacement_not_runtime_record_member": True,
         "indexed_store_and_other_unit_coverage_complete": False,
+        "straightline_register_hints_are_full_dataflow_proof": False,
         "record_word_changes_source_attributed": False,
         "runtime_store_execution_verified": False,
         "physical_ball_xyz_verified": False,
