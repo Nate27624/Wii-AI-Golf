@@ -7,7 +7,7 @@
 - PRE: native game state while the selected ball is visibly at rest, before club motion.
 - POST: native state after **exactly one observed ball-moving shot**, when the ball visibly rests at its landing point and is still displaced (no ball/hole reset yet). This is the key comparison for ball candidate `PlayerManager selected record+0x88→Ball+0x4C` and record+0x54.
 - RESULT: OPTIONAL separate native snapshot after the game displays the score/distance result, even if the game has moved to a result screen. Operator can enter the exact UI-displayed distance (feet, yards or meters) privately. The shot outcome shown by the game is a separately attested measurement, not proven equivalent to the physics ball-to-cup distance.
-- The analyzer reads source `FieldManager+0x54` CUP, `+0x44` PIN, `+0x50` START with each source map object's `+0x4C→+0x30` translation. If the optional RESULT screen still exposes a valid source-selected ball and the same owner/cup, it also reports **RESULT ball-to-cup candidate distance** and a **reset-to-start boolean**. A post-result source value does NOT replace the earlier landed POST memory and is not automatically the displayed UI distance. It computes PRE and POST candidate **ball-to-cup horizontal distance using float components [0,2]**, POST 3D ball-to-cup, POST candidate ball-to-pin and PRE-to-POST displacement, in **UNVERIFIED game-coordinate units**. It retains the UI's entered distance/unit and an exploratory one-shot ratio UI-units/game-unit; it does not claim yard conversion, true physical XYZ, flight path, velocity, impact, club pose, or power.
+- The analyzer reads source `FieldManager+0x54` CUP, `+0x44` PIN, `+0x50` START with each source map object's `+0x4C→+0x30` translation. If the optional RESULT screen still exposes a valid source-selected ball and the same owner/cup, it also reports **RESULT ball-to-cup candidate distance** and a **reset-to-start boolean**. A post-result source value does NOT replace the earlier landed POST memory and is not automatically the displayed UI distance. It computes PRE and POST candidate **ball-to-cup horizontal distance using float components [0,2]**, POST 3D ball-to-cup, POST candidate ball-to-pin and PRE-to-POST displacement, in **UNVERIFIED game-coordinate units**. It retains the UI's entered distance/unit but **does not compute a UI-to-game-unit calibration ratio**, because a displayed number could be an off-green 100-ft penalty, a ten-shot cumulative result, or a different-frame observation; it does not claim yard conversion, true physical XYZ, flight path, velocity, impact, club pose, or power.
 - This is NOT a same-guest-frame flight trajectory. Success is first a visually supported POST displacement with static source CUP and START and stable selected owner/hole. The spectator GUI and pause labels are operator-attested.
 
 ## Essential trap: the result screen may reset the ball
@@ -127,7 +127,7 @@ py "$work\scripts\audit_golf_shot_cup_distance_private.py" --private-root $sessi
 if ($LASTEXITCODE -ne 0) { throw 'Distance audit refused; preserve raw capture and send redacted error' }
 ```
 
-The first command reports source candidate displacement counts and unchanged START control; the second reports computed candidate distances to PIN/CUP in **unverified game units**, possible UI observation, and an exploratory scaling ratio (do not assume it proves yards/feet). Both are read-only and retain all `training_allowed=false`, `allowed_to_publish=false` semantics. Share only the sanitized console JSON directly in chat for interpretation; do NOT upload raw `.bin`, private `.json` manifests, screenshots, or output to a public GitHub repo.
+The first command reports source candidate displacement counts and unchanged START control; the second reports computed candidate distances to PIN/CUP in **unverified game units**, possible UI observation, without any unqualified UI/game-unit scaling ratio. A manually typed result is **not** a calibrated physical distance. Both are read-only and retain all `training_allowed=false`, `allowed_to_publish=false` semantics. Share only the sanitized console JSON directly in chat for interpretation; do NOT upload raw `.bin`, private `.json` manifests, screenshots, or output to a public GitHub repo.
 
 ## Post-capture agent responsibilities
 
@@ -149,3 +149,16 @@ The first command reports source candidate displacement counts and unchanged STA
 - `0` valid UI distance or target hole-in-one: record exact display; scaling ratio is omitted when computed planar game distance is zero.
 
 **No machine learning/training output is created by any script in this study.**
+
+## P0 safety correction: Near Pin UI result is NOT a coordinate calibration (October 28, 2026)
+
+Independent public gameplay guides ([StrategyWiki: Golf Training](https://strategywiki.org/wiki/Wii_Sports/Golf_Training), [GameFAQs strategy guide](https://gamefaqs.gamespot.com/wii/933010-wii-sports/faqs/46054)) say Wii Sports **Hitting the Green**:
+- Uses the ball's **final resting distance** from the hole, not necessarily its first landing point.
+- Applies a **fixed 100 ft off-green penalty** regardless of physical distance.
+- Accumulates distance/penalties over **10 shots** for its result score.
+
+These are external descriptions of game rules, **not a Rev1 native opcode proof or a game-unit scale**. The old analyzer could emit `exploratory_display_units_per_game_unit_ratio` when an operator entered a numeric RESULT label; that denominator was the source-coordinate POST planar candidate, but the numerator could instead be the fixed miss penalty, a cumulative total, or a later scene's number. Even with `ratio_validated_as_calibration=false`, this pair could be mistakenly reused.
+
+**Safety patch:** The original operator-entered value/unit and all source-coordinate comparisons are preserved; `exploratory_display_units_per_game_unit_ratio` and `ratio_validated_as_calibration` are no longer emitted. New explicit flags `ui_observation_outcome_semantics_verified=false`, `ui_observation_single_shot_distance_verified=false`, `ui_observation_on_green_verified=false`, `ui_observation_same_guest_frame_as_post_verified=false`, and `ui_value_usable_as_game_unit_calibration=false` remain false. An exact typed **100.0 ft** observation gets `ui_observation_may_be_off_green_100ft_penalty=true` (heuristic only, source rule `...verified_in_rev1_code=false`). Other observations do not become verified by failing that sentinel test. No training, physical XYZ/velocity, impact or UI-to-meters/feet promotion.
+
+**Next source-to-visual gate:** The S001/#248 dual-object same-guest-frame evidence contract and true guest-physics clock must precede any source-typed score/reward or coordinate-unit claim. No additional Dolphin shot/capture is requested by this source-only fix.
