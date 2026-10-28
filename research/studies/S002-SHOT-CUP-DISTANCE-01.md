@@ -14,55 +14,68 @@
 
 If the game resets the ball, switches holes, or moves the selected actor before you pause POST, do not call the late scene POST or set `--shot-observed`. PRE→RESULT-only data are insufficient to verify moving ball memory. You can still transcribe the UI distance manually and keep your screenshot privately, then collaborate with S001 to configure the existing in-frame watcher for a repeat approved shot. Do not re-create the B0–B3 controls; they already passed.
 
-## Preflight and AUTO-ENTER Hitting the Green — canonical repository launcher
+## CANONICAL AUTO-ENTER: run MAIN repo, not draft worktree (operator correction)
 
-**Correction after operator feedback:** do **NOT** manually open a bare `Dolphin.exe` or walk the menus. The MAIN REPOSITORY already contains `scripts/launch_golf.py`: it loads the named `green-pre-start` save and runs the calibrated **A → A+B → A** into Hitting the Green. This study provides a thin `scripts/launch_golf_shot_study.py` adapter which delegates to that **main-checkout** canonical launcher rather than maintaining another menu sequence or shipping unreviewed controller waveform. It uses the separate known clean FelkDolphin-Clean portable installation and the bridge previously booted successfully on it; **NO `--swing`** is sent. If the clean portable User does not actually contain the registered savestate bytes, source-safe failure is expected; a JSON catalog entry is merely a name/slot mapping, not a transferred save. Never assume the menu succeeded without visual confirmation.
+**Failure observed 2026-10-27:** A Git fetch advanced the remote research branch but left an existing detached shot-study worktree at an older commit. Earlier instructions threw "Existing study worktree is outdated", then separately pasted PowerShell blocks continued. The old worktree lacked the new `launch_golf_shot_study.py`, Python said "can't open file", and a later unconditional "Menu sequence finished" incorrectly implied success. No intro occurred. **Do not repeat this.**
 
-Use a NEW PowerShell terminal. This is a fully repo-scripted startup, but it needs an existing Wii Sports path (`$repo\research\launch.local.json`) and registered named checkpoint (`$repo\research\savestates.local.json`) from the MAIN checkout. Do not use the isolated worktree's missing ignored config.
+The **MAIN** repository ALREADY has the verified launcher `scripts/launch_golf.py`, which restores registered `green-pre-start` then sends calibrated **A→A+B→A**. The attached-session entry point is main `scripts/launch_hitting_green.py --attach-running --send-live`. Launch is independent of ANY research worktree, Git fetch, or shot study. NO `--swing` is passed. The clean portable user folder still needs the real named savestate bytes; catalog registration alone does not prove those exist.
 
 ```powershell
-$root = 'D:\Projects\Wii Golf AI'
+$ErrorActionPreference = "Stop"
+$root = "D:\Projects\Wii Golf AI"
 $repo = "$root\Wii-AI-Golf"
-$branch = 'agent/research/shot-cup-distance-cohort-20261027'
-$work = "$root\Wii-AI-Golf-Shot-Cup-Study"
 $clean = "$root\tools\FelkDolphin-Clean"
-$session = "$root\Wii-AI-Golf-Data\captures\SHOT-$(Get-Date -Format yyyyMMdd-HHmmss)-PRIVATE"
-git -C $repo fetch origin "refs/heads/${branch}:refs/remotes/origin/${branch}"
-if ($LASTEXITCODE -ne 0) { throw 'Git fetch failed' }
-if (-not (Test-Path $work)) {
-  git -C $repo worktree add --detach $work "origin/$branch"
-  if ($LASTEXITCODE -ne 0) { throw 'Worktree creation failed' }
-} else {
-  $upstream = git -C $repo rev-parse "origin/$branch"
-  $installed = git -C $work rev-parse HEAD
-  if ($upstream -ne $installed) { throw 'Existing shot study worktree is stale; inspect it rather than force resetting' }
-}
-py -m unittest discover -s "$work\tests" -p 'test_golf_shot_cup_distance_private.py' -v
-if ($LASTEXITCODE -ne 0) { throw 'Shot study tests failed; stop' }
-py -m unittest discover -s "$work\tests" -p 'test_launch_golf_shot_study.py' -v
-if ($LASTEXITCODE -ne 0) { throw 'Auto-intro tests failed; stop' }
-New-Item -ItemType Directory -Path $session -ErrorAction Stop | Out-Null
-
-# Fresh launch only. Do not start another Dolphin or kill a working session.
+$exe = "$clean\Dolphin.exe"
+$bridge = "$root\tools\mcp_bridge_swing_legacy_eval.py"
+Set-Location -LiteralPath $repo
+if (-not (Test-Path "$repo\scripts\launch_golf.py")) { throw "Main repo launcher not found" }
 $running = @(Get-CimInstance Win32_Process -Filter "Name='Dolphin.exe'")
-if ($running.Count -gt 0) {
-  $running | Select-Object ExecutablePath
-  throw 'Dolphin already open. Close it normally for fresh canonical startup, or use the explicitly attached intro in the advanced workflow.'
+if ($running.Count -eq 0) {
+    & py "$repo\scripts\launch_golf.py" --profile green-pre-start --dolphin "$exe" --dolphin-user "$clean\User" --bridge "$bridge"
+} elseif ($running.Count -eq 1 -and $running[0].ExecutablePath -ieq $exe) {
+    & py "$repo\scripts\launch_hitting_green.py" --attach-running --send-live --profile green-pre-start --catalog "$repo\research\savestates.local.json"
+} else {
+    throw "Another or ambiguous Dolphin instance is running; no action taken"
 }
-# Offline preflight of MAIN local game profile and clean portable user.
-py "$work\scripts\launch_golf_shot_study.py" --dry-run
-if ($LASTEXITCODE -ne 0) { throw 'Auto-intro preflight failed; repair the named profile/game/config first' }
-
-# This DOES launch the clean Dolphin, restore green-pre-start, send A/A+B/A.
-# It DOES NOT swing, capture RAM, alter the game image, or create a savestate.
-py "$work\scripts\launch_golf_shot_study.py"
-if ($LASTEXITCODE -ne 0) { throw 'Canonical Hitting Green intro did not complete. Do NOT claim PRE' }
-Write-Host 'Visually verify Golf > Training > Hitting the Green at first stationary ball.'
+if ($LASTEXITCODE -ne 0) { throw "Automatic intro failed, do not capture PRE" }
+Write-Host "Intro dispatched. Visually verify the first stationary ball is ready."
 ```
 
-**If Dolphin is already open:** do not run a second instance. Once you have confirmed that it is specifically the clean portable FelkDolphin-Clean process running Wii Sports with the correct bridge, the existing canonical `scripts/launch_hitting_green.py --attach-running --send-live --profile green-pre-start` can load the saved profile and dispatch the intro **in that existing process**. This is intentional state reset and button input, not a read-only probe; use only when you actually intend to restart the green training mode. The study's simple launch above deliberately fails if a bridge is already using its port.
+**Do not run this if already at the stationary ball:** it loads a save and resets the current game. Never print an unconditional game-ready success after an error. The interface cannot independently confirm the screen, so the operator must visually verify.
 
-**Known setup caveat:** official clean Preview4 boot and read-only RPC were observed with the legacy bridge, but an old configured game path/savestate in the original emulator is NOT evidence that the clean isolated `User` contains that savestate. The wrapper intentionally validates MAIN local config and clean controller config, and reports `live_savestate_bytes_independently_verified=false`. If it cannot load the named checkpoint, preserve the clean install, inspect saved state files and named catalog rather than randomly entering menus or copying old emulator state behind the user's back.
+### Separate setup of the offline shot-study analyzers AFTER ready-to-swing
+
+The capture scripts are *not required for game navigation*. After reaching the correct screen, update the shot study in a **new side-by-side detached worktree** when the old checkout is stale; preserve old worktrees and private files intact. Run this once, in the same PowerShell window:
+
+```powershell
+$branch = "agent/research/shot-cup-distance-cohort-20261027"
+git -C $repo fetch origin "refs/heads/$($branch):refs/remotes/origin/$($branch)"
+if ($LASTEXITCODE -ne 0) { throw "Fetch failed" }
+$target = (git -C $repo rev-parse "origin/$branch").Trim()
+if ($LASTEXITCODE -ne 0) { throw "Branch resolve failed" }
+$work = "$root\Wii-AI-Golf-Shot-Cup-Study"
+if (Test-Path $work) {
+    $current = (git -C $work rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0) { throw "Existing worktree inspection failed" }
+    if ($current -ne $target) {
+        $work = "$root\Wii-AI-Golf-Shot-Cup-Study-$($target.Substring(0,8))"
+    }
+}
+if (-not (Test-Path $work)) {
+    git -C $repo worktree add --detach $work "origin/$branch"
+    if ($LASTEXITCODE -ne 0) { throw "New side-by-side worktree failed" }
+}
+if (-not (Test-Path "$work\scripts\preserve_golf_shot_distance_checkpoint_private.py") -or
+    -not (Test-Path "$work\scripts\audit_golf_shot_cup_distance_private.py")) {
+    throw "Shot-study scripts missing in selected checkout"
+}
+py -m unittest discover -s "$work\tests" -p "test_golf_shot_cup_distance_private.py" -v
+if ($LASTEXITCODE -ne 0) { throw "Shot-study tests failed" }
+$session = "$root\Wii-AI-Golf-Data\captures\SHOT-$(Get-Date -Format yyyyMMdd-HHmmss)-PRIVATE"
+New-Item -ItemType Directory -Path $session -ErrorAction Stop | Out-Null
+```
+
+Capture PRE with `$preStarted=Get-Date` **before exporting**. Once first stationary ball is visually verified, pause the emulator and export MRAM then ExRAM during one GUI pause. The game's currently connected RPC is polled on emulator frames and is NOT proof it can execute while paused or export two full native banks. No invented pause/export RPC commands. Preserve PRE with existing keeper below, then do exactly ONE observed shot and a landed POST before any reset.
 
 ### Find native Export/Dump folder AFTER first PRE export
 
