@@ -23,3 +23,46 @@ The operator's already confirmed successful-shot private snapshots had 3 PRE, 2 
 Source: independently locate the precise RSPE01 Rev1 PPC store sites for `RPSysEffect::mHandle` (the source unit `RPSysEffectBase.cpp` in public link split) and the invoking minimap FieldManager functions; connect callers to +0x94/98/9C effect pointers. Data: use the saved PRE/POST/SETTLED windows to check handle ID/pointer paired transitions and test pointer-target ID only when both target and ownership are available; do not dereference arbitrary guessed addresses or publish raw words. Validity needs a same-phase pointer-target ID check, not merely pointer-shaped bits. No physical ball/training promotion.
 
 State: `effect_handle_source_layout_identified=true`; `effect_runtime_wrapper_identity_verified=false`; `effect_handle_pointer_target_identity_verified=false`; `ball_world_xyz_verified=false`; `training_allowed=false`; `allowed_to_publish=false`.
+## One-command source follow-up (read-only, no new captures)
+
+Run this whole PowerShell block from any working directory to examine the existing source code for handle writer PCs and FieldManager r31 origin candidates, without exporting private data. It does NOT prove runtime RPSysEffect identity.
+
+```powershell
+& {
+    $ErrorActionPreference = 'Stop'
+    $root = 'D:\Projects\Wii Golf AI'
+    $repo = Join-Path $root 'Wii-AI-Golf'
+    $private = Join-Path $root 'Wii-AI-Golf-Data\ball-study-20261027-212633'
+    $branch = 'agent/research/golf-source-object-windows-private-20261027'
+    if (-not (Test-Path -LiteralPath (Join-Path $private 'checkpoint-manifest-PRIVATE.json') -PathType Leaf)) { throw 'B0 checkpoint missing' }
+    git -C $repo fetch origin "refs/heads/${branch}:refs/remotes/origin/${branch}"
+    if ($LASTEXITCODE -ne 0) { throw 'Git fetch failed' }
+    $sha = (git -C $repo rev-parse "origin/$branch").Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve code revision' }
+    $work = Join-Path $root "Wii-AI-Golf-Handle-Source-$($sha.Substring(0,8))"
+    if (Test-Path -LiteralPath $work) {
+        $current = (git -C $work rev-parse HEAD).Trim()
+        if ($LASTEXITCODE -ne 0 -or $current -ne $sha) { throw 'Existing worktree is not exact revision' }
+    } else {
+        git -C $repo worktree add --detach $work "origin/$branch"
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot create safe worktree' }
+    }
+    py -m unittest discover -s "$work\tests" -p 'test_golf_effect_handle_source_private.py' -v
+    if ($LASTEXITCODE -ne 0) { throw 'Synthetic source tests failed' }
+    $raw = @(py -I "$work\scripts\audit_golf_effect_handle_source_private.py" --private-root $private)
+    if ($LASTEXITCODE -ne 0) { throw 'Private B0 source audit failed' }
+    $result = ($raw -join [Environment]::NewLine) | ConvertFrom-Json
+    Write-Host 'SOURCE HANDLE MEMBERS'
+    $result.expected_effect_handle_members | Format-Table -AutoSize
+    Write-Host 'RPGolFieldManager r31 SOURCE DEF CANDIDATES'
+    $result.field_manager_r31_candidate_defs | Select-Object -Last 15 | Format-Table -AutoSize
+    Write-Host 'RPSysEffectBase PPC HANDLE OFFSET WRITES'
+    $result.RPSysEffectBase_literal_handle_hits | Where-Object { $_.access -eq 'write' } |
+        Select-Object -First 25 pc,offset,mnemonic,base_register,value_register | Format-Table -AutoSize
+    $contexts = @($result.RPSysEffectBase_contexts | Where-Object { $_.candidate.access -eq 'write' } | Select-Object -First 2)
+    foreach ($context in $contexts) {
+        Write-Host "SOURCE CONTEXT $($context.candidate.pc)"
+        $context.code | Select-Object pc,word,approximate_disassembly | Format-Table -AutoSize
+    }
+}
+```
