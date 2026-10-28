@@ -50,3 +50,12 @@ Then the full regression suite:
     py -m unittest discover -s tests -v
 
 The helper is not an operator-facing live command. The only safe immediate activity is offline tests and S001/S002/S000 review.
+
+
+## Generated swing-tick parity proof (synthetic; not a live measurement)
+
+A second new test file, tests/test_ball_watch_swing_tick_parity.py, builds the actual generated patch source using the canonical source-pin patch_bridge() and extend_atomic_bridge_with_swing(), extracts its real _wii_ai_tick() AST, and executes that exact generated tick against a fake controller. It compares two executions of a fabricated 4-sample A-held swing: baseline unchanged tick, and observer invoked BEFORE the unchanged tick. A third case injects native memory-read failure into the observer and deliberately discards the invalid sample.
+
+All three cases require byte-identical (list-equal) controller call order/arguments and trace.submit_swing acknowledgment + trace.status outcomes regardless of added observer or failed observation. They also assert that frame-tick labels remain unverified game frames. This tests **logical controller noninterference**, not real bridge callback wall-clock cost, emulated-frame jitter, game-applied A, actual contact or live phase alignment. Do not confuse the fabricated four-sample test trace with the frozen 89-sample V1 in #147.
+
+The branch has 18 focused synthetic tests in two test files, and CI runs both on Windows and Linux. No live bridge or public result was produced. Because the in-frame helper returns raw PRIVATE word arrays, the S001 caller must never print or automatically publish its dictionary; a future private recording mechanism and S000 typed sanitizer remain separate owner work.
