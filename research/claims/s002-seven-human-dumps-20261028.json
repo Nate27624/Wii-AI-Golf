@@ -1,0 +1,32 @@
+{
+  "worker_id": "s002-seven-human-dumps-20261028",
+  "role": "S002 independent research",
+  "branch": "agent/research/s002-seven-human-dumps-20261028",
+  "study_id": "S002-SEVEN-HUMAN-DUMPS-01",
+  "claim_comment": "https://github.com/Nate27624/Wii-AI-Golf/pull/205#issuecomment-6462265365",
+  "paths": [
+    "research/studies/S002-SEVEN-HUMAN-DUMPS-01.md",
+    "research/claims/s002-seven-human-dumps-20261028.json",
+    "scripts/Invoke-P0SevenDumpAudit.ps1",
+    "tests/test_s002_seven_dump_powershell.py",
+    ".github/workflows/s002-seven-dump-audit.yml"
+  ],
+  "owner_scope": "human seven label annotations, offline SHA-verified whole-bank per-phase inventory and private page-level delta only",
+  "upstream": [
+    "source-gated S002 #223,#224,#225,#227",
+    "S000 #205"
+  ],
+  "downstream": [
+    "S002 memory mapping",
+    "S001 swing/frame mapping only after source gate"
+  ],
+  "data_classification": "human observation labels public; raw RAM, SHA and absolute file paths RAW-PRIVATE",
+  "status": "draft; no direct access to operator local dumps; no bytes analyzed yet",
+  "guards": {
+    "same_guest_frame_verified": false,
+    "ball_xyz_verified": false,
+    "score_memory_verified": false,
+    "approved_for_training": false,
+    "allowed_to_publish_raw": false
+  }
+}
