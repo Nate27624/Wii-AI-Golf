@@ -97,8 +97,7 @@ No raw private words, scores, pointers, SHA hashes, paths or capture data
 are published. Do not merge/enable training based on this hypothesis.
 Hosted focused synthetic tests for all current #278 suites **PASS on
 Windows and Ubuntu**, [Actions run 40774802547](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40774802547).
-One source-qualified operator re-read on the existing original archive is
-still pending.
+The source-qualified re-read is now complete; see the final operator result below.
 
 
 
