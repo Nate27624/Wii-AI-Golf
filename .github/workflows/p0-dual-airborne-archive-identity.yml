@@ -1,0 +1,41 @@
+name: P0 dual airborne archive identity synthetic
+
+on:
+  push:
+    branches:
+      - agent/research/p0-airborne-dual-archive-identity-20261028
+  pull_request:
+    paths:
+      - scripts/audit_p0_dual_airborne_archive_identity_private.py
+      - scripts/Invoke-P0DualAirborneArchiveIdentity.ps1
+      - tests/test_p0_dual_airborne_archive_identity_private.py
+      - research/studies/S002-P0-DUAL-AIRBORNE-ARCHIVE-IDENTITY.md
+      - .github/workflows/p0-dual-airborne-archive-identity.yml
+
+permissions:
+  contents: read
+
+jobs:
+  identity:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Private archive synthetic-only tests
+        run: python -m unittest discover -s tests -p test_p0_dual_airborne_archive_identity_private.py -v
+      - name: PowerShell 5.1 syntax check
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $t = $null
+          $e = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path -LiteralPath 'scripts/Invoke-P0DualAirborneArchiveIdentity.ps1').Path,
+              [ref]$t,[ref]$e) | Out-Null
+          if ($e.Count) { throw 'PowerShell operator wrapper parse failed' }
