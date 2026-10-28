@@ -1,0 +1,28 @@
+name: S002 source goal getter and ball cache static PPC controls
+on:
+  push:
+    branches:
+      - agent/research/ball-cache-pin-goal-source-trace
+  pull_request:
+    paths:
+      - scripts/audit_golf_ball_goal_cache_private.py
+      - tests/test_golf_ball_goal_cache_private.py
+      - .github/workflows/s002-ball-goal-cache-offline.yml
+permissions:
+  contents: read
+jobs:
+  synthetic:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile source gate and fabricated tests
+        run: python -m py_compile scripts/audit_golf_ball_goal_cache_private.py tests/test_golf_ball_goal_cache_private.py
+      - name: Fake source and private candidate tests
+        run: python -m unittest discover -s tests -p "test_golf_ball_goal_cache_private.py" -v
