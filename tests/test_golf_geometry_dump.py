@@ -57,4 +57,29 @@ class TestGeo(unittest.TestCase):
         b=StubBanks();b.put(0x90001030,struct.pack('>fff',1e30,0.,0.))
         self.assertEqual(geo.inspect(b)['observations']['pin']['status'],'rejected')
 
+    def test_cup_and_targets_are_explicitly_unverified(self):
+        b = StubBanks()
+        b.u32(0x90500000 + geo.CUP_OBJECT, 0x90003000)
+        b.put(0x90003030, struct.pack('>fff', 7., 8., 9.))
+        b.u32(0x90500000 + geo.NUM_TARGET_OBJECTS, 2)
+        b.u32(0x90500000 + geo.TARGET_OBJECTS_ARRAY, 0x90004000)
+        r = geo.inspect(b)
+        self.assertEqual(r['optional_context']['cup']['status'], 'unverified_base_layout_hypothesis')
+        self.assertEqual(r['optional_context']['cup']['candidate_translation_xyz'], [7., 8., 9.])
+        self.assertEqual(r['optional_context']['target_collection']['count_candidate'], 2)
+        self.assertFalse(r['verified_target_xyz'])
+        self.assertFalse(r['approved_for_training'])
+    def test_optional_bad_cup_does_not_invalidate_pin_start(self):
+        b = StubBanks()
+        b.u32(0x90500000 + geo.CUP_OBJECT, 0xFFFFFFFF)
+        r = geo.inspect(b)
+        self.assertEqual(r['optional_context']['cup']['status'], 'no_usable_cup_candidate')
+        self.assertEqual(r['status'], 'two_candidate_translations_found_not_verified')
+    def test_implausible_target_count_rejected(self):
+        b = StubBanks()
+        b.u32(0x90500000 + geo.NUM_TARGET_OBJECTS, 0xFFFFFFFF)
+        r = geo.inspect(b)
+        self.assertEqual(r['optional_context']['target_collection']['status'],
+                         'no_usable_target_collection')
+
 if __name__=='__main__':unittest.main()
