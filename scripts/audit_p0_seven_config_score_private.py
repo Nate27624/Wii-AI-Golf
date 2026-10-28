@@ -22,9 +22,14 @@ import audit_golf_two_bank_roster_private as roster
 
 PHASES = (1, 2, 5, 6, 7)
 EDGES = ((1, 2), (5, 6), (6, 7), (5, 7))
+# Independent exact-target public class header, Kokeshi immutable commit
+# dfbdda61aadad423911d5345f67f8793aa92cd5f:
+# RPGolConfig::mStrokeTotal[HOLE_MAX=9][PLAYER_MAX=4] at +0x04.
+# All 36 raw words and total change counts are unchanged by the indexing fix;
+# source-selected hole/player position and row-level interpretation are not.
 SCORE_COUNT = 36
-SCORE_ROWS = 4
-SCORE_COLS = 9
+SCORE_ROWS = 9  # Rev1 Kokeshi RPGolConfig::mStrokeTotal[hole][player]
+SCORE_COLS = 4
 
 
 def _sample(rd):
@@ -36,8 +41,8 @@ def _sample(rd):
     pm = u(roster.PLAYER_MANAGER_STATIC_CANDIDATE)
     slot = s["selected_index"]
     hole = s["hole"]
-    if (type(slot) is not int or not 0 <= slot < SCORE_ROWS
-            or type(hole) is not int or not 0 <= hole < SCORE_COLS
+    if (type(slot) is not int or not 0 <= slot < SCORE_COLS
+            or type(hole) is not int or not 0 <= hole < SCORE_ROWS
             or roster._bank(cfg, 0x9C) != "MEM2"
             or roster._bank(field, 0x58) != "MEM2"
             or roster._bank(pm, 0x334 + 4) != "MEM2"
@@ -81,8 +86,8 @@ def summarize(states):
         raise ValueError("Require exact original D1,D2 and W5,W6,W7 states")
     for phase in PHASES:
         s = states[phase]
-        if (type(s["slot"]) is not int or not 0 <= s["slot"] < SCORE_ROWS
-                or type(s["hole"]) is not int or not 0 <= s["hole"] < SCORE_COLS
+        if (type(s["slot"]) is not int or not 0 <= s["slot"] < SCORE_COLS
+                or type(s["hole"]) is not int or not 0 <= s["hole"] < SCORE_ROWS
                 or len(s["scores"]) != SCORE_COUNT
                 or len(s["field_counts"]) != 3
                 or len(s["ball"]) != 3 or len(s["pin"]) != 3
@@ -107,13 +112,13 @@ def summarize(states):
             for k in range(SCORE_ROWS)
         ]
         score_changed = sum(row_changes)
-        active_cell_index = a["slot"] * SCORE_COLS + a["hole"]
+        active_cell_index = a["hole"] * SCORE_COLS + a["slot"]
         comparisons.append({
             "transition": f"{early}_to_{late}",
             "same_selected_source_owner_hole_pin_tee_config": True,
             "current_ball_changed_components": _changed(a["ball"], b["ball"]),
             "player_score_table_changed_words_of_36": score_changed,
-            "score_changed_cells_per_player_row": row_changes,
+            "score_changed_cells_per_hole_row": row_changes,
             "selected_player_source_hole_score_cell_changed": (
                 a["scores"][active_cell_index] != b["scores"][active_cell_index]
             ),
@@ -131,7 +136,7 @@ def summarize(states):
         "rev1_source_selected_context_verified": True,
         "compared_human_same_shot_edges_only": True,
         "human_phase_file_mapping_machine_verified": False,
-        "score_table_source_layout": "GolfConfig+0x04 u32[4][9]",
+        "score_table_source_layout": "GolfConfig+0x04 u32[9][4] hole-major",
         "comparisons": comparisons,
         "no_changed_score_words_if_all_zero_is_mode4_only_negative": True,
         "golf_training_mode_score_table_is_verified_outcome": False,
