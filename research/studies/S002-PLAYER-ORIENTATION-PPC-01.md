@@ -82,3 +82,42 @@ if ($LASTEXITCODE -ne 0) { throw 'Source-context audit failed' }
 ```
 
 The user can paste source-PC neighborhood terminal output in chat for actual dataflow review. Stack r1 should be excluded from any selected-player write claim. Does not identify actual hit, physical XYZ, game-applied heading or power. User's latest raw PPC source output exists only in the private conversation, not as a committed public research artifact.
+## Subsequent actual operator PPC neighborhoods: repeated angle → math helper → rotation tail
+
+The operator ran the first narrow context tool and pasted real B0 PPC code. Of particular interest:
+
+- At `0x8029EE1C` (`lfs f1,+0x3C(r29)`) then `0x8029EE24 addi r3,r29,+0x40`, `0x8029EE2C stfs f1,+0x3C(r29)` and `0x8029EE30 bl 0x802A3894`. The call target `0x802A3894` belongs to **RPGolMath.cpp** .text (`0x802A3560..0x802A3A6C`) in `doldecomp/ogws` RSPE01_01/splits.txt, rather than `RPGolPlayer.cpp`. Following the call, `lfs` from +0x44/+0x40, `fneg`, and `stfs` at +0x4C/+0x48(r29) form an obvious paired transform update.
+- Identical logic in `0x802A0544..056C` via r30, `0x802A07C0..07E8` via r31, and `0x802A09A4..09C0` via r30 with adjacent helpers `0x802A37C8` and `0x802A3864`. Repetition is strong source-level evidence for angle-dependent 2D transform computation; **still not registered as a proven physical shot angle or record receiver**.
+- Position-like triple is written in `0x8029FAEC`, `0x8029FAF4`, `0x8029FAFC` as three `stfs` to +0x94/+0x98/+0x9C(r28), sourcing three stack float values. The branch alternate at `0x8029FB04..FB28` has a middle-component arithmetic update. This suggests a transform/position-related vector, but the object/coordinate system is unknown.
+- Integer `stw` at `0x802A0D54/+0x3C(r31)`, etc., is not angle math: its neighboring constants and object pointer assignment support a distinct object-initialization context. Similar-number offsets cannot be conflated across different receiver registers and constructor bodies.
+
+To better prove math helper/receiver ownership **without requesting another RAM export**, the repo script `audit_golf_aim_ppc_context_private.py` has been expanded on this branch to read narrow cached `RPGolPlayer.cpp` receiver-provenance PC snippets preceding these routines PLUS three static `RPGolMath.cpp` helper neighborhoods at 0x802A37C8, 0x802A3864, and 0x802A3894. The PPC code ranges are source-bounded by the public RSPE01 Rev1 linker splits; only the existing native private B0 pair is accessed after source and SHA validation. No Dolphin/shot/memory write. Windows+Ubuntu synthetic test run 40623067993 passed both platforms.
+
+### Self-contained PowerShell command for source math+register trace
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$root = 'D:\Projects\Wii Golf AI'
+$repo = Join-Path $root 'Wii-AI-Golf'
+$work = Join-Path $root 'Wii-AI-Golf-Expanded-Memory'
+$branch = 'agent/research/golf-source-object-windows-private-20261027'
+$private = Join-Path $root 'Wii-AI-Golf-Data\ball-study-20261027-212633'
+if (-not (Test-Path -LiteralPath (Join-Path $private 'checkpoint-manifest-PRIVATE.json') -PathType Leaf)) { throw 'Missing private B0-B3 manifest' }
+git -C $repo fetch origin "refs/heads/${branch}:refs/remotes/origin/${branch}"
+if ($LASTEXITCODE -ne 0) { throw 'Fetch failed' }
+if (Test-Path -LiteralPath $work) {
+    git -C $work rev-parse --show-toplevel | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Work path is not a Git worktree' }
+    if (@(git -C $work status --porcelain).Count -gt 0) { throw 'Local edits present; refusing checkout' }
+    git -C $work switch --detach "origin/$branch"
+} else {
+    git -C $repo worktree add --detach $work "origin/$branch"
+}
+if ($LASTEXITCODE -ne 0) { throw 'Worktree checkout failed' }
+py -m unittest discover -s "$work\tests" -p 'test_golf_aim_ppc_context_private.py' -v
+if ($LASTEXITCODE -ne 0) { throw 'Context tests failed' }
+py -I "$work\scripts\audit_golf_aim_ppc_context_private.py" --private-root "$private"
+if ($LASTEXITCODE -ne 0) { throw 'Source analysis failed' }
+```
+
+**Analysis ask for next run:** only the sections prefixed `[r29_predecessor...]`, `[r30_predecessor...]`, `[r31_predecessor]`, `[math_helper_...]` are new; earlier eight sections were already reviewed. Ask operator to paste the new sections; source-owner agent can then establish whether r29/r30/r31 point to the manager-selected 0xCC inline record and what the three helper functions actually compute. Avoid repeated broad scans/novel training until this is checked.
