@@ -22,6 +22,7 @@ HERE=str(Path(__file__).resolve().parent)
 if HERE in sys.path: sys.path.remove(HERE)
 sys.path.insert(0,HERE)
 import audit_p0_global_ball_roster_receiver_private as owner
+import review_p0_global_slot_store_cfg as writer_cfg
 
 seven=owner.seven
 roster=owner.roster
@@ -199,6 +200,7 @@ def validate_and_read_three(directory:Path) -> dict:
                 source_digest=digest
                 code_ref=classify_source_refs(rd.u32,disp)
                 code_ref["single_direct_slot_store_source_candidate"]=classify_known_writer_value(rd.u32,disp)
+                code_ref["single_direct_slot_store_bounded_cfg"]=writer_cfg.analyze(rd.u32,disp)
             elif digest!=source_digest:
                 raise ValueError("Rev1 golf source code differs across wedge phases")
             observations.append({
