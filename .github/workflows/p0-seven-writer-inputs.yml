@@ -1,0 +1,29 @@
+name: S002 seven snapshot writer input roles offline
+
+on:
+  push:
+    paths:
+      - 'scripts/audit_p0_seven_writer_inputs_private.py'
+      - 'tests/test_p0_seven_writer_inputs_private.py'
+      - '.github/workflows/p0-seven-writer-inputs.yml'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_seven_writer_inputs_private.py'
+      - 'tests/test_p0_seven_writer_inputs_private.py'
+      - '.github/workflows/p0-seven-writer-inputs.yml'
+  workflow_dispatch:
+
+jobs:
+  synthetic:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Non-skipping source-selected writer role tests
+        run: python -m unittest discover -s tests -p 'test_p0_seven_writer_inputs_private.py' -v
