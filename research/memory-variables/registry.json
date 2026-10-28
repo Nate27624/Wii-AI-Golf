@@ -1290,6 +1290,220 @@
       "evidence_ledger_field_ids": [
         "gameplay.player_pose"
       ]
+    },
+    {
+      "id": "golf.minimap.ball_effect.changing_words",
+      "name": "Minimap ball effect source window changing word family",
+      "role": "render_effect_or_ui_confound_candidate",
+      "priority": "P1",
+      "status": "unresolved",
+      "datatype": "be_u32_wordset_unknown",
+      "unit": "unknown",
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "human_contact_yes_latest_private_capture_three_pre_two_post_three_settled_nonatomic_max_22_frames",
+      "memory_locator": {
+        "kind": "unresolved",
+        "expression": null,
+        "root_static_address": null,
+        "steps": [],
+        "reference_window": "ball_effect",
+        "relative_candidate_word_offsets": [
+          "+0x078",
+          "+0x07C",
+          "+0x108",
+          "+0x10C"
+        ],
+        "corroboration": "Same-shot source-relative offset from S002 PR #199 validated private 8-sample audit; dynamic capture window base is private and source pointer resolution across boots unknown; windows overlap"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/199",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
+        ],
+        "capture_groups": [
+          "2026-10-28 operator positive-human hit newest capture; paired PRIVATE raw/summary; 8 persistent candidates",
+          "11 matched human_contact_yes captures found; earlier 10 NOT YET independently audited for recurrent offsets"
+        ],
+        "observed_behavior": "Four relative offsets appeared in latest actual positive-human hit under overlapping minimap visual effects; not source game ball XYZ. Across the newest 3 PRE, 2 POST, 3 SETTLED samples, eight unique absolute words changed persistently; some are pointer-shaped and all were assigned visual_effect_confound family. The S002 audit showed human_contact_yes=true, human_green_yes=false, no semantic verification, maximum sampled bracket span 22 frames. C01..C08 are study-local IDs, NOT stable registry IDs.",
+        "source_confidence": "private_source_relative_hit_change_only_nonatomic"
+      },
+      "limitations": [
+        "A rendering or UI effect could react to hits without carrying any ball physics variable",
+        "Some source windows overlap and alias the SAME guest word; do not count offsets as distinct physical signals",
+        "No verified guest-frame atomicity; cannot label exact impact time or vertical velocity",
+        "No independently compared no-hit negative and no proof of identical location semantics across runs"
+      ],
+      "required_controls": [
+        "run the already validated S002 #199 sanitizer over all 11 exact raw/summary pairs",
+        "compare per-run recurring source-relative offsets with no-hit/idle controls, deduplicating window aliases",
+        "prove source-relative window pointer resolver across fresh boots",
+        "obtain frame-anchored ball-object current+cache measurement during independently visible motion"
+      ],
+      "owner": "S002",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Unresolved visual-effect confound only, not a verified feature or label",
+        "allowed_when": "Only with independent physical positive/negative, source object identity, guest-frame alignment, S000/S002 review, holdout dataset contract"
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "evidence_ledger_field_ids": [],
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+    },
+    {
+      "id": "golf.minimap.player_effect.changing_words",
+      "name": "Minimap player effect source window changing word family",
+      "role": "render_effect_or_ui_confound_candidate",
+      "priority": "P1",
+      "status": "unresolved",
+      "datatype": "be_u32_wordset_unknown",
+      "unit": "unknown",
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "human_contact_yes_latest_private_capture_three_pre_two_post_three_settled_nonatomic_max_22_frames",
+      "memory_locator": {
+        "kind": "unresolved",
+        "expression": null,
+        "root_static_address": null,
+        "steps": [],
+        "reference_window": "player_effect",
+        "relative_candidate_word_offsets": [
+          "+0x078",
+          "+0x07C",
+          "+0x108",
+          "+0x10C",
+          "+0x198",
+          "+0x19C"
+        ],
+        "corroboration": "Same-shot source-relative offset from S002 PR #199 validated private 8-sample audit; dynamic capture window base is private and source pointer resolution across boots unknown; windows overlap"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/199",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
+        ],
+        "capture_groups": [
+          "2026-10-28 operator positive-human hit newest capture; paired PRIVATE raw/summary; 8 persistent candidates",
+          "11 matched human_contact_yes captures found; earlier 10 NOT YET independently audited for recurrent offsets"
+        ],
+        "observed_behavior": "Six relative offsets appeared in latest actual positive-human hit. Several alias the other effect windows; no independent physics meaning. Across the newest 3 PRE, 2 POST, 3 SETTLED samples, eight unique absolute words changed persistently; some are pointer-shaped and all were assigned visual_effect_confound family. The S002 audit showed human_contact_yes=true, human_green_yes=false, no semantic verification, maximum sampled bracket span 22 frames. C01..C08 are study-local IDs, NOT stable registry IDs.",
+        "source_confidence": "private_source_relative_hit_change_only_nonatomic"
+      },
+      "limitations": [
+        "A rendering or UI effect could react to hits without carrying any ball physics variable",
+        "Some source windows overlap and alias the SAME guest word; do not count offsets as distinct physical signals",
+        "No verified guest-frame atomicity; cannot label exact impact time or vertical velocity",
+        "No independently compared no-hit negative and no proof of identical location semantics across runs"
+      ],
+      "required_controls": [
+        "run the already validated S002 #199 sanitizer over all 11 exact raw/summary pairs",
+        "compare per-run recurring source-relative offsets with no-hit/idle controls, deduplicating window aliases",
+        "prove source-relative window pointer resolver across fresh boots",
+        "obtain frame-anchored ball-object current+cache measurement during independently visible motion"
+      ],
+      "owner": "S002",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Unresolved visual-effect confound only, not a verified feature or label",
+        "allowed_when": "Only with independent physical positive/negative, source object identity, guest-frame alignment, S000/S002 review, holdout dataset contract"
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "evidence_ledger_field_ids": [],
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
+    },
+    {
+      "id": "golf.minimap.shot_line_effect.changing_words",
+      "name": "Minimap shot-line effect source window changing word family",
+      "role": "render_effect_or_ui_confound_candidate",
+      "priority": "P1",
+      "status": "unresolved",
+      "datatype": "be_u32_wordset_unknown",
+      "unit": "unknown",
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "human_contact_yes_latest_private_capture_three_pre_two_post_three_settled_nonatomic_max_22_frames",
+      "memory_locator": {
+        "kind": "unresolved",
+        "expression": null,
+        "root_static_address": null,
+        "steps": [],
+        "reference_window": "shot_line_effect",
+        "relative_candidate_word_offsets": [
+          "+0x078",
+          "+0x07C",
+          "+0x108",
+          "+0x10C",
+          "+0x198",
+          "+0x19C"
+        ],
+        "corroboration": "Same-shot source-relative offset from S002 PR #199 validated private 8-sample audit; dynamic capture window base is private and source pointer resolution across boots unknown; windows overlap"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/199",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
+        ],
+        "capture_groups": [
+          "2026-10-28 operator positive-human hit newest capture; paired PRIVATE raw/summary; 8 persistent candidates",
+          "11 matched human_contact_yes captures found; earlier 10 NOT YET independently audited for recurrent offsets"
+        ],
+        "observed_behavior": "Six relative offsets appeared in latest actual positive-human hit; repeated aliases shared with player/ball visual effects. Across the newest 3 PRE, 2 POST, 3 SETTLED samples, eight unique absolute words changed persistently; some are pointer-shaped and all were assigned visual_effect_confound family. The S002 audit showed human_contact_yes=true, human_green_yes=false, no semantic verification, maximum sampled bracket span 22 frames. C01..C08 are study-local IDs, NOT stable registry IDs.",
+        "source_confidence": "private_source_relative_hit_change_only_nonatomic"
+      },
+      "limitations": [
+        "A rendering or UI effect could react to hits without carrying any ball physics variable",
+        "Some source windows overlap and alias the SAME guest word; do not count offsets as distinct physical signals",
+        "No verified guest-frame atomicity; cannot label exact impact time or vertical velocity",
+        "No independently compared no-hit negative and no proof of identical location semantics across runs"
+      ],
+      "required_controls": [
+        "run the already validated S002 #199 sanitizer over all 11 exact raw/summary pairs",
+        "compare per-run recurring source-relative offsets with no-hit/idle controls, deduplicating window aliases",
+        "prove source-relative window pointer resolver across fresh boots",
+        "obtain frame-anchored ball-object current+cache measurement during independently visible motion"
+      ],
+      "owner": "S002",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Unresolved visual-effect confound only, not a verified feature or label",
+        "allowed_when": "Only with independent physical positive/negative, source object identity, guest-frame alignment, S000/S002 review, holdout dataset contract"
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "evidence_ledger_field_ids": [],
+      "legacy_evidence_ledger": "https://github.com/Nate27624/Wii-AI-Golf/pull/154"
     }
   ],
   "related_evidence_ledger": {
@@ -1301,9 +1515,9 @@
   "authority_boundary": "This is the typed discovery/extraction access index and training-eligibility gate. PR #154 research/memory/field-evidence-ledger.json remains the more detailed source-evidence/identity/behavior ledger; this registry DOES NOT supersede its records. Reconcile references during PR reviews.",
   "last_operator_evidence": {
     "date": "2026-10-28",
-    "study": "B0–B3 full source-object window private JSON; separate human nonstationary-ball JSON remains unknown",
-    "summary": "0/0/0 for ball/start/pin/current+cache triplets across B0→B1→B2→B3; selected player record 1/18/1, others 0/0/0. Tests 10/10 pass. No physical ball motion verified.",
-    "source": "https://github.com/Nate27624/Wii-AI-Golf/pull/205",
+    "study": "Human-contact-positive S002 PR #199 source-relative 8-sample PRIVATE audit plus B0-B3 negative",
+    "summary": "Eleven valid raw/summary matched contact=yes pairs discovered. Newest contact trial: 8 persistent changing u32, visual-effect window aliases only, four pointer-like, non-atomic max 22 frame bracket; selected player and ball objects NOT covered. B0–B3 selected ball/start/cache 0 changing components with player-record aim changes 1/18/1. No verified ball physics or velocity.",
+    "source": "https://github.com/Nate27624/Wii-AI-Golf/pull/199",
     "training_allowed": false
   }
 }
