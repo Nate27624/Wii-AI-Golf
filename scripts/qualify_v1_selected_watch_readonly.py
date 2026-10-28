@@ -112,7 +112,13 @@ def summarize_qualification(response: dict, *, elapsed_s: float) -> dict:
     return {
         "kind": "P0_V1_STATIONARY_WATCH_RUNTIME_QUALIFICATION_REDACTED",
         "result": "PASS",
-        "genuine_emulator_source_checked": True,
+        # Source-valid bridge status and a self-asserted attach flag DO NOT
+        # authenticate installed Dolphin bytes or the canonical fresh boot.
+        "genuine_emulator_source_checked": False,  # legacy key; fail closed
+        "local_watched_bridge_sha_verified_this_cli_run": False,
+        "installed_emulator_binary_source_verified": False,
+        "canonical_fresh_boot_proven": False,
+        "attach_flag_is_authenticated_session_witness": False,
         "input_or_swing_sent_by_qualifier": False,
         "watch_source_identity_stable": True,
         "same_source_slot_and_hole_throughout": True,
@@ -162,7 +168,7 @@ def main(argv=None) -> int:
     parser.add_argument("--read-only-live", action="store_true",
                         help="Explicitly qualify an already booted V1 watcher with no input")
     parser.add_argument("--attach-running", action="store_true",
-                        help="Canonical post-boot dispatcher handoff; not a standalone authorization")
+                        help="Post-boot mode flag; manually supplyable, NOT a session authentication")
     parser.add_argument("--port", type=int, default=55355)
     args = parser.parse_args(argv)
     if not args.read_only_live:
@@ -186,6 +192,9 @@ def main(argv=None) -> int:
             return 0
         with watched_v1_rpc(port=args.port) as rpc:
             report = qualify_running(rpc)
+        # Only this CLI path checked the local generated bridge file digest;
+        # neither the digest nor a manually supplyable attach flag proves boot.
+        report["local_watched_bridge_sha_verified_this_cli_run"] = True
         print(json.dumps(report, indent=2, sort_keys=True))
         return 0
     except (OSError, RuntimeError, ValueError, TimeoutError, TypeError):
