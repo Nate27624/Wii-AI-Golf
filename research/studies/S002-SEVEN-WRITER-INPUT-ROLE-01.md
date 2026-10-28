@@ -21,3 +21,32 @@ An unchanging player-record +0x60 triple **cannot by itself explain all three di
 ## Owner boundaries
 
 Source/PPC #219 owns static symbol, BL and branch destinations. Source/cache #183 owns cache copy conditional code. S002 seven #230/#231 own source-selected trajectories. This new tool owns **only per-snapshot equality against known Player input and distinct cache**; cooperate with #205 evidence registry. If the observed result shows record input constant but live changing, the remaining writer or source-global receiver needs a targeted interpreter/waypoint or same-frame watch by the rightful owner. No duplicate RAM scans and no automatic training.
+
+## 2026-10-28 REAL seven-pair operator result — pinned #236 SHA 59b82ea
+
+Operator executed **exact head `59b82ea4c12b30dfb64f4f8133872ac7d01bc5a0`** in a detached local Windows worktree; **10/10 synthetic tests PASS**, then **REAL seven native source-selected pairs PASS**, `sample_count_source_gated=7`, `all_required_source_alias_and_owner_gates=true`. Original banks read-only. Raw memory, paths, hashes, numeric positions and runtime pointers were not supplied to GitHub.
+
+| Operator-labeled phase | Ball == record+0x060, components/3 | Ball == record+0x054 | Record+0x054 == +0x060 | Ball == cache+0xCC | Ball == cache+0xF0 | Ball == cache+0xFC | Ball == START | Ball == PIN |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 driver visibly airborne (operator) | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 0 |
+| 2 same driver stationary | 0 | 0 | 3 | 3 | 0 | 0 | 0 | 0 |
+| 3 putter backswing A released | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 0 |
+| 4 driver backswing A held | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 0 |
+| 5 wedge near apex | 0 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
+| 6 wedge descending | 0 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
+| 7 wedge flag/on-green UI | 0 | 0 | 3 | 3 | 0 | 0 | 0 | 0 |
+
+Within SAME shot: driver D1→D2 selected current ball changes 3/3, player record +0x054/+0x060 do not change, all three caches +0xCC/+0xF0/+0xFC change 3/3, PIN/START remain fixed. Wedge W5→W6, W6→W7, W5→W7 selected current ball changes 3/3 on all edges, player record+0x054/+0x060 and caches +0xCC/+0xF0/+0xFC each change 0/3, START/PIN each change 0/3. Wedge current ball has three distinct triplet bitpatterns; unchanged CC triple equals final W7 current 3/3 but does not equal W5 or W6 current 0/3. Player records +0x054 and +0x060 are bitwise identical in every snapshot.
+
+### Interpretation, anomalous snapshot and strict gates
+
+1. **Existing static Player record→Ball writer is NOT a sufficient ongoing explanation** for wedge selected ball current+0x30 changes at the three observed points: record+0x060 input remains constant, and it is 0/3 equal to current ball in W5, W6, W7. This does NOT prove the Player writer never executes between captures or that there was no transient record; reverse sync, simulation, other writers and ownership remain candidates. Distinguish **static PPC write-site identified** from **executed active flight writer not identified**.
+2. **Static +0xCC and final W7 equality** is a strong pre-existing endpoint-value bitpattern observation. #183 static cache refresh copies from a source-global ball pointer into the receiver +0xCC. Thus an apparent endpoint match might reflect a simulation/preview ball or copied target/previous position, rather than an instruction that calculates an endpoint. Existing #183/#219 code paths should trace **global source ball pointer ownership and receiver r27**; no new broad scans.
+3. **Critical discrepancy:** human-labeled D1 ball was already midair, but its source-selected current+0x30 equals START, Player+0x054/+0x060 and all three caches in all components. This actively cautions against equating source-selected simulation ball memory with the on-screen moving-ball object in EVERY stage; possible multi-object ownership / pre/post simulation lifetime, phase annotation and render latency. No unverified reconciliations.
+4. F0 and FC are NOT equal to current at D2 or any W5/W6/W7 (0/3), but equal current START at D1 and no-shot P3/D4. Their different update predicates in #183 support independent cached extremum-like roles, NOT independent live XYZ or verified minimum/maximum physical meaning.
+5. The result documents seven *human* observation labels; mem1/mem2 native same-guest-frame atomicity, physical axes/units, actual guest frames, cache execution, true impact and score, training and public raw outputs remain FALSE.
+
+### Next responsible source owner task
+
+Existing source owners #183/#219 should trace ownership of source-global ball pointer read at cache refresh fn_80299C70 and r27 receiver **through fn_80299ACC and fn_80299C20** to determine whether receiver is a recorder/simulation ball or player-selected live ball, and whether the code path is simulation phase-specific. Cross-check candidate owner against static / observed D1+W5 exceptions, not simply matching endpoint values. If source-only resolution impossible, specify a *read-only runtime* source-selected watch with frame IDs and rendered-ball association **only after separate S001 approval**. Parallel #233 owns ordinal endpoint distance, #234 pin-axis hypothesis, #235 51-word selected-player mask, so do not duplicate.
+
