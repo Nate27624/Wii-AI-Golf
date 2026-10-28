@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import re
 from pathlib import Path
 import struct
 import subprocess
@@ -17,7 +18,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import audit_ball_xyz_source_callers_private as source
 
-CFG_SHA = "8696a46a315499f220ee7c87580a21dc99f21462"
+CFG_SHA = "abd875dc83f3cf8e773c1790272ffb4759f37ef7"
 CFG_RELATIVE = Path("scripts/review_p0_cache_receiver_cfg_mustdef.py")
 EXPECTED_SOURCE_OWNER = "Pack/RPSports/RPGolScene/RPGolMapObjBall.cpp"
 EXPECTED_CALLERS = (
@@ -29,6 +30,15 @@ ALLOWED_STATUS = {
     "NOT_PROVEN_FOR_ALL_REACHING_PATHS",
     "ABSTAIN_TARGET_UNREACHABLE",
     "ABSTAIN_SOURCE_UNRESOLVED",
+}
+# Mirror the reviewed #254 public categorical contract, not native error text.
+ALLOWED_REASONS = {
+    "INVALID_WINDOW", "INVALID_SOURCE_WORD", "TARGET_CALL_MISMATCH",
+    "STATE_BUDGET", "OUT_OF_WINDOW_PATH", "ZERO_INSTRUCTION",
+    "OUT_OF_WINDOW_BRANCH", "UNSUPPORTED_XFORM", "UNSUPPORTED_OPCODE",
+    "INTERVENING_CALL", "INDIRECT_OR_UNSUPPORTED_BRANCH",
+    "SYSTEM_CALL", "CALLSITE_NOT_VERIFIED", "NO_REACHABLE_TARGET_PATH",
+    "UNCLASSIFIED_SOURCE_FAILURE", "SOURCE_ACCESS_FAILURE",
 }
 
 
@@ -153,9 +163,26 @@ def report_from_bytes(bank: Path, module, *, public_units):
                 or row.get("executed_cache_write_verified") is not False
                 or row.get("training_approved") is not False):
             raise QualificationError
+        reason = row.get("abstain_reason_category")
+        relative = row.get("first_encountered_unresolved_source_relative_offset")
+        if (reason is not None and reason not in ALLOWED_REASONS):
+            raise QualificationError
+        if (relative is not None and
+                (type(relative) is not str
+                 or re.fullmatch(r"\\+0x[0-9A-F]{4}", relative) is None
+                 or int(relative[3:], 16) > expected[2] - expected[1])):
+            raise QualificationError
+        if row["status"] == "ABSTAIN_SOURCE_UNRESOLVED" and reason is None:
+            raise QualificationError
+        if (row["status"] != "ABSTAIN_SOURCE_UNRESOLVED"
+                and relative is not None):
+            raise QualificationError
         rows.append({
             "public_caller": expected[0],
             "conservative_static_cfg_status": row["status"],
+            "first_abstain_reason_class": reason,
+            "first_source_relative_unresolved_offset": relative,
+            "diagnostic_witness_is_static_not_executed": True,
             "exact_cache_writer_callsite_reached": bool(
                 row["known_exact_cache_writer_callsite_reached"]
             ),
