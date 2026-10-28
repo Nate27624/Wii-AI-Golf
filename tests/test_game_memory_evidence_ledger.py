@@ -38,7 +38,7 @@ class GameMemoryEvidenceLedgerTests(unittest.TestCase):
     def test_a_time_correlated_field_cannot_be_promoted_directly(self):
         with self.assertRaisesRegex(ValueError, "Training promotion"):
             validate_memory_ledger(self.mutate(
-                "golfer.main_0x074", training_eligible=True))
+                "scene.golfer_main_candidate", training_eligible=True))
         with self.assertRaisesRegex(ValueError, "negative control"):
             validate_memory_ledger(self.mutate(
                 "golfer.main_0x074",
