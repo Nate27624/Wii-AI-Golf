@@ -6,6 +6,24 @@ Output is full binary Wii guest RAM: 24 MiB MEM1 (`0x80000000`) and 64 MiB MEM2 
 
 **Trust limits:** Successful installation or hook does not guarantee compatibility with the operator's Felk Dolphin build. A paused human attestation is not independent emulator freeze verification. Banks are read sequentially; if emulation is advancing they are not a consistent shot checkpoint. Only label POST when the ball visibly moved and has not reset, on the same hole and process. Never confuse a miss or result-screen reset with landed POST. No swing velocity, verified world XYZ, power, game unit conversion or training approval follows from these dumps. Never share native banks publicly.
 
+
+### Canonical operator entry point (PowerShell only)
+
+The preferred command is now the PowerShell wrapper, not a series of manual memory GUI exports:
+
+```powershell
+# Run after a clean Dolphin process is at the first ball and PAUSED.
+& "$work\scripts\capture_golf_fullbanks_private.ps1" -Session $session -Phase PRE -PausedConfirmed
+
+# Only if EXACTLY ONE shot visibly DISPLACED the ball before any reset:
+& "$work\scripts\capture_golf_fullbanks_private.ps1" -Session $session -Phase POST -PausedConfirmed -ShotObserved -SameProcessConfirmed -SameHoleConfirmed
+
+# Optional after actual POST, only when visible result screen:
+& "$work\scripts\capture_golf_fullbanks_private.ps1" -Session $session -Phase RESULT -PausedConfirmed -ResultVisible
+```
+
+The wrapper verifies exactly one Dolphin process with the expected clean executable path, checks the new script's exit code immediately, and verifies the exact native bank output sizes. This catches the earlier PowerShell separate-elseif and misleading Write-Host success mistakes. Keep $work and $session bound in the same PowerShell process, or copy their explicit paths into a second window. No GUI Memory panel needed. The wrapper cannot independently prove paused emulation or same game frame: operator must pause/unpause and attest same boot/hole. The native reader has not been live-tested on the user's Felk installation.
+
 ### Operator sequence
 
 1. Launch into the first ball using the existing main-repo launcher, with the correct clean Felk binary and isolated V1 bridge. Do NOT relaunch if already at ball.
