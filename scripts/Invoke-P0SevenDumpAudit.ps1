@@ -195,6 +195,54 @@ foreach ($phase in $uniquePhases) {
         }
     }
 }
+# Three-state wedge page masks: coarse temporal triage, NOT XYZ/velocity.
+# For immutable X5,X6,X7, every changed page in X5->X7 must also occur
+# in X5->X6 OR X6->X7. Failure would invalidate the comparisons.
+$wedgeTemporal=@{}
+$byPair=@{}
+foreach ($entry in $results) { $byPair[$entry.comparison]=$entry }
+$near='W5_to_W6_near_apex_to_descending'
+$impact='W6_to_W7_descending_to_flag_result'
+$span='W5_to_W7_near_apex_to_flag_result'
+if ($byPair.ContainsKey($near) -and $byPair.ContainsKey($impact) -and $byPair.ContainsKey($span)) {
+    foreach ($bank in @('MEM1','MEM2')) {
+        $a=@{}; $bb=@{}; $c=@{}
+        foreach ($page in $byPair[$near][$bank].changed_page_indices_private) { $a[[string]$page]=$true }
+        foreach ($page in $byPair[$impact][$bank].changed_page_indices_private) { $bb[[string]$page]=$true }
+        foreach ($page in $byPair[$span][$bank].changed_page_indices_private) { $c[[string]$page]=$true }
+        $both=0; $allThree=0; $restored=0
+        $earlyOnly=0; $lateOnly=0; $inconsistent=0
+        foreach ($key in $a.Keys) {
+            if ($bb.ContainsKey($key)) {
+                $both++
+                if ($c.ContainsKey($key)) { $allThree++ } else { $restored++ }
+            } else { $earlyOnly++ }
+        }
+        foreach ($key in $bb.Keys) {
+            if (-not $a.ContainsKey($key)) { $lateOnly++ }
+        }
+        foreach ($key in $c.Keys) {
+            if (-not $a.ContainsKey($key) -and -not $bb.ContainsKey($key)) { $inconsistent++ }
+        }
+        if ($inconsistent -ne 0) {
+            throw 'INVALID THREE-SNAPSHOT WEDGE PAGE COMPARISON: long-span changed outside adjacent union.'
+        }
+        $wedgeTemporal[$bank]=@{
+            near_apex_to_descent_changed_pages=$a.Count
+            descent_to_flag_changed_pages=$bb.Count
+            near_apex_to_flag_changed_pages=$c.Count
+            changed_in_both_adjacent_intervals=$both
+            changed_in_all_three_pairwise_contrasts=$allThree
+            changed_in_both_adjacent_intervals_but_first_equals_last_page=$restored
+            changed_only_in_first_adjacent_interval=$earlyOnly
+            changed_only_in_second_adjacent_interval=$lateOnly
+            three_state_page_triangle_consistent=$true
+            page_mask_intersection_is_NOT_ball_world_xyz=$true
+        }
+        Write-Host ("WEDGE TEMPORAL {0}: both adjacent intervals {1}; all three comparisons {2}; return-to-first-page mask {3}; early-only {4}; late-only {5}" -f
+            $bank,$both,$allThree,$restored,$earlyOnly,$lateOnly)
+    }
+}
 $private = Join-Path $directory ("P0-SEVEN-AUDIT-" + (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ') +
     '-' + [guid]::NewGuid().ToString('N').Substring(0,10) + '-PRIVATE')
 [void](New-Item -ItemType Directory -Path $private -ErrorAction Stop)
@@ -211,6 +259,7 @@ $report=@{
     inventory=@($inventory); unmatched_raw_names_count=$unmatched
     invalid_size_count=$invalidSize; per_phase_native_sha256_private=$metadata
     comparisons=@($results)
+    wedge_temporal_page_triage=$wedgeTemporal
     all_bank_pairs_same_guest_frame_verified=$false
     p0_ball_world_xyz_verified=$false; p0_ball_velocity_verified=$false
     p0_power_verified=$false; official_score_memory_verified=$false
