@@ -198,10 +198,78 @@ py -m unittest discover -s tests -v
 if ($LASTEXITCODE -ne 0) { throw "Full test failed: stop" }
 ```
 
-The live-capture steps **MUST come from the approved S001 owner**
-because Dolphin GUI export commands/actual portable User Dump folder
-must be verified locally before using them. Without an explicitly
-verified contact baseline, STOP after the tests and do not send a shot.
+The LIVE contact/pause/export step **MUST come from the approved
+S001 owner**, who must confirm the actual clean portable User Dump path,
+GUI export controls, game-ready mode4 screen and known-good single-shot
+contact method. Without S001 signoff, STOP after offline tests and
+**do not send a shot**.
+
+### After approval: stage each bank pair while its GUI pause is still active
+
+The following block is an **illustrative reviewed-template step**,
+not authorization to pause/export/shoot now. The user must replace
+the source paths with paths VERIFIED in the currently running
+`FelkDolphin-Clean` portable User tree. Do not copy from the
+old crash-prone `FelkDolphin` installation or AppData.
+
+```powershell
+$cleanUser = "D:\\Projects\\Wii Golf AI\\tools\\FelkDolphin-Clean\\User"
+# These two filenames are a likely Felk GUI export convention,
+# NOT verified for every installation. S001/operator MUST confirm.
+$srcMem1 = Join-Path $cleanUser "Dump\\mem1.raw"
+$srcMem2 = Join-Path $cleanUser "Dump\\mem2.raw"
+$session = Join-Path $data ("captures\\SHOT-" +
+                            (Get-Date -Format 'yyyyMMdd-HHmmss') + "-PRIVATE")
+if (Test-Path -LiteralPath $session) { throw "Preserve existing session" }
+New-Item -ItemType Directory -Path $session | Out-Null
+
+# PRE: record time BEFORE pausing/exporting. Human pauses the
+# ready-to-swing visible ball, exports BOTH banks from the GUI
+# under ONE unchanged pause, and stays paused during this copy.
+$preExportStartedAfter = Get-Date
+# --- HUMAN GUI PAUSE + MEM1 & MEM2 EXPORT, under approved S001 steps ---
+# Only when the attestation is true:
+& .\\scripts\\preserve_golf_paused_pair_private.ps1 \`
+    -CleanDolphinUserRoot $cleanUser \`
+    -SourceMem1Path $srcMem1 -SourceMem2Path $srcMem2 \`
+    -PrivateDataRoot $data -SessionFolder $session -Phase PRE \`
+    -ExportStartedAfter $preExportStartedAfter \`
+    -ConfirmBothExportsUnderSameGuiPause \`
+    -ConfirmCorrectVisibleShotPhase \`
+    -ConfirmNoHoleOrDolphinProcessChange
+if (-not $?) { throw "PRE preservation failed: stop" }
+
+# Only later, after reviewing the known-good single-shot contact
+# method: resume, conduct ONE operator-observed shot, pause while
+# visible ball is DISPLACED and before the game resets.
+# Record a NEW timestamp BEFORE POST export, and keep GUI paused.
+$postExportStartedAfter = Get-Date
+# --- HUMAN GUI POST PAUSE + BOTH EXPORTS, under approved S001 steps ---
+# Only when the attestation is true:
+& .\\scripts\\preserve_golf_paused_pair_private.ps1 \`
+    -CleanDolphinUserRoot $cleanUser \`
+    -SourceMem1Path $srcMem1 -SourceMem2Path $srcMem2 \`
+    -PrivateDataRoot $data -SessionFolder $session -Phase POST \`
+    -ExportStartedAfter $postExportStartedAfter \`
+    -ConfirmBothExportsUnderSameGuiPause \`
+    -ConfirmCorrectVisibleShotPhase \`
+    -ConfirmNoHoleOrDolphinProcessChange
+if (-not $?) { throw "POST preservation failed: stop" }
+```
+
+The first manual POST stage must occur **while the game remains
+paused at a visibly displaced ball**. If the game has reset, no shot
+was observed, the source export location is unknown, the last-write
+time predates the declared start, or the complete PRE/POST pair cannot
+be safely obtained, STOP and abstain. The script requires 24/64MiB
+exact native sizes, valid last-write timestamps, source files beneath
+the **clean** portable User root, no junction traversal, and
+exclusive destination files. It independently hashes each source
+before/after copying and each destination; any mismatch fails.
+This is preservation integrity, **not independent emulated
+frame-atomicity proof**. The S001-approved GUI procedure—not
+a PowerShell invocation—will determine whether both exports share
+one paused emulation frame.
 
 ### After operator has successfully exported and preserved all four banks
 
