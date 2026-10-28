@@ -108,6 +108,7 @@ def analyze_words(words: list[int], lookahead: int = MAX_LOOKAHEAD) -> dict:
     mul_with_join = mul_with_member = 0
     site_shape_counts = Counter()
     short_stop_counts = Counter()
+    site_diagnostics = []
 
     for i, w in enumerate(words):
         op = _op(w)
@@ -124,10 +125,13 @@ def analyze_words(words: list[int], lookahead: int = MAX_LOOKAHEAD) -> dict:
         found_join = False
         found_member = False
         site_shapes = set()
+        site_join_addi = []
         stop_reason = "window_end"
+        stop_opcode_family = "window_end"
         for nxt in words[i + 1: i + 1 + lookahead]:
             n_op = _op(nxt)
             if n_op in (16, 18, 19):
+                stop_opcode_family = f"primary_{n_op}"
                 stop_reason = "branch_before_complete_trace"
                 break  # stop at control-flow boundary
 
@@ -139,6 +143,8 @@ def analyze_words(words: list[int], lookahead: int = MAX_LOOKAHEAD) -> dict:
                 if prior:
                     next_kind = prior
                     if prior == "joined" and n_op == 14:
+                        if len(site_join_addi) < 8:
+                            site_join_addi.append(_signed16(nxt))
                         if _signed16(nxt) in CANDIDATE_MEMBER_OFFSETS:
                             next_kind = "joined_offset_member"
                             site_shapes.add("joined_plus_candidate_member_addi")
@@ -163,6 +169,7 @@ def analyze_words(words: list[int], lookahead: int = MAX_LOOKAHEAD) -> dict:
                 continue
 
             if n_op == 46:  # lmw overwrites multiple registers; cannot track
+                stop_opcode_family = "primary_46"
                 stop_reason = "multiple_register_load"
                 break
 
@@ -214,11 +221,27 @@ def analyze_words(words: list[int], lookahead: int = MAX_LOOKAHEAD) -> dict:
 
             # Unknown families may clobber tracked registers. Fail closed.
             stop_reason = "unsupported_ppc_opcode"
+            stop_opcode_family = (
+                f"primary31_xo{(nxt >> 1) & 0x3FF}"
+                if n_op == 31 else f"primary_{n_op}"
+            )
             break
 
         if found_join:
             short_stop_counts[stop_reason] += 1
             site_shape_counts.update(site_shapes)
+        site_diagnostics.append({
+            "mulli_site_ordinal": len(site_diagnostics) + 1,
+            "bounded_addition_found": found_join,
+            "bounded_direct_member_found": found_member,
+            "stop_reason": stop_reason,
+            "stop_instruction_family": stop_opcode_family,
+            "post_join_shape_labels": sorted(site_shapes),
+            "post_join_addi_immediates": [
+                f"{'-' if n < 0 else '+'}0x{abs(n):X}"
+                for n in site_join_addi
+            ],
+        })
         mul_with_join += int(found_join)
         mul_with_member += int(found_member)
 
@@ -259,6 +282,7 @@ def analyze_words(words: list[int], lookahead: int = MAX_LOOKAHEAD) -> dict:
             )
         },
         "index_provenance_and_receiver_identity_verified": False,
+        "bounded_mulli_site_diagnostics": site_diagnostics[:8],
         "syntactic_candidate_chains": {
             f"{offset}_{kind}": chains[(offset, kind)]
             for offset in ("+0x08C", "+0x0C8") for kind in ("load", "store")
