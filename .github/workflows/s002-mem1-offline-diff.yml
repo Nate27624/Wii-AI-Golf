@@ -8,6 +8,8 @@ on:
       - 'src/wii_ai_golf/audit/golf_cross_bank_state.py'
       - 'scripts/audit_golf_cross_bank_private.py'
       - 'tests/test_audit_golf_cross_bank_state.py'
+      - 'src/wii_ai_golf/audit/golf_environment_geometry.py'
+      - 'tests/test_golf_environment_geometry.py'
       - '.github/workflows/s002-mem1-offline-diff.yml'
   workflow_dispatch:
 jobs:
@@ -31,5 +33,7 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_mem1_checkpoint_diff.py' -v
       - name: Test source-gated paired MEM1/MEM2 object graph
         run: python -m unittest discover -s tests -p 'test_audit_golf_cross_bank_state.py' -v
+      - name: Test source-named environmental transforms
+        run: python -m unittest discover -s tests -p 'test_golf_environment_geometry.py' -v
       - name: Full repository regression (known shared S000 lock assertion may fail)
         run: python -m unittest discover -s tests -v
