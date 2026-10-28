@@ -2,7 +2,7 @@
 
 **Owner:** S000 schema/claims gate. S002 owns source and capture facts; S001 owns controller/frame-callback timing; S003 reviews identifiability before any training. **Status:** proposal, not merged, no new live capture.
 
-The machine-readable [field-evidence-ledger.json](field-evidence-ledger.json) contains **16 entries**: six source/runtime structural or negative-control candidates and ten deliberately **unlocated** gameplay variables. Nothing is labelled verified game power, ball velocity or club pose. Synthetic tests reject guessed offsets, untrusted URLs, raw runtime pointers, unsupported private fields, and unsupported training promotion.
+The machine-readable [field-evidence-ledger.json](field-evidence-ledger.json) contains **24 entries**: fourteen source/runtime structural or negative-control candidates (including eight newly source-named environment references) and ten deliberately **unlocated** gameplay variables. Nothing is labelled verified game power, ball velocity or club pose. Synthetic tests reject guessed offsets, untrusted URLs, raw runtime pointers, unsupported private fields, and unsupported training promotion.
 
 ## Exactly what a field claim must establish
 
@@ -25,6 +25,40 @@ The schema validates these flags separately. An entry's `training_eligible` bool
 - `candidate_gameplay_main +0x074`: separate private source-backed 20-row capture showed 17/17 within-stage u32 delta equals emulator frame-start gap; 10/10 of those change opportunities were in idle stages. **Time-linked/background candidate**, not a source-named clock or verified golf power. Operator report via [S002 PR #138](https://github.com/Nate27624/Wii-AI-Golf/pull/138).
 - Three source-relative child words `+0x008/+0x050`, `+0x020/+0x038`, `+0x044/+0x060`: [published 16-child controls](https://github.com/Nate27624/Wii-AI-Golf/blob/research/observations/research/observations/20261025T034248Z-7c597d65.json) each changed in 10/10 within-idle and 7/7 aim-only pairs. Their *numeric deltas* must not be declared equal to main without the existing same-capture temporal review.
 - Earlier source-led `RPGolScene +0x9C` resembles a gameplay-main pointer but one code source types it `RPGolMain*` and another leaves it unknown; even matching live scene ID and a RAM-looking target does not prove the object class. See S002 source [PR #122](https://github.com/Nate27624/Wii-AI-Golf/pull/122) and enhanced probe [PR #132](https://github.com/Nate27624/Wii-AI-Golf/pull/132).
+
+## Operator-confirmed MEM1 + MEM2 structural inventory (saved single pair)
+
+Operator executed the PR #157 offline source-gated audit against **preserved**
+native MEM1 24 MiB and MEM2 64 MiB and pasted only sanitized JSON.
+Its results exactly reproduce the existing S002 #151/#156 source-compatible
+object inventory: RSPE01 Rev1, scene ID5, sport2, mode4, raw hole1, manager
+MEM1, Golf scene/main candidate/config/field manager MEM2; **six** source-named
+field references all present in MEM2 (current pin, start, cup, wind object,
+course object, map data); field manager **six pin objects and 31 start
+markers**. Candidate main's first 256 bytes contain **25 pointer-shaped
+MEM2 words and four MEM1 words**; first word lies in a publicly documented
+Rev1 module data interval but that is NOT class/vtable proof.
+
+This new result is now represented as **eight extra source-labelled
+configuration/reference entries** in the dictionary with explicit no-training
+flags. Crucially, an `RPGolFieldManager+0x44` pin pointer is *not pin XYZ*;
+`+0x50` current start marker is *not moving ball XYZ*; `+0x68` wind object
+is *not wind speed*. The ten original unlocated physical/state targets remain
+unlocated and nothing is training-ready. No numeric world coordinates,
+velocities, club kinematics or power are decoded.
+
+The two GUI exports were approximately **111 seconds apart**. Both
+`same_frame_verified` and `same_boot_verified` remain false. The audit
+success only shows that the pair's stored scene references are mutually
+plausible; it cannot assert atomicity or prove temporal changes.
+
+S000 independently identified overlapping one-pair readers in #156 and
+canonical #151 and closed duplicate PR #157 **without merge**, retaining
+the real sanitized operator result as PR evidence. S002 should consolidate
+any unique privacy tests into #151 instead of creating three readers.
+The next new measurement should prioritize existing-bank source owner
+and selected-map-object hypotheses (#151 player-object source evidence;
+stacked #159 selected pin/start candidate vectors) with no Dolphin.
 
 ## Full-MEM1 checkpoints are discovery data, NOT instant semantic labels
 
