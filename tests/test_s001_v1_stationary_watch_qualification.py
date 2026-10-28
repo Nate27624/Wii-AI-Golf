@@ -159,5 +159,52 @@ class StationaryQualificationTests(unittest.TestCase):
         self.assertFalse(any(name=="golf.ball_watch.arm" for name,_ in rpc.calls))
 
 
+    def test_subthreshold_cumulative_drift_rejected_for_every_vector(self):
+        # Old adjacent-only rule would PASS all of these after drifting
+        # 31 * 0.9e-4 = 0.00279, despite stability tolerance of 1e-4.
+        for field in (
+            "ball_translation_f32_candidate",
+            "record_translation_f32_candidate",
+            "current_start_f32_candidate",
+        ):
+            for axis in range(3):
+                with self.subTest(field=field, axis=axis):
+                    data = private()
+                    for i, sample_row in enumerate(data["samples"]):
+                        sample_row[field][axis] += i * (0.9 * q.VECTOR_STABILITY_TOL)
+                    with self.assertRaisesRegex(RuntimeError, "stationary"):
+                        q.summarize_qualification(data, elapsed_s=2.0)
+
+    def test_cumulative_drift_reversing_before_end_rejected(self):
+        # Finishing back at start cannot hide an earlier large excursion.
+        data = private()
+        for i, sample_row in enumerate(data["samples"]):
+            deviation = min(i, 31-i) * (0.9 * q.VECTOR_STABILITY_TOL)
+            sample_row["ball_translation_f32_candidate"][0] += deviation
+        with self.assertRaisesRegex(RuntimeError, "stationary"):
+            q.summarize_qualification(data, elapsed_s=2.0)
+
+    def test_small_stationary_jitter_within_anchor_and_adjacent_bounds_passes(self):
+        # Noise can vary without exceeding *either* criterion.
+        data = private()
+        for i, sample_row in enumerate(data["samples"]):
+            offset = (0.35 if i % 2 else -0.35) * q.VECTOR_STABILITY_TOL
+            for field in (
+                "ball_translation_f32_candidate",
+                "record_translation_f32_candidate",
+                "current_start_f32_candidate",
+            ):
+                sample_row[field][0] += offset
+        report = q.summarize_qualification(data, elapsed_s=2.0)
+        self.assertEqual(report["result"], "PASS")
+        self.assertEqual(
+            report["frame_counter_type"],
+            "bridge_coroutine_tick_not_guest_physics_frame",
+        )
+        self.assertFalse(report["ball_world_xyz_verified"])
+        self.assertFalse(report["training_allowed"])
+
+
+
 if __name__=="__main__":
     unittest.main()
