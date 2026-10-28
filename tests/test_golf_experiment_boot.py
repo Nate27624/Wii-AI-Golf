@@ -14,7 +14,7 @@ class FreshBootDispatchTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.scripts = Path(temporary.name) / "scripts"
+        self.scripts = Path(temporary.name).resolve() / "scripts"
         self.scripts.mkdir()
         for name in ("launch_golf.py", "probe_swing.py", "discover_golf_motion.py"):
             (self.scripts / name).write_text("# fixture\n", encoding="utf-8")
