@@ -87,6 +87,18 @@ An existing public CLI wrapper may delegate to an older internal script. **That 
 
 The main branch may not yet contain a draft feature. Do not pretend a draft PR is already present on the user's main checkout. Use separate, exact, read-only worktree commands for unmerged offline investigation only when truly needed.
 
+## Results: automatic GitHub upload and research memory
+
+**A local run is not the end of the workflow.** For every approved operator test or experiment, the existing canonical research_cli.py path must automatically publish a **SANITIZED, allowlisted** result to the dedicated research/observations branch in the SAME operator command (unless a user explicitly selects --no-upload or privacy gates reject publication). For a novel study without a reviewed publisher adapter, S000/S002 must first extend the one existing publisher and test the exact workflow; agents must not quietly tell the operator that a private-only script has auto-upload.
+
+- **Local data:** Wii-AI-Golf-Data holds full/private observations and snapshots; never push native RAM, source memory pointers or local file paths.
+- **Published result:** research/observations is a separate Git branch for automatically uploaded safe study/run metadata and bounded outcome fields, NOT a copy of the local captures directory.
+- **Important finding:** date-stamped GitHub FINDING comment in the owning S001–S005 issue/PR with study/run ID, sanitized result URL (or NOT UPLOADED), evidence class, positive/negative finding, controls, caveats and next owner.
+- **Durable science:** update research/ledger.md through the owner's reviewed PR/integration, linking the finding and source result without overwriting other agents' entries.
+- **Publication failure:** preserve the sanitized record locally and report the problem clearly, rather than asking the operator to upload raw data or claiming a GitHub artifact exists.
+
+Automated results upload **does not** mean unattended Dolphin control, silent Git force-push, model training approval, or unrestricted private-data publication. S000 owns the publisher/schema contract; S002 reviews scientific provenance. See the active docs/operator-powershell-contract.md for exact operator response requirements.
+
 ## Study/workstream status and branch rules
 
 - **main:** reviewed code source for operator; may contain stale historical docs until this rule PR lands. Never push feature changes directly.
