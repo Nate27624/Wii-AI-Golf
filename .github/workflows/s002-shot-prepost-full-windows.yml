@@ -1,0 +1,18 @@
+name: S002 PRE POST full Windows regression (read-only synthetic)
+on:
+  push:
+    branches:
+      - agent/research/private-shot-prepost-cohort-20261027
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  full_windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Complete repository unit regression, no game
+        run: python -m unittest discover -s tests -v
