@@ -1,0 +1,28 @@
+name: S001 reviewer watched real generated tick parity
+on:
+  push:
+    branches:
+      - agent/review/s001-real-watched-swing-dispatch-parity
+  pull_request:
+    paths:
+      - tests/test_s001_watched_full_trace_dispatch_parity.py
+      - .github/workflows/s001-full-watched-dispatch-parity.yml
+permissions:
+  contents: read
+jobs:
+  parity:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -e .
+      - name: Compile reviewer synthetic test
+        run: python -m py_compile tests/test_s001_watched_full_trace_dispatch_parity.py
+      - name: Test canonical 89-sample watched and plain generated tick
+        run: python -m unittest discover -s tests -p "test_s001_watched_full_trace_dispatch_parity.py" -v
