@@ -111,11 +111,12 @@ try {
     # atomicity; operator must keep the GUI paused throughout both exports.
     $before1 = (Get-FileHash -LiteralPath $src1 -Algorithm SHA256).Hash
     $before2 = (Get-FileHash -LiteralPath $src2 -Algorithm SHA256).Hash
-    foreach ($pair in @(@($src1,$dst1), @($src2,$dst2))) {
-        $inputStream = [IO.File]::Open($pair[0], [IO.FileMode]::Open,
+    foreach ($pair in @(@{ Source = $src1; Destination = $dst1 },
+                      @{ Source = $src2; Destination = $dst2 })) {
+        $inputStream = [IO.File]::Open($pair.Source, [IO.FileMode]::Open,
                                         [IO.FileAccess]::Read, [IO.FileShare]::Read)
         try {
-            $outputStream = [IO.File]::Open($pair[1], [IO.FileMode]::CreateNew,
+            $outputStream = [IO.File]::Open($pair.Destination, [IO.FileMode]::CreateNew,
                                              [IO.FileAccess]::Write, [IO.FileShare]::None)
             try {
                 $inputStream.CopyTo($outputStream)
