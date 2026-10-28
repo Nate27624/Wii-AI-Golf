@@ -1,0 +1,24 @@
+name: S002 private native staging guard (offline)
+
+on:
+  pull_request:
+    paths:
+      - 'src/wii_ai_golf/audit/private_capture_staging.py'
+      - 'tests/test_s002_private_capture_staging.py'
+      - '.github/workflows/s002-private-staging-retry.yml'
+  workflow_dispatch:
+
+jobs:
+  stage_guard:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Check private-stage lifecycle (no Dolphin)
+        run: python -m unittest discover -s tests -p 'test_s002_private_capture_staging.py' -v
