@@ -82,6 +82,28 @@ class TestRosterPPCFlow(unittest.TestCase):
         self.assertEqual(r['post_join_site_shape_counts']['joined_zero_offset_memory_load'], 0)
         self.assertFalse(r['index_provenance_and_receiver_identity_verified'])
 
+    def test_site_diagnostic_unsupported_family_and_addi_immediate(self):
+        w = [dform(7, 8, 6, 0xCC), add(9, 8, 10),
+             dform(14, 11, 9, 0x48), (31 << 26) | (444 << 1)]
+        r = m.analyze_words(w)
+        sites = r['bounded_mulli_site_diagnostics']
+        self.assertEqual(len(sites), 1)
+        self.assertEqual(sites[0]['mulli_site_ordinal'], 1)
+        self.assertTrue(sites[0]['bounded_addition_found'])
+        self.assertEqual(sites[0]['post_join_addi_immediates'], ['+0x48'])
+        self.assertEqual(sites[0]['stop_reason'], 'unsupported_ppc_opcode')
+        self.assertEqual(sites[0]['stop_instruction_family'], 'primary31_xo444')
+        self.assertFalse(r['register_receiver_dataflow_proven'])
+
+    def test_site_diagnostic_branch_and_no_raw_code_word(self):
+        w = [dform(7, 8, 6, 0xCC), add(9, 8, 10), 18 << 26]
+        r = m.analyze_words(w)
+        site = r['bounded_mulli_site_diagnostics'][0]
+        self.assertEqual(site['stop_reason'], 'branch_before_complete_trace')
+        self.assertEqual(site['stop_instruction_family'], 'primary_18')
+        self.assertNotIn('0x7C000378', str(site))
+        self.assertFalse(r['ball_xyz_verified'])
+
     def test_addi_0xcc_not_mulli(self):
         w = [dform(14, 8, 6, 0xCC), dform(32, 3, 9, 0x8C)]
         r = m.analyze_words(w)
