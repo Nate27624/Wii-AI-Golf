@@ -106,6 +106,15 @@ class PrePostShotContractTests(unittest.TestCase):
                             mem1_changed=False, mem2_changed=False)
         self.assertFalse(r["candidate_change_consistent_with_operator_observed_displacement"])
 
+    def test_only_mem2_changes_can_support_selected_ball_candidate(self):
+        # Both selected translations live in MEM2; unchanged MEM1 can be
+        # perfectly compatible with a changed moving-ball candidate.
+        r = audit.summarize(candidate(), candidate(ball_change=True),
+                            mem1_changed=False, mem2_changed=True)
+        self.assertFalse(r["mem1_bank_changed"])
+        self.assertTrue(r["mem2_bank_changed"])
+        self.assertTrue(r["candidate_change_consistent_with_operator_observed_displacement"])
+
     def test_one_bank_unchanged_cannot_claim_displacement(self):
         r = audit.summarize(candidate(), candidate(ball_change=True),
                             mem1_changed=True, mem2_changed=False)
