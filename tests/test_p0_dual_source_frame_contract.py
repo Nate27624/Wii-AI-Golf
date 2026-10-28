@@ -128,6 +128,48 @@ class DualObjectTests(unittest.TestCase):
                 rows=self.cohort();rows[0][key]=value
                 with self.assertRaises(ValueError): mod.summarize_private_samples(rows)
 
+    def test_reject_off_bank_and_unaligned_pointer_claims(self):
+        # Nonzero u32 alone is not a native MEM1/MEM2 object pointer.
+        for raw in (0x90001001, 0x80000001, 0x12345678, 0x94000000,
+                    0x81800000, 0xC0001000, 0xFFFFFFFF, 0x90000002):
+            with self.subTest(raw=raw):
+                rows = self.cohort()
+                for row in rows:
+                    row["selected_ball_object_pointer"] = raw
+                with self.assertRaisesRegex(ValueError, "canonical"):
+                    mod.summarize_private_samples(rows)
+
+    def test_each_source_pointer_uses_same_canonical_ram_gate(self):
+        # All five fields must independently have aligned/native addresses.
+        for key in mod.POINTERS:
+            for bad in (0x90001001, 0x12345678):
+                with self.subTest(key=key, bad=bad):
+                    rows = self.cohort()
+                    for row in rows:
+                        row[key] = bad
+                    with self.assertRaisesRegex(ValueError, "canonical"):
+                        mod.summarize_private_samples(rows)
+
+    def test_native_mem1_mem2_last_word_boundaries(self):
+        self.assertTrue(mod._canonical_native_guest_pointer(0x80000000))
+        self.assertTrue(mod._canonical_native_guest_pointer(0x817FFFFC))
+        self.assertTrue(mod._canonical_native_guest_pointer(0x90000000))
+        self.assertTrue(mod._canonical_native_guest_pointer(0x93FFFFFC))
+        for not_native in (0x7FFFFFFC, 0x81800000, 0x8FFFFFFC,
+                           0x94000000, True, 0, 0x100000000):
+            with self.subTest(value=not_native):
+                self.assertFalse(mod._canonical_native_guest_pointer(not_native))
+
+    def test_good_distinct_native_ram_pointers_still_accepted(self):
+        rows = self.cohort()
+        for row in rows:
+            row["selected_ball_object_pointer"] = 0x817FFFFC
+            row["source_global_ball_object_pointer"] = 0x90000000
+        result = mod.summarize_private_samples(rows)
+        self.assertTrue(result["selected_global_object_pointers_distinct"])
+        self.assertFalse(result["rendered_ball_object_identity_verified"])
+        self.assertFalse(result["training_approved"])
+
     def test_reject_pointer_relocation_selected(self):
         rows=self.cohort();rows[3]["selected_ball_object_pointer"]+=4
         with self.assertRaises(ValueError): mod.summarize_private_samples(rows)
