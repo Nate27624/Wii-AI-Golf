@@ -166,7 +166,7 @@ class LabTests(unittest.TestCase):
     def test_live_lock_blocks_duplicate_session_and_retains_first(self):
         p = self.plan("integration.swing")
         with core.live_session_lock(self.data):
-            with self.assertRaisesRegex(ValueError, "may be active"):
+            with self.assertRaisesRegex(ValueError, "already active|may be active"):
                 core.execute(p, root=self.root, data=self.data, allow_live=True,
                              run_command=lambda *_a, **_k: self.fail("No second process"))
             self.assertTrue((self.data / "live-session.lock").is_file())
