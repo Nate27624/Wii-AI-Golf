@@ -53,3 +53,29 @@ Do not execute another shot to answer this question until the clock, actor owner
 Do not create further micro-PRs for nearest PPC register, general UI xrefs, score table comparisons, or a third synthetic-only frame contract. The next deliverable is a **source- and emulator-verified yes/no feasibility of guest game-step identity and dual actor same-step capture**; if no hook exists, a bounded source+emulator instrumentation proposal with explicit S001 approval, not a production memory or training label.
 
 **No execution in this research turn.** The recorded code snippets are available in the linked exact PR heads; this file is a design/review handoff only.
+
+
+## New decisive upstream bridge audit — render-frame and paused-emulator traps (2026-10-28)
+
+Independent source: [dmang-dev/mcp-dolphin `bridge/mcp_bridge.py` main](https://github.com/dmang-dev/mcp-dolphin/blob/main/bridge/mcp_bridge.py), inspected source lines 62–76, 141–153 and 292–306; [upstream July 2026 CHANGELOG](https://github.com/dmang-dev/mcp-dolphin/blob/main/CHANGELOG.md). This is the upstream **bridge design**, not proof of the user's installed Felk binary revision.
+
+**Three distinct clocks/exposures, NONE currently a Wii Golf simulation-step witness**:
+
+1. Bridge `_frame_count` increments exactly once after `await event.frameadvance()` in the coroutine (bridge lines 303–305). The consumer `frame.get_count` just returns that counter (line 141). It measures wakeups of the emulator frameadvance event; it does not attest execution of `RPGolSimulateManager` or a CPU/physics-state update within that period. Game physics may be paused/skipped/multi-updated; do not substitute this value into #248's `guest_frame_index`.
+2. `event.on_framedrawn(_on_framedrawn)` independently receives `(width,height,rgb_bytes)` and the callback caches **only the latest frame** as `_last_frame=(width,height,data)` (lines 64–76, 292–300). The screenshot RPC returns this cached buffer (line 143 onward) with **NO frame ID, guest CPU step ID, producer timestamp or game-physics field**. It may be older/different from any source-selected/current ball RAM sample, even when requested within a short host-time interval. The screenshot callback is optional and probed on start; don't assume every installed Felk revision supports it. A GUI frame appearing 'current' cannot be used as a synchronized physics label without a verified join mechanism.
+3. Host `time.perf_counter()` in #166 watcher only measures **observer overhead**, not guest simulation delta-t. A <=5ms individual read budget controls a portion of performance risk, but does not prove no game-frame timing perturbation or that source identities are read atomically across guest state updates.
+
+**Critical control hazard**: upstream [CHANGELOG 0.3.0 (July 2026)](https://github.com/dmang-dev/mcp-dolphin/blob/main/CHANGELOG.md) states the bridge cannot safely implement `dolphin_pause`/`resume` from its event-driven single-threaded coroutine: when paused, no events wake the loop to receive a resume command. It also documents Felk Preview 4 crashes/segfaults from background Python threads or removing a script in the Scripting panel, and large `framedrawn()` framebuffer-byte memory cleanup hazards. Do **not** propose 'pause game, read objects atomically, then unpause using the same RPC' or a background worker as a shortcut; this contradicts tested upstream behavior. No method in the installed user's setup has yet been verified to safely suspend/resume physics while preserving observed registers and correspondence.
+
+**Memory-breakpoint distinction:** Felk-compatible Python documentation mentions `event.on_memorybreakpoint` and the upstream changelog mentions unwrapped `memory.add_memcheck`, but this is **not** evidence that the exact installed Preview4 exposes a safe, non-stalling, read-only per-instruction guest update callback. Do not enable execution/memory breakpoints without S001 review of the exact emulator build, callback thread, latency, reentrancy and address provenance.
+
+### Minimal verifiable engineering deliverable for S001 (not another abstract schema)
+
+A single human-reviewed, **OFFLINE provenance report before any runtime interaction**, prepared from the *exact local installed Felk build* and pinned upstream bridge code, must answer:
+
+- Which documented callback, if any, executes **after a verified source-defined golf physics update** and before the next update? Identify producer C++ path, exact callback/step ordering and whether one call may represent multiple updates. `frameadvance` alone is NOT a positive answer.
+- Can this one hook read both source objects, the selected cache and source pin/start/config in one uninterrupted guest-state interval without unsafe pause, background threads or breakpoint interference? If uncertain, **NO-GO**.
+- How is a rendered frame bound to that **same measured guest update**? If on_framedrawn yields only its current `(width,height,data)` tuple and cannot produce a matched simulation-step ID, a later screenshot is **NOT a synchronized visual witness**. Propose an upstream callback frame/guest-step correlation first or abstain.
+- What is the non-interfering observer overhead baseline measured on a human-approved stationary session? Existing 5ms cap is necessary but insufficient; compare with no-observer cadence in identical scene before any allowed swing.
+
+**Owner decision:** until a source-attested guest update boundary AND visual/guest link are available, `dual_object_same_guest_physics_frame_ready=false`, `screenshot_frame_matches_RAM_sample=false`, and **do not request a new live shot**. S001 #215 owns emulator/bridge readiness; S002 #240 owns actual global source identity; S000 #205 owns privacy and training veto. Only an operator-approved action after their review may change NO-GO.
