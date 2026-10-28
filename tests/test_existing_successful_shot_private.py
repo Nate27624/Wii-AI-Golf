@@ -185,6 +185,14 @@ class ExistingEffectAliasTests(unittest.TestCase):
         self.assertTrue(out["effect_pointer_bases_spaced_0x90_in_all_phases"])
         self.assertTrue(out["repeating_two_word_effect_pairs_observed"])
         self.assertEqual(out["repeated_effect_pair_count_if_verified"], 4)
+        self.assertTrue(out["source_RPSysEffect_HandleBase_pair_layout_concordant"])
+        self.assertEqual(out["source_expected_member_078"],
+                         "RPSysEffect.mHandle.mObjectID (u32)")
+        self.assertEqual(out["source_expected_member_07C"],
+                         "RPSysEffect.mHandle.mObject (LinkedObject*)")
+        self.assertFalse(out["RPSysEffect_runtime_object_identity_verified"])
+        self.assertFalse(out["HandleBase_pointer_target_ID_verified"])
+        self.assertFalse(out["RPSysEffect_object_size_or_0x90_stride_source_verified"])
         patterns = out["candidate_temporal_classifications"]
         self.assertEqual(
             {(x["inferred_effect_slot_index"], x["inferred_effect_slot_field"])
@@ -193,6 +201,13 @@ class ExistingEffectAliasTests(unittest.TestCase):
              for field in ("+0x078", "+0x07C")})
         self.assertEqual(
             sum(x["pointer_like_word_any_phase"] for x in patterns), 4)
+        self.assertEqual(
+            {x["source_header_handle_member_candidate"] for x in patterns},
+            {"RPSysEffect.mHandle.mObjectID (u32)",
+             "RPSysEffect.mHandle.mObject (LinkedObject*)"})
+        self.assertTrue(all(
+            x["source_header_correspondence_not_runtime_type_proof"]
+            for x in patterns))
         self.assertTrue(all(
             x["screen_or_render_effect_window"] and
             x["temporal_pattern"] == "post_all_changed"
@@ -202,6 +217,28 @@ class ExistingEffectAliasTests(unittest.TestCase):
         printed = json.dumps(out)
         self.assertNotIn("0x80010000", printed)
         self.assertNotIn("0x80050000", printed)
+
+    def test_bad_id_pointer_shape_fails_source_handle_concordance(self):
+        rows = effect_alias_rows()
+        for row in rows:
+            windows = row["windows"]
+            # First +0x78 word looks like a pointer, and adjacent +0x7c
+            # looks like a tiny integer; preserve across identical overlays.
+            base = int(windows["minimap_player_effect"]["address"],16)
+            # Rebuild all three overlapping views of the exact same
+            # mutation, preventing synthetic alias inconsistency.
+            payload = bytearray.fromhex(windows["minimap_player_effect"]["bytes_hex"])
+            struct.pack_into(">II",payload,0x78,0x80010000,123)
+            windows["minimap_player_effect"]["bytes_hex"] = payload.hex()
+            for name, shift in (("minimap_shot_line_effect",0x90),
+                                ("minimap_ball_effect",0x120)):
+                earlier = bytearray.fromhex(windows[name]["bytes_hex"])
+                if 0x78 >= shift and 0x78 + 8 <= shift+len(earlier):
+                    earlier[0x78-shift:0x80-shift] = payload[0x78:0x80]
+                windows[name]["bytes_hex"]=earlier.hex()
+        out = subject.audit(rows, summary_for(rows))
+        self.assertFalse(out["source_RPSysEffect_HandleBase_pair_layout_concordant"])
+        self.assertFalse(out["RPSysEffect_runtime_object_identity_verified"])
 
     def test_single_phase_stride_conflict_disables_all_layout_inferences(self):
         rows = effect_alias_rows()
