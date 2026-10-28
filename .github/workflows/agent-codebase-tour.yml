@@ -1,0 +1,29 @@
+name: Source-backed agent codebase tour (offline only)
+
+on:
+  pull_request:
+    paths:
+      - 'docs/agent-codebase-tour.md'
+      - 'tests/test_agent_codebase_tour.py'
+      - '.github/workflows/agent-codebase-tour.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-source-map:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Confirm guide maps real source and retains safe boundaries
+        run: python -m unittest discover -s tests -p test_agent_codebase_tour.py -v
+      - name: Compile offline source-guide tests
+        run: python -m py_compile tests/test_agent_codebase_tour.py
