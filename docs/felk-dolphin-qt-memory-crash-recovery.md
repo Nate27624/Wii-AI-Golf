@@ -1,10 +1,24 @@
 # Felk Dolphin (Windows): Qt6Widgets access violation and portable GUI/Memory settings recovery
 
-**Status: PARTIALLY RESOLVED / ROOT CAUSE NOT YET PROVEN (2026-10-28).**
+**Status: CANONICAL FRESH BOOT + STATIONARY WATCH RUNTIME QUALIFIED; ROOT Qt CRASH CAUSE STILL NOT PROVEN (2026-10-28).**
 
 **Owner:** S001 Dolphin launcher; S000 coordinator for operator guidance; S002 source-selected RAM research downstream.
 
 **Most important practical result:** On the operator's actual Windows installation, **reinstalling Felk Dolphin while copying the original portable `User` folder did not stop the native crash**. Moving the *entire* old portable `User` folder to a timestamped backup, then creating a fresh `User` containing the old `StateSaves`, `Wii`, `GC` and `Config/WiimoteNew.ini` DID allow `Dolphin.exe` to open and remain open **without an injected scripting bridge**. User confirmed "That one opened, and no crash." The user suspects Dolphin's **Memory debugger section**. This is plausible, **not yet proven**: the successfully launched GUI-only process is a different test from the still-unverified canonical `--script <watched V1> --exec <game>` path.
+
+## Confirmed successful recovery validation (operator, 2026-10-28)
+
+**New decisive post-reset result:** The operator ran the canonical fresh boot + source-pinned watched historical V1 bridge + named `green-pre-start` intro + independent **read-only stationary-ball qualification** from draft [#215](https://github.com/Nate27624/Wii-AI-Golf/pull/215), and pasted the sanitized stdout (not a synthetic test):
+
+- `Intro complete (screen not machine-verified)`, then `Startup dispatch completed`. The operator visually confirmed the stationary first ball by typing `READY`.
+- `result: PASS`, `sample_count: 32`, `watch_interval_bridge_ticks: 4`, elapsed **1.1 seconds**.
+- Maximum recorded read overhead **49 microseconds** versus fail-closed ceiling **5,000 microseconds** (~102x below ceiling). This is the **observed maximum of this single idle qualification**, not an upper bound during moving-swing reads.
+- `genuine_emulator_source_checked: true`, `watch_source_identity_stable: true`, `same_source_slot_and_hole_throughout: true`.
+- `ball_translation_stable: true`, `current_start_stable: true`, and `record_translation_stable: true` during idle.
+- Explicit output flags `input_or_swing_sent_by_qualifier: false`, `raw_words_printed_or_uploaded: false`, `ball_world_xyz_verified: false`, `impact_or_power_verified: false`, `training_allowed: false`, `live_swing_automatically_authorized: false`.
+- Original historical V1 source and separate generated watched V1 source remain distinct. No shot or raw pointer-containing RAM upload was performed as part of qualification.
+
+**Interpretation:** This **clears the native stationary watcher startup/source/performance gate** previously blocked by the Qt crash. It is stronger than GUI-only startup: canonical game+bridge setup and read-only 51-word source-selected RAM reads worked in one operator session. **It does not prove the previous Qt crash came from the Memory GUI**: resetting portable user settings changed multiple independent variables, and no isolated old/new `Qt.ini` A/B was performed. Bridge callback ticks are still not verified as game-applied physics frames. In-motion watcher noninterference, observed ball contact, and physical ball XYZ remain untested. S001/S002/S000 owner review is required before a live watched V1 shot.
 
 ## Repro and native crash evidence
 
@@ -89,8 +103,8 @@ Run tests **one at a time**; preserve the exact source/build/user path for each.
 | B. Fresh Dolphin with registered game but NO P0 watcher | Game startup only; do not overwrite state | **NOT TESTED after reset** |
 | C. Fresh Dolphin + original historical V1 bridge `--script` (no watcher) | Bridge init only; no shot | **NOT TESTED after reset** |
 | D. Fresh Dolphin + source-pinned watched V1 bridge (before `golf.ball_watch.arm`) | Watch dormant; no shot | **NOT TESTED after reset** |
-| E. Canonical fresh `green-pre-start` launch, then `qualify_v1_selected_watch_readonly.py` at stable ball | 128 bridge ticks, 32 selected 51-word samples, 5ms ceiling, **no swing** | **NOT TESTED after reset** |
-| F. One human-approved watched V1 shot | 45 **observed** Dolphin frames A-held then same 89-sample trace | **BLOCKED** pending E + S001/S002/S000 owner reviews |
+| E. Canonical fresh `green-pre-start` launch, then `qualify_v1_selected_watch_readonly.py` at stable ball | 128 bridge ticks, 32 selected 51-word samples, 5ms ceiling, **no swing** | **PASS observed**: 32/32, max 49 us, stable source/slot/hole, all three candidate vectors stationary |
+| F. One human-approved watched V1 shot | 45 **observed** Dolphin frames A-held then same 89-sample trace | **BLOCKED** pending S001/S002/S000 live-shot reviews and moving-swing noninterference check |
 
 **Interpretation:** If A passes and B crashes, look at Dolphin game/graphics/Qt initialization. If B/C pass but D crashes before arm, compare injected bridge init/API registration and native scripting. If D passes but E fails, investigate source gates and per-frame native read overhead. Do not treat a healthy Qt GUI as permission to run F.
 
@@ -103,8 +117,9 @@ Before further resets, collect (read-only) Windows Application Event 1000/1001 f
 ## Future-agent handoff
 
 - **Confirmed:** `Qt6Widgets.dll` 6.5.1 `0xC0000005` offset `0x5622B` native process crash on old portable settings; reinstall **with the same User** did not fix it; **new minimal User** restored GUI-only startup.
+- **New confirmed runtime qualification:** canonical watched V1 first-ball boot/intro and stationary 51-word read-only watch **PASS**: 32 samples / 128 requested bridge ticks, 49 us observed maximum, stable owner/source and stationary candidate vectors; no shot, training or upload.
 - **Working hypothesis:** saved Qt dock/Memory/debugger GUI configuration, not yet isolated to a single file/setting.
-- **Next owner:** S001 should make minimal non-swing A–E test plan, with a separate review PR if behavior changes. S000 should retain this document in the agent index after the root cause is confirmed. S002 should keep raw selected-player evidence private and not conflate GUI Memory widget with Felk `memory.read_u32` RPC.
+- **Next owner:** S001/S002/S000 should review the successful stationary qualifier and gate one explicit controlled watched V1 shot; do not repeat this already passing stationary test without a new diagnostic reason. S000 should retain this document in the agent index after the root cause is confirmed. S002 should keep raw selected-player evidence private and not conflate GUI Memory widget with Felk `memory.read_u32` RPC.
 - **Update this document when:** `Qt.ini` isolated test, launcher/bridge smoke tests, and a true read-only watcher pass have been observed. Append date, exact binary/source hashes and a conclusion **supported by actual logs**. Do not silently change "partially resolved" to "solved".
 
 **Related active research:** draft [#215](https://github.com/Nate27624/Wii-AI-Golf/pull/215) stationary V1 watch, [#211](https://github.com/Nate27624/Wii-AI-Golf/pull/211) private drain and human labels, [#206](https://github.com/Nate27624/Wii-AI-Golf/pull/206) observed 45-frame V1 collector, [#202](https://github.com/Nate27624/Wii-AI-Golf/pull/202) original-source watcher adapter, [#189](https://github.com/Nate27624/Wii-AI-Golf/pull/189) private 51-word record, [#166](https://github.com/Nate27624/Wii-AI-Golf/pull/166) shared bridge integration.
