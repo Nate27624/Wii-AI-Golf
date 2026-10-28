@@ -57,6 +57,16 @@ def fixture(private):
                 (START+0x48,START+0x0C),(START+0x4C,START+0x30),
                 (PIN+0x4C,PIN+0x30)):
                 put(b,MEM2,addr,value)
+            for addr, value in (
+                (CONFIG+0x04+4*5, 9 if i==2 else 0),
+                (FIELD+0x30, 5), (FIELD+0x3C, 1), (FIELD+0x48, 4),
+                (FIELD+0x10, 2 if i==2 else 0),
+                (FIELD+0x68, BALL if i==2 else 0)):
+                put(b,MEM2,addr,value)
+            # C++ booleans are one byte at the source-aligned field offset.
+            for addr in (FIELD+0x6C, FIELD+0x7C, FIELD+0x88, FIELD+0xA4):
+                b.seek(addr-MEM2)
+                b.write(bytes([1 if i==2 else 0]))
             for addr, values in (
                 (REC+0x54,(1,2,3)),(REC+0x60,(1,2,3)),
                 (BALL+0x30,(1,2,3)),(BALL+0xCC,(1,2,3)),
@@ -106,11 +116,20 @@ class MatrixPowerShellTests(unittest.TestCase):
         self.assertTrue(r["fixed_scene_geometry_candidate_unchanged"])
         self.assertFalse(r["training_approved"])
         self.assertFalse(r["actual_ball_world_xyz_verified"])
-        self.assertEqual(len(r["field_comparisons"]),11)
+        self.assertEqual(len(r["field_comparisons"]),23)
         rows={x["registry_id"]:x for x in r["field_comparisons"]}
         self.assertEqual(rows["golf.ball_object.conditional_cache_fc"]["changed_components_B1_B2"],1)
         self.assertEqual(rows["golf.player.selected_record.aim_rotation"]["changed_components_B1_B2"],1)
         self.assertEqual(rows["golf.ball_object.current_translation_candidate"]["changed_components_B1_B2"],0)
+        self.assertEqual(rows["golf.config.player_scores_4x9_candidate"]["component_count"],36)
+        self.assertEqual(rows["golf.config.player_scores_4x9_candidate"]["changed_components_B1_B2"],1)
+        self.assertEqual(rows["golf.config.mode_id"]["changed_components_B1_B2"],0)
+        self.assertEqual(rows["golf.field.wind_object_pointer_present"]["changed_components_B1_B2"],1)
+        self.assertEqual(rows["golf.field.minimap_visible"]["changed_components_B1_B2"],1)
+        self.assertEqual(rows["golf.field.tree_shadow_update_timer"]["changed_components_B1_B2"],1)
+        self.assertEqual(rows["golf.field.target_object_count"]["changed_components_B1_B2"],0)
+        self.assertEqual(rows["golf.field.wind_object_pointer_present"]["evidence_class"],"pointer_presence_not_wind_speed_or_direction")
+        self.assertEqual(rows["golf.config.player_scores_4x9_candidate"]["evidence_class"],"score_table_source_defined_not_verified_shot_label")
         self.assertNotIn(str(self.private),p.stdout)
         self.assertNotIn("0x900",p.stdout)
 
@@ -177,6 +196,28 @@ class MatrixPowerShellTests(unittest.TestCase):
             self.assertIn("ABORTED",p.stderr)
         finally:
             data["checkpoints"]["B2"]["phase_operator_label"]=old
+            path.write_text(json.dumps(data))
+
+
+    def test_invalid_ui_bool_fails_even_with_matching_manifest_hash(self):
+        bank=self.private/"B2-MEM2.bin"
+        with bank.open("r+b") as f:
+            f.seek(FIELD+0x88-MEM2)
+            f.write(b"\x02")
+        path=self.private/"checkpoint-manifest-PRIVATE.json"
+        data=json.loads(path.read_text())
+        old=data["checkpoints"]["B2"]["sha256"]["MEM2"]
+        data["checkpoints"]["B2"]["sha256"]["MEM2"]=sha(bank)
+        path.write_text(json.dumps(data))
+        try:
+            p=self.invoke()
+            self.assertNotEqual(p.returncode,0)
+            self.assertIn("ABORTED",p.stderr)
+        finally:
+            with bank.open("r+b") as f:
+                f.seek(FIELD+0x88-MEM2)
+                f.write(b"\x01")
+            data["checkpoints"]["B2"]["sha256"]["MEM2"]=old
             path.write_text(json.dumps(data))
 
 class ContractTests(unittest.TestCase):
