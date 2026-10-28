@@ -6,8 +6,9 @@ Research checklist (2026-10-27), **not proof of runtime-verified RAM fields**. C
 
 - [x] **S002/source:** identify source-backed scene_id: EGG SceneManager current ID at offset +0x18; US Rev1 manager singleton within .sbss 0x804BF4D8..0x804BF4E0. Exact 4-byte pointer slot remains candidate. [Investigation](scene-id-memory/README.md).
 - [x] **S002/offline:** read-only MEM1/MEM2 diagnostic with synthetic tests, current-scene-object ID and manager back-pointer checks. No live proof.
-- [ ] **S002/live:** independent Golf-at-ball snapshot with unambiguous singleton pointer slot, scene_id=5, pointers in range.
-- [ ] **S002/live:** repeat on a distinct fresh boot, record actual capture identity/hashes.
+- [x] **S002/operator existing captures:** B0–B3 from ball-study-20261027-212633 each pass the checker with one singleton slot, manager ID 5, matching scene-object ID 5 and matching back-pointer. **One study only; snapshot-corroborated, not cross-boot verified.**
+- [ ] **S002/live:** independently captured Golf-at-ball snapshot from a different fresh boot with unambiguous singleton pointer slot, scene_id=5, pointers in range.
+- [ ] **S002:** hash and compare B0–B3 banks; don't count repeated images/same-session phases as independent boots. Record new capture hashes/identity locally.
 - [ ] **S001+S002/live:** test independent non-Golf scene (sports main menu expected ID 9) to falsify spurious constant-5 matches. Record transition timing.
 - [ ] **S002:** mark scene_id runtime-verified only after two independent positive boots plus one real negative, preserving verified static slot/dynamic pointer and provenance.
 - [ ] **S002:** validate pre-shot ball_x/y/z and hole_x/y/z or independently audited initial distance+bearing; use truly different scenes, not repeated bitwise-identical dumps.
