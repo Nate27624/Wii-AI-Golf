@@ -20,5 +20,24 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          & .\research\tools\Get-P0InstalledDolphinIdentity.ps1 -SelfTest
-          if ($LASTEXITCODE -ne 0) { throw 'Offline P0 PE identity selftest failed' }
+          $script = (Resolve-Path -LiteralPath '.\research\tools\Get-P0InstalledDolphinIdentity.ps1').Path
+          # A malformed script must fail before evaluation, even if it is never run.
+          $tokens = $null
+          $parseErrors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            $script, [ref]$tokens, [ref]$parseErrors
+          )
+          if (@($parseErrors).Count -gt 0) {
+            throw 'Offline P0 PE identity script has PowerShell syntax errors'
+          }
+          # Invoking a .ps1 does not necessarily update LASTEXITCODE. Use an
+          # exact output contract instead of checking a stale native process code.
+          $out = @(& $script -SelfTest)
+          if ($out.Count -ne 1 -or $out[0] -cne
+              'P0_OFFLINE_INSTALLED_BINARY_PROBE_SYNTHETIC_TESTS=PASS') {
+            throw 'Offline P0 PE identity selftest failed'
+          }
+          # The hosted PowerShell shell may propagate a prior native process code.
+          # Clear it only *after* both syntax and selftest acceptance.
+          $global:LASTEXITCODE = 0
+          Write-Output 'P0_OFFLINE_INSTALLED_BINARY_PROBE_CI=PASS'
