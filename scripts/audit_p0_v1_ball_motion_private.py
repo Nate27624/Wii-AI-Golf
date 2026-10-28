@@ -163,6 +163,24 @@ def audit(report: dict) -> dict:
             stages == sorted(stages) and indexes == sorted(set(indexes)) and
             len(unique_slots) == 1 and len(holes) == 1 and
             record_vec_word_mismatch == 0)
+    # Recompute S001's producer summaries from private rows. Its summary is
+    # a claim, not an independent proof of native guest-frame physics.
+    stage_counts = {stage: stages.count(STAGES.index(stage)) for stage in STAGES}
+    first_trace_row = next(i for i, row in enumerate(rows)
+                           if row["input_stage"] == "trace")
+    pretrace_balls = ball_vectors[:first_trace_row]
+    stable_pretrace = (len(pretrace_balls) >= 2 and
+                       all(v == pretrace_balls[0] for v in pretrace_balls))
+    changed_after_trace = (bool(pretrace_balls) and any(
+        v != pretrace_balls[0] for v in ball_vectors[first_trace_row:]))
+    reported_equal_count = sum(a == b for a, b in zip(record_vectors, ball_vectors))
+    require(producer.get("start_vector_stable") is (len(set(start_vectors)) == 1) and
+            producer.get("idle_control_vector_stationary") is
+            (len(idle_vectors) >= 2 and len(set(idle_vectors)) == 1) and
+            producer.get("pretrace_candidate_ball_stationary") is stable_pretrace and
+            producer.get("candidate_ball_changed_after_trace_start") is changed_after_trace and
+            producer.get("candidate_record_triplet_equal_ball_triplet_count") == reported_equal_count and
+            producer.get("phase_sample_counts") == stage_counts)
     missing = [name for name in PHASES if counts[name] == 0]
     idle_stable = len(idle_vectors) >= 2 and len(set(idle_vectors)) == 1
     lead_stable = bool(idle_stable and lead_vectors and
