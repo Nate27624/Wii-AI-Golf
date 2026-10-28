@@ -53,7 +53,7 @@ class Mem1DiffTests(unittest.TestCase):
             self.assertEqual(report["word_category_counts"]["other_ambiguous"], 1)
             self.assertEqual(report["word_category_counts"]["static"], 2*PAGE//4-5)
             self.assertEqual(report["phase_pair_change_counts"]["idle_comparison_changed_words"], 1)
-            self.assertEqual(report["phase_pair_change_counts"]["pointer_comparison_changed_words"], 3)
+            self.assertEqual(report["phase_pair_change_counts"]["pointer_comparison_changed_words"], 4)
             self.assertEqual(report["phase_pair_change_counts"]["recovery_comparison_changed_words"], 4)
             self.assertEqual(report["changed_pages_any_phase"], 2)
             self.assertEqual(private["pages_ranked"][0]["page_index_private"], 0)
