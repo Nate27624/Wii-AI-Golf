@@ -16,11 +16,11 @@ import json
 from typing import Callable
 
 CACHE_TARGET = 0x80299C70
-# Source-review inputs from #240, NOT two certified containing-function bounds.
-# The first entry is AFTER its alleged callsite: deliberately ABSTAIN until
-# source owners correct that impossible entry/callsite pair using Rev1 symbols.
+# Source-reviewed function entries and direct BL sites from #219/#240.
+# The first entry 0x80299ACC PRECEDES the callsite 0x80299B64 by 0x98.
+# These are candidate function bounds: actual Rev1 source must be SHA-gated.
 CALLERS = (
-    ("UNVERIFIED_CONTAINING_FN_FOR_80299B64", 0x80299ACC, 0x80299B64),
+    ("fn_80299ACC", 0x80299ACC, 0x80299B64),
     ("fn_80299C20", 0x80299C20, 0x80299C58),
 )
 MAX_WORDS = 128
