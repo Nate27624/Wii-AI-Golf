@@ -48,11 +48,58 @@ class ShotCupDistanceSynthetic(unittest.TestCase):
         self.assertAlmostEqual(z["candidate_ball_to_cup_planar_after_game_units"],4)
         self.assertAlmostEqual(z["candidate_ball_to_cup_3d_after_game_units"],math.sqrt(32),places=5)
         self.assertAlmostEqual(z["candidate_pre_to_post_displacement_planar_game_units"],3)
-        self.assertAlmostEqual(z["exploratory_display_units_per_game_unit_ratio"],2.5)
+        self.assertNotIn("exploratory_display_units_per_game_unit_ratio",z)
+        self.assertTrue(z["exploratory_ui_to_game_unit_ratio_suppressed"])
+        self.assertFalse(z["ui_value_usable_as_game_unit_calibration"])
+        self.assertFalse(z["ui_observation_on_green_verified"])
+        self.assertFalse(z["ui_observation_single_shot_distance_verified"])
+        self.assertFalse(z["ui_observation_same_guest_frame_as_post_verified"])
         self.assertEqual(z["candidate_ball_to_pin_planar_after_game_units"],4)
         self.assertFalse(z["game_unit_scale_verified"])
         self.assertFalse(z["ball_world_xyz_verified"])
         self.assertFalse(z["training_allowed"])
+
+    def test_penalty_sentinel_cannot_be_a_physical_distance_scale(self):
+        # Community-documented Near Pin off-green rule: fixed 100 ft.
+        # The B0/source report does NOT independently prove game scoring.
+        out=distance.summarize(
+            snap(),snap(ball=(3,0,0),record=(3,0,0)),
+            distinct_bank_mem1=True,distinct_bank_mem2=True,
+            result_metadata={"ui_displayed_distance_value":100.0,
+                             "ui_displayed_distance_unit":"ft"},
+            result_native_present=True,result_source_valid=False)
+        self.assertEqual(out["operator_typed_result_ui_distance"],100.0)
+        self.assertEqual(out["operator_typed_result_ui_unit"],"ft")
+        self.assertTrue(out["ui_observation_may_be_off_green_100ft_penalty"])
+        self.assertFalse(out["fixed_off_green_penalty_rule_verified_in_rev1_code"])
+        self.assertNotIn("exploratory_display_units_per_game_unit_ratio",out)
+        self.assertNotIn("ratio_validated_as_calibration",out)
+        self.assertFalse(out["training_allowed"])
+
+    def test_nonpenalty_and_non100_values_still_cannot_set_scale(self):
+        for value,unit in ((4.5,"ft"),(70.0,"ft"),(30.0,"m"),(100.0,"yd")):
+            with self.subTest(value=value,unit=unit):
+                out=distance.summarize(
+                    snap(),snap(ball=(3,0,0)),
+                    distinct_bank_mem1=True,distinct_bank_mem2=True,
+                    result_metadata={"ui_displayed_distance_value":value,
+                                     "ui_displayed_distance_unit":unit})
+                self.assertFalse(
+                    out["ui_observation_may_be_off_green_100ft_penalty"])
+                self.assertFalse(out["ui_observation_outcome_semantics_verified"])
+                self.assertFalse(out["ui_value_usable_as_game_unit_calibration"])
+                self.assertNotIn(
+                    "exploratory_display_units_per_game_unit_ratio",out)
+                self.assertFalse(out["training_allowed"])
+
+    def test_untyped_result_missing_never_claims_valid_calibration(self):
+        out=distance.summarize(snap(),snap(),
+                               distinct_bank_mem1=False,
+                               distinct_bank_mem2=False)
+        self.assertIsNone(out["operator_typed_result_ui_distance"])
+        self.assertFalse(out["ui_observation_may_be_off_green_100ft_penalty"])
+        self.assertTrue(out["exploratory_ui_to_game_unit_ratio_suppressed"])
+        self.assertNotIn("exploratory_display_units_per_game_unit_ratio",out)
 
     def test_result_screen_can_retain_or_reset_source_ball_candidate(self):
         before=snap()
