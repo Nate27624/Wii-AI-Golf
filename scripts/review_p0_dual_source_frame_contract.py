@@ -15,6 +15,13 @@ MIN_SAMPLES = 3
 MAX_SAMPLES = 256
 MAX_READ_US = 5000
 MAX_GUEST_FRAME_GAP = 4
+# Native RSPE01 MEM1/MEM2 guest address regions, not host pointers.
+# Reject uncached aliases and fabricated pointers until the source owner
+# establishes that exact address mapping. This is a range gate ONLY.
+NATIVE_GUEST_RAM_RANGES = (
+    (0x80000000, 0x81800000),  # 24 MiB MEM1
+    (0x90000000, 0x94000000),  # 64 MiB MEM2
+)
 VECTORS = (
     "selected_ball_translation_words",
     "source_global_translation_words",
@@ -48,6 +55,46 @@ CONTEXT = (
 
 def _u32(x: object) -> bool:
     return type(x) is int and 0 <= x <= 0xFFFFFFFF
+
+
+# MINIMUM native MEM2 object footprints, crosschecked against the existing
+# SHA-gated Rev1 original-capture readers, not inferred from raw traces:
+# selected ball _bank(ball,0x108)==MEM2 [#231]; global _bank(ptr,0x50)
+# ==MEM2 [#240]; pin+start _bank(...,0x50)==MEM2 [#231];
+# field manager _bank(field,0xA8)==MEM2 [#231].
+# These are only NECESSARY outer-object span checks. They do not dereference
+# actual runtime pointers or verify the nested +0x4C targets.
+SOURCE_OBJECT_MEM2_MIN_SPANS = {
+    "selected_ball_object_pointer": 0x108,
+    "source_global_ball_object_pointer": 0x50,
+    "pin_object_pointer": 0x50,
+    "start_object_pointer": 0x50,
+    "field_manager_pointer": 0xA8,
+}
+MEM2_NATIVE_START, MEM2_NATIVE_END = NATIVE_GUEST_RAM_RANGES[1]
+BALL_MEMBER_4C_MIN_SPAN = 0x50  # Compatibility; not enough for selected.
+
+
+def _canonical_native_guest_pointer(x: object, *, min_bytes: int = 4) -> bool:
+    """Aligned native RAM span; not a live object or nested-chain proof."""
+    if type(min_bytes) is not int or min_bytes < 4 or min_bytes % 4:
+        return False
+    return (_u32(x) and x % 4 == 0
+            and any(start <= x and x + min_bytes <= end
+                    for start, end in NATIVE_GUEST_RAM_RANGES))
+
+
+def _qualified_mem2_object_span(x: object, *, min_bytes: int) -> bool:
+    """Source-consistent original MEM2 object footprint, not a typed object."""
+    return (
+        _u32(x)
+        and type(min_bytes) is int
+        and min_bytes >= 4
+        and min_bytes % 4 == 0
+        and x % 4 == 0
+        and MEM2_NATIVE_START <= x
+        and x + min_bytes <= MEM2_NATIVE_END
+    )
 
 
 def _vector(v: object) -> tuple[int, int, int]:
@@ -94,8 +141,12 @@ def _checked_row(row: object) -> dict[str, Any]:
         if type(row[key]) is not str or not 1 <= len(row[key]) <= 128:
             raise ValueError("missing frame provenance identity")
     for key in POINTERS:
-        if not _u32(row[key]) or row[key] == 0:
-            raise ValueError("missing bounded source-object identity")
+        # All five source-qualified objects are MEM2; the global pointer's
+        # static r13 slot can be MEM1, but its OBJECT is MEM2. Use each
+        # original reader's FULL minimum accessible object footprint.
+        span = SOURCE_OBJECT_MEM2_MIN_SPANS[key]
+        if not _qualified_mem2_object_span(row[key], min_bytes=span):
+            raise ValueError("missing bounded canonical source-object identity")
     for key in (*VECTORS, "config_bc_c0_c4_words"):
         _vector(row[key])
     return row
