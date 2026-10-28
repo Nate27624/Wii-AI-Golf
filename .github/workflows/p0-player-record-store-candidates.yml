@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - 'scripts/audit_p0_player_record_store_candidates_private.py'
+      - 'scripts/Invoke-P0PlayerStoreProvenance.ps1'
       - 'tests/test_p0_player_record_store_candidates_private.py'
       - '.github/workflows/p0-player-record-store-candidates.yml'
   pull_request:
@@ -29,3 +30,14 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_p0_player_record_store_candidates_private.py' -v
       - name: Parse scripts without native ROM or RAM
         run: python -m compileall -q scripts/audit_p0_player_record_store_candidates_private.py tests/test_p0_player_record_store_candidates_private.py
+      - name: PowerShell 5.1 operator wrapper syntax only
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'scripts/Invoke-P0PlayerStoreProvenance.ps1').Path,
+            [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { throw ('PowerShell parse errors: ' + $errors.Count) }
+
