@@ -61,6 +61,41 @@ def _sha_file(path: Path) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def v1_clean_boot_args(root: Path) -> list[str]:
+    """Fail closed if the only vetted portable Dolphin launch is unavailable.
+
+    This is an offline file-presence check. No Dolphin process, controller,
+    savestate, network request or local configuration write is performed.
+    The outer canonical runner retains sole control of fresh boot/intro.
+    """
+    clean = root.parent / "tools" / "FelkDolphin-Clean"
+    executable = clean / "Dolphin.exe"
+    # Felk Preview4 Windows chooses EXE-adjacent User only in portable mode.
+    # A spare User/ directory alone does not prove the runtime profile root.
+    portable_marker = clean / "portable.txt"
+    user = clean / "User"
+    config = root / "research" / "launch.local.json"
+    catalog = root / "research" / "savestates.local.json"
+    missing = []
+    for label, present in (
+        ("isolated clean Dolphin executable", executable.is_file()),
+        ("clean Dolphin portable.txt marker", portable_marker.is_file()),
+        ("isolated clean Dolphin User directory", user.is_dir()),
+        ("local launcher configuration", config.is_file()),
+        ("local named-savestate catalog", catalog.is_file()),
+    ):
+        if not present:
+            missing.append(label)
+    if missing:
+        raise RuntimeError(
+            "P0 V1 safe launch blocked: missing " + ", ".join(missing) +
+            ". Do not fall back to the old FelkDolphin installation; "
+            "restore the clean portable setup and named checkpoint first."
+        )
+    return ["--dolphin", str(executable), "--dolphin-user", str(user),
+            "--config", str(config), "--catalog", str(catalog)]
+
+
 def _fresh_human_labels(start_time: datetime) -> dict:
     """Read ONLY selected public/sanitized fields from a NEW locally generated summary."""
     if not CAPTURES.is_dir():
@@ -409,11 +444,14 @@ def main(argv: list[str] | None = None) -> int:
             identity = inspect_bridge_file(bridge)
             if identity["revision"] != "V1-neutral-swing-calls" or not identity["safe_for_isolated_legacy_copy"]:
                 raise RuntimeError("Verified isolated V1 bridge missing; will not launch Dolphin")
+            # Refuse the legacy Dolphin default: require the reviewed Clean
+            # portable build and local named state before starting a session.
+            clean_boot = v1_clean_boot_args(ROOT)
             print("Close existing Dolphin before this ONE live trial.", flush=True)
             action = [sys.executable, str(ROOT / "scripts" / "run_golf_experiment.py"),
-                      "--send-live", "--bridge", str(bridge),
+                      "--send-live", *clean_boot, "--bridge", str(bridge),
                       "--script", "collect_outcome_transition.py", "--",
-                      "--send-live-swing", "--a-lead-frames", str(args.a_lead),
+                      "--send-live-swing", "--a-prime-requests", "0", "--a-lead-frames", str(args.a_lead),
                       "--observe-start-pose", "--motion-scale", str(args.motion_scale),
                       "--speed-scale", str(args.speed_scale),
                       "--backswing-scale", str(args.backswing_scale),
