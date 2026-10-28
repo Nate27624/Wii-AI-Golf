@@ -33,7 +33,16 @@ The source-local `scripts/golf.py` intentionally imports the **current checkout*
 - Detailed agent-specific research notes stay under their owned folder, with links to shared canonical docs rather than standalone conflicting startup scripts.
 - Keep personal Dolphin game paths, savestate catalogs, traces, ROMs, screenshots and binaries out of Git (local `Wii-AI-Golf-Data`).
 
+## Required automatic result handoff
+
+Every user-run research/test command must **automatically upload an approved sanitized result** to GitHub's separate research/observations branch by reusing the existing research_cli.py publisher, unless the operator explicitly opts out or the privacy gate blocks publication. A new offline P0 analyzer that cannot do this is **not yet operator-ready**: implement a reviewed typed uploader adapter first, then test allowed, rejected and failed-upload cases without a live game.
+
+Do not upload raw memory banks, PRIVATE reports, original per-frame traces, ROMs, savestates, pointers or local paths. Record failures and negative findings as carefully as successes. Post a dated **FINDING** in the owning issue/PR with study/run ID, sanitized record URL (or NOT UPLOADED), controls, source/evidence classification, limitations and next agent; preserve material conclusions in research/ledger.md through reviewed changes. The publisher must preserve local sanitized output on failure rather than requesting manual uploading.
+
 ## PR checklist
+- [ ] Existing trusted publisher automatically posts safe result from the SAME operator command, or agent states and resolves the missing integration before operator use
+- [ ] Significant positive/negative P0 findings are in owning issue/PR and linked research/ledger.md entry (or documented pending owner-reviewed integration)
+- [ ] Privacy allowlist and upload-failure tests/handling: no native RAM or PRIVATE results in Git; distinguish UPLOADED from NOT UPLOADED
 
 - [ ] Operator command is one fully copy/paste-ready PowerShell block, auto-cd + `$LASTEXITCODE`, or explicitly no action; no GUI/manual Dolphin/Git Bash
 - [ ] Reused the canonical, proven S001 launch/menu and source-frozen 89-sample swing; distinguished A45 menu / A-prime / V1 lead / trace-neutral / follow-through semantics without swapping implementations
