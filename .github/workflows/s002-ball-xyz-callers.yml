@@ -8,6 +8,7 @@ on:
     paths:
       - scripts/audit_ball_xyz_source_callers_private.py
       - tests/test_ball_xyz_source_callers_private.py
+      - research/source_maps/RSPE01_01_public_text_units.json
       - .github/workflows/s002-ball-xyz-callers.yml
 
 permissions:
