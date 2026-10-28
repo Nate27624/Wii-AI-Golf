@@ -27,6 +27,7 @@ def run(repo, archive=None):
     try:
         canonical=omega._worktree(repo,"canonical",uuid.uuid4().hex[:12])
         omega._run_test(repo,"base","test_p0_simulate_r3_6b4_source.py")
+        omega._run_test(repo,"savegpr","test_p0_simulate_savegpr26_source.py")
         omega._run_test(canonical,"canonical",
                         "test_p0_seven_numbered_source_pairs_private.py")
         orig=canonical/"scripts"/"audit_p0_seven_numbered_source_pairs_private.py"
@@ -41,6 +42,14 @@ def run(repo, archive=None):
                 or analyzed.get("rspe01_rev1_source_selected_scene_all_seven") is not True
                 or analyzed.get("ppc_source_window_equal_all_seven") is not True):
             raise omega.Abstain("source-gated inner result missing")
+        static = analyzed.get("static_register_save_helper_prologue")
+        if (type(static) is not dict or
+                static.get("kind") != "P0-PPC-STATIC-SIMULATE-ENTRY-R3-SAVEGPR26-PROLOGUE" or
+                static.get("training_approved") is not False or
+                static.get("allowed_to_publish") is not False or
+                static.get("actual_r3_dynamic_object_type_verified") is not False or
+                static.get("value_loaded_from_member_is_global_or_roster_ball_verified") is not False):
+            raise omega.Abstain("unqualified source compiler-save helper report")
         omega._json_study(repo,[orig,"--archive",location],
             "P0-SANITIZED-SEVEN-NUMBERED-SOURCE-PAIR-AUDIT")
         if old_manifest!=omega._file_digest(manifest):
@@ -52,6 +61,7 @@ def run(repo, archive=None):
             "canonical_231_revision_pinned_not_moving_head":True,
             "seven_source_windows_consistent":True,
             "static_source":analyzed["source_load_base_r3_hint"],
+            "static_compiler_savegpr26_prologue":static,
             "dynamic_receiver_object_identified":False,
             "physical_xyz_velocity_power_impact_score_verified":False,
             "training_approved":False,"allowed_to_publish":False,
