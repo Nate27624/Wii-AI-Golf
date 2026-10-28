@@ -62,13 +62,14 @@ def _source_global_slot(read, roster):
     return slot, imm
 
 
-def _native_roster_global_gate(read, seven, slot):
+def _native_roster_global_gate(rd, seven, slot):
     """Selected 4-slot roster and fifth global object identity only.
 
     This does NOT link either PPC caller's incoming r3 to any real object.
     """
     roster = seven.roster
-    sample = seven._get(type("Adapter", (), {"u32": staticmethod(read)})())
+    sample = seven._get(rd)
+    read = rd.u32
     pm = read(roster.PLAYER_MANAGER_STATIC_CANDIDATE)
     if roster._bank(pm, 4 + 4 * roster.ROSTER_STRIDE) != "MEM2":
         raise ValueError("roster manager invalid")
@@ -221,7 +222,7 @@ def analyze(archive, seven, cfg):
                 global_disp = disp
             elif disp != global_disp:
                 raise ValueError("source global r13 load changed")
-            native.append(_native_roster_global_gate(read, seven, slot))
+            native.append(_native_roster_global_gate(seven.roster.TwoBankReader(*pairs), seven, slot))
             current_outer = outer.inspect_upstream(read)
             current_inner = cfg.inspect_known_callers(read)
             if outer_result is None:
