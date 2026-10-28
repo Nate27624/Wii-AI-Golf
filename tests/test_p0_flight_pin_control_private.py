@@ -4,6 +4,7 @@ from __future__ import annotations
 from contextlib import redirect_stderr
 from io import StringIO
 import json
+import subprocess
 from pathlib import Path
 import struct
 import sys
@@ -153,6 +154,18 @@ class PinControlTests(unittest.TestCase):
         self.assertFalse(r["allowed_to_publish"])
         self.assertFalse(r["training_approved"])
         self.assertFalse(r["same_guest_frame_verified"])
+
+    def test_isolated_python_cli_imports_only_checkout_siblings(self):
+        script = ROOT / "scripts" / "audit_p0_flight_pin_control_private.py"
+        completed = subprocess.run(
+            [sys.executable, "-I", str(script), "--help"],
+            capture_output=True, text=True, cwd=ROOT,
+            timeout=15,
+        )
+        self.assertEqual(completed.returncode, 0, msg=completed.stderr)
+        self.assertIn("--baseline", completed.stdout)
+        self.assertIn("--flight", completed.stdout)
+        self.assertNotIn("ModuleNotFoundError", completed.stderr)
 
     def test_missing_private_folders_fail_without_exposing_path(self):
         stream=StringIO()
