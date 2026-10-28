@@ -63,8 +63,15 @@ def inspect_named_map_object(banks, address: int) -> tuple[dict, dict]:
     # PMP file layout uses +0x08; runtime RPUtlMapObject layout is UNKNOWN.
     m = (_candidate_vec(banks, map_pointer + PMP_POSITION_OFFSET)
          if map_region else None)
-    similar = (v is not None and m is not None
-               and max(abs(a - b) for a, b in zip(v, m)) <= AGREEMENT_TOLERANCE)
+    # Only compare two HYPOTHETICAL representations, not a verified
+    # world-space position. None means not evaluated, never a false negative.
+    candidate_axis_agreement = (
+        {axis: abs(a - b) <= AGREEMENT_TOLERANCE
+         for axis, a, b in zip(("x", "y", "z"), v, m)}
+        if v is not None and m is not None else None
+    )
+    similar = (candidate_axis_agreement is not None
+               and all(candidate_axis_agreement.values()))
     plaus = lambda vv: vv is not None and any(abs(x) >= 1e-3 for x in vv)
     safe = {
         "selected_object_in_mem2": True,
@@ -79,6 +86,13 @@ def inspect_named_map_object(banks, address: int) -> tuple[dict, dict]:
         "hypothetical_pmp_plus_0x08_triplet_finite_and_bounded": m is not None,
         "hypothetical_pmp_plus_0x08_triplet_nonzero": plaus(m),
         "two_unverified_triplets_agree_within_tolerance": similar,
+        "hypothetical_map_entry_axis_agreement": candidate_axis_agreement,
+        "hypothetical_map_entry_horizontal_xz_agree": (
+            (candidate_axis_agreement["x"] and candidate_axis_agreement["z"])
+            if candidate_axis_agreement is not None else None),
+        "hypothetical_map_entry_vertical_y_agrees": (
+            candidate_axis_agreement["y"]
+            if candidate_axis_agreement is not None else None),
     }
     private = {
         "base_plus_0x30_candidate_floats": list(v) if v is not None else None,
