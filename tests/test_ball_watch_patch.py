@@ -44,6 +44,11 @@ class FakeMemory:
             for i, value in enumerate((2.5, 0.75, -4.0)):
                 self.words[base + i * 4] = befloat(value)
 
+        # The experimental private scanner reads the entire source-selected
+        # 0xCC-byte record. Unspecified members are synthetic zero words.
+        for d in range(0, 0xCC, 4):
+            self.words.setdefault(pm + 4 + d, 0)
+
     def read_u32(self, address):
         return self.words[address]
 
@@ -78,6 +83,9 @@ class WatchPatchTests(unittest.TestCase):
         self.assertEqual(snap["current_start_f32_candidate"],
                          snap["ball_translation_f32_candidate"])
         self.assertNotIn("runtime_pointer", snap)
+        self.assertEqual(len(snap["selected_player_record_words_PRIVATE"]), 51)
+        self.assertEqual(snap["selected_player_record_words_PRIVATE"][0x88 // 4],
+                         self.mem.words[self.mem.words[0x804BF8D0] + 0x8C])
 
     def test_arm_tick_drain_local_only(self):
         self.ns["_wii_ball_watch_arm"]([24, 4])

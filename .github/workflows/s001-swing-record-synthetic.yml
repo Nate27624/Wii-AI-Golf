@@ -1,0 +1,44 @@
+name: S001 selected player swing record (synthetic only)
+
+on:
+  push:
+    branches:
+      - agent/research/swing-selected-record-watch-20261027
+  pull_request:
+    paths:
+      - "src/wii_ai_golf/integration/ball_watch_patch.py"
+      - "src/wii_ai_golf/integration/post_boot.py"
+      - "scripts/analyze_selected_player_swing_words_private.py"
+      - "tests/test_selected_player_swing_words_private.py"
+      - "tests/test_swing_record_boot_handoff.py"
+      - "tests/test_ball_watch_patch.py"
+      - "tests/test_s001_selected_record_full_trace_parity.py"
+      - ".github/workflows/s001-swing-record-synthetic.yml"
+
+jobs:
+  offline-swing-record:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install source package
+        run: python -m pip install -e .
+      - name: Parse all new Python and reviewed bridge source
+        run: python -m compileall -q src/wii_ai_golf/integration/ball_watch_patch.py src/wii_ai_golf/integration/post_boot.py scripts/analyze_selected_player_swing_words_private.py tests/test_selected_player_swing_words_private.py tests/test_swing_record_boot_handoff.py tests/test_ball_watch_patch.py tests/test_s001_selected_record_full_trace_parity.py
+      - name: Selected player swing private ranking
+        run: python -m unittest discover -s tests -p "test_selected_player_swing_words_private.py" -v
+      - name: Canonical one-boot recorder handoff
+        run: python -m unittest discover -s tests -p "test_swing_record_boot_handoff.py" -v
+      - name: Existing ball watch synthetic producer and safety
+        run: python -m unittest discover -s tests -p "test_ball_watch_*.py" -v
+      - name: Complete generated 89-sample 51-word watched/plain swing parity
+        run: python -m unittest discover -s tests -p "test_s001_selected_record_full_trace_parity.py" -v
+      # Existing full dispatcher suite remains a separate integration gate.
+      # The base branch's Windows short-temp-path assertions currently fail;
+      # the new post-boot contract is covered above in dedicated tests.

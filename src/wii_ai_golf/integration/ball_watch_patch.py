@@ -106,6 +106,13 @@ def _wii_ball_snapshot():
         "source_hole_index": hole,
         "ball_translation_f32_candidate": _wii_ball_vec(ball_vector_pointer),
         "record_translation_f32_candidate": _wii_ball_vec(selected_record + 0x54),
+        # EXPERIMENTAL, private-only: all 51 words of the source-selected
+        # inline record. Names/types/values are UNVERIFIED; contains pointer
+        # members. Never print, publish or copy outside ignored private Data.
+        # Protected by the existing <=5ms frame-read overhead cutoff.
+        "selected_player_record_words_PRIVATE": [
+            _wii_ball_u32(selected_record + d) for d in range(0, 0xCC, 4)
+        ],
         "current_start_f32_candidate": _wii_ball_vec(start + 0x30),
         # Identity categories only; no runtime addresses enter the report.
         "source_owner_consistent": True,
