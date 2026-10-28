@@ -28,4 +28,13 @@ This helper intentionally does not itself read native code, ROM, saved RAM or th
 - Source original SHA and 14-bank controls remain owned by #231/#246/#247/#249. Human phase labels are provisional and potentially wrong; do not infer motion direction, flight stage or endpoint semantics.
 - Nothing in this PR modifies source owner scripts, gameplay, Dolphin, controller, bridge, registry, S001 watcher, publication or training.
 
-26 synthetic adversarial tests plus Windows/Ubuntu CI validate conservative branch paths, r31/r3 overwrites (including lmw/stmw, ori, stwu base-update), indirect/jump hazards, source bounds, zero code, privacy and false validation flags. **Real original PPC result not yet calculated.** Owners should review before any integration or native run.
+34 synthetic adversarial tests plus Windows/Ubuntu CI validate conservative branch paths, r31/r3 overwrites (including lmw/stmw, ori, stwu base-update), indirect/jump hazards, source bounds, zero code, privacy and false validation flags. **Real original PPC result not yet calculated.** Owners should review before any integration or native run.
+
+
+## S002 2026-10-28 first-real B0 qualification follow-up: why abstain?
+
+Independent draft #257 successfully authenticated the original B0 source (original SHA, RSPE01 Rev1 and public Golf ownership), then called an earlier pinned version of this pure must-def checker. **Both** cache-receiver inner callers returned `ABSTAIN_SOURCE_UNRESOLVED` and `known_exact_cache_writer_callsite_reached=false`. That means **the conservative decoder did not prove a callsite path**, not that native execution does not reach the cache writer.
+
+This revision adds **only sanitized diagnostics** to `prove_caller`: `abstain_reason_category` from a literal allowlist, `first_encountered_unresolved_source_relative_offset` (source entry-relative, not a guest pointer), and `unresolved_witness_is_static_decoder_not_runtime_execution=true`. It preserves the exact previous status/must-flow behavior and all false physics/runtime flags. The witness describes **first encountered during bounded worklist traversal**, not temporal first instruction and not shortest path. Synthetic negative cases cover unsupported X-form, intervening call, indirect branch, out-of-window direct branch, mismatched exact target, unreachable target, null reason for non-abstentions, and no source word leakage.
+
+**No original B0 re-read in this PR.** #257 owner must choose to update its exact helper SHA only after review of this revision and successful hosted tests; do not run old and new qualifications as independent observations. The new source relative categories only guide the *next specific PPC opcode or branch decoder review*, without permitting arbitrary unknown opcodes or proving the selected/global-ball runtime receiver.
