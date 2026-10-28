@@ -58,17 +58,22 @@ $newBridge = Join-Path $root 'tools\mcp_bridge_selected_record_watch.py'
 $cleanExe = Join-Path $root 'tools\FelkDolphin-Clean\Dolphin.exe'
 $cleanUser = Join-Path $root 'tools\FelkDolphin-Clean\User'
 $catalog = Join-Path $repo 'research\savestates.local.json'
+$config = Join-Path $repo 'research\launch.local.json'
+if (-not (Test-Path $config)) { throw 'Main checkout launch.local.json is absent; STOP' }
 if (-not (Test-Path $cleanExe) -or -not (Test-Path $cleanUser) -or
     -not (Test-Path $catalog) -or -not (Test-Path $originalV2)) {
     throw 'Missing required reviewed clean runtime, source bridge or profile'
 }
+# Purely offline source fingerprint check; does not launch Dolphin or use RPC.
+py "$repo\scripts\audit_local_swing_bridge.py" --bridge $originalV2
+if ($LASTEXITCODE -ne 0) { throw 'Source bridge audit failed; STOP' }
 if (Test-Path $newBridge) { throw 'Never overwrite existing watched bridge' }
 py "$work\scripts\prepare_ball_watch_bridge.py" --source $originalV2 --output $newBridge
 if ($LASTEXITCODE -ne 0) { throw 'Bridge preparation refused; STOP' }
 
 # MUST first close any running Dolphin: complete fresh first-ball launch via S001.
 # DRY RUN: no emulator, no game input.
-py "$work\scripts\run_golf_experiment.py" --dolphin $cleanExe --dolphin-user $cleanUser --bridge $newBridge --catalog $catalog --script record_selected_ball_swing_private.py -- --send-live-swing
+py "$work\scripts\run_golf_experiment.py" --dolphin $cleanExe --dolphin-user $cleanUser --bridge $newBridge --catalog $catalog --config $config --script record_selected_ball_swing_private.py -- --send-live-swing
 if ($LASTEXITCODE -ne 0) { throw 'Dispatcher dry-run failed; STOP' }
 
 # LIVE after owner authorization, one human-approved shot only, fixed trace:
@@ -76,7 +81,7 @@ py "$work\scripts\run_golf_experiment.py" --send-live --dolphin $cleanExe --dolp
 if ($LASTEXITCODE -ne 0) { throw 'Swing watch failed; preserve report and STOP' }
 ~~~
 
-The S001 fresh boot will prompt for a game image if this *new detached worktree* has no ignored local launch config. It must resolve the named `green-pre-start` state and clean controller before asking the human to type `SWING`. Do not point it at the old crash-prone Felk process or run a separate Dolphin at the same time. An RPC success is not a hit.
+The S001 fresh boot MUST use the MAIN checkout's existing ignored launch.local.json and savestates.local.json. A detached research worktree does not automatically inherit either. The catalog's named `green-pre-start` slot is only a label; the CLEAN portable User must contain the corresponding actual savestate bytes, and boot/ready screen must be human confirmed before typing `SWING`. Never point at the old crash-prone Felk process or run a separate Dolphin simultaneously. An RPC success is not a hit.
 
 ### Offline report analysis (ONLY after successful owner-approved watched session)
 
