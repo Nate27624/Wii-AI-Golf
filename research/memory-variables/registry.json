@@ -214,9 +214,10 @@
           "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolMapObjBase.h"
         ],
         "capture_groups": [
-          "B0–B3 single study"
+          "B0–B3 single study",
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
         ],
-        "observed_behavior": "Finite identical three-component candidate in B0–B3; static during study",
+        "observed_behavior": "Finite identical three-component candidate in B0–B3; static during study | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON.",
         "source_confidence": "field_pointer_source_backed_translation_layout_hypothesis"
       },
       "limitations": [
@@ -297,9 +298,10 @@
           "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolMapObjBase.h"
         ],
         "capture_groups": [
-          "B0–B3 single study"
+          "B0–B3 single study",
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
         ],
-        "observed_behavior": "Finite stable XYZ candidate; X/Z coincide with cup translation hypothesis",
+        "observed_behavior": "Finite stable XYZ candidate; X/Z coincide with cup translation hypothesis | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON.",
         "source_confidence": "source_layout_and_snapshot_correlated"
       },
       "limitations": [
@@ -625,9 +627,10 @@
           "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
         ],
         "capture_groups": [
-          "B0–B3 single study; unverified game phases"
+          "B0–B3 single study; unverified game phases",
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
         ],
-        "observed_behavior": "NOT FOUND. At least one JSON-associated ball may have been moving; exact bank linkage unknown",
+        "observed_behavior": "NOT FOUND. At least one JSON-associated ball may have been moving; exact bank linkage unknown | 2026-10-28 operator four-phase JSON: B0-B3 known source ball/start/cache candidate values unchanged. No verified moving ball was captured in these phases.",
         "source_confidence": "unverified"
       },
       "limitations": [
@@ -685,8 +688,10 @@
         "source_urls": [
           "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
         ],
-        "capture_groups": [],
-        "observed_behavior": "Operator suspects downward velocity in one JSON-associated capture; direction and value unmeasured",
+        "capture_groups": [
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
+        ],
+        "observed_behavior": "Operator suspects downward velocity in one JSON-associated capture; direction and value unmeasured | 2026-10-28 operator four-phase JSON: B0-B3 known source ball/start/cache candidate values unchanged. No verified moving ball was captured in these phases.",
         "source_confidence": "human_hypothesis_only"
       },
       "limitations": [
@@ -781,9 +786,10 @@
         ],
         "capture_groups": [
           "one unique still-state source-gated pair",
-          "B0–B3 operator no-shot/aim study"
+          "B0–B3 operator no-shot/aim study",
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
         ],
-        "observed_behavior": "Record+0x54 copied into linked ball object's +0x4C translation through verified Rev1 PPC writer; matches start 3/3 in still-state. Not dynamic flight verified.",
+        "observed_behavior": "Record+0x54 copied into linked ball object's +0x4C translation through verified Rev1 PPC writer; matches start 3/3 in still-state. Not dynamic flight verified. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON.",
         "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
       },
       "limitations": [
@@ -861,9 +867,10 @@
         ],
         "capture_groups": [
           "one unique still-state source-gated pair",
-          "B0–B3 operator no-shot/aim study"
+          "B0–B3 operator no-shot/aim study",
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
         ],
-        "observed_behavior": "Source-selected START getter initializes record+0x60/+0x64/+0x68; 3/3 matches at still-state.",
+        "observed_behavior": "Source-selected START getter initializes record+0x60/+0x64/+0x68; 3/3 matches at still-state. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON.",
         "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
       },
       "limitations": [
@@ -946,9 +953,10 @@
         ],
         "capture_groups": [
           "one unique still-state source-gated pair",
-          "B0–B3 operator no-shot/aim study"
+          "B0–B3 operator no-shot/aim study",
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
         ],
-        "observed_behavior": "Source-checked code loads ball object +0x4C selfref to +0x30 triple, and copies selected record; one still-state 3/3 equality with start, inactive slots differ.",
+        "observed_behavior": "Source-checked code loads ball object +0x4C selfref to +0x30 triple, and copies selected record; one still-state 3/3 equality with start, inactive slots differ. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON.",
         "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
       },
       "limitations": [
@@ -1028,9 +1036,10 @@
         ],
         "capture_groups": [
           "one unique still-state source-gated pair",
-          "B0–B3 operator no-shot/aim study"
+          "B0–B3 operator no-shot/aim study",
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
         ],
-        "observed_behavior": "Rev1 PPC initialization copies current translation into +0xCC triple; matched source START 3/3 in still B0. Separate writer may copy from another ball object.",
+        "observed_behavior": "Rev1 PPC initialization copies current translation into +0xCC triple; matched source START 3/3 in still B0. Separate writer may copy from another ball object. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON.",
         "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
       },
       "limitations": [
@@ -1106,9 +1115,10 @@
         ],
         "capture_groups": [
           "one unique still-state source-gated pair",
-          "B0–B3 operator no-shot/aim study"
+          "B0–B3 operator no-shot/aim study",
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
         ],
-        "observed_behavior": "PPC conditional path writes current position to +0xF0/+0xF4/+0xF8 after goal-related planar first/third-component calculation; B0 matches source START.",
+        "observed_behavior": "PPC conditional path writes current position to +0xF0/+0xF4/+0xF8 after goal-related planar first/third-component calculation; B0 matches source START. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON.",
         "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
       },
       "limitations": [
@@ -1182,9 +1192,10 @@
         ],
         "capture_groups": [
           "one unique still-state source-gated pair",
-          "B0–B3 operator no-shot/aim study"
+          "B0–B3 operator no-shot/aim study",
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
         ],
-        "observed_behavior": "Separate PPC branch writes current position to +0xFC/+0x100/+0x104 following middle-component comparison; B0 matches source START.",
+        "observed_behavior": "Separate PPC branch writes current position to +0xFC/+0x100/+0x104 following middle-component comparison; B0 matches source START. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON.",
         "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
       },
       "limitations": [
@@ -1287,5 +1298,12 @@
     "note": "Existing 33-entry evidence ledger owns granular identity/behavior evidence; this access registry adds typed resolver/feature-eligibility index, not replacement evidence"
   },
   "notes": "Use #160/#162/#181/#183 source-work as upstream; operational selection of ball/player record requires S002 source verifier. A pointer-chain expression with symbolic parent is NOT an independently deployable extractor.",
-  "authority_boundary": "This is the typed discovery/extraction access index and training-eligibility gate. PR #154 research/memory/field-evidence-ledger.json remains the more detailed source-evidence/identity/behavior ledger; this registry DOES NOT supersede its records. Reconcile references during PR reviews."
+  "authority_boundary": "This is the typed discovery/extraction access index and training-eligibility gate. PR #154 research/memory/field-evidence-ledger.json remains the more detailed source-evidence/identity/behavior ledger; this registry DOES NOT supersede its records. Reconcile references during PR reviews.",
+  "last_operator_evidence": {
+    "date": "2026-10-28",
+    "study": "B0–B3 full source-object window private JSON; separate human nonstationary-ball JSON remains unknown",
+    "summary": "0/0/0 for ball/start/pin/current+cache triplets across B0→B1→B2→B3; selected player record 1/18/1, others 0/0/0. Tests 10/10 pass. No physical ball motion verified.",
+    "source": "https://github.com/Nate27624/Wii-AI-Golf/pull/205",
+    "training_allowed": false
+  }
 }
