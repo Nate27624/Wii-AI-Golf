@@ -80,12 +80,17 @@ Wii-AI-Golf-Data/captures/SHOT-<private-id>-PRIVATE/
   shot-followup-manifest-PRIVATE.json  # separate human annotations/hashes
 ```
 
-Only after explicit S001/S002/S000 review and operator approval, the
-existing `preserve_golf_paused_pair_private.ps1` may be extended or a
-separately owner-reviewed helper may be written for these two optional
-new phase labels. It presently accepts PRE/POST ONLY. Do not manually
-mislabel a RESULT bank as POST or claim that the game remains in mode4
-at the results screen.
+The **stacked branch** extends `preserve_golf_paused_pair_private.ps1`
+to accept PRE/POST/SETTLED/RESULT with separate phase attestations,
+without modifying the stable parent PR #180. SETTLED requires a POST
+pair already preserved, plus a human confirmation that the ball visibly
+stopped **before reset** and the hole did not change. RESULT requires
+the POST pair plus actual visible results screen and SAME Dolphin
+process, but does **not** require the live ball or same active hole.
+Both use exclusive new destination names, source last-write-after
+export-start checks, the clean portable User root and before/after
+source SHA equality. This is still NOT a GUI exporter or automatic
+capture. Never mislabel a RESULT bank as POST.
 
 **No copy/paste live shot command is released here.** The operator must
 see the actual screen and intentionally decide when to pause/export.
@@ -134,6 +139,81 @@ numeric distance. Omit a phase entirely if no true paused-pair capture
 exists. The script verifies all hashes and native sizes before reading,
 and reports `approved_for_model_training=false`,
 `physical_distance_to_hole_verified=false` regardless of outcome.
+
+## After full approval: optional pause/copy and manifest commands
+
+The operator must first complete the reviewed PRE and POST steps in
+#180. Then, only if the game displays the corresponding visual state
+for the **same actual shot** (not a new shot), use the following
+template. The GUI pause/export gestures and native source file names
+must be verified by S001 **before** the operator uses them.
+
+```powershell
+# These must already be assigned by the approved #180 operator runbook:
+# $data, $session, $cleanUser, $srcMem1, $srcMem2
+# $srcMem1/$srcMem2 must point to verified exports from the currently
+# running FelkDolphin-Clean/User, not the previous crashed installation.
+
+# OPTIONAL SETTLED — only if the original ball visibly stops BEFORE reset:
+$settledStart = Get-Date
+# Human GUI pause + MEM1 and MEM2 exports under ONE uninterrupted pause.
+& .\scripts\preserve_golf_paused_pair_private.ps1 `
+  -CleanDolphinUserRoot $cleanUser `
+  -SourceMem1Path $srcMem1 -SourceMem2Path $srcMem2 `
+  -PrivateDataRoot $data -SessionFolder $session `
+  -Phase SETTLED -ExportStartedAfter $settledStart `
+  -ConfirmBothExportsUnderSameGuiPause `
+  -ConfirmCorrectVisibleShotPhase `
+  -ConfirmNoHoleOrDolphinProcessChange `
+  -ConfirmBallVisiblyStoppedBeforeReset
+if (-not $?) { throw "SETTLED preservation failed" }
+
+# OPTIONAL RESULT — only on the actual shot's visibly identified
+# results screen. Does not claim the same live ball object still exists:
+$resultStart = Get-Date
+# Human GUI pause + both bank exports in ONE uninterrupted pause.
+& .\scripts\preserve_golf_paused_pair_private.ps1 `
+  -CleanDolphinUserRoot $cleanUser `
+  -SourceMem1Path $srcMem1 -SourceMem2Path $srcMem2 `
+  -PrivateDataRoot $data -SessionFolder $session `
+  -Phase RESULT -ExportStartedAfter $resultStart `
+  -ConfirmBothExportsUnderSameGuiPause `
+  -ConfirmCorrectVisibleShotPhase `
+  -ConfirmSameDolphinProcess `
+  -ConfirmResultScreenVisible
+if (-not $?) { throw "RESULT preservation failed" }
+
+# Once all *existing* optional checkpoint pairs have been preserved,
+# create a typed private SHA manifest. Only include human flags for
+# phases that you actually captured. If the RESULT screen shows a
+# distance, supply the exact observed number and exact UI unit, not
+# a guess, a conversion, or a value from source candidate RAM.
+$manifestArgs = @{
+  PrivateDataRoot = $data
+  SessionFolder = $session
+  ConfirmSameDolphinProcess = $true
+  ConfirmSameOneShot = $true
+  ConfirmBothExportsUnderSamePauseForEachPresentPhase = $true
+}
+# Include only when the corresponding phase exists and was observed:
+# $manifestArgs.ConfirmSettledBallVisiblyStoppedBeforeReset = $true
+# $manifestArgs.ConfirmResultScreenVisible = $true
+# $manifestArgs.DisplayedDistance = <exact human-visible numeric value>
+# $manifestArgs.DisplayedUnit = <feet|yards|meters, as actually displayed>
+& .\scripts\prepare_golf_shot_followup_manifest_private.ps1 @manifestArgs
+if (-not $?) { throw "Follow-up private manifest failed" }
+
+py scripts/audit_golf_postshot_followup_private.py --private-root $session
+if ($LASTEXITCODE -ne 0) { throw "Private follow-up analysis failed" }
+```
+
+**Important:** These commands form a **reference template**, not
+permission to capture or control Dolphin today. If either optional
+phase cannot be captured truthfully, omit it and do not enable its
+confirmations. The manifest helper fails closed when requested phase
+flags or native bank files are absent. The private result number is
+not emitted to stdout. All four-to-eight full banks and manifest
+stay exclusively under ignored local `Wii-AI-Golf-Data`.
 
 ## Offline runner after captured files and approval
 
