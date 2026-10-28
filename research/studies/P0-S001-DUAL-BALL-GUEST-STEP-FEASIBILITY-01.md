@@ -108,3 +108,6 @@ The public sources can be inspected at:
 - https://github.com/Felk/dolphin/blob/master/Source/Core/Core/API/Memory.cpp
 
 No Dolphin, game or user archives accessed in this review. All training/physics/frame/render/score flags remain false.
+
+
+**Additional high-confidence observer-effect proof (same pinned `BreakPoints.cpp` blob):** `MemChecks::Add` lines 290–316 explicitly says *"If this is the first one, clear the JIT cache so it can switch to watchpoint-compatible code."* and calls `GetJitInterface().ClearCache(guard)` then `GetMMU().DBATUpdated()`. `MemChecks::Remove` and `Clear` can also clear JIT cache (lines 330–352). Thus adding an apparently read-only memory monitor to the running emulator **changes the compiled execution path** and can influence timing; it is not equivalent to a passive RAM read. Any future approved probe must measure observer/no-observer cadence separately, and synthetic no-interference from an offline test cannot prove real-time noninterference. No memcheck/watchpoint is authorized by this research.
