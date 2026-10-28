@@ -1,0 +1,31 @@
+name: P0 review constructor r3 effect decoder
+on:
+  push:
+    paths:
+      - scripts/review_p0_ball_constructor_return.py
+      - tests/test_p0_ball_constructor_return_private.py
+      - .github/workflows/p0-review-ctor-r3-effects.yml
+  pull_request:
+    paths:
+      - scripts/review_p0_ball_constructor_return.py
+      - tests/test_p0_ball_constructor_return_private.py
+      - .github/workflows/p0-review-ctor-r3-effects.yml
+  workflow_dispatch:
+
+jobs:
+  constructor-effect-tests:
+    name: ${{ matrix.os }} ctor r3 write-effects
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Constructor source register synthetic/adversarial tests
+        run: python -I -B -m unittest discover -s tests -p test_p0_ball_constructor_return_private.py -v
+      - name: Allocation nullguard synthetic controls
+        run: python -I -B -m unittest discover -s tests -p test_p0_global_slot_symbol_nullguard_private.py -v
