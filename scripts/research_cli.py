@@ -119,7 +119,7 @@ def _joined_visual_first(run_token: str, start: datetime, *,
         item = json.loads(path.read_text(encoding="utf-8"))
         if type(item) is not dict or item.get("run_token") != run_token:
             return invalid
-        if (item.get("source") != "live-emulator-read-only-US-Rev1+human-result-label"
+        if (item.get("source") != "human-terminal-result-no-ram-game-context-unverified"
                 or item.get("outcome_collection_mode") != "human_terminal_first_no_ram"
                 or item.get("raw_data_created") is not False
                 or item.get("candidate_ranking") is not None):
@@ -145,6 +145,14 @@ def _joined_visual_first(run_token: str, start: datetime, *,
         digest = swing.get("trace_sha256")
         if type(digest) is not str or re.fullmatch(r"[a-f0-9]{64}", digest) is None:
             return invalid
+        # An arbitrary 64-character digest does NOT bind an action to the
+        # expected waveform. Rebuild the SAME pure requested trace used by
+        # the child, then verify equality before accepting this result.
+        from collect_outcome_transition import _build_v1_trace_and_digest
+        expected_samples, expected_digest = _build_v1_trace_and_digest(
+            motion_scale=1.0, speed_scale=speed, backswing_scale=backswing)
+        if len(expected_samples) != 89 or digest != expected_digest:
+            return invalid
         contact, green = human.get("contact_human"), human.get("finished_on_green_human")
         seen = human.get("terminal_screen_seen_before_transition_human")
         kind = human.get("visible_result_class_human")
@@ -159,7 +167,9 @@ def _joined_visual_first(run_token: str, start: datetime, *,
                 or (power is not None and (type(power) not in (int, float)
                     or not math.isfinite(power) or not 0 <= power <= 100))
                 or human.get("initial_club_pose_verified_by_memory") is not False
-                or human.get("displayed_power_verified_by_memory") is not False):
+                or human.get("displayed_power_verified_by_memory") is not False
+                or human.get("hitting_green_first_ball_context_human_confirmed") is not True
+                or human.get("game_context_verified_by_memory") is not False):
             return invalid
         if (contact not in ("yes", "no", "unknown") or green not in ("yes", "no", "unknown")
                 or not (type(seen) is bool or seen is None) or type(kind) is not str
@@ -183,6 +193,12 @@ def _joined_visual_first(run_token: str, start: datetime, *,
                 or (source == "offgreen_display_unverified" and
                     not (kind == "offgreen" and value is not None))
                 or (source == "unseen_or_not_recorded" and value is not None)
+                or (kind in ("uncertain", "transitioned") and source != "unseen_or_not_recorded")
+                or (kind == "green" and source not in
+                    ("ongreen_display_human", "unseen_or_not_recorded"))
+                or (kind == "offgreen" and source not in
+                    ("offgreen_100ft_penalty", "offgreen_display_unverified",
+                     "unseen_or_not_recorded"))
                 or (value is None and unit != "not-visible")
                 or (value is not None and unit == "not-visible")):
             return invalid
@@ -190,8 +206,14 @@ def _joined_visual_first(run_token: str, start: datetime, *,
         if screen != ("human_terminal_before_transition" if seen is True
                       else "human_terminal_unseen_or_unknown"):
             return invalid
+        informative = (contact == "yes" and seen is True
+                       and kind in ("green", "offgreen"))
         return {
             "capture_status": "visual_first_joined",
+            # The collector attests scheduled RPCs, not in-game ball contact.
+            "informative_action_outcome_trial": informative,
+            "hitting_green_first_ball_context_human_confirmed": True,
+            "game_id_revision_mode_machine_verified": False,
             "shot_dispatch_verified_by_collector": True,
             "controller": {"trace_sha256": digest, "generated_trace_frames": 89,
                            "a_lead_requested_frames": a_lead,
@@ -440,7 +462,8 @@ def main(argv: list[str] | None = None) -> int:
         # Never publish a failed/cancelled action, nor a visual result whose
         # unique child shot/trace token cannot be joined to this exact command.
         if args.command == "v1" and (exit_code != 0 or
-                (args.visual_first and summary.get("capture_status") != "visual_first_joined")):
+                (args.visual_first and (summary.get("capture_status") != "visual_first_joined"
+                                        or summary.get("informative_action_outcome_trial") is not True))):
             print("M1.5 outcome NOT eligible; no GitHub publication.", flush=True)
             return exit_code if exit_code != 0 else 2
         if not args.no_upload:
