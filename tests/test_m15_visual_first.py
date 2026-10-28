@@ -4,6 +4,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -145,6 +146,24 @@ class VisualFirstJoinTests(unittest.TestCase):
                     a_lead=45, speed=1.0, backswing=backswing)
         self.assertEqual(joined["capture_status"] == "visual_first_joined", expect_ok)
         return joined
+
+    def test_exact_run_token_allows_bounded_mtime_granularity_not_stale_files(self):
+        # Windows temp-file metadata may round slightly before the parent's
+        # high-resolution datetime; exact token+trace validation still applies.
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            path = folder / f"outcome-{TOKEN}-candidates.json"
+            path.write_text(json.dumps(child_summary()), encoding="utf-8")
+            now = datetime.now(timezone.utc)
+            with patch.object(research_cli, "CAPTURES", folder):
+                os.utime(path, (now.timestamp() - 0.5, now.timestamp() - 0.5))
+                recent = research_cli._joined_visual_first(
+                    TOKEN, now, a_lead=45, speed=1.0, backswing=1.0)
+                self.assertEqual(recent["capture_status"], "visual_first_joined")
+                os.utime(path, (now.timestamp() - 10, now.timestamp() - 10))
+                stale = research_cli._joined_visual_first(
+                    TOKEN, now, a_lead=45, speed=1.0, backswing=1.0)
+                self.assertEqual(stale["capture_status"], "visual_first_join_refused")
 
     def test_exact_token_join_strips_raw_and_preserves_censor_and_trace(self):
         result = self._check(child_summary())
