@@ -114,6 +114,24 @@ class TestAliasAudit(unittest.TestCase):
         self.assertEqual(report['second_hop_new_pointees_sampled'], 1)
         self.assertEqual(report['total_unique_changed_addresses_outside_root'], 2)
 
+    def test_dense_second_level_is_bounded_without_false_completeness(self):
+        fake = FakeCaptures()
+        # A direct reproduction of the user's failure class: more than 256
+        # unique stable second-hop candidate pointers from small first-hop inputs.
+        for j in range(16):
+            parent = 0x90100000 + j * 0x1000
+            for name in fake.names:
+                fake.word_put(name, fake.main + 0x100 + j * 4, parent)
+                for k in range(32):
+                    pointee = 0x90200000 + (j * 32 + k) * 0x200
+                    fake.word_put(name, parent + k * 4, pointee)
+        report = audit.analyze(fake, depth=2)
+        self.assertEqual(report['coverage_status'], 'bounded_partial')
+        self.assertFalse(report['coverage_complete_within_declared_scope'])
+        self.assertGreater(report['second_hop_new_pointees_omitted'], 0)
+        self.assertLessEqual(report['unique_pointees_all_hops'], 256)
+        self.assertGreaterEqual(report['second_hop_parent_count'], 16)
+
     def test_bad_snapshot_scene_rejected(self):
         fake = FakeCaptures()
         fake.word_put('B2', 0x9000801C, 9)
