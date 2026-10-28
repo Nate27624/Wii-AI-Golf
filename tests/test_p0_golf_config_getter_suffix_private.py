@@ -45,8 +45,8 @@ def source_fixture():
         0x68:x(266,4,6,5),
         0x6c:x(266,3,3,0),
         0x70:d(32,4,4,4),
-        0x74:d(32,3,3,4),
-        0x78:x(40,3,4,3),
+        0x74:d(32,0,3,4),
+        0x78:x(40,3,4,0),
     }.items():
         a[i//4]=w
     for i,w in {
@@ -88,6 +88,20 @@ class GetterSuffixReview(unittest.TestCase):
     def test_load_register_receiver_must_match(self):
         z=m.evaluate_windows(replace_word(source_fixture(),"get_nth_hole_score",0x74,d(32,3,4,4)))
         self.assertFalse(z["first_getter_subtracts_loaded_36byte_record_value_from_16byte_record_value"])
+
+    def test_actual_rev1_r0_load_and_subf_registers_required(self):
+        # Real Rev1 source reported +0x74 lwz r0,4(r3),
+        # +0x78 subf r3,r4,r0. Earlier test fixture used r3 incorrectly.
+        real=m.evaluate_windows(source_fixture())
+        self.assertTrue(real["first_getter_36byte_hole_metadata_candidate_and_16byte_score_candidate"])
+        self.assertTrue(real["first_getter_subtracts_loaded_36byte_record_value_from_16byte_record_value"])
+        wrong_load=m.evaluate_windows(replace_word(
+            source_fixture(),"get_nth_hole_score",0x74,d(32,3,3,4)))
+        self.assertFalse(wrong_load["first_getter_36byte_hole_metadata_candidate_and_16byte_score_candidate"])
+        wrong_subf=m.evaluate_windows(replace_word(
+            source_fixture(),"get_nth_hole_score",0x78,x(40,3,4,3)))
+        self.assertFalse(wrong_subf["first_getter_subtracts_loaded_36byte_record_value_from_16byte_record_value"])
+        self.assertFalse(real["typed_score_row_orientation_fully_verified"])
 
     def test_subtract_direction_must_match(self):
         z=m.evaluate_windows(replace_word(source_fixture(),"get_nth_hole_score",0x78,x(40,3,3,4)))
