@@ -103,12 +103,18 @@ def _samples(summary: dict, rows: list[dict]) -> tuple[list[dict[int, tuple[int,
 
     decoded = []
     max_span = 0
+    previous_frame_start = -1
     first_bases: dict[str, int] | None = None
     excluded_aliases: set[int] = set()
     for row in rows:
         start, end = row.get("frame_start"), row.get("frame_end")
         if type(start) is not int or type(end) is not int or start < 0 or end < start:
             raise ValueError("Unverified frame bracket")
+        if start < previous_frame_start:
+            raise ValueError("Frame start moved backward; phase order invalid")
+        previous_frame_start = start
+        if row.get("source") != "Felk-read-only-US-Rev1-unverified-golf-windows":
+            raise ValueError("Unexpected live collector schema")
         max_span = max(max_span, end - start)
         windows = row.get("windows")
         if not isinstance(windows, dict) or not windows or not set(windows).issubset(WINDOWS):
@@ -196,8 +202,8 @@ def audit(summary: dict, rows: list[dict]) -> dict:
         # Two post samples changing independently is stronger than one;
         # these multi-frame windows still do not establish contact frame.
         transient.append({
-            "type": ("all_POST_changed_and_SET​​TLED_restored"
-                     if changed == len(post) else "some_POST_changed_and_SETTLED_restored").replace("\u200b", ""),
+            "type": ("all_POST_changed_and_SETTLED_restored"
+                     if changed == len(post) else "some_POST_changed_and_SETTLED_restored"),
             "source_relative_locations": [
                 {"window": name, "offset": f"+0x{offset:03X}",
                  "source_hint": REF_HINTS.get((name, offset), "untyped")}
