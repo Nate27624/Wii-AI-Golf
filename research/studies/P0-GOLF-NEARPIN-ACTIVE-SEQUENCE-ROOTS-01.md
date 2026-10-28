@@ -272,3 +272,57 @@ user PowerShell, Dolphin boot, swing, private bank upload or
 new runtime-variable claim is justified by this public declaration
 alone. Existing game-step, rendered actor, power, result and training
 gates remain false.
+
+
+## New bounded Rev1 mode-4 setup dispatch source experiment
+
+**Stage:** synthetic tests only until source-owner review and exact native
+report. Named public function entries and independent same-Rev1
+\`doldecomp/ogws\` symbol-map bounds now permit a **61-word fixed
+window**, not a generic program-wide xref pass:
+
+| Public source-annotated function | Exact Rev1 public entry | Published byte extent | PPC words |
+| --- | --- | --- | --- |
+| \`RPGolConfig::SetupTrainingGame()\` | \`0x8029D778\` | \`[0x8029D778,0x8029D810)\` | 38 |
+| \`RPGolConfig::SetupGame()\` | \`0x8029D810\` | \`[0x8029D810,0x8029D86C)\` | 23 |
+
+Source citations: [Kokeshi \`RPGolConfig.h\` pinned revision](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPGolScene/RPGolConfig.h),
+independent [doldecomp/ogws \`RSPE01_01/symbols.txt\`](https://github.com/doldecomp/ogws/blob/main/config/RSPE01_01/symbols.txt).
+The two aligned source map entries are annotations, not proof of a compiled
+runtime call into the TrainingN classes.
+
+The new
+\`scripts/audit_p0_nearpin_training_setup_dispatch_private.py\`
+inherits the **original #231 14-bank SHA pre/post**, exact
+game revision, scene5/mode4/selected roster/geometry/source qualification,
+and read-only mmap of the same original seven numbered pairs; refuses
+wrong function extents or code drift across pairs. Reads **only 61 guest
+source instruction words per capture** and reports (without raw PPC words,
+runtime pointer values, guest heap addresses, bank hashes or paths):
+- direct PPC unconditional \`BL\` call locations classified into
+  *current function*, *same published Config source unit*, or
+  *outside known Config unit (untyped)*;
+- conditional and nonlinked branch counts, ordinary \`blr\`
+  count, and explicitly recorded indirect branch/system-call hints;
+- literal-immediate comparison sites for modes 3, 4 and 5 as
+  **syntax-only**. A \`cmpwi ...,4\` site is not a proven test on
+  current \`mGameMode\`, and even a following branch is NOT proven
+  mode4-reachable without full receiver/control provenance.
+
+**Single useful decision rule:** A source instruction directly
+comparing an integer to literal 4 plus a typed Config mode-value load
+and a branch selecting a source-owned training sequence would be a
+positive *source-mode-dispatch* lead. The classifier alone **cannot
+make that claim**. If no such direct typed link can be proven after
+this one bounded window, label
+\`NEARPIN_SETUP_DISPATCH_ABSTAIN\`, do not open more generic
+R13/source xref microstudies or dereference disputed sequence-manager
+\`0x804BF920\`.
+
+All returned flags remain false for actual phase identification,
+\`RPGolPhase::CommitResult\`, current ball contact/green status,
+Near Pin single-hit score/distance, guest physics time, rendered ball,
+impact/power, training and publication. This test asks the game
+*which setup routine's code it could use*, not the contents of a
+RAM score table. No new Dolphin session, control input, shot or
+native memory export is required.
