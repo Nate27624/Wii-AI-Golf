@@ -321,6 +321,7 @@ class VisualFirstJoinTests(unittest.TestCase):
                               return_value=SyncReport("up_to_date")), \
                  patch.object(research_cli, "DATA", Path(directory)), \
                  patch.object(research_cli, "_run", return_value=4) as launch, \
+                 patch.object(research_cli, "v1_clean_boot_args", return_value=["--dolphin", "MOCK-CLEAN-EXE", "--dolphin-user", "MOCK-CLEAN-USER", "--config", "MOCK-LOCAL-CONFIG", "--catalog", "MOCK-LOCAL-CATALOG"]), \
                  patch.object(research_cli, "publish_summary") as publish, \
                  patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
                        return_value={"revision": "V1-neutral-swing-calls",
@@ -341,6 +342,7 @@ class VisualFirstJoinTests(unittest.TestCase):
                               return_value=SyncReport("up_to_date")), \
                  patch.object(research_cli, "DATA", Path(directory)), \
                  patch.object(research_cli, "_run", return_value=4), \
+                 patch.object(research_cli, "v1_clean_boot_args", return_value=["--dolphin", "MOCK-CLEAN-EXE", "--dolphin-user", "MOCK-CLEAN-USER", "--config", "MOCK-LOCAL-CONFIG", "--catalog", "MOCK-LOCAL-CATALOG"]), \
                  patch.object(research_cli, "_fresh_human_labels") as stale, \
                  patch.object(research_cli, "_fallback_human_observation") as fallback, \
                  patch.object(research_cli, "_joined_visual_first") as join, \
@@ -368,6 +370,7 @@ class VisualFirstJoinTests(unittest.TestCase):
                               return_value=SyncReport("up_to_date")), \
                  patch.object(research_cli, "DATA", Path(directory)), \
                  patch.object(research_cli, "_run", return_value=0), \
+                 patch.object(research_cli, "v1_clean_boot_args", return_value=["--dolphin", "MOCK-CLEAN-EXE", "--dolphin-user", "MOCK-CLEAN-USER", "--config", "MOCK-LOCAL-CONFIG", "--catalog", "MOCK-LOCAL-CATALOG"]), \
                  patch.object(research_cli, "_joined_visual_first",
                               return_value={"capture_status": "visual_first_joined",
                                             "informative_action_outcome_trial": False,
