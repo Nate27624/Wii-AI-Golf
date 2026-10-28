@@ -42,7 +42,12 @@ $ErrorActionPreference = 'Stop'
     Push-Location -LiteralPath $here
     try {
         Write-Host '=== P0 #242: FABRICATED SYNTHETIC TESTS ==='
-        & $py.Source -I -B -m unittest discover -s tests -p test_p0_seven_cache_update_tags_private.py -v 2>&1 | Out-Host
+        # Python unittest -v writes NORMAL test progress to stderr. On Windows PowerShell
+        # 5.1, redirecting that stderr into the pipeline (2>&1) under
+        # ErrorActionPreference=Stop converts harmless '... ok' into a
+        # terminating NativeCommandError. Keep streams unredirected; only
+        # the actual process exit code determines test pass/fail.
+        & $py.Source -I -B -m unittest discover -s tests -p test_p0_seven_cache_update_tags_private.py -v
         if ($LASTEXITCODE -ne 0) { throw 'Synthetic test failure. Native RAM will not be read.' }
 
         Write-Host '=== P0 #242: READ-ONLY CANONICAL SEVEN-PAIR TAG AUDIT ==='
