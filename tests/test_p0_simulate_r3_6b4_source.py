@@ -80,6 +80,46 @@ class SourceBaseTests(unittest.TestCase):
         self.assertEqual(r["candidate_r3_source_class"],"integer_load_base_r30")
         self.assertEqual(r["candidate_r3_definition_entry_relative_offset"],"+0x010")
 
+    def test_preload_direct_call_target_is_public_code_only_not_runtime(self):
+        m=baseline()
+        entry=triage.ENTRY
+        target=entry+0x90
+        m[entry+4]=bl(entry+4,target)
+        r=run(m)
+        self.assertEqual(r["status"],"ABSTAIN_R3_CONTROL_TRANSFER_OR_UNKNOWN_WRITER")
+        self.assertEqual(r["preload_exact_direct_bl_count"],1)
+        self.assertEqual(r["preload_direct_bl_source_code_targets"],[{
+            "callsite_source_entry_relative_offset":"+0x004",
+            "target_public_rev1_code_pc":f"0x{target:08X}",
+            "target_function_name_verified":False,
+            "call_return_is_base_r3_verified":False,
+        }])
+        self.assertFalse(r["preload_bl_was_executed_in_capture_verified"])
+
+    def test_multiple_direct_bl_before_load_kept_separate(self):
+        m=baseline()
+        entry=triage.ENTRY
+        m[entry]=bl(entry,entry+0x90)
+        m[entry+4]=bl(entry+4,entry+0xA0)
+        r=run(m)
+        self.assertEqual(r["preload_exact_direct_bl_count"],2)
+        self.assertEqual(len(r["preload_direct_bl_source_code_targets"]),2)
+        self.assertFalse(r["base_r3_is_simulate_manager_or_ball_object_verified"])
+
+    def test_unlinked_branch_not_misread_as_call(self):
+        m=baseline()
+        entry=triage.ENTRY
+        m[entry+4]=bl(entry+4,entry+0x90)&~1
+        r=run(m)
+        self.assertEqual(r["preload_exact_direct_bl_count"],0)
+        self.assertTrue(r["static_branch_or_call_before_load"])
+
+    def test_missing_source_call_reports_zero_not_proof_of_no_call(self):
+        r=run(baseline())
+        self.assertEqual(r["preload_exact_direct_bl_count"],0)
+        self.assertEqual(r["preload_direct_bl_source_code_targets"],[])
+        self.assertFalse(r["source_entry_is_verified_function_extent"])
+
     def test_rejects_malformed_words(self):
         for value in (None,True,-1,2**32,1.5):
             m=baseline();m[triage.ENTRY]=value
