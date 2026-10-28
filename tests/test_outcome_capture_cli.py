@@ -183,6 +183,70 @@ class OutcomeCaptureCliTests(unittest.TestCase):
                        return_value=child_status):
                 self.assertEqual(collector_main(["--send-live-swing"]), expected)
 
+    def test_result_first_green_label_precedes_all_post_shot_reads(self):
+        events = []
+        replies = iter(["", "", "g", "2.1ft", "yes"])
+        def answered(prompt):
+            reply = next(replies)
+            events.append("PROMPT:" + prompt[:25])
+            return reply
+        def shot(_):
+            events.append("swing")
+            return {"state": "complete", "applied_frames": 89}
+        def read(_rpc, phase):
+            events.append("read-" + phase)
+            return row(phase, 1)
+        with tempfile.TemporaryDirectory() as d:
+            result = run_session(object(), raw_path=Path(d) / "raw.jsonl",
+                pre_samples=2, post_samples=2, settled_samples=3,
+                interval=0, result_first=True,
+                input_fn=answered, snapshot_fn=read, swing_fn=shot)
+        self.assertEqual(result["terminal_capture_mode"], "result_first_human_prompt")
+        self.assertEqual(result["terminal_human_category"], "on_green")
+        self.assertEqual(result["human_observation"]["displayed_distance_human"], 2.1)
+        self.assertTrue(result["candidate_ranking"]["candidate_ranking_quarantined"])
+        self.assertEqual(events.count("read-pre"), 2)
+        self.assertNotIn("read-post", events)
+        self.assertNotIn("read-settled", events)
+        self.assertLess(events.index("swing"), next(
+            i for i, e in enumerate(events) if "RESULT VISIBLE NOW?" in e))
+        self.assertEqual(result["settled_screen_observation"],
+                         "operator_confirmed_before_transition")
+
+    def test_result_first_offgreen_and_missed_screen_are_censored(self):
+        for response, category, green, timing in (
+            ("m", "off_green", "no", "operator_confirmed_before_transition"),
+            ("t", "transitioned", "unknown",
+             "screen_had_already_transitioned_before_settled_samples"),
+            ("u", "visible_unknown", "unknown", "operator_confirmed_before_transition"),
+        ):
+            with self.subTest(response=response), tempfile.TemporaryDirectory() as d:
+                answers = iter(["", "", response, "unknown"])
+                result = run_session(object(), raw_path=Path(d) / "raw.jsonl",
+                    pre_samples=2, post_samples=2, settled_samples=2,
+                    interval=0, result_first=True,
+                    input_fn=lambda _: next(answers),
+                    snapshot_fn=lambda _r, phase: row(phase, 1),
+                    swing_fn=lambda _: {"state": "complete", "applied_frames": 89})
+                self.assertEqual(result["terminal_human_category"], category)
+                self.assertEqual(result["human_observation"]["finished_on_green_human"], green)
+                self.assertIsNone(result["human_observation"]["displayed_distance_human"])
+                self.assertEqual(result["settled_screen_observation"], timing)
+                self.assertTrue(result["candidate_ranking"]["candidate_ranking_quarantined"])
+
+    def test_result_first_cancellation_after_swing_preserves_private_pre_only(self):
+        replies = iter(["", "", "q"])
+        with tempfile.TemporaryDirectory() as d:
+            raw = Path(d) / "raw.jsonl"
+            result = run_session(object(), raw_path=raw,
+                pre_samples=2, post_samples=2, settled_samples=2, interval=0,
+                result_first=True, input_fn=lambda _: next(replies),
+                snapshot_fn=lambda _r, phase: row(phase, 1),
+                swing_fn=lambda _: {"state": "complete", "applied_frames": 89})
+            self.assertTrue(result["cancelled"])
+            self.assertIn("swing_dispatch", result)
+            self.assertEqual(len(raw.read_text().splitlines()), 2)
+
     def test_early_cancel_does_not_write_or_swing(self):
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "RAW.jsonl"
