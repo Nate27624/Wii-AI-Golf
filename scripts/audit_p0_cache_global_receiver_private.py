@@ -14,6 +14,7 @@ import argparse
 from contextlib import ExitStack
 import json
 import mmap
+import re
 from pathlib import Path
 import sys
 
@@ -210,6 +211,11 @@ def summarize(samples, codes, callers) -> dict:
         if any(x["refs"][name]!=y["refs"][name] for name in
                ("scene_field","ball","pin","start")):
             raise ValueError("source object pointers changed in same-shot pair")
+        if any(x["triplets"][name]!=y["triplets"][name] for name in
+               ("source_selected_pin","source_current_start")):
+            raise ValueError("pin or start vector changed in same-shot pair")
+        if x["config_selector_words"]!=y["config_selector_words"]:
+            raise ValueError("GolfConfig selectors changed in same-shot pair")
     # Verified source code should remain immutable across all phases.
     signature=[(c["global_load_type"],c["static_source_global_slot_supported"]) for c in codes.values()]
     if len(set(signature))!=1:
@@ -231,6 +237,8 @@ def summarize(samples, codes, callers) -> dict:
     return {
         "kind":"P0-SANITIZED-SEVEN-GLOBAL-BALL-AND-CACHE-RECEIVER-SOURCE-AUDIT",
         "phase_count":7,
+        "canonical_archive_sha_verified":True,
+        "within_shot_pin_start_config_stability_verified":True,
         "source_pcc_anchor_confirmed":True,
         "source_global_load_type":codes[1]["global_load_type"],
         "source_global_pointer_resolution_supported":codes[1]["static_source_global_slot_supported"],
@@ -251,8 +259,69 @@ def summarize(samples, codes, callers) -> dict:
     }
 
 
+def _canonical_archive_sha(directory: Path) -> dict[int, dict[str, bytes]]:
+    """Require #231's original numbered-capture manifest and all 14 SHA256.
+
+    This is a narrow input-identity adapter to #230's existing source reader,
+    not a competing reader or a new capture schema. Never emit digests/paths.
+    """
+    root = seven.source.selected.DATA_ROOT.resolve(strict=True)
+    capture_root = (root / "captures").resolve(strict=True)
+    if directory.parent != capture_root:
+        raise ValueError("only canonical ignored private capture archives permitted")
+    manifest_path = directory / "manifest-PRIVATE.json"
+    if (manifest_path.is_symlink() or not manifest_path.is_file()
+            or manifest_path.stat().st_size > 65536):
+        raise ValueError("missing or invalid canonical archive manifest")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    if (type(manifest) is not dict
+            or manifest.get("kind") != "p0-private-numbered-capture-inventory"
+            or manifest.get("training_approved") is not False
+            or manifest.get("human_phase_file_mapping_verified") is not False
+            or type(manifest.get("capture_count")) is not int
+            or manifest["capture_count"] != 7
+            or manifest.get("capture_numbers") != list(PHASES)
+            or not isinstance(manifest.get("captures"), list)
+            or len(manifest["captures"]) != 7):
+        raise ValueError("noncanonical seven-shot identity or false safety claim")
+
+    expected = {}
+    for item in manifest["captures"]:
+        if type(item) is not dict:
+            raise ValueError("invalid capture descriptor")
+        phase = item.get("capture_number")
+        if type(phase) is not int or phase not in PHASES or phase in expected:
+            raise ValueError("duplicate or invalid capture phase")
+        descs = item.get("banks")
+        if not isinstance(descs, list) or len(descs) != 2:
+            raise ValueError("incomplete bank manifest")
+        expected[phase] = {}
+        for index, (bank, size) in enumerate(
+                (("MEM1", seven.MEM1_SIZE), ("MEM2", seven.MEM2_SIZE)), 1):
+            desc = descs[index - 1]
+            filename = f"{phase}.{index}.raw"
+            if (type(desc) is not dict or desc.get("file") != filename
+                    or desc.get("bank") != bank or desc.get("bytes") != size
+                    or desc.get("copy_verified") is not True):
+                raise ValueError("bank identity or archive copy verification mismatch")
+            digest = desc.get("sha256")
+            if type(digest) is not str or not re.fullmatch(r"[0-9a-fA-F]{64}", digest):
+                raise ValueError("invalid preserved bank digest")
+            path = directory / filename
+            if (path.is_symlink() or not path.is_file()
+                    or path.stat().st_size != size):
+                raise ValueError("bank missing, linked, or incorrect length")
+            expected[phase][bank] = bytes.fromhex(digest)
+            if seven._hash(path) != expected[phase][bank]:
+                raise ValueError("bank no longer matches canonical preserved SHA256")
+    if set(expected) != set(PHASES):
+        raise ValueError("canonical seven-phase capture inventory incomplete")
+    return expected
+
+
 def run_local(directory:Path) -> dict:
     directory=seven._private_directory(directory)
+    expected=_canonical_archive_sha(directory)  # all 14 archive SHA before reads
     pairs={i:seven._phase_banks(directory,i) for i in PHASES}
     if any(value is None for value in pairs.values()):
         raise ValueError("incomplete seven source-selected native bank pairs")
@@ -261,7 +330,6 @@ def run_local(directory:Path) -> dict:
     callers=None
     for phase in PHASES:
         pair=pairs[phase]
-        before={bank:seven._hash(p) for bank,p in pair.items()}
         with ExitStack() as stack:
             mm={}
             for bank,p in pair.items():
@@ -270,14 +338,21 @@ def run_local(directory:Path) -> dict:
                     fh.fileno(),0,access=mmap.ACCESS_READ))
             rd=ROSTER.TwoBankReader(mm["MEM1"],mm["MEM2"])
             samples[phase]=seven._source_sample(mm["MEM1"],mm["MEM2"])
+            config=rd.u32(ROSTER.GOLF_CONFIG_STATIC)
+            if ROSTER._bank(config,0xC8)!="MEM2":
+                raise ValueError("source GolfConfig outside native MEM2")
+            samples[phase]["config_selector_words"]=tuple(
+                rd.u32(config+offset) for offset in (0xBC,0xC0,0xC4))
             code=source_global_slot(rd.u32)
             codes[phase]={k:v for k,v in code.items() if k!="slot"}
             codes[phase]["runtime"]=sample_runtime(rd.u32,samples[phase],code)
             if callers is None:
                 callers=caller_input_probe(rd.u32)
         for bank,p in pair.items():
-            if seven._hash(p)!=before[bank]:
-                raise ValueError("raw source bank changed during inspection")
+            if seven._hash(p)!=expected[phase][bank]:
+                raise ValueError("bank differs from canonical archive after inspection")
+    # Revalidate the entire cohort: all seven pairs, including earlier phases.
+    _canonical_archive_sha(directory)
     return summarize(samples,codes,callers)
 
 
