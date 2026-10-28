@@ -35,7 +35,7 @@ def signature_for(candidate):
             raise ValueError("Malformed source-relative location")
         window, offset = loc.get("window"), loc.get("relative_word_offset")
         if (not isinstance(window, str) or not window.replace("_", "").isalnum()
-                or not isinstance(offset, str) or len(offset) != 6
+                or not isinstance(offset, str) or not 6 <= len(offset) <= 11
                 or not offset.startswith("+0x")
                 or not all(c in "0123456789ABCDEFabcdef" for c in offset[3:])):
             raise ValueError("Malformed source window-relative offset")
