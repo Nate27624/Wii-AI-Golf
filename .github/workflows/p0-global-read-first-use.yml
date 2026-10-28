@@ -1,0 +1,35 @@
+name: P0 source-global pointer first-use classification
+on:
+  push:
+    paths:
+      - scripts/review_p0_global_slot_load_consumers.py
+      - scripts/audit_p0_global_ball_source_xrefs_private.py
+      - tests/test_p0_global_slot_load_consumers_private.py
+      - .github/workflows/p0-global-read-first-use.yml
+  pull_request:
+    paths:
+      - scripts/review_p0_global_slot_load_consumers.py
+      - scripts/audit_p0_global_ball_source_xrefs_private.py
+      - tests/test_p0_global_slot_load_consumers_private.py
+      - .github/workflows/p0-global-read-first-use.yml
+  workflow_dispatch:
+
+jobs:
+  read-first-use-tests:
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }} 15 global-source read sites
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: New privacy and PowerPC adversarial tests
+        run: python -I -B -m unittest discover -s tests -p test_p0_global_slot_load_consumers_private.py -v
+      - name: Inherited 15-read global xref tests
+        run: python -I -B -m unittest discover -s tests -p test_p0_global_ball_source_xrefs_private.py -v
+      - name: Inherited constructor-return risk tests
+        run: python -I -B -m unittest discover -s tests -p test_p0_ball_ctor_return_register_risks_private.py -v
