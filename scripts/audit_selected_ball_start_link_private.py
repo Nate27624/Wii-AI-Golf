@@ -147,6 +147,10 @@ def summarize_two_pairs(reports, *, same_mem1=None, same_mem2=None):
             "mem1_files_bitwise_identical": same_mem1,
             "mem2_files_bitwise_identical": same_mem2,
             "both_banks_bitwise_identical": same_mem1 and same_mem2,
+            "distinct_full_bank_image_pair_count": (
+                1 if same_mem1 and same_mem2 else 2),
+            "distinct_mem2_image_count": 1 if same_mem2 else 2,
+            "two_files_establish_independent_game_states": False,
             "raw_hole_index_candidates_equal": a["hole"] == b["hole"],
             "selected_record_index_candidates_equal":
                 a["selected_index"] == b["selected_index"],
