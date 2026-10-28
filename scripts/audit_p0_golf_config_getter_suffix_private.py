@@ -66,6 +66,35 @@ def _slwi(w,d,source,n):
             and mb==0 and me==31-n)
 
 
+def _public_holeinfo_literal_matched(window: bytes) -> bool:
+    """Compare source-constructed literal against published Rev1 HoleInfo."""
+    hi=_word(window,0x50)
+    lo=_word(window,0x60)
+    hop,hrt,hra,_,_=_parts(hi)
+    lop,lrt,lra,_,_=_parts(lo)
+    if (hop,hrt,hra)!=(15,6,0) or (lop,lrt,lra)!=(14,6,6):
+        return False
+    top,low=hi&65535,lo&65535
+    signed_hi=top-65536 if top>=32768 else top
+    signed_lo=low-65536 if low>=32768 else low
+    return (((signed_hi<<16)+signed_lo)&0xffffffff)==0x803c7aa0
+
+
+def _r13_root_load_sites(data: bytes,dest_reg: int,last: int) -> tuple:
+    """Code-relative locations only; no SDA displacement or runtime value."""
+    return tuple(f"+0x{i:02X}" for i in range(0,last,4)
+                 if _parts(_word(data,i))[0:3]==(32,dest_reg,13))
+
+
+def _same_sda_slot_candidate(a: bytes,b: bytes) -> bool:
+    """Static source displacement equality is NOT runtime singleton proof."""
+    apos=[i for i in range(0,0x64,4) if _parts(_word(a,i))[0:3]==(32,7,13)]
+    bpos=[i for i in range(0,0x58,4) if _parts(_word(b,i))[0:3]==(32,5,13)]
+    if len(apos)!=1 or len(bpos)!=1:
+        return False
+    return (_word(a,apos[0])&65535)==(_word(b,bpos[0])&65535)
+
+
 def _source_class(w):
     """Recognize PPC source classes without emitting immediates/pointers."""
     op,rt,ra,rb,xo=_parts(w)
@@ -149,6 +178,14 @@ def evaluate_windows(windows:dict[str,bytes])->dict:
         "second_getter_16byte_row_4byte_player_column_candidate":
             b16 and not branch_suffix,
         "source_suffix_branch_free":not branch_suffix,
+        "public_HoleInfo_static_root_literal_matches_source_rev1_symbol":
+            _public_holeinfo_literal_matched(a),
+        "both_getters_load_candidate_config_root_from_same_r13_slot":
+            _same_sda_slot_candidate(a,b),
+        "score_getter_r7_r13_load_sites":list(_r13_root_load_sites(a,7,0x64)),
+        "strokes_getter_r5_r13_load_sites":list(_r13_root_load_sites(b,5,0x58)),
+        "actual_sda_runtime_pointer_value_verified":False,
+
         "Kokeshi_HoleInfo_record_size_36_is_public_source_match_only":True,
         "config_score_root_r7_function1_and_r5_function2_verified":False,
         "metadata_root_r6_function1_verified":False,
