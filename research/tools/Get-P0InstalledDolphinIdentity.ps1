@@ -5,7 +5,8 @@
 [CmdletBinding()]
 param(
     [string]$DolphinExe,
-    [switch]$SelfTest
+    [switch]$SelfTest,
+    [switch]$CheckPublicPreview4Revision
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -38,6 +39,84 @@ function Get-P0SafeMetadata([object]$Value, [int]$Max = 100) {
     if ($v.Length -lt 1 -or $v.Length -gt $Max) { return $null }
     if ($v -cnotmatch '^[A-Za-z0-9 ._+()\-]+$') { return $null }
     return $v
+}
+
+
+# Public Felk/dolphin scripting-preview4 tag, verified against GitHub's tag
+# reference and immutable SCM source. Presence of a literal in PE bytes is
+# only a candidate VERSION STRING, never an authenticated source/build match.
+$P0_PUBLIC_PREVIEW4_REV = 'a22afcb10b97c251e17e46f2982d4e37729d32a1'
+
+function Find-P0Preview4LiteralInFile([string]$FilePath) {
+    # Read in bounded 64 KiB chunks and retain 79 bytes across boundaries:
+    # UTF16-LE representation of a 40-character revision is 80 bytes.
+    # No PE execution, network, memory-mapped process, raw bytes in output.
+    $latin1 = [System.Text.Encoding]::GetEncoding(28591)
+    $asciiNeedle = $P0_PUBLIC_PREVIEW4_REV
+    $wideNeedle = $latin1.GetString(
+        [System.Text.Encoding]::Unicode.GetBytes($P0_PUBLIC_PREVIEW4_REV)
+    )
+    $reader = $null
+    try {
+        $reader = [System.IO.File]::Open(
+            $FilePath,
+            [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::Read,
+            [System.IO.FileShare]::ReadWrite
+        )
+        $buffer = New-Object byte[] 65536
+        $tail = New-Object byte[] 0
+        while (($n = $reader.Read($buffer, 0, $buffer.Length)) -gt 0) {
+            $window = New-Object byte[] ($tail.Length + $n)
+            if ($tail.Length -gt 0) {
+                [System.Buffer]::BlockCopy($tail, 0, $window, 0, $tail.Length)
+            }
+            [System.Buffer]::BlockCopy($buffer, 0, $window, $tail.Length, $n)
+            $text = $latin1.GetString($window)
+            if ($text.IndexOf($asciiNeedle, [System.StringComparison]::Ordinal) -ge 0) {
+                return 'ASCII'
+            }
+            if ($text.IndexOf($wideNeedle, [System.StringComparison]::Ordinal) -ge 0) {
+                return 'UTF16LE'
+            }
+            $keep = [Math]::Min(79, $window.Length)
+            $tail = New-Object byte[] $keep
+            [System.Buffer]::BlockCopy($window, $window.Length - $keep, $tail, 0, $keep)
+        }
+        return 'NONE'
+    } finally {
+        if ($null -ne $reader) { $reader.Dispose() }
+    }
+}
+
+function Add-P0Preview4LiteralEvidence([object]$Identity, [string]$FilePath) {
+    # A deliberate opt-in ONLY after the existing file/PE/SHA check succeeds.
+    # The returned revision is public; never print snippets, paths or exe bytes.
+    $Identity['embedded_public_preview4_revision_encoding'] = $null
+    $Identity['embedded_public_preview4_revision_present'] = $null
+    $Identity['embedded_revision_string_proves_source_build'] = $false
+    $Identity['embedded_revision_string_proves_running_process'] = $false
+    if ($Identity.status -ne 'LOCAL_BINARY_IDENTIFIED_SOURCE_UNVERIFIED') {
+        return $Identity
+    }
+    try {
+        $before = Get-Item -LiteralPath $FilePath -Force -ErrorAction Stop
+        $len = [long]$before.Length
+        $ticks = $before.LastWriteTimeUtc.Ticks
+        $encoding = Find-P0Preview4LiteralInFile $before.FullName
+        $after = Get-Item -LiteralPath $FilePath -Force -ErrorAction Stop
+        if ([long]$after.Length -ne $len -or $after.LastWriteTimeUtc.Ticks -ne $ticks) {
+            $Identity['embedded_revision_evidence_abstain_reason'] = 'FILE_CHANGED_DURING_SCAN'
+            return $Identity
+        }
+        $Identity['embedded_public_preview4_revision_present'] = ($encoding -ne 'NONE')
+        if ($encoding -ne 'NONE') {
+            $Identity['embedded_public_preview4_revision_encoding'] = $encoding
+        }
+    } catch {
+        $Identity['embedded_revision_evidence_abstain_reason'] = 'READ_FAILED'
+    }
+    return $Identity
 }
 
 function Get-P0BinaryIdentity([string]$Path) {
@@ -175,6 +254,26 @@ function Invoke-P0SyntheticSelfTest {
         if ($missingArg.abstain_reason -ne 'EXPLICIT_EXE_PATH_REQUIRED') {
             throw 'Missing required path must abstain'
         }
+        # No emulation: test the stream-boundary witness against fabricated bytes.
+        $candidate = Join-Path $root 'revision-fixture.bin'
+        $bytes = New-Object byte[] 70000
+        $needle = [System.Text.Encoding]::ASCII.GetBytes($P0_PUBLIC_PREVIEW4_REV)
+        [System.Buffer]::BlockCopy($needle, 0, $bytes, 65530, $needle.Length)
+        [System.IO.File]::WriteAllBytes($candidate, $bytes)
+        if ((Find-P0Preview4LiteralInFile $candidate) -ne 'ASCII') {
+            throw 'Split-chunk ASCII revision witness missed'
+        }
+        $bytes = New-Object byte[] 70000
+        $wide = [System.Text.Encoding]::Unicode.GetBytes($P0_PUBLIC_PREVIEW4_REV)
+        [System.Buffer]::BlockCopy($wide, 0, $bytes, 65530, $wide.Length)
+        [System.IO.File]::WriteAllBytes($candidate, $bytes)
+        if ((Find-P0Preview4LiteralInFile $candidate) -ne 'UTF16LE') {
+            throw 'Split-chunk UTF16LE revision witness missed'
+        }
+        [System.IO.File]::WriteAllBytes($candidate, (New-Object byte[] 70000))
+        if ((Find-P0Preview4LiteralInFile $candidate) -ne 'NONE') {
+            throw 'No-revision control failed'
+        }
         Write-Output 'P0_OFFLINE_INSTALLED_BINARY_PROBE_SYNTHETIC_TESTS=PASS'
     } finally {
         Remove-Item -LiteralPath $root -Force -Recurse -ErrorAction SilentlyContinue
@@ -186,6 +285,9 @@ if ($SelfTest) {
     exit 0
 } else {
     $result = Get-P0BinaryIdentity $DolphinExe
+    if ($CheckPublicPreview4Revision) {
+        $result = Add-P0Preview4LiteralEvidence $result $DolphinExe
+    }
     $result | ConvertTo-Json -Depth 5
     if ($result.status -ne 'LOCAL_BINARY_IDENTIFIED_SOURCE_UNVERIFIED') {
         exit 2
