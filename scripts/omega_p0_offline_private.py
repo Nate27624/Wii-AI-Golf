@@ -234,14 +234,34 @@ def _operand_extract(report):
     if tuple((x.get("outer_source_function"),x.get("tracked_source_operand"))
              for x in rows)!=expected:
         raise Abstain("upstream operand source case changed")
-    return [{
-        "outer_source_function":x["outer_source_function"],
-        "tracked_operand":x["tracked_source_operand"],
-        "nearest_write_class":x.get("nearest_pre_mr_operand_write_class"),
-        "source_status":x.get("status"),
-        "control_flow_hazard":x.get("control_transfer_after_candidate_write"),
-        "all_path_source_verified":False,
-    } for x in rows]
+    compact = []
+    for x in rows:
+        source_detail=x.get("nearest_pre_mr_integer_load_source_detail")
+        if source_detail is not None:
+            if (type(source_detail) is not dict or
+                    source_detail.get("candidate_D_form_integer_load_mnemonic")
+                    not in ("lwz","lwzu","lbz","lbzu","lhz","lhzu","lha","lhau") or
+                    source_detail.get("candidate_base_register") not in
+                    tuple(f"r{j}" for j in range(32)) or
+                    source_detail.get("base_register_runtime_object_class_proven") is not False or
+                    source_detail.get("candidate_load_reaches_receiver_on_all_paths_proven") is not False):
+                raise Abstain("static load evidence schema not approved")
+            offset=source_detail.get("candidate_source_field_displacement")
+            if (type(offset) is not str or len(offset)>8 or
+                    len(offset)<5 or offset[0] not in "+-" or
+                    not offset[1:3]=="0x" or
+                    any(c not in "0123456789ABCDEF" for c in offset[3:])):
+                raise Abstain("source field offset not bounded")
+        compact.append({
+            "outer_source_function":x["outer_source_function"],
+            "tracked_operand":x["tracked_source_operand"],
+            "nearest_write_class":x.get("nearest_pre_mr_operand_write_class"),
+            "source_status":x.get("status"),
+            "control_flow_hazard":x.get("control_transfer_after_candidate_write"),
+            "source_static_load_detail":source_detail,
+            "all_path_source_verified":False,
+        })
+    return compact
 
 
 def study(repo, archive=None, *, tests=True):
