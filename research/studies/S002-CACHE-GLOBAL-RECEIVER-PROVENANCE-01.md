@@ -70,3 +70,14 @@ Inside the already published six Rev1 Golf compilation-unit .text ranges from #2
 
 **Ownership:** #219 owns general caller graph, #183 owns cache update predicates, #246/#247 hardening owner should review native manifest/SHA limits, #248 future frame contract. This probe does not duplicate those, creates no emulator actions/swing/dumps, and does not approve physical XYZ/velocity, runtime receiver, training, or publication.
 
+
+
+## 2026-10-28 REAL source-global pointer-slot xrefs: exactly one direct store
+
+The operator executed exact pinned #240 source head 6b926d88c7a2b69037c9b900662d0a0610124ea9, with 10/10 local fabricated tests PASS. Real 5/6/7 source-gated wedge RAM comparisons and PPC text consistency PASS, with stable selected PIN/START and source-global slot, and same 3-component relationships: source-global == selected cache CC throughout W5/W6/W7, selected live != global W5/W6 and == W7.
+
+The six published Golf .text compilation-unit windows contain 13,934 PPC instructions; EXACT direct source-global r13-slot references: 15 lwz reads, **1 stw write**, 0 lwzu/stwu, 0 addi/addis pointer formation. All 16 references lie in RPGolMapObjBall source unit. Sole direct source-global pointer-slot writer at **RPGolMapObjBall +0x3084**, equivalent to public RSPE01 Rev1 source PC **0x8029A05C**. This identifies an instruction capable of writing that pointer, NOT an executed initializer, owner, constructor, in-flight writer or score/velocity signal. No raw native instructions/heap pointers/bytes/hashes published. Other source units, linked library code and indirect stores remain unexamined and possible.
+
+The next target is the STORE VALUE (PowerPC stw uses source register in bits 21-25). Does the writer store a zero/null value (destructor/cleanup hypothesis), a saved receiver, newly allocated object or other computed pointer? New code in scripts/audit_p0_global_ball_source_xrefs_private.py adds a **bounded exact source-only register-writer classification** at that single code PC, without extending memory searches or claiming branch-sensitive reaching definitions. It prints only register label and categorical nearest recognized definition class, whether a control transfer intervenes, and explicit FALSE for runtime register value / executed writer. The examined window starts after the previous source-identified cache writer routine, but is NOT an independently verified function entry. Synthetic tests include literal zero, register move, memory-load source, branch hazard, wrong store and privacy. The real source-store-value result is pending user execution of pinned revised branch.
+
+Keep false: global owner function, source-global as simulator/forecast, cache receiver identity, active shot execution, world XYZ, guest-frame atomicity, velocity, power, collision, score, training and raw publication. Coordinate source ownership with #219 and #183; the reader hardening in #246/#247 and watcher contract #248 are independent.
