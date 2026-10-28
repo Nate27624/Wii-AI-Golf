@@ -1,5 +1,14 @@
 # Multi-agent coordination — read before starting work
 
+## ACTIVE cross-context onboarding and CURRENT baseline (2026-10-27)
+
+**Every NEW or resumed S000–S005 context MUST read rules before answering or changing code:** README.md active top, AGENTS.md active top, docs/agent-session-protocol.md, docs/operator-powershell-contract.md, docs/repository-map.md, this file, actual source/tests and latest owner issue/PR/HANDOFF/FINDING. Confirm which were actually read; a GitHub issue or chat summary is not proof of current source state.
+
+**Before each substantive reply re-establish a short CURRENT baseline:** latest pasted PowerShell result; actual branch/commit and whether current PR is draft/merged; owner claim and other overlapping PRs; verified vs candidate/human/synthetic evidence; P0 blocker; one next action. Refresh relevant changing GitHub state, not every historical file. If unavailable say NOT CHECKED. Never assume that separate agent chats share memory, live Dolphin state, consent, source checkout or worktree changes.
+
+**HANDOFF before leaving:** post dated owning issue/PR comment with head SHA, changed paths, focused/full tests and exact environment, known-good frozen A45/89-sample/bridge profile, explicit success/failure evidence class, sanitized UPLOADED link or NOT UPLOADED blocker, pending safety/merge gates and next agent. Significant positive and negative results also get FINDING comments and reviewed research/ledger.md entries. Preserve private RAM and local user configuration. Follow [mandatory agent session protocol](../docs/agent-session-protocol.md).
+
+
 This file is the map; **GitHub issue comments are the live claim and handoff log**. A JSON file in `research/claims/` is a durable index, not an atomic lock. Work is not automatically scheduled; other agents must be started in their own sessions.
 
 ## Claim protocol
