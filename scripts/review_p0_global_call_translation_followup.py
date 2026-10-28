@@ -99,16 +99,16 @@ def _first_event(read, rptr, firstpc):
             break
         # lfs/stfs fN,N(rptr) are direct syntactic accesses. No
         # FPR numeric values or source vector component semantics implied.
-        if op in (48,52) and base==rptr and rel in (0,4,8):
+        if op in (48,52) and rptr!=0 and base==rptr and rel in (0,4,8):
             entry={"access_kind":"lfs" if op==48 else "stfs",
                    "vector_offset":rel,"instruction_relative_pc":_loc(pc)}
             events.append(entry)
             continue
-        if op in (32,34,40,42) and base==rptr:
+        if op in (32,34,40,42) and rptr!=0 and base==rptr:
             status="nested_gpr_load_before_complete_vector_use"
             stop=_loc(pc)
             break
-        if op in (36,38,44) and base==rptr:
+        if op in (36,38,44) and rptr!=0 and base==rptr:
             status="nested_gpr_store_before_complete_vector_use"
             stop=_loc(pc)
             break
