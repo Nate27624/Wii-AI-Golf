@@ -33,3 +33,18 @@ The separate global source `+0x2CF8` loads pointer to `+0x4C` at `+0x2CFC`; nati
 **New single-source-function hypothesis:** the common callee may supply typed consumer clues. One **78-word source-only pass** over exactly `fn_8029A5EC`, not a new broad source xref or memory scan, classifies direct D-form field accesses based on source `r3` or `r31` (without claiming r31 alias), exact direct linked BL destinations, any nearby source `mr r31,r3` syntax and control-instruction counts. If no typed field/source call within this single function justifies more analysis, **STOP this source-microtrace** and prioritize owner-approved S001 true guest-physics-frame + visual association #248/#272, not more nearest-def scans.
 
 **Independent source review correction:** D-form RA=0 addresses literal zero, not GPR r0. Both `review_p0_global_slot_load_consumers.py` and `review_p0_global_call_translation_followup.py` now refuse to infer pointer-relative D-form address when authenticated pointer reg is r0, with fabricated negative tests. The *observed* original translation register was **r3**, therefore prior real float triplet evidence is not implicated. The new r0 correction was fabricated-test-only until a pinned operator rerun. All runtime, rendered, physical XYZ, velocity/power/impact/score, frame and training/publishing evidence gates remain FALSE.
+
+
+## Operator original 14-bank common-callee result and STOP decision (2026-10-28)
+
+The operator ran #268 at **immutable** code SHA `cc13bb00b802535bc341524252eaaaf353b3bac7`. Local fabricated suites **12+11+16+10 = 49 PASS**, original fourteen-bank canonical SHA **before+after PASS**, source W5/W6/W7 and source geometry guards PASS; sanitized `P0_COMMON_GLOBAL_CALLEE_AUDIT=PASS`.
+
+Exact sole common callee `fn_8029A5EC`, published size `0x138 = 78 PPC words`:
+- Early incoming `r3 -> r29` copy syntactic candidate at MapObjBall unit **+0x3644**.
+- Direct `stb` at **+0x3648**, D-form source base **r3**, signed field displacement **+0x50**; only direct r3-base memory access in this narrow census. **Do not claim the base still points to original global object** without branch-sensitive input r3 proof.
+- Three adjacent `lbz` at **+0x3710,+0x3718,+0x3720** from **r31+0x148/+0x149/+0x14A**. **r31 has no receiver alias verified**; these may not be global ball fields and their interpretation is unknown.
+- One direct `bl` to **0x8029A3FC** from **+0x364C** (MapObjBall unit +0x3424), with **three total recognized branch-or-call instructions**. Function role still unknown.
+
+This function's bounded direct access census gives **NO typed evidence that the global ball is the active visually rendered projectile, a physics integrator, score state or landing endpoint**. A write at +0x50 is a source syntax candidate, not a typed member or gameplay event. The three lbz bytes must not be labeled colors or flags without independent schema.
+
+**STOP this static call-chain lane here** per previously preregistered ROI rule. Do not create a next generic `fn_8029A3FC` neighbor-branch chase or another broad source field scanner. Move S001 to exact installed-fork **game-physics-step provenance** feasibility first, then owner-approved same-hook dual-object selected/global read with anchored no-swing control, Config/PIN/START and independently linked visual witness. #272 explicitly reports **NO-GO** for present watcher because a bridge coroutine tick or render screenshot does NOT authenticate guest simulation step. #248/#276 contract is synthetic only. Keep all runtime/frame/renderer/physical XYZ/velocity/power/contact/score/impact/training/publish flags false and prevent silent implied model ground truth. No new shot is authorized.
