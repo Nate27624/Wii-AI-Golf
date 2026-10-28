@@ -219,6 +219,47 @@ class VisualFirstJoinTests(unittest.TestCase):
         self.assertIsNone(joined["human"]["displayed_distance_human"])
         self.assertFalse(joined["human"]["terminal_screen_seen_before_transition_human"])
 
+    def test_unregistered_visual_first_settings_refused_before_launch(self):
+        # Fabricated only: reject a run that the B1/B2/X1 protocol cannot compare.
+        from wii_ai_golf.lab.github_sync import SyncReport
+        bad = (
+            ("--a-lead", "0"),
+            ("--a-lead", "44"),
+            ("--a-lead", "46"),
+            ("--a-lead", "45", "--speed-scale", "0.9"),
+            ("--a-lead", "45", "--backswing-scale", "0.8"),
+        )
+        with patch.object(research_cli, "sync_merged_main",
+                          return_value=SyncReport("up_to_date")), \\
+             patch.object(research_cli, "_run") as launch:
+            for settings in bad:
+                with self.subTest(settings=settings), self.assertRaises(SystemExit) as outcome:
+                    research_cli.main(["v1", "--live", "--visual-first", "--no-upload",
+                                       *settings])
+                self.assertEqual(outcome.exception.code, 2)
+            launch.assert_not_called()
+
+    def test_preregistered_visual_first_variants_reach_mock_launcher(self):
+        # Positive controls for B1/B2 and X1; mock launch still returns nonzero.
+        from wii_ai_golf.lab.github_sync import SyncReport
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(research_cli, "sync_merged_main",
+                              return_value=SyncReport("up_to_date")), \\
+                 patch.object(research_cli, "DATA", Path(directory)), \\
+                 patch.object(research_cli, "_run", return_value=4) as launch, \\
+                 patch.object(research_cli, "publish_summary") as publish, \\
+                 patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
+                       return_value={"revision": "V1-neutral-swing-calls",
+                                     "safe_for_isolated_legacy_copy": True}):
+                for backswing in ("1.0", "1.2"):
+                    result = research_cli.main([
+                        "v1", "--live", "--visual-first", "--no-upload",
+                        "--a-lead", "45", "--speed-scale", "1.0",
+                        "--backswing-scale", backswing])
+                    self.assertEqual(result, 4)
+                self.assertEqual(launch.call_count, 2)
+                publish.assert_not_called()
+
     def test_child_nonzero_prevents_publication_and_fallback(self):
         from wii_ai_golf.lab.github_sync import SyncReport
         with tempfile.TemporaryDirectory() as directory:
