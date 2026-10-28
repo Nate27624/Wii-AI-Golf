@@ -116,7 +116,7 @@ def _digest_code(read, regions):
     return digest.digest()
 
 
-def _classification(row, read, source_disp, outer_cfg):
+def _classification(row, read, source_disp):
     """Only a syntactic DIRECT r13 slot-load can point at global object.
 
     Incomplete function extents and no outer CFG leave all *runtime* object
@@ -154,9 +154,14 @@ def synthesize(outer_result, inner_result, native_rows, read_u32, source_disp):
     second = inner_result["sources"]
     if len(first) != 2 or len(second) != 2:
         raise ValueError("two exact static source chains required")
+    expected = (("SimulateManager_outer_to_ball_local", "fn_80299ACC"),
+                ("MapObjBall_outer_to_ball_local", "fn_80299C20"))
+    if tuple((a["outer_source_function_entry_label"], b["published_source_function"])
+             for a, b in zip(first, second)) != expected:
+        raise ValueError("upstream and inner source owner ordering changed")
     rows = []
     for upstream, inner in zip(first, second):
-        hint = _classification(upstream, read_u32, source_disp, inner)
+        hint = _classification(upstream, read_u32, source_disp)
         rows.append({
             "outer_source_function": upstream["outer_source_function_entry_label"],
             "outer_direct_call_count_bounded": upstream["exact_direct_calls_found_within_window"],
@@ -174,7 +179,7 @@ def synthesize(outer_result, inner_result, native_rows, read_u32, source_disp):
         "kind": "P0-SANITIZED-SOURCE-GATED-OUTER-INNER-RECEIVER-JOIN",
         "seven_original_sha_verified_before_and_after": True,
         "rev1_selected_golf_scene_gate_each_capture": True,
-        "source_code_same_across_original_seven_captures": True,
+        "receiver_analysis_source_windows_identical_across_seven": True,
         "phase_labels_used_or_time_order_assumed": False,
         "source_global_outside_four_roster_in_all_captures":
             all(x["source_global_ball_is_outside_four_roster_balls"]
