@@ -21,25 +21,31 @@ If the game resets the ball, switches holes, or moves the selected actor before 
 The **MAIN** repository ALREADY has the verified launcher `scripts/launch_golf.py`, which restores registered `green-pre-start` then sends calibrated **A→A+B→A**. The attached-session entry point is main `scripts/launch_hitting_green.py --attach-running --send-live`. Launch is independent of ANY research worktree, Git fetch, or shot study. NO `--swing` is passed. The clean portable user folder still needs the real named savestate bytes; catalog registration alone does not prove those exist.
 
 ```powershell
-$ErrorActionPreference = "Stop"
-$root = "D:\Projects\Wii Golf AI"
-$repo = "$root\Wii-AI-Golf"
-$clean = "$root\tools\FelkDolphin-Clean"
-$exe = "$clean\Dolphin.exe"
-$bridge = "$root\tools\mcp_bridge_swing_legacy_eval.py"
-Set-Location -LiteralPath $repo
-if (-not (Test-Path "$repo\scripts\launch_golf.py")) { throw "Main repo launcher not found" }
-$running = @(Get-CimInstance Win32_Process -Filter "Name='Dolphin.exe'")
-if ($running.Count -eq 0) {
-    & py "$repo\scripts\launch_golf.py" --profile green-pre-start --dolphin "$exe" --dolphin-user "$clean\User" --bridge "$bridge"
-} elseif ($running.Count -eq 1 -and $running[0].ExecutablePath -ieq $exe) {
-    & py "$repo\scripts\launch_hitting_green.py" --attach-running --send-live --profile green-pre-start --catalog "$repo\research\savestates.local.json"
-} else {
-    throw "Another or ambiguous Dolphin instance is running; no action taken"
+& {
+    $ErrorActionPreference = 'Stop'
+    $root = 'D:\Projects\Wii Golf AI'
+    $repo = "$root\Wii-AI-Golf"
+    $clean = "$root\tools\FelkDolphin-Clean"
+    $exe = "$clean\Dolphin.exe"
+    $bridge = "$root\tools\mcp_bridge_swing_legacy_eval.py"
+    Set-Location -LiteralPath $repo
+    if (-not (Test-Path "$repo\scripts\launch_golf.py")) { throw 'Main launcher missing' }
+    $running = @(Get-CimInstance Win32_Process -Filter "Name='Dolphin.exe'")
+    if ($running.Count -gt 1) { throw 'Multiple Dolphin processes; no action' }
+    if ($running.Count -eq 1) {
+        if ($running[0].ExecutablePath -ine $exe) { throw "Wrong Dolphin installation: $($running[0].ExecutablePath)" }
+        & py "$repo\scripts\launch_hitting_green.py" --attach-running --send-live --profile green-pre-start --catalog "$repo\research\savestates.local.json"
+        if ($LASTEXITCODE -ne 0) { throw 'Attached intro failed; no PRE' }
+    }
+    if ($running.Count -eq 0) {
+        & py "$repo\scripts\launch_golf.py" --profile green-pre-start --dolphin "$exe" --dolphin-user "$clean\User" --bridge "$bridge"
+        if ($LASTEXITCODE -ne 0) { throw 'Fresh intro failed; no PRE' }
+    }
+    Write-Host 'Intro dispatched successfully; visually confirm stationary ball.'
 }
-if ($LASTEXITCODE -ne 0) { throw "Automatic intro failed, do not capture PRE" }
-Write-Host "Intro dispatched. Visually verify the first stationary ball is ready."
 ```
+**POWERHELL OPERATOR RULE — observed failure:** a user pasted a multiline `if { ... }`, `elseif { ... }`, `else { ... }` as three separate PowerShell submissions. At the interactive prompt PowerShell executed the first statement, then interpreted `elseif` and `else` as nonexistent command names. It still executed an unrelated success print because `$LASTEXITCODE` was from a previous command. **All multi-branch operator code MUST be a single copy-paste `& { ... }` scriptblock, avoid separate `elseif` or `else` tokens, check each external `py` exit immediately inside its own branch and print success only from inside the scriptblock after validation.** Do not propose several loosely related PowerShell blocks as one control-flow program. Never print readiness without confirming gameplay.
+
 
 **Do not run this if already at the stationary ball:** it loads a save and resets the current game. Never print an unconditional game-ready success after an error. The interface cannot independently confirm the screen, so the operator must visually verify.
 
