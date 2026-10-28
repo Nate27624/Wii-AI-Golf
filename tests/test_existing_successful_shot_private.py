@@ -138,5 +138,79 @@ class ExistingSuccessfulShotTests(unittest.TestCase):
             "outcome-20261028T033948Z-5cd47f00"))
 
 
+
+def effect_alias_rows():
+    """Construct three overlapping 0x200 windows with actual +0x90 bases.
+
+    The test deliberately includes eight CHANGING words in four pairs with
+    +0x90 separation, not eight independent score/ball coordinates.
+    """
+    phases = ["pre"] * 3 + ["post"] * 2 + ["settled"] * 3
+    offsets = (
+        ("minimap_player_effect", 0),
+        ("minimap_shot_line_effect", 0x90),
+        ("minimap_ball_effect", 0x120),
+    )
+    base = 0x80010000
+    rows = []
+    for phase in phases:
+        n = {"pre": 1, "post": 2, "settled": 3}[phase]
+        payload = bytearray(0x320)
+        for slot in range(4):
+            struct.pack_into(
+                ">II", payload, 0x78 + slot * 0x90,
+                n * 10 + slot, 0x80050000 + n * 0x1000 + 4 * slot)
+        windows = {
+            name: {
+                "address": f"0x{base+off:08X}",
+                "bytes_hex": payload[off:off+0x200].hex(),
+            }
+            for name, off in offsets
+        }
+        rows.append({
+            "schema_version": 1,
+            "source": "Felk-read-only-US-Rev1-unverified-golf-windows",
+            "game_id": "RSPE01", "disc_revision": 1, "game_mode_raw": 4,
+            "phase": phase, "windows": windows,
+            "non_atomic_frame_span": 2,
+        })
+    return rows
+
+
+class ExistingEffectAliasTests(unittest.TestCase):
+    def test_eight_changed_words_are_four_strided_effect_pairs(self):
+        rows = effect_alias_rows()
+        out = subject.audit(rows, summary_for(rows))
+        self.assertEqual(out["candidate_count_recomputed_and_matches_saved"], 8)
+        self.assertTrue(out["effect_pointer_bases_spaced_0x90_in_all_phases"])
+        self.assertTrue(out["repeating_two_word_effect_pairs_observed"])
+        self.assertEqual(out["repeated_effect_pair_count_if_verified"], 4)
+        patterns = out["candidate_temporal_classifications"]
+        self.assertEqual(
+            {(x["inferred_effect_slot_index"], x["inferred_effect_slot_field"])
+             for x in patterns},
+            {(slot, field) for slot in range(4)
+             for field in ("+0x078", "+0x07C")})
+        self.assertEqual(
+            sum(x["pointer_like_word_any_phase"] for x in patterns), 4)
+        self.assertTrue(all(
+            x["screen_or_render_effect_window"] and
+            x["temporal_pattern"] == "post_all_changed"
+            for x in patterns))
+        self.assertFalse(out["ball_world_xyz_verified"])
+        self.assertFalse(out["approved_for_training"])
+        printed = json.dumps(out)
+        self.assertNotIn("0x80010000", printed)
+        self.assertNotIn("0x80050000", printed)
+
+    def test_single_phase_stride_conflict_disables_all_layout_inferences(self):
+        rows = effect_alias_rows()
+        rows[2]["windows"]["minimap_ball_effect"]["address"] = "0x80010124"
+        self.assertFalse(subject._effect_stride_layout(rows))
+        self.assertEqual(subject._effect_slot(
+            rows, 0x80010078, layout=False),
+            {"inferred_effect_slot_index": None,
+             "inferred_effect_slot_field": None})
+
 if __name__ == "__main__":
     unittest.main()
