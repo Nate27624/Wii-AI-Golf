@@ -95,3 +95,26 @@ This same existing script now includes **12 additional registry proposals**, wit
 Source: [RPGolConfig.h](https://github.com/kiwi515/ogws_info/blob/master/RP/RPSports/RPGolScene/RPGolConfig.h) and [RPGolFieldManager.h](https://github.com/kiwi515/ogws_info/blob/master/RP/RPSports/RPGolScene/RPGolFieldManager.h) (Wii Sports RSPE01 US revision 1 scope). The upstream canonical registry PR #205 still owns semantics, stable IDs and training gates. These proposed keys must not be treated as accepted schema until S000 review. The source declares RPGolConfig::GetWind but its implementation fields for actual speed/direction are NOT mapped here; an mWindObj pointer is only an object-presence marker.
 
 The extended mapper checks 1-byte bool fields as bytes (0 or 1), preserves u32/i32 bit patterns for difference counts (no casting scores to float), refuses unmapped non-null wind-object pointers, and reports only word-component difference counts. It NEVER prints the 36 score values, underlying pointer words, UI status values or unverified ball/score data. Source-relative locations are verified by public headers; actual-score semantics and shot labels require controlled observed before/after shot provenance. No operator action until synthetic Windows CI has passed the extended branch.
+
+## 2026-10-28 real Windows operator run — expanded 23-field audit
+
+Evidence type: actual OFFLINE operator-owned native RAM B0–B3 comparison, NOT a positive hit or independently frame-verified ball flight. Operator checked out exact detached source head 26ecccad528a5b8d29a22527c607a866ff97331b; locally executed 7 synthetic tests, all PASS, then executed source-field analyzer against the actual preserved private B0–B3. Report hash_checks_passed=true, selected_slot_hole_stable=true, new_field_count=12, training_approved=false. No raw RAM or private paths public.
+
+| New proposed source-relative field | Components | B0→B1 / B1→B2 / B2→B3 |
+| --- | ---: | --- |
+| golf.config.mode_id | 1 | 0 / 0 / 0 |
+| golf.config.current_hole_index | 1 | 0 / 0 / 0 |
+| golf.config.player_scores_4x9_candidate | 36 | 0 / 0 / 0 |
+| golf.field.target_object_count | 1 | 0 / 0 / 0 |
+| golf.field.pin_object_count | 1 | 0 / 0 / 0 |
+| golf.field.player_start_object_count | 1 | 0 / 0 / 0 |
+| golf.field.tree_shadow_update_timer | 1 | 0 / 0 / 0 |
+| golf.field.wind_object_pointer_present | 1 | 0 / 0 / 0 |
+| golf.field.wind_arrow_visible | 1 | 0 / 0 / 0 |
+| golf.field.green_slope_visible | 1 | 0 / 0 / 0 |
+| golf.field.minimap_visible | 1 | 0 / 0 / 0 |
+| golf.field.target_emitter_kill_flag | 1 | 0 / 0 / 0 |
+
+Across ALL 23 logical mapped fields on this same no-shot/aim B0–B3 cohort, only the aim scalar selected player record +0x3C (1 changed word at B1→B2) and its 2×2 aim transform +0x40..+0x4C (4 changed words at B1→B2) vary. The remaining 21 fields stay bitwise equal across all three transition pairs. A source-derived field and unchanged score table are NOT proof of a validated per-shot score label or ball physics. The source ball-related translation may be an initialization/tee copy. The user's separate potentially nonstationary ball capture is not linked to B0–B3; real ball XYZ, velocity, power, contact-frame alignment and all training permissions remain unresolved/false.
+
+Next: S000 memory-variable registry PR #205 owner reviews 12 proposed IDs as source-backed context or negative controls; no overlapping registry files edited here. S002 PR #217 explores historical ball position addresses for US v1.00 versus operator Rev1 (version mismatch; no semantics promoted). S002 PRs #216/#209 investigate the five effect-window tail words from the distinct human-confirmed positive-hit capture. No new broad B0–B3 scan or new swing is warranted from this audit. Native RAM remains private; standalone report NOT automatically uploaded.
