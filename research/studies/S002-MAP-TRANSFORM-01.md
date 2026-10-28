@@ -67,3 +67,72 @@ Ten new synthetic tests (no ROM/data), including invalid revision/mode/selected 
 ## CI evidence: first cross-platform synthetic run
 
 GitHub Actions run [40610389713](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40610389713) **SUCCEEDED** on Windows and Ubuntu using Python 3.13; both compile and targeted 10-case synthetic suite passed. This is source/mock validation only, **NOT** the canonical full Windows regression or an actual user's B0 MEM2 candidate-vector result. Upstream #151 remains draft and must not be bypassed.
+
+
+## Correction: assumed B0 files absent on operator Windows host
+
+The operator ran the guarded study on 2026-10-27 and got "No preserved B0 pair found. No new capture performed." This is a SUCCESSFUL SAFETY STOP, not an emulator or pointer failure. Previous S002 reports refer to privately examined mem1(1).raw and mem2(2).raw, but uploaded ChatGPT attachments do not establish corresponding local Windows paths. The earlier B0-MEM1.bin/B0-MEM2.bin paths were examples, NOT verified. Do NOT ask for another Dolphin dump or rename two different times as proven atomic B0.
+
+Stage 0 (read-only): Inventory likely existing user folders for exact 24MiB MEM1 and 64MiB MEM2 plain binary files. These filenames and local paths are for the operator's eyes only; no raw or directory listing needs posting to GitHub.
+
+~~~powershell
+$root = "D:\Projects\Wii Golf AI"
+$searchRoots = @(
+    (Join-Path $env:APPDATA "Dolphin Emulator\Dump"),
+    (Join-Path $env:USERPROFILE "Downloads"),
+    (Join-Path $root "Wii-AI-Golf-Data")
+)
+$candidates = @(
+    foreach ($dir in $searchRoots) {
+        if (Test-Path -LiteralPath $dir -PathType Container) {
+            Get-ChildItem -LiteralPath $dir -File -Recurse -ErrorAction SilentlyContinue |
+                Where-Object {
+                    $_.Extension.ToLowerInvariant() -in @(".raw", ".bin", ".mem") -and
+                    $_.Length -in @(25165824, 67108864)
+                } |
+                Select-Object @{Name="Bank";Expression={
+                    if ($_.Length -eq 25165824) { "MEM1" } else { "MEM2" }
+                }}, FullName, Length, LastWriteTime
+        }
+    }
+)
+$candidates | Sort-Object Bank, LastWriteTime | Format-Table -AutoSize
+if (-not $candidates) { Write-Host "No native images in these folders; STOP." }
+~~~
+
+Stage 1 (only after recognizing two originals as the prior source pair): use exact paths displayed locally, check sizes + Rev1 disc header, stage copies in the ignored private Data root under unique neutral candidate labels rather than B0, verify SHA256 copies, then run offline auditor. Never overwrite originals; never presume same-boot/same-frame from mere matching pointers. Time gap of 111 seconds reported for earlier separate GUI exports rules out time-atomic evidence.
+
+~~~powershell
+$private = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\mem1-checkpoints"
+$src1 = (Read-Host "Existing MEM1 filename from inventory").Trim('"')
+$src2 = (Read-Host "Existing MEM2 filename from inventory").Trim('"')
+if (-not (Test-Path -LiteralPath $src1 -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $src2 -PathType Leaf)) { throw "Missing originals" }
+$a = Get-Item -LiteralPath $src1
+$b = Get-Item -LiteralPath $src2
+if ($a.Length -ne 25165824 -or $b.Length -ne 67108864) { throw "Invalid sizes" }
+$stream = [System.IO.File]::OpenRead($a.FullName)
+try {
+    $header = [byte[]]::new(8)
+    if ($stream.Read($header, 0, 8) -ne 8 -or
+        [Text.Encoding]::ASCII.GetString($header, 0, 6) -ne "RSPE01" -or
+        $header[6] -ne 0 -or $header[7] -ne 1) { throw "Not Wii Sports Rev1" }
+} finally { $stream.Dispose() }
+New-Item -ItemType Directory -Force -Path $private | Out-Null
+$tag = (Get-Date -Format "yyyyMMdd-HHmmss") + "-" + [guid]::NewGuid().ToString("N").Substring(0,8)
+$mem1 = Join-Path $private ("candidate-" + $tag + "-MEM1.raw")
+$mem2 = Join-Path $private ("candidate-" + $tag + "-MEM2.raw")
+if ((Test-Path -LiteralPath $mem1) -or (Test-Path -LiteralPath $mem2)) { throw "Output exists" }
+Copy-Item -LiteralPath $a.FullName -Destination $mem1 -ErrorAction Stop
+Copy-Item -LiteralPath $b.FullName -Destination $mem2 -ErrorAction Stop
+if ((Get-FileHash -LiteralPath $mem1).Hash -ne (Get-FileHash -LiteralPath $a.FullName).Hash -or
+    (Get-FileHash -LiteralPath $mem2).Hash -ne (Get-FileHash -LiteralPath $b.FullName).Hash) {
+    throw "Staged copy hash mismatch"
+}
+Write-Warning "Unverified same-boot/frame status: candidate pair only."
+$report = Join-Path $private ("map-transform-" + $tag + "-PRIVATE.json")
+py scripts/audit_golf_map_transforms_private.py --private-root $private --mem1 $mem1 --mem2 $mem2 --private-report $report
+if ($LASTEXITCODE -ne 0) { throw "Offline source gate rejected pair" }
+~~~
+
+Share only the console's sanitized boolean report; never upload native banks, raw pointers, or numeric PRIVATE report. No new Dolphin actions are required. The #159 targeted Windows/Linux CI was green; full Windows regression and S002 class-layout review remain outstanding.
