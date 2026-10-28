@@ -7,6 +7,7 @@ never sends raw candidate coordinates to GitHub or stdout.
 from __future__ import annotations
 
 import argparse
+import hashlib
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -23,9 +24,23 @@ from probe_swing import build_probe
 
 PRIVATE_ROOT = (ROOT.parent / "Wii-AI-Golf-Data")
 TRACE_SAMPLES = 89
+EXPECTED_TRACE_SHA256 = "b63a1818ba5086c64b0fe7338236a498240e4be97bbd111809a772d783699891"
 
 
-def summarize(samples: list[dict], *, human_ball_moved: str) -> dict:
+def validate_frozen_trace(samples):
+    """Fail closed on same-length edits; matches S001 #147 SHA256 contract."""
+    payload = [[s.hold_a, *s.direction, s.distance_m, s.speed_m_s,
+                s.return_speed_m_s, s.angle_rad] for s in samples]
+    digest = hashlib.sha256(
+        json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    if len(samples) != TRACE_SAMPLES or digest != EXPECTED_TRACE_SHA256:
+        raise ValueError("Source-frozen 89-sample swing waveform mismatch")
+    return digest
+
+
+def summarize(samples: list[dict], *, human_ball_moved: str,
+              watch_state: str = "incomplete") -> dict:
     if human_ball_moved not in ("yes", "no", "unknown"):
         raise ValueError("Human observation must be yes/no/unknown")
     if not samples or len(samples) > 80:
@@ -38,22 +53,40 @@ def summarize(samples: list[dict], *, human_ball_moved: str) -> dict:
     records = [s["record_translation_f32_candidate"] for s in samples]
     slots = {s["selected_slot_candidate"] for s in samples}
     holes = {s["source_hole_index"] for s in samples}
-    trace_frames = [s for s in samples if s["trace_sample_index_if_active"] is not None]
-    idle_frames = [s for s in samples if s["trace_sample_index_if_active"] is None]
+    trace_frames = [s for s in samples if s.get("trace_sample_index_if_active") is not None]
+    idle_frames = [s for s in samples if s.get("trace_sample_index_if_active") is None]
+    phases = ("idle_control", "a_prime", "trace", "posttrace")
+    stage_counts = {phase: sum(s.get("input_stage") == phase for s in samples)
+                    for phase in phases}
+    idle_balls = [s["ball_translation_f32_candidate"] for s in samples
+                  if s.get("input_stage") == "idle_control"]
     first_trace = next((i for i, s in enumerate(samples)
-                        if s["trace_sample_index_if_active"] is not None), None)
+                        if s.get("trace_sample_index_if_active") is not None), None)
     pretrace_count = first_trace if first_trace is not None else len(samples)
     pretrace_balls = balls[:pretrace_count]
     pretrace_stable = (
         pretrace_count >= 2
         and all(v == pretrace_balls[0] for v in pretrace_balls)
     )
+    idle_stable = len(idle_balls) >= 2 and all(v == idle_balls[0] for v in idle_balls)
     ball_changed_after_trace_starts = (
-        first_trace is not None
+        first_trace is not None and bool(pretrace_balls)
         and any(x != pretrace_balls[0] for x in balls[first_trace:])
     )
+    ids = {s.get("trace_id_if_active") for s in trace_frames}
+    stable_trace_id = len(ids) == 1 and None not in ids and all(
+        type(i) is int for i in ids
+    )
+    owner_checks_passed = all(s.get("source_owner_consistent") is True
+                              for s in samples)
+    performance_checks_passed = all(
+        type(s.get("read_overhead_us")) is int
+        and 0 <= s["read_overhead_us"] <= 5000 for s in samples
+    )
+    four_stages_observed = all(stage_counts.values())
     start_fixed = all(x == starts[0] for x in starts)
     ball_changed = any(x != balls[0] for x in balls[1:])
+    study_complete = watch_state == "complete" and four_stages_observed
     return {
         "kind": "private-candidate-ball-translation-frame-watch",
         "schema_version": 1,
@@ -64,6 +97,12 @@ def summarize(samples: list[dict], *, human_ball_moved: str) -> dict:
         "source_selected_slot_stable": len(slots) == 1,
         "source_hole_stable": len(holes) == 1,
         "start_vector_stable": start_fixed,
+        "watch_complete": watch_state == "complete",
+        "phase_sample_counts": stage_counts,
+        "idle_control_vector_stationary": idle_stable,
+        "source_owner_consistency_checks_passed": owner_checks_passed,
+        "read_performance_checks_passed": performance_checks_passed,
+        "stable_nonnull_trace_id_observed": stable_trace_id,
         "pretrace_control_samples": pretrace_count,
         "pretrace_candidate_ball_stationary": pretrace_stable,
         "candidate_ball_vector_changed_during_recording": ball_changed,
@@ -72,7 +111,10 @@ def summarize(samples: list[dict], *, human_ball_moved: str) -> dict:
             sum(a == b for a, b in zip(records, balls)),
         "human_observed_ball_movement": human_ball_moved,
         "candidate_motion_corroborated_by_human": (
-            pretrace_stable and ball_changed_after_trace_starts
+            study_complete and idle_stable and pretrace_stable
+            and stable_trace_id and owner_checks_passed
+            and performance_checks_passed and len(trace_frames) >= 2
+            and ball_changed_after_trace_starts
             and start_fixed and len(slots) == 1
             and len(holes) == 1 and human_ball_moved == "yes"),
         "guest_emulator_frame_verified": False,
@@ -131,8 +173,7 @@ def main(argv=None) -> int:
     try:
         output = _private_output(args.private_output)
         samples = build_probe("forward", follow_through_frames=30, a_setup_frames=12)
-        if len(samples) != TRACE_SAMPLES:
-            raise ValueError("Known-good 89-frame waveform changed")
+        validate_frozen_trace(samples)
         with FelkRPC(port=args.port) as rpc:
             ping = rpc.call("bridge.ping", [])
             caps = rpc.call("trace.swing_capabilities", [])
@@ -152,17 +193,30 @@ def main(argv=None) -> int:
                 # Idle control: frame advances with no controller commands.
                 for _ in range(24):
                     rpc.call("frame.get_count", [])
+                rpc.call("golf.ball_watch.stage", ["a_prime"])
                 prime_a_button(rpc, remote=args.remote, requests=45)
+                rpc.call("golf.ball_watch.stage", ["trace"])
                 trace = SwingTraceClient(rpc, port=args.remote).run(samples)
-                # Collect post-dispatch samples (not proof of a game-applied shot).
+                rpc.call("golf.ball_watch.stage", ["posttrace"])
+                # Collect post-dispatch samples (not proof of applied game input).
                 for _ in range(36):
                     rpc.call("frame.get_count", [])
             finally:
                 release_buttons(rpc, remote=args.remote)
-                watch_report = rpc.call("golf.ball_watch.drain", [])
+            # The original pilot drained mid-window (~50 of 64 samples).
+            # Wait for actual COMPLETE state, with only read-only polling.
+            status = rpc.call("golf.ball_watch.status", [])
+            for _ in range(200):
+                if status.get("state") not in ("armed", "recording"):
+                    break
+                rpc.call("frame.get_count", [])
+                status = rpc.call("golf.ball_watch.status", [])
+            if status.get("state") != "complete":
+                raise RuntimeError("Watch did not finish cleanly; no partial study")
+            watch_report = rpc.call("golf.ball_watch.drain", [])
         status = watch_report.get("status", {})
-        if status.get("state") in ("source_gate_failed", "read_overhead_exceeded"):
-            raise RuntimeError("Watch source gate/performance failed; no numeric data exported")
+        if status.get("state") != "complete":
+            raise RuntimeError("Watch source gate/performance or completeness failed")
         watch_samples = watch_report.get("samples")
         if not isinstance(watch_samples, list) or not watch_samples:
             raise RuntimeError("Watch returned zero candidate frames")
@@ -170,7 +224,8 @@ def main(argv=None) -> int:
                  .strip().lower() or "unknown")
         if label not in ("yes", "no", "unknown"):
             label = "unknown"
-        safe = summarize(watch_samples, human_ball_moved=label)
+        safe = summarize(watch_samples, human_ball_moved=label,
+                         watch_state=status["state"])
         report = {
             "kind": "PRIVATE-UNVERIFIED-selected-ball-frame-watch",
             "utc": datetime.now(timezone.utc).isoformat(),
