@@ -26,3 +26,21 @@ For a local operator real run, after exact PR SHA and focused CI are verified, u
 ## CI status — actual cross-platform result (2026-10-28)
 
 Exact tested code/CI head `ef33c52137d29b669b5069068f58e52fb9094964`: [GitHub Actions run 40647419445](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40647419445) **SUCCESS**, 14 synthetic tests passed on `windows-latest` and 14 on `ubuntu-latest`, including isolated Python -I smoke. Four-file-only PR [#238](https://github.com/Nate27624/Wii-AI-Golf/pull/238) remains DRAFT and stacked on canonical #231; operator real seven-phase RAM results PENDING. A CI pass is a source/fixture test, **not** evidence of actual counter advancement or frame rate. S000 variable registry entry updated as test-pending, 0 training approvals.
+
+
+## Real local seven-snapshot operator result (2026-10-28)
+
+The operator independently executed reviewed PR #238 commit `1475cb8f12a2f0a0f020493488eebf7f552204f3` from a clean detached worktree on the canonical SHA-preserved seven snapshot cohort. Focused **14/14 Windows synthetic tests PASS**, source archive `_check_archive` and all scene/Main/selected player/ball/pin/tee/Config gates PASS; output marker `P0_MAIN_COUNTER_74_ANALYSIS=COMPLETE` with no Dolphin launch or raw RAM output.
+
+| Human-labeled same-shot interval | Selected ball+0x30 changed components | RPGolMain+0x74 numerical u32 comparison | Source owner/geometry |
+| --- | ---: | --- | --- |
+| Driver D1 airborne -> D2 settled | 3/3 | increased | stable |
+| Wedge W5 near apex -> W6 descending | 3/3 | increased | stable |
+| Wedge W6 descending -> W7 flag/UI result | 3/3 | increased | stable |
+| Wedge W5 -> W7 | 3/3 | increased | stable |
+
+**W5 < W6 < W7 for this native `u32`**, and `W6-W5 < W7-W6` numerically (the second numeric jump was larger); no actual counter words or numeric deltas were published or used as machine timestamps. This correlates change with elapsed *operator-reported* shot phases, **not** with motion-specific source semantics. Previous stationary B0-B3 and 19/19 no-shot observation make shot-power, contact and impact assignment especially unjustified.
+
+**Classification:** `RPGolMain+0x74` is an *increasing background/elapsed-state counter candidate* (source-owned dynamic `u32`). Not yet a verified frame count/timebase, applied game tick, same-boot monotone counter, shot power or training feature. Larger later gap may simply reflect longer pause between exports, GUI timing, missed frames, non-atomic memory banks or counter rate, not faster ball.
+
+**Next S002 source work:** narrow bounded PPC writer/read reference for the typed Main receiver +0x74; independently classify whether increments per frame, event, idle phase or pause using separately approved read-only game frame instrumentation. Do not map selected-player-record +0x74 to this field. No additional broad RAM scan or new shot warranted.
