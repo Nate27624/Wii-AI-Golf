@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from contextlib import nullcontext, redirect_stdout
+from io import StringIO
+import json
 import sys
 import unittest
 from unittest.mock import patch
@@ -97,6 +100,31 @@ class StationaryQualificationTests(unittest.TestCase):
               patch("builtins.input", return_value="NO"),
               patch.object(q, "watched_v1_rpc", side_effect=AssertionError("no RPC"))):
             self.assertEqual(q.main(["--read-only-live", "--attach-running"]), 0)
+
+    def test_success_output_does_not_claim_emulator_or_boot_identity(self):
+        report=q.summarize_qualification(private(),elapsed_s=2)
+        for key in ("genuine_emulator_source_checked",
+                    "local_watched_bridge_sha_verified_this_cli_run",
+                    "installed_emulator_binary_source_verified",
+                    "canonical_fresh_boot_proven",
+                    "attach_flag_is_authenticated_session_witness"):
+            self.assertIs(report[key], False)
+        text=StringIO()
+        with (patch.object(q, "verify_local_bridge", return_value="synthetic-sha"),
+              patch("builtins.input", return_value="READY"),
+              patch.object(q, "watched_v1_rpc", return_value=nullcontext(FakeRPC())),
+              patch.object(q, "qualify_running", return_value=report),
+              redirect_stdout(text)):
+            self.assertEqual(q.main(["--read-only-live", "--attach-running"]),0)
+        printed=json.loads(text.getvalue())
+        self.assertIs(printed["local_watched_bridge_sha_verified_this_cli_run"],True)
+        for key in ("genuine_emulator_source_checked",
+                    "installed_emulator_binary_source_verified",
+                    "canonical_fresh_boot_proven",
+                    "attach_flag_is_authenticated_session_witness",
+                    "training_allowed"):
+            self.assertIs(printed[key],False)
+        self.assertNotIn("synthetic-sha",text.getvalue())
 
     def test_stable_source_32_samples_pass_no_raw_data(self):
         result=q.summarize_qualification(private(),elapsed_s=2.5)
