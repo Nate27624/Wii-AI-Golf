@@ -115,6 +115,9 @@ def simulate(watch: bool, break_memory_at: int | None = None,
     exec(_ATOMIC_SNIPPET + _SWING_HANDLER + _BALL_WATCH_HANDLER, ns)
     exec(compile(ast.Module(body=[tick], type_ignores=[]),
                  "<generated-atomic-swing-tick>", "exec"), ns)
+    # This test deliberately continues the FAKE callback dispatch after
+    # watcher auto-disarms. The real operator runner should instead abort
+    # before live trace submission on an RPC stage-transition failure.
     if force_slow_read:
         class SyntheticSlowClock:
             n = 0
@@ -148,12 +151,12 @@ def simulate(watch: bool, break_memory_at: int | None = None,
     # 24 no-controller-call idle ticks (negative control).
     for _ in range(24):
         advance()
-    if watch:
+    if watch and ns["_wii_ball_watch"] is not None:
         ns["_wii_ball_watch_stage"](["a_prime"])
     # 45 button-only, no extra motion: mimics the logical A prime.
     for _ in range(45):
         advance(pressed_a_for_prime=True)
-    if watch:
+    if watch and ns["_wii_ball_watch"] is not None:
         ns["_wii_ball_watch_stage"](["trace"])
     ack = ns["_wii_ai_submit_swing"]([0, payload])
     # 89 samples + 1 completion/release tick.
