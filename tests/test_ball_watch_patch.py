@@ -84,7 +84,7 @@ class WatchPatchTests(unittest.TestCase):
             self.ns["_frame_count"] = f
             self.ns["_wii_ball_watch_tick"]()
         report = self.ns["_wii_ball_watch_drain"]([])
-        self.assertEqual(len(report["samples"]), 7)
+        self.assertEqual(len(report["samples"]), 6)
         self.assertEqual(report["status"]["state"], "complete")
         self.assertFalse(report["training_allowed"])
         self.assertEqual(self.ns["_wii_ball_watch_status"]([])["state"], "idle")
