@@ -1,4 +1,4 @@
-# Preserve one already GUI-paused FelkDolphin-Clean native MEM1+MEM2 pair.
+# Preserve one GUI-paused PRE/POST/SETTLED/RESULT native pair.
 # PRIVATE LOCAL ONLY. No Dolphin launch, RPC, pause or controller operation.
 [CmdletBinding()]
 param(
@@ -7,11 +7,14 @@ param(
     [Parameter(Mandatory=$true)][string]$SourceMem2Path,
     [Parameter(Mandatory=$true)][string]$PrivateDataRoot,
     [Parameter(Mandatory=$true)][string]$SessionFolder,
-    [Parameter(Mandatory=$true)][ValidateSet('PRE','POST')][string]$Phase,
+    [Parameter(Mandatory=$true)][ValidateSet('PRE','POST','SETTLED','RESULT')][string]$Phase,
     [Parameter(Mandatory=$true)][datetime]$ExportStartedAfter,
     [switch]$ConfirmBothExportsUnderSameGuiPause,
     [switch]$ConfirmCorrectVisibleShotPhase,
-    [switch]$ConfirmNoHoleOrDolphinProcessChange
+    [switch]$ConfirmNoHoleOrDolphinProcessChange,
+    [switch]$ConfirmSameDolphinProcess,
+    [switch]$ConfirmBallVisiblyStoppedBeforeReset,
+    [switch]$ConfirmResultScreenVisible
 )
 
 Set-StrictMode -Version Latest
@@ -68,9 +71,20 @@ function Resolve-SafeSource([string]$path, [string]$userRoot, [long]$expectedSiz
 }
 
 if (-not $ConfirmBothExportsUnderSameGuiPause -or
-    -not $ConfirmCorrectVisibleShotPhase -or
-    -not $ConfirmNoHoleOrDolphinProcessChange) {
+    -not $ConfirmCorrectVisibleShotPhase) {
     Stop-Private 'operator same-pause and shot-phase confirmations missing'
+}
+if ($Phase -in @('PRE','POST','SETTLED') -and
+    -not $ConfirmNoHoleOrDolphinProcessChange) {
+    Stop-Private 'PRE/POST/SETTLED requires same selected hole and process'
+}
+if ($Phase -eq 'SETTLED' -and
+    -not $ConfirmBallVisiblyStoppedBeforeReset) {
+    Stop-Private 'SETTLED requires visible stopped ball before reset'
+}
+if ($Phase -eq 'RESULT' -and
+    (-not $ConfirmResultScreenVisible -or -not $ConfirmSameDolphinProcess)) {
+    Stop-Private 'RESULT requires visible result screen and same process'
 }
 if ($ExportStartedAfter.ToUniversalTime() -gt [datetime]::UtcNow.AddMinutes(2)) {
     Stop-Private 'export start time appears to be in the future'
@@ -112,10 +126,16 @@ try {
     if ((Test-Path -LiteralPath $dst1) -or (Test-Path -LiteralPath $dst2)) {
         Stop-Private 'destination pair already exists; never overwrite'
     }
-    if ($Phase -eq 'POST' -and
-        (-not (Test-Path -LiteralPath (Join-Path $session 'PRE-MEM1.bin')) -or
-         -not (Test-Path -LiteralPath (Join-Path $session 'PRE-MEM2.bin')))) {
-        Stop-Private 'POST requires a preserved PRE pair'
+    $requiredPhase = switch ($Phase) {
+        'PRE' { $null }
+        'POST' { 'PRE' }
+        'SETTLED' { 'POST' }
+        'RESULT' { 'POST' }
+    }
+    if ($null -ne $requiredPhase -and
+        (-not (Test-Path -LiteralPath (Join-Path $session "$requiredPhase-MEM1.bin")) -or
+         -not (Test-Path -LiteralPath (Join-Path $session "$requiredPhase-MEM2.bin")))) {
+        Stop-Private 'required predecessor snapshot pair missing'
     }
 
     # Compare the exported source hashes before and after both copies to
