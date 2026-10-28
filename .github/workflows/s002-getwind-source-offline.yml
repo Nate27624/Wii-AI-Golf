@@ -1,0 +1,31 @@
+name: S002 GetWind Source Offline
+on:
+  push:
+    branches:
+      - agent/research/source-wind-table-20261027
+  pull_request:
+    paths:
+      - "src/wii_ai_golf/audit/golf_wind_table.py"
+      - "scripts/audit_golf_wind_table_private.py"
+      - "tests/test_golf_wind_table.py"
+      - ".github/workflows/s002-getwind-source-offline.yml"
+  workflow_dispatch:
+
+jobs:
+  synthetic_only:
+    name: Python synthetic source-gate tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile only source files
+        run: python -m py_compile src/wii_ai_golf/audit/golf_wind_table.py scripts/audit_golf_wind_table_private.py tests/test_golf_wind_table.py
+      - name: Synthetic, no Wii Sports data
+        run: python -m unittest discover -s tests -p 'test_golf_wind_table.py' -v
