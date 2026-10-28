@@ -43,3 +43,5 @@ jobs:
         run: python -m unittest discover -s tests -p test_operator_contract_docs.py -v
       - name: Existing sanitized research CLI regression tests (mock only)
         run: python -m unittest discover -s tests -p test_research_cli.py -v
+      - name: Full Windows unittest suite (no live Dolphin)
+        run: python -m unittest discover -s tests -v
