@@ -1,0 +1,26 @@
+name: S002 FieldManager store-site provenance (offline)
+on:
+  pull_request:
+    paths:
+      - "scripts/audit_p0_field_pin_start_store_provenance_private.py"
+      - "tests/test_p0_field_pin_start_store_provenance_private.py"
+      - ".github/workflows/s002-p0-field-store-provenance.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mocked-source:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Compile offline decoder
+        run: python -m compileall -q scripts/audit_p0_field_pin_start_store_provenance_private.py tests/test_p0_field_pin_start_store_provenance_private.py
+      - name: Fabricated PPC instruction and privacy controls
+        run: python -m unittest discover -s tests -p test_p0_field_pin_start_store_provenance_private.py -v

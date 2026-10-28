@@ -1,0 +1,31 @@
+# S002 P0: Rev1 FieldManager pin/start store candidates — bounded PPC provenance
+
+**No Dolphin, controller, network, model training, or RAM writes.** This draft PR stacks on #224→#223, requires #223 exact preserved B0 and human-airborne private manifest/hash/source scene/player/ball validation first, and examines only source instructions in the public `RPGolFieldManager.cpp` `.text` unit 0x80290B44..0x80294184. No native instruction words, vectors, private hashes, dynamic heap pointers or filesystem paths are emitted.
+
+## Real operator evidence (the precursor)
+
+User ran SHA-gated source scan against original B0 and operator-attested **same-paused-frame MEM1/MEM2** human-airborne export: B0+flight hashes and source unit equality all PASS; four known pin/start getter source instructions PASS. 15 total `stw` displacement +0x44 or +0x50; nine are stack `r1` base, remaining six source-relative sites: +0x2CCC, +0x2CF0, +0x2D14, +0x2EA8, +0x2ECC, +0x2EF4. Source store matches are **not proof the destination receiver is the actual FieldManager**, and cannot indicate which was executed during the shot.
+
+## New reader and question
+
+`scripts/audit_p0_field_pin_start_store_provenance_private.py` first delegates to #223 original `run_local` to verify BOTH preserved native 24/64MiB banks, manifests, selected player/hole and Rev1 scene/PPC source chain. It then byte-compares FieldManager source code in both native MEM1 images and requires **four exact getter** plus **six exact candidate-stw** syntactic code words. The script decodes only two source-relative ranges +0x2C80..+0x2D24 and +0x2E70..+0x2F04 (less than 100 instructions total), and produces a safe source-relative two-window opcode/register sketch. Each of six write candidates also shows nearest previous syntactically-recognized definition of its base and value registers in 0xC0 bytes and whether a branch lies in between.
+
+**Critical boundary:** The nearest prior definition is linear source adjacency, NOT complete dataflow/SSA, control-flow, pointer owner, receiver type, callsite or executed guest instruction. Any unrecognized instruction could clobber the register. Branch hazard flag means nearby definitions are especially unsafe to interpret. Source PC is intentionally emitted as **relative offset only**, never raw machine instruction bytes. Operator attestation distinguishes `operator_attested_mem1_mem2_same_paused_frame=true` from `machine_frame_index_independently_verified=false`.
+
+## Review ownership and next observation
+
+S002 #219 traces the real Rev1 code/caller path. Compare two site clusters, identify basic-block entries, prologue and `mr r31,r3` (if any), and prove whether candidate register is the actual FieldManager with source-typed call/constructor evidence. A `stw` through `r3` or `r31` with matching offset is only a candidate until that proof exists. Check target-choice inputs to explain why current-pin and start pointer *values* differ B0 vs flight while FieldManager and selected ball pointer values remain stable. Existing B0/B1/B2/B3 no-shot and three inactive slots provide source controls, but no same-boot B0 vs flight or physical XYZ proof. Training, physics XYZ, power and velocity remain FALSE.
+
+Operator should run the source-only script from a fresh SHA-pinned detached Git worktree after focused CI. Run its one synthetic test module first; then `py -I scripts/audit_p0_field_pin_start_store_provenance_private.py --baseline ... --flight ...` against ORIGINAL private paths. Never upload native banks/ROM, numeric RAM, private manifests or absolute heap addresses. Keep report to source-relative register classes/boolean provenance only. No new Dolphin launch needed.
+
+## Native operator output and correction — 2026-10-28
+
+Operator ran the source-gated original B0 and human-attested same-paused-frame airborne pair at prior exact SHA `82f2fdfda0b04a1bf317acf60902242739609ddb`. All **12/12 local synthetic tests passed**, all bank/hash/PPC gates passed, 6 candidate sites confirmed and 2 context windows decoded. Source-relative operator evidence:
+
+- `+0x2C80 bclr` then apparent NEW function prologue `+0x2C84 stwu r1,...`, `+0x2C94 mr r31,r3`; subsequently `+0x2CCC stw r5,+0x50(r3)` and `+0x2D14 stw r4,+0x44(r3)`. The old report showed `PriorBasePC +0x2C4C: add r3,r0,r31` but this crossed the `+0x2C80` LR branch and was **INVALID** as a provenance witness for the newer routine. The corrected analyzer will mark no previous `r3` definition beyond that boundary, maintaining `source_receiver_proven_field_manager=false`.
+- In another apparent routine, `+0x2E44 mr r31,r3`; later `+0x2EA8 stw r4,+0x50(r31)` and `+0x2EF4 stw r4,+0x44(r31)`. There is a conditional `bc` within source context (`+0x2E78`), so nearest-linear ancestry still is not execution/dataflow proof.
+- Two +0x50 write candidates are through **derived bases** `+0x2CF0 stw r0,+0x50(r5)` after `+0x2CC8 add r5,r5,r0`, and `+0x2ECC stw r0,+0x50(r4)` after `+0x2EA4 add r4,r4,r0`. These are not automatically direct FieldManager+0x50 assignments; they may write child/selected table element objects.
+
+Source analysis fix at `cbc836942c300eca9d7ef74a0bd964d930593934`: `prior_definition()` stops at an encountered `bclr`/`bcctr` branch boundary within its bounded backsearch, outputs a safe `source_relative_boundary` instead of walking into previous function code, and leaves conditional branch hazards explicit. Added two regression cases ensuring cross-return `r3` false ancestry is rejected while intra-function `r31 <- r3` remains recognized. **14/14 targeted synthetic tests passed on BOTH Windows and Ubuntu**, GitHub Actions run `40644291126`. No new native-memory operator run on corrected head yet; earlier real result remains valid EXCEPT the invalid cross-function `+0x2C4C` register attribution.
+
+**S002 next:** Establish actual function boundaries and typed `this` receiver for incoming `r3` at both prologues from linked public Rev1 symbols/callers; then inspect member source values `r5`/`r4` to determine whether +0x44/+0x50 replace current pin/start refs or alter nested objects. A store-register match is source-only, not proof of executed code/physics world XYZ. Never train or publish native game data.
