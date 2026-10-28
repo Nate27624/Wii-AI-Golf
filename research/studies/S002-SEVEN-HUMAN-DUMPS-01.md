@@ -48,3 +48,10 @@ Each page count refers to **pages with >=1 changed byte**, not count of individu
 
 **Next P0:** Preserve all seven pairs as read-only baseline; source-resolve selected ball, start and PIN via existing S002 #223/#224/#225 readers in **each** W5,W6,W7 and D1,D2, requiring consistent selected owner/hole and validated cache alias/self-reference. For the wedge time sequence, the key prediction is candidate ball location changes W5→W6 and W6→W7 while stable start/pin/tee controls stay unchanged. Prior flight study found the PIN also changes, so gate off any physical XYZ/velocity claim until coordinate-rebase/pin camera confounds are resolved. Check temporal overlap of changed pages as coarse triage, not a coordinate decoder.
 
+
+## Wedge 3-state temporal page-mask follow-up (new code, real data pending)
+
+Extended the **same** standalone PowerShell 5.1 audit to calculate the intersection of 4KiB changed-page masks for W5→W6 (A), W6→W7 (B), and W5→W7 (C), for MEM1/MEM2 separately. Reports pages changed in both adjacent intervals, in all three contrasts, changed twice but with first/last page identical, first-interval-only, and second-interval-only. Enforces `C ⊆ A ∪ B` before writing the report, which must hold for stable immutable three-snapshot byte comparisons. The owner must compare the changed-page masks to **source-gated** selected-ball and PIN object offsets before considering any field. Intersection does not establish motion or field semantics.
+
+**Exact synthetic validation:** [GitHub run 40644726793](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40644726793) Windows PowerShell 5.1 and Ubuntu PowerShell 7 both **7/7 tests PASS, zero skipped**, including a fabricated three-snapshot wedge control (pages 1,2,3 changed in first adjacent interval; 2,3,4 changed second; 1,3,4 changed long-span; overlap=2, all-three=1, returned-to-original=1). **Real user's W5/W6/W7 temporal intersection counts not obtained yet**; the original 4 pairs remain user-reported source-of-truth until rerun with this reviewed script. No fresh shots required.
+
