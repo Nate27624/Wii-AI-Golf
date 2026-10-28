@@ -65,6 +65,8 @@ function Get-P0Snapshot([hashtable]$Banks) {
     Assert-P0 ((Test-P0MemoryRange $sceneMgr 0x20 'MEM1') -and (Read-P0U32 $Banks ([uint64]0x804BF4DCL)) -eq 0) 'invalid scene manager static gate'
     $scene = Read-P0U32 $Banks ($sceneMgr + 0x0C)
     Assert-P0 (Test-P0MemoryRange $scene 0xA0 'MEM2') 'scene object outside MEM2'
+    $sceneDataHint = Read-P0U32 $Banks $scene
+    Assert-P0 ($sceneDataHint -ge 0x803C7718L -and $sceneDataHint -lt 0x803C7798L) 'scene firstword source data region mismatch'
     Assert-P0 ((Read-P0U32 $Banks ($sceneMgr + 0x18)) -eq 5 -and (Read-P0U32 $Banks ($scene + 0x1C)) -eq 5 -and (Read-P0U32 $Banks ($scene + 0x20)) -eq $sceneMgr -and (Read-P0U32 $Banks ($scene + 0x54)) -eq 2) 'not source-gated Golf scene 5 / sport 2'
     $config = Read-P0U32 $Banks ([uint64]0x804BF8C4L)
     Assert-P0 (Test-P0MemoryRange $config 0x9C 'MEM2') 'missing Golf config'
@@ -75,6 +77,8 @@ function Get-P0Snapshot([hashtable]$Banks) {
     Assert-P0 (Test-P0MemoryRange $field 0xA8 'MEM2') 'missing Golf field manager'
     $pm = Read-P0U32 $Banks ([uint64]0x804BF8D0L)
     Assert-P0 (Test-P0MemoryRange $pm 0x340 'MEM2') 'missing PlayerManager candidate'
+    $managerDataHint = Read-P0U32 $Banks $pm
+    Assert-P0 ($managerDataHint -ge 0x803C7DD0L -and $managerDataHint -lt 0x803C7DE0L) 'player manager firstword source data region mismatch'
     $selected = Read-P0U32 $Banks ($pm + 0x334)
     $indices = @(0..3 | Where-Object { $selected -eq ($pm + 4 + ($_ * 0xCC)) })
     Assert-P0 ($indices.Count -eq 1) 'selected pointer is not a unique 0xCC record'
@@ -82,6 +86,8 @@ function Get-P0Snapshot([hashtable]$Banks) {
     Assert-P0 (Test-P0MemoryRange $record 0xCC 'MEM2') 'selected player record out of range'
     $ball = Read-P0U32 $Banks ($record + 0x88)
     Assert-P0 (Test-P0MemoryRange $ball 0x1AC 'MEM2') 'selected ball-related object outside MEM2'
+    $ballDataHint = Read-P0U32 $Banks $ball
+    Assert-P0 ($ballDataHint -ge 0x803C7918L -and $ballDataHint -lt 0x803C7A50L) 'ball-related object firstword source data region mismatch'
     # +0x4C is the source-followed translation pointer; it must point to mapped MEM2.
     $ballTrans = Read-P0U32 $Banks ($ball + 0x4C)
     Assert-P0 (Test-P0MemoryRange $ballTrans 12 'MEM2') 'ball-related translation pointer invalid'
