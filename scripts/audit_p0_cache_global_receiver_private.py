@@ -267,6 +267,9 @@ def _canonical_archive_sha(directory: Path) -> dict[int, dict[str, bytes]]:
     """
     root = seven.source.selected.DATA_ROOT.resolve(strict=True)
     capture_root = (root / "captures").resolve(strict=True)
+    if directory.is_symlink() or not directory.is_dir():
+        raise ValueError("untrusted private archive directory")
+    directory = directory.resolve(strict=True)
     if directory.parent != capture_root:
         raise ValueError("only canonical ignored private capture archives permitted")
     manifest_path = directory / "manifest-PRIVATE.json"
