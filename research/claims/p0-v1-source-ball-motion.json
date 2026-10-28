@@ -1,0 +1,28 @@
+{
+  "worker_id": "p0-v1-source-ball-motion-20261028",
+  "branch": "agent/research/p0-v1-ball-motion-audit-20261028",
+  "issue": 121,
+  "role": "S002-support",
+  "status": "draft_source_review",
+  "files": [
+    "scripts/audit_p0_v1_ball_motion_private.py",
+    "tests/test_p0_v1_ball_motion_private.py",
+    ".github/workflows/p0-v1-ball-motion-private.yml",
+    "research/studies/P0-V1-SOURCE-BALL-MOTION-01.md",
+    "research/claims/p0-v1-source-ball-motion.json"
+  ],
+  "upstream": [
+    "S001 #166",
+    "#189",
+    "#202",
+    "#206",
+    "#211",
+    "#215",
+    "S002 #193",
+    "S000 #205"
+  ],
+  "privacy": "read-only PRIVATE-JSON in ignored Data; console counts/booleans; no raw vectors/pointers",
+  "blocker": "Dolphin 0xC0000005 crash before bridge preflight on S001 stationary qualifier #215; no further live sessions until resolved",
+  "training_approved": false,
+  "approval": "S001/S002/S000 owner review pending"
+}
