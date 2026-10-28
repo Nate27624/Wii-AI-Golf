@@ -1,0 +1,29 @@
+name: P0 four-slot source and reference guards (synthetic)
+
+on:
+  push:
+    branches:
+      - 'agent/review/p0-four-slot-crossphase-gates-*'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_global_ball_roster_receiver_private.py'
+      - 'tests/test_p0_global_ball_roster_receiver_private.py'
+      - '.github/workflows/p0-four-slot-crossphase-gates.yml'
+
+jobs:
+  synthetic:
+    name: Four-slot fabricated ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Python source compile
+        run: python -m py_compile scripts/audit_p0_global_ball_roster_receiver_private.py tests/test_p0_global_ball_roster_receiver_private.py
+      - name: All isolated, fabricated regression cases
+        run: python -I tests/test_p0_global_ball_roster_receiver_private.py
