@@ -84,7 +84,7 @@ def fixture(motion=True, contact="yes", movement="yes"):
             "pretrace_candidate_ball_stationary": True,
             "candidate_ball_changed_after_trace_start": bool(motion),
             "candidate_record_triplet_equal_ball_triplet_count": (
-                15 - (7 if motion else 0)),
+                15 - (6 if motion else 0)),
             "phase_sample_counts": {
                 "idle_control": 2, "a_prime": 2, "trace": 9, "posttrace": 2,
             },
