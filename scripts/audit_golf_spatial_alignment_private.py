@@ -46,6 +46,9 @@ def analyze_one(read_u32, header: bytes) -> dict:
             raise ValueError("non-finite/out-of-bounds candidate map vector")
         return words
 
+    map_object_ptrs = [read_u32(field + off) for off in (0x44, 0x54, 0x2C)]
+    if len(set(map_object_ptrs)) != 3:
+        raise ValueError("pin/cup/tee must be independent source-labelled objects")
     pin = map_vec(0x44)
     cup = map_vec(0x54)
     tee = map_vec(0x2C)
