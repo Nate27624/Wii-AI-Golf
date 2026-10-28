@@ -200,3 +200,75 @@ validated runtime values.** The current #277 Kokeshi singleton
 mangling mismatch is still unresolved and its local pointer reader
 remains blocked from operator execution. Training/publication remain
 FALSE.
+
+
+## P0 alternative Near Pin outcome discriminator: typed ground collision attribute
+
+**Source-only typed lead; not an observed runtime value.** The independent,
+immutable Kokeshi Rev1 header
+[\`RPGolCollisionModel.h\`](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPGolScene/RPGolCollisionModel.h)
+defines:
+
+- \`EGndAttr_Green=6\`, \`EGndAttr_GreenEdge=9\`, \`EGndAttr_Cup=11\`,
+  and \`EGndAttr_Target=14\` (separate named values, all **public enum
+  hypotheses** until native Rev1 comparisons/producer are checked).
+  It also distinguishes rough, bunker, water, OB, fairway and tee.
+  Do **NOT** silently count green edge, target or cup as green, or infer
+  any training pass/fail policy from the enum alone.
+- \`RPGolCollisionTriangle\` has a \`u16 attr\` member at
+  **triangle-relative +0x0E** and \`mPosIdx/mDirIdx/mNrm{A,B,C}Idx\`
+  members plus length; its declaration implies a **0x10-byte
+  triangle-record stride** (candidate, compiler layout not
+  independently matched to original PPC).
+- \`RPGolCollisionModel\` has
+  \`RPGolCollisionTriangle* mTriangles\` at **model +0x0C**,
+  \`u32 mNumRPTris\` at **model +0x5C**, and \`GetTris/ GetNumTris\`
+  accessors; these are **type/memory-layout claims in a public
+  header**, not a verified instance or an invitation to index RAM.
+- The independently pinned public
+  [\`base/symbols_sports.txt\`](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/base/symbols_sports.txt)
+  lists \`spInstance__19RPGolCollisionModel=0x804BF908\`.
+  The class name \`RPGolCollisionModel\` has 19 characters, so
+  this symbol's encoded class-name length is **internally
+  consistent**, unlike the still-disputed Golf sequence singleton
+  \`spInstance__16RPGolSequenceManager\` vs its 20-character
+  class. A consistent symbol name **still does not prove the
+  actual native pointee identity**.
+
+**Why this is promising:** one missing Hitting-the-Green outcome
+predicate is *whether the stopped ball is on the green*. A typed
+surface enum could in principle discriminate **a ball's current
+contact triangle surface** independently of an operator-entered
+100-foot off-green penalty or a cumulative 10-shot total. It is
+potentially a better causal feature than unnamed player-record
++0x30/+0x90 float words. But the stored \`attr\` belongs to
+**static collision geometry**, not a live selected-ball collision
+contact. Neither a triangle's \`attr=Green\` nor the existence of
+the triangle table shows the moving ball touched/rested on it,
+or that the training result scorer tests this enum.
+
+**One narrow, owner-disjoint source decision (S002 #219/#240 and
+Near Pin #277/#184):**
+
+1. Locate an already identified **source-typed ball collision
+   consumer/contact result** and determine whether its final
+   grounded-state triangle index resolves into the published
+   \`RPGolCollisionTriangle::attr\` or an equivalent enum. Require
+   exact native Rev1 PPC member and range checks; do not search
+   arbitrary RAM for byte/halfword value 6.
+2. Determine whether training mode4's result producer compares
+   \`Green\`, \`GreenEdge\`, \`Target\`, or something else to
+   assign accepted/penalty outcome. Do not assume green membership
+   alone equals success or that it updates \`CommitResult\`.
+3. Only after S001 establishes a genuinely executed post-update
+   clock, distinguish **contact**, **final settled contact** and
+   **result acknowledgment** in the *same confirmed shot/actor*.
+   Without ball→collision→score chain, emit
+   \`NEARPIN_GROUND_ATTR_CONTACT_ABSTAIN\` and STOP. No
+   score calibration or training-data promotion.
+
+No static table dump, source-code xref family, new memory scan,
+user PowerShell, Dolphin boot, swing, private bank upload or
+new runtime-variable claim is justified by this public declaration
+alone. Existing game-step, rendered actor, power, result and training
+gates remain false.
