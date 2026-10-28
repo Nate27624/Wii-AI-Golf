@@ -12,6 +12,35 @@
 6. **Preserve operator state.** Never recommend git reset --hard, git clean -fd, force push, stash/checkout over dirty changes, overwriting savestates/ROMs/bridges or deleting local Data to bypass a guard. Respect concurrently running agents; use a unique isolated worktree for unmerged offline research, then return to the canonical directory. Avoid automatic code updates unless the reviewed script's existing safe sync has been verified and the operator requested that command.
 7. **Do not leak raw evidence.** Native MEM1/MEM2, ROM, savestate, private pointer/word arrays, screenshots with secrets, generated bridge sources, game configuration and raw PRIVATE JSON remain in ignored local storage. Console snippets shared to agents and GitHub issue comments should contain allowlisted counts, relative field offsets, pass/fail flags, human observations and caveats, not raw private memory. Sanitized automatic GitHub results via existing publisher only.
 
+## Automatic GitHub publication and durable research findings (MANDATORY)
+
+**User's active standing instruction (2026-10-27): Operator experiment/test output must be automatically uploaded to GitHub, and important findings must be recorded.** This does NOT authorize uploading private/raw evidence or unattended live actions.
+
+### Default successful command lifecycle
+
+1. The operator executes **one approved self-locating PowerShell block** invoking a **currently merged and vetted CLI**. Offline diagnostics, experiment control and result collection must use the existing source methods.
+2. The reviewed collector stores raw/full observations **locally** under the ignored sibling Wii-AI-Golf-Data, produces a small **explicitly allowlisted SANITIZED** result record (study ID, unique run ID, UTC, source class, code/bridge hash when safe, inputs/protocol identity, short bounded metrics, human outcome, failure flags and validity gates).
+3. That **same invocation** calls the current trusted GitHub result publisher (scripts/research_cli.py and its existing publish_summary contract) and publishes **only** the allowlisted record to the separate research/observations branch. The operator must not have to run git add/commit/push, create a new token, open GitHub, paste a raw log or run a second upload command. Use the existing verified remote, clean/safe sync, no force push, no arbitrary branch creation and no new independent publisher.
+4. On a confirmed successful publish, print UPLOADED (or the existing publisher's unambiguous 'GitHub observation published:') plus the GitHub location and safe run/study identifier. **Do not claim upload until the publisher actually returns success.** The local result must still be preserved.
+5. The agent reads the sanitized GitHub observation, judges whether a result is material, and records significant findings in its **owning GitHub issue/PR immediately**, followed by an evidence-qualified research/ledger.md entry through a reviewed owner PR/merge. Include positive, negative and falsifying evidence, not just successes. Link the sanitized record, owner, controls, limitations and next P0 action. Never rely solely on a chat response for a durable discovery.
+
+### Mandatory limitations and failure behavior
+
+- **Do not upload raw output or pretend it is sanitized.** Native MEM1/MEM2, RAW-PRIVATE JSON/JSONL, unrestricted stdout/stderr, game ROM/image, savestate, Dolphin User config, raw controller traces, per-sample words/pointers, personal information, credentials and private paths stay ignored/local. The S000/S002 allowlist decides what can be published; a private numeric vector does not become public because the user asks for automatic uploads.
+- The **currently merged** scripts/research_cli.py already auto-publishes its test and v1 sanitized summaries by default, unless operator explicitly passes --no-upload. This DOES NOT imply unrelated scripts/*.py offline probes or unmerged PRs already upload. An agent must inspect the exact command path and prove auto-publish with synthetic tests before recommending it. If not integrated, build an owner-reviewed narrow adapter into that one publisher **first**, then provide a valid PowerShell command.
+- If publication is rejected (privacy/schema), remote/auth fails, or concurrent push conflicts, **retain the local sanitized record**, report NOT UPLOADED with a short nonsecret reason and relevant retry/owner blocker, and do not ask the operator to manually upload raw files. The result's scientific evidence may still exist privately but is not a publicly linked successful GitHub observation.
+- --no-upload is a deliberate user privacy override. Auto-publication policy never overrides an explicit operator opt-out, the publisher's trust restrictions, branch protection or S000/S002 review.
+- A synthetic CI pass on a PR is already available in GitHub and may be linked as code validation; it is NOT a real Dolphin/game-result observation. Do not generate a fake live shot record to meet this rule.
+- **Important finding definition:** newly supported/falsified P0 variable, confirmed/unconfirmed contact, observed failure mode, changed source interpretation, calibration or unit discovery, acceptance gate changes and significant regressions. Each record must distinguish source-derived, offline-native snapshot, live bridge ACK, human-observed motion, independently validated physical outcome and synthetic-only proof.
+
+### Minimum research handoff fields
+
+For a material result, post a dated **FINDING** in the GitHub issue/PR: **study/run ID**, code revision/owner, experiment/control and trace source, observed positive/negative outcome, whether raw remains private, sanitized observation link or NOT UPLOADED blocker, what is verified versus hypothetical, impact on P0 gates, and named next owner. The reviewed ledger entry should summarize this finding and reference the same evidence. Do not mark an uncertain RAM offset as a training-ready feature just because an agent wrote it in GitHub.
+
+**Never provide an operator command that is advertised as auto-uploading unless its existing reviewed implementation actually does so.** The correct response to a missing adapter is a code change/test or explicit limitation, never manual upload instructions.
+
+---
+
 ## Existing working methods are preferred over experimentation
 
 **S001 owns the one canonical live implementation.** Never generate an alternative Dolphin launcher, menu macro, controller driver, waveform, reset shortcut or ad hoc attach-running protocol. Existing scripts are designed to work together:
