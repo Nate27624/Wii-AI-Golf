@@ -1,0 +1,29 @@
+name: S002 expanded private game-object windows (offline)
+on:
+  push:
+    branches:
+      - agent/research/golf-source-object-windows-private-20261027
+  pull_request:
+    paths:
+      - scripts/audit_golf_source_object_windows_private.py
+      - tests/test_golf_source_object_windows_private.py
+      - .github/workflows/s002-golf-object-windows-offline.yml
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m compileall -q scripts/audit_golf_source_object_windows_private.py tests/test_golf_source_object_windows_private.py
+      - run: python -m unittest discover -s tests -p test_golf_source_object_windows_private.py -v
+      - run: python -m unittest discover -s tests -p test_selected_player_state_word_private.py -v
+      - run: python -m unittest discover -s tests -p test_selected_ball_four_phase_private.py -v
+      - run: python -m unittest discover -s tests -p test_selected_ball_start_link_private.py -v
