@@ -2,7 +2,7 @@ name: S002 player member24 B0-B3 source state candidate (fake memory)
 on:
   push:
     branches:
-      - agent/research/player-record-state24-four-phase-source-gate
+      - agent/research/player-record-state24-four-phase-source-gate-v2
   pull_request:
     paths:
       - scripts/audit_selected_player_member24_four_phase_private.py
