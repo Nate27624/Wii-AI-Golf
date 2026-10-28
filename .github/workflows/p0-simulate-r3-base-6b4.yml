@@ -3,9 +3,11 @@ on:
   push:
     paths:
       - 'scripts/review_p0_simulate_r3_6b4_source.py'
+      - 'scripts/review_p0_simulate_savegpr26_source.py'
       - 'scripts/audit_p0_simulate_r3_6b4_private.py'
       - 'scripts/run_p0_simulate_r3_6b4_private.py'
       - 'tests/test_p0_simulate_r3_6b4_source.py'
+      - 'tests/test_p0_simulate_savegpr26_source.py'
       - 'tests/test_p0_simulate_r3_6b4_integration.py'
       - '.github/workflows/p0-simulate-r3-base-6b4.yml'
   pull_request:
@@ -31,6 +33,8 @@ jobs:
           python-version: '3.12'
       - name: Source-only PPC r3 base and control hazard regressions
         run: python -m unittest discover -s tests -p test_p0_simulate_r3_6b4_source.py -v
+      - name: Exact source GPR-save prologue and caller r3 preservation negatives
+        run: python -m unittest discover -s tests -p test_p0_simulate_savegpr26_source.py -v
       - name: Original-canonical scene/source and isolated CLI regressions (fabricated)
         run: python -m unittest discover -s tests -p test_p0_simulate_r3_6b4_integration.py -v
       - name: Previously reviewed outer r4/r30 source regression
