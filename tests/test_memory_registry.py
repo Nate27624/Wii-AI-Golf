@@ -76,6 +76,19 @@ class MemoryRegistryTests(unittest.TestCase):
         self.assertFalse(evidence["training_allowed"])
         self.assertTrue(evidence["limitations"])
 
+    def test_airborne_archive_copy_identity_is_not_frame_verification(self):
+        flight = next(e for e in self.payload["operator_evidence_history"]
+                      if e.get("kind") == "human_observed_airborne_fullbank_vs_idle_b0")
+        identity = flight["archive_identity_check"]
+        self.assertEqual(identity["number_of_independent_archives_checked"], 1)
+        self.assertTrue(identity["mem1_bytes_identical"])
+        self.assertTrue(identity["mem2_bytes_identical"])
+        self.assertTrue(identity["both_banks_identical"])
+        self.assertFalse(identity["guest_frame_atomicity_verified"])
+        self.assertFalse(identity["same_boot_verified"])
+        self.assertFalse(identity["training_approved"])
+        self.assertFalse(identity["private_raw_hashes_shared"])
+
     def test_disputed_outcome_label_is_not_overwritten_by_airborne_evidence(self):
         history = self.payload["operator_evidence_history"]
         disputed = next(e for e in history
