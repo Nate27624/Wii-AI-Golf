@@ -87,6 +87,57 @@ class BoundedCFG(unittest.TestCase):
         out=mod.analyze(words.__getitem__,-100)
         self.assertEqual(out["bounded_cfg_reaching_r3_candidate_classes"],["other_r3_value_assignment"])
 
+    def test_ra_destination_logical_overwrites_prior_r3_addi(self):
+        # All these PPC integer instructions use rA (bits 16..20) as
+        # destination and rS (bits 21..25) as their source.
+        for op in (24,25,26,27,28,29):
+            with self.subTest(op=op):
+                words=fixture()
+                words[mod.ADDI_PC+8]=dform(op,4,3,1)
+                out=mod.analyze(words.__getitem__,-100)
+                self.assertEqual(
+                    out["bounded_cfg_reaching_r3_candidate_classes"],
+                    ["ra_form_r3_assignment_unknown"])
+                self.assertNotIn(
+                    "addi_literal_nonzero",
+                    out["bounded_cfg_reaching_r3_candidate_classes"])
+                self.assertFalse(out["full_function_cfg_or_reaching_definition_proven"])
+
+    def test_ra_destination_rotate_overwrites_prior_addi(self):
+        for op in (20,21,23):
+            with self.subTest(op=op):
+                words=fixture()
+                words[mod.ADDI_PC+8]=dform(op,4,3,1)
+                out=mod.analyze(words.__getitem__,-100)
+                self.assertEqual(
+                    out["bounded_cfg_reaching_r3_candidate_classes"],
+                    ["ra_form_r3_assignment_unknown"])
+
+    def test_r3_as_source_only_does_not_invalidate_addi(self):
+        # rS=3 but rA=4: source is r3, destination is another register.
+        for op in (20,21,23,24,25,26,27,28,29):
+            with self.subTest(op=op):
+                words=fixture()
+                words[mod.ADDI_PC+8]=dform(op,3,4,1)
+                out=mod.analyze(words.__getitem__,-100)
+                self.assertEqual(
+                    out["bounded_cfg_reaching_r3_candidate_classes"],
+                    ["addi_literal_nonzero"])
+
+    def test_ra_write_after_branch_keeps_multiple_path_sources(self):
+        words=fixture()
+        words[mod.START+4]=bc(mod.START+4,mod.ADDI_PC+12)
+        words[mod.ADDI_PC+8]=dform(24,4,3,0)
+        out=mod.analyze(words.__getitem__,-100)
+        self.assertIn(
+            "ra_form_r3_assignment_unknown",
+            out["bounded_cfg_reaching_r3_candidate_classes"])
+        self.assertIn(
+            "unknown_entry_r3",
+            out["bounded_cfg_reaching_r3_candidate_classes"])
+        self.assertTrue(out["bounded_cfg_multiple_candidate_sources"])
+        self.assertFalse(out["store_runtime_value_verified"])
+
     def test_wrong_stw_or_addi_refuses(self):
         words=fixture()
         words[mod.STORE_PC]=dform(36,3,12,-100)
