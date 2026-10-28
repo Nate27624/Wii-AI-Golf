@@ -82,9 +82,11 @@ def review_source_words(words: tuple[int, ...]) -> dict:
             if dest == EXIT:
                 other_exits.append(i)
         elif op == 19 and ((word >> 1) & 1023) in (16, 528):
-            # bclr/bcctr include conditional forms and linked forms.
-            # The indirect destination is unknown: may escape this function.
-            successors = [EXIT, nxt]
+            # BO=20 is an unconditional bclr/bcctr (including plain BLR);
+            # other BO modes can fall through. Unknown register targets may
+            # escape the source function. Never pretend LR == ball update.
+            bo = (word >> 21) & 31
+            successors = [EXIT] if bo == 20 else [EXIT, nxt]
             (possible_lr_exits if ((word >> 1) & 1023) == 16
              else indirect_exits).append(i)
         elif op == 19 and ((word >> 1) & 1023) == 50:
@@ -95,8 +97,20 @@ def review_source_words(words: tuple[int, ...]) -> dict:
             other_exits.append(i)
         else:
             successors = [nxt]
-        if nxt == EXIT and EXIT in successors and i == COUNT - 1 and (
-                op not in (18, 19, 17)):
+        # Explicitly distinguish ordinary last-word fallthrough from
+        # branch exits. An I-form linked BL in the final word returns to
+        # END (= the distinct NextShot entry) and is also a hazard.
+        # A normal BO=20 BLR exits through LR, NOT through END.
+        is_indirect = op == 19 and ((word >> 1) & 1023) in (16, 528)
+        has_sequential_fallthrough = (
+            (op == 18 and bool(word & 1)) or
+            op in (16, 17) or
+            (is_indirect and ((word >> 21) & 31) != 20) or
+            (op == 19 and not is_indirect and
+             ((word >> 1) & 1023) != 50) or
+            op not in (16, 17, 18, 19)
+        )
+        if i == COUNT - 1 and has_sequential_fallthrough:
             implicit_next_function_fallthrough = True
         graph.append(tuple(sorted(set(successors))))
     graph = tuple(graph)
