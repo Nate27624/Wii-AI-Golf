@@ -1,0 +1,30 @@
+name: P0 cache receiver CFG mustdef synthetic
+on:
+  push:
+    paths:
+      - 'scripts/review_p0_cache_receiver_cfg_mustdef.py'
+      - 'tests/test_p0_cache_receiver_cfg_mustdef.py'
+      - 'research/studies/P0-CACHE-RECEIVER-CFG-MUSTDEF-01.md'
+      - '.github/workflows/p0-cache-receiver-cfg-mustdef.yml'
+  pull_request:
+    paths:
+      - 'scripts/review_p0_cache_receiver_cfg_mustdef.py'
+      - 'tests/test_p0_cache_receiver_cfg_mustdef.py'
+      - 'research/studies/P0-CACHE-RECEIVER-CFG-MUSTDEF-01.md'
+      - '.github/workflows/p0-cache-receiver-cfg-mustdef.yml'
+  workflow_dispatch:
+jobs:
+  fabricated-cfg:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile helper
+        run: python -m py_compile scripts/review_p0_cache_receiver_cfg_mustdef.py tests/test_p0_cache_receiver_cfg_mustdef.py
+      - name: Native-free static CFG tests
+        run: python -m unittest discover -s tests -p 'test_p0_cache_receiver_cfg_mustdef.py' -v
