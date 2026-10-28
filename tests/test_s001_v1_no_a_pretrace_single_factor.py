@@ -101,7 +101,9 @@ def mock_report():
             "source_hole_stable": True,
             "start_vector_stable": True,
             "pretrace_control_mode": "neutral-45",
-            "pretrace_control_A_held": False,
+            "pretrace_control_A_requested": False,
+            "pretrace_control_A_requests": 0,
+            "pretrace_control_game_A_recognition_verified": False,
             "a_lead_observed_frames": 0,
             "pretrace_control_observed_frames": 45,
             "legacy_a_prime_stage_is_no_A_control": True,
@@ -178,17 +180,18 @@ class NoAPretraceReviewTests(unittest.TestCase):
                        if x["source_relative_offset"] == "+0x074")
         self.assertIsNone(changed["a_only_stable_and_equal_to_idle"])
         self.assertTrue(changed["pretrace_control_stable_and_equal_to_idle"])
-        self.assertFalse(changed["pretrace_control_A_held"])
+        self.assertFalse(changed["pretrace_control_A_requested"])
 
     def test_analyzer_rejects_falsely_claimed_A_in_neutral_mode(self):
         data = mock_report()
-        data["safe_summary"]["pretrace_control_A_held"] = True
+        data["safe_summary"]["pretrace_control_A_requested"] = True
         with self.assertRaisesRegex(ValueError, "contradicts"):
             audit.analyze(data)
 
     def test_prior_A_held_metadata_remains_compatible(self):
         data = mock_report()
-        for k in ("pretrace_control_mode", "pretrace_control_A_held",
+        for k in ("pretrace_control_mode", "pretrace_control_A_requested",
+                  "pretrace_control_A_requests", "pretrace_control_game_A_recognition_verified",
                   "a_lead_observed_frames", "pretrace_control_observed_frames",
                   "legacy_a_prime_stage_is_no_A_control"):
             del data["safe_summary"][k]
