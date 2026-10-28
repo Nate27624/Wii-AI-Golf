@@ -44,6 +44,11 @@ def child_summary():
             "displayed_unit_human": "ft",
             "displayed_distance_source": "offgreen_100ft_penalty",
             "game_distance_verified_by_memory": False,
+            "initial_club_pose_human": "back",
+            "initial_club_pose_verified_by_memory": False,
+            "shot_start_frame_before_controller_trace": 120,
+            "displayed_power_percent_human": 75.0,
+            "displayed_power_verified_by_memory": False,
             "private_sensitive_ram": "MUST_NOT_PUBLISH",
         },
         "settled_screen_observation": "human_terminal_before_transition",
@@ -143,6 +148,9 @@ class VisualFirstJoinTests(unittest.TestCase):
         self.assertEqual(result["human"]["displayed_distance_source"],
                          "offgreen_100ft_penalty")
         self.assertEqual(result["controller"]["trace_sha256"], "a" * 64)
+        self.assertEqual(result["human"]["initial_club_pose_human"], "back")
+        self.assertEqual(result["human"]["displayed_power_percent_human"], 75.0)
+        self.assertEqual(result["human"]["shot_start_bridge_tick_before_trace"], 120)
 
     def test_exact_token_mismatch_fails_closed(self):
         data = child_summary()
@@ -180,6 +188,14 @@ class VisualFirstJoinTests(unittest.TestCase):
                 "visible_result_class_human", "actual_game_verified"),
             lambda x: x["human_observation"].__setitem__(
                 "game_distance_verified_by_memory", True),
+            lambda x: x["human_observation"].__setitem__(
+                "terminal_screen_seen_before_transition_human", 1),
+            lambda x: x["human_observation"].__setitem__(
+                "displayed_power_percent_human", "SECRET_WORDS"),
+            lambda x: x["human_observation"].__setitem__(
+                "initial_club_pose_human", "FORGED"),
+            lambda x: x["human_observation"].__setitem__(
+                "shot_start_frame_before_controller_trace", True),
             lambda x: x.__setitem__("settled_screen_observation", {"private": 123}),
         )
         for index, mutate in enumerate(mutations):
