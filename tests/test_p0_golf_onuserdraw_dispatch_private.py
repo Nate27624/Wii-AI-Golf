@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
@@ -103,6 +104,45 @@ class DrawThunkTests(unittest.TestCase):
         for bad in ("private_ram","runtime_ball_ptr","model_drawn","MEM1.raw",
                     "0x90000000","scene_runtime_ptr"):
             self.assertNotIn(bad,x)
+
+    def test_fabricated_full_seven_sha_before_after_and_two_word_scene(self):
+        # In-memory mock source words; seven 4-byte fabricated files ONLY.
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            for n in range(1,8):
+                for bank in (1,2):
+                    (root/f"{n}.{bank}.raw").write_bytes(b"MOCK")
+            def fake_get(pc):
+                vals={
+                    0x804BF4D8:0x80001000,
+                    0x8000100C:0x90002000,
+                    0x9000201C:5,
+                    0x90002054:2,
+                    0x9000209C:0x90002200,
+                    d.DRAW_PC:lwz_main(),
+                    d.DRAW_PC+4:branch(d.DRAW_PC+4,d.prior.MAIN_UNIT_LO),
+                    d.prior.CALCULATE_PC:lwz_main(),
+                    d.prior.CALCULATE_PC+4:branch(
+                        d.prior.CALCULATE_PC+4,d.prior.MAIN_UNIT_LO+0x120),
+                }
+                return vals.get(pc,0)
+            chk={n:root for n in range(1,8)}
+            with patch.object(d.prior.seven,"_check_archive",side_effect=[chk,chk]) as check, \\
+                 patch.object(d.prior.seven,"SIZE",(4,4)), \\
+                 patch.object(d.prior.seven.src,"_file",
+                     side_effect=lambda folder,name,size:folder/name), \\
+                 patch.object(d.prior.roster,"TwoBankReader",
+                     side_effect=lambda *args:SimpleNamespace(u32=fake_get)), \\
+                 patch.object(d.prior.seven,"_get",return_value={"hole":0}), \\
+                 patch.object(d.prior.roster,"_bank",
+                     side_effect=lambda ptr,size:
+                     "MEM1" if ptr==0x80001000 else "MEM2"):
+                result=d.analyze(root)
+                self.assertEqual(check.call_count,2)
+                self.assertTrue(result["original_14_native_bank_SHA_pre_and_post_verified"])
+                self.assertTrue(result["source_draw_main_tailcall_candidate"])
+                self.assertFalse(result["actual_ball_render_submission_verified"])
+                self.assertFalse(result["guest_game_physics_frame_clock_verified"])
 
     def test_isolated_help_from_other_cwd(self):
         p=Path(__file__).resolve().parents[1]/"scripts"/"audit_p0_golf_onuserdraw_dispatch_private.py"
