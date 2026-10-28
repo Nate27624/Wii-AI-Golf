@@ -123,6 +123,12 @@ def summarize_private_samples(samples: list[dict]) -> dict:
     ]
     if any(a != alias[0] for a in alias):
         raise ValueError("source object identity alias changed")
+    # The original seven source-gated captures independently establish
+    # that source-global and player-selected refer to DIFFERENT ball
+    # objects. Consistently aliasing them is not a valid dual-object trace.
+    # This gate is only a relationship check, not renderer identification.
+    if alias[0]:
+        raise ValueError("source-global and selected ball must be distinct")
     sel = [_vector(r[VECTORS[0]]) for r in rows]
     glob = [_vector(r[VECTORS[1]]) for r in rows]
     cc = [_vector(r[VECTORS[2]]) for r in rows]
