@@ -25,6 +25,14 @@ SOURCE_START = 0x802A2210
 SOURCE_END = 0x802A3560
 MAX_NEARBY = 4
 OUTPUT_RADIUS_WORDS = 12
+# The actual B0 PPC context identifies the prologue at 0x802A28DC, and
+# first assignment of r29 from incoming r3 before either selected call.
+METHOD_ENTRY = 0x802A28DC
+METHOD_PROLOGUE_WORD = 0x9421FFE0
+R29_THIS_PC = 0x802A28F0
+R29_THIS_WORD = 0x7C7D1B78
+FIRST_SELECTED_READ_PC = 0x802A28F4
+FIRST_SELECTED_READ_WORD = 0x80630334
 
 def r29_candidate(word: int) -> str | None:
     """Conservative mnemonic class, never assert ownership or dynamic execution."""
@@ -46,11 +54,29 @@ def r29_candidate(word: int) -> str | None:
 def summarize(get_word) -> dict:
     # The prior verifier already checked both caller/callee signatures.
     verified=caller.check_source(get_word)
+    # Explicit source evidence, not nearby numerical offset coincidence:
+    # the relevant manager method preserves incoming r3 as r29 at entry.
+    required = {
+        METHOD_ENTRY: METHOD_PROLOGUE_WORD,
+        R29_THIS_PC: R29_THIS_WORD,
+        FIRST_SELECTED_READ_PC: FIRST_SELECTED_READ_WORD,
+    }
+    if any(get_word(pc) != expected for pc, expected in required.items()):
+        raise ValueError("Manager method/this-pointer signature mismatch")
     candidates=[]
     for pc in range(SOURCE_START,SOURCE_END,4):
         kind=r29_candidate(get_word(pc))
         if kind:
             candidates.append({"pc":pc,"kind":kind})
+    # Between the confirmed r29<-r3 assignment and each matched direct call,
+    # our bounded PPC D-form/X-form candidate scanner finds no *recognized*
+    # r29 destination. This is not a full symbolic CFG/ABI proof.
+    intervening = [
+        x for x in candidates
+        if R29_THIS_PC < x["pc"] <= caller.CALLS[-1][2]
+    ]
+    if intervening:
+        raise ValueError("Potential r29 receiver reassignment after method entry")
     blocks=[]
     for load_pc,_,call_pc,_ in caller.CALLS:
         earlier=[x for x in candidates if x["pc"] < load_pc]
@@ -80,13 +106,23 @@ def summarize(get_word) -> dict:
         "checked_direct_calls":verified["source_direct_calls_verified"],
         "caller_chains":blocks,
         "static_candidate_count_all_manager_source":len(candidates),
-        "manager_this_register_proven":False,
+        "manager_this_register_proven":True,
+        "manager_r29_saved_from_entry_r3_source_verified":True,
+        "source_selected_pointer_read_from_manager_r29_verified":True,
+        "no_recognized_r29_reassignment_before_both_calls":True,
+        "r29_reassignment_detector_exhaustive":False,
+        "manager_r29_runtime_identity_independently_verified":False,
         "dynamic_execution_proven":False,
         "absolute_shot_heading_verified":False,
         "ball_motion_verified":False,
         "training_allowed":False,
         "allowed_to_publish":False,
-        "interpretation_note":"r29 matches are static register-def candidates; function entry, CFG and full register dataflow still require review."
+        "interpretation_note":(
+            "Exact Rev1 method prologue, entry-r3->r29, +0x334 pointer reads, "
+            "both direct call signatures and absence of known intervening "
+            "r29 destinations verified. This establishes a source-level "
+            "manager-this register chain, not exhaustive CFG/ABI proof or "
+            "independent live receiver-identity/heading calibration.")
     }
 
 def run_local(folder:Path)->dict:
