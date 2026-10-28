@@ -217,9 +217,18 @@ def audit(rows: list[dict], summary: dict) -> dict:
                     else "settled_only_change")
         region_refs = _relative_owners(rows, address)
         effect_slot = _effect_slot(rows, address, layout=effect_spacing)
+        # Cross-reference public Wii source layout WITHOUT asserting that
+        # the observed runtime object has independently proven that type.
+        field = effect_slot["inferred_effect_slot_field"]
+        header_candidate = {
+            "+0x078": "RPSysEffect.mHandle.mObjectID (u32)",
+            "+0x07C": "RPSysEffect.mHandle.mObject (LinkedObject*)",
+        }.get(field)
         records.append({
             "source_relative_owners": region_refs,
             **effect_slot,
+            "source_header_handle_member_candidate": header_candidate,
+            "source_header_correspondence_not_runtime_type_proof": header_candidate is not None,
             "source_owner_stable_across_all_snapshots": bool(region_refs),
             "temporal_pattern": temporal,
             "pointer_like_word_any_phase": any(
@@ -245,6 +254,14 @@ def audit(rows: list[dict], summary: dict) -> dict:
             for field in ("+0x078", "+0x07C")
         }
     )
+    # HandleBase has a u32 ID followed by a LinkedObject* pointer; the
+    # synthetic pattern can agree without *proving* object identity.
+    handle_concordance = complete_slot_pairs and all(
+        (not r["pointer_like_word_any_phase"]
+         if r["inferred_effect_slot_field"] == "+0x078"
+         else r["pointer_like_word_any_phase"])
+        for r in records
+    )
     return {
         "kind": "S002-successful-shot-existing-private-cohort-audit",
         "schema_version": 1,
@@ -266,6 +283,12 @@ def audit(rows: list[dict], summary: dict) -> dict:
         "candidate_count_recomputed_and_matches_saved": len(records),
         "effect_pointer_bases_spaced_0x90_in_all_phases": effect_spacing,
         "repeating_two_word_effect_pairs_observed": complete_slot_pairs,
+        "source_RPSysEffect_HandleBase_pair_layout_concordant": handle_concordance,
+        "source_expected_member_078": "RPSysEffect.mHandle.mObjectID (u32)",
+        "source_expected_member_07C": "RPSysEffect.mHandle.mObject (LinkedObject*)",
+        "RPSysEffect_runtime_object_identity_verified": False,
+        "HandleBase_pointer_target_ID_verified": False,
+        "RPSysEffect_object_size_or_0x90_stride_source_verified": False,
         "repeated_effect_pair_count_if_verified": 4 if complete_slot_pairs else None,
         "effect_stride_interpretation": (
             "source-pointer spacing only; effect entry size and semantics NOT verified"),
