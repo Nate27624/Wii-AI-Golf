@@ -1,0 +1,24 @@
+name: S002 P0 in-flight selected ball cache coherence (offline)
+on:
+  pull_request:
+    paths:
+      - scripts/audit_p0_inflight_cache_coherence_private.py
+      - tests/test_p0_inflight_cache_coherence_private.py
+      - .github/workflows/s002-p0-inflight-cache-coherence.yml
+  workflow_dispatch:
+jobs:
+  synthetic:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: No-Dolphin, no-private-RAM synthetic tests
+        run: python -m unittest discover -s tests -p 'test_p0_inflight_cache_coherence_private.py' -v
+      - name: Compile
+        run: python -m py_compile scripts/audit_p0_inflight_cache_coherence_private.py
