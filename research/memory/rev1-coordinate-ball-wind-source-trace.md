@@ -216,3 +216,56 @@ required before making any code changes to canonical readers.
   `GetWind` signature and raw hole index member.
 - Existing S002 PRs #150, #159, #160 and S000 #154
   are the canonical owners of the follow-on validation.
+
+
+## 2026-10-27: NEW selected player-record state-word writer (candidate, untyped enum)
+
+Inspecting the SAME private US Rev1 DOL with a minimal PowerPC
+disassembly (not a pointer-value scan) identified a compact
+`RPGolPlayer.cpp` state-write routine beginning near
+`0x8029F0A0`. At `0x8029F0C0`, receiver `r3` is copied
+to `r29`, and the routine **writes literal small integer states
+to receiver `+0x24`** along different control paths:
+
+| Rev1 instruction site | Immediate / dataflow | Receiver member |
+| --- | --- | --- |
+| `0x8029F0C8 → 0x8029F0CC` | `li r0,5`; `stw r0,0x24(r3)` | `+0x24` |
+| `0x8029F0D4 → 0x8029F0DC` | `li r0,1`; `stw r0,0x24(r3)` | `+0x24` |
+| `0x8029F0F4 → 0x8029F0F8` | `li r0,2`; `stw r0,0x24(r29)` | `+0x24` |
+| `0x8029F134 → 0x8029F138` | `li r0,3`; `stw r0,0x24(r29)` | `+0x24` |
+| `0x8029F1BC → 0x8029F1C0` | `li r0,4`; `stw r0,0x24(r29)` | `+0x24` |
+
+These are **five source-verified assignments in this function**,
+NOT proof that `{1,2,3,4,5}` exhaust all runtime states or that
+they correspond to a particular phase such as ball contact,
+flight, landing, score, or swing power.
+
+The routine also follows source-linked receiver `+0x88` to
+a ball-related object and calls `RPGolMapObjBall` code at
+`0x80297124` and `0x802973C0` before certain state assignments,
+while inspecting candidate ball object `+0x90/+0x98` words.
+This supplies a plausible causal **player/ball state-machine**
+neighborhood, much stronger than changing background RAM offsets,
+but the named meaning and timing are NOT decoded.
+
+**Proposed S002-only, private OFFLINE triage:** add one bounded
+`source_selected_record+0x24` *integer category check* to existing
+#160 or #163 selected-record reader (one unique B0 still). Return
+only a `candidate_state_writer_matches_Rev1_PPC` boolean and
+`candidate_state_in_known_literal_set` boolean; if unknown raw
+values appear, report `unknown` rather than clamping. No private
+raw integer exposed or published, and DO NOT infer a motion class
+from one still.
+
+**After S001 #166 is reviewed and safe:** if source selector and
+object pointers remain stable, S001 may consider ONE additional
+u32 read for selected record+0x24 inside the existing watch
+window (only with noninterference/budget review), permitting
+subsequent comparison to human-observed swing/landing times.
+Keep source state field separate from physics XYZ and actual
+in-game swing meter: a small-state change is not a power decoder.
+No new game action requested by this source investigation.
+
+Source ranges cross-checked:
+`RPGolPlayer.cpp .text 0x8029E62C..0x802A2210`;
+`RPGolMapObjBall.cpp .text 0x80296FD8..0x8029B240`.
