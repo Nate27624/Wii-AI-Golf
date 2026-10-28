@@ -114,3 +114,39 @@ if ($LASTEXITCODE -ne 0) { throw "Cohort rejected one or more legacy captures; S
 Preconditions: 2..64 existing canonical `outcome-*-RAW-PRIVATE.jsonl` files; each 1..100 snapshots, <=8MB; all must have expected Rev1/mode4 windows, stable instance layout and sorted frame brackets. It rejects **any** malformed matching capture; it never excludes inconvenient records to improve findings. Output `env-cohort-*-summary.json` is local-only and consists of bounded distributions/counts, not independent-boot proven evidence. All raw memory files remain unchanged and private.
 
 **Interpretation:** Repeating hole raw index 1 across captures does not verify its UI meaning; different raw-hole values may indicate a useful environment feature if later visually corroborated. Stable pin object pointers across repeated frames are expected scene metadata, not real-time ball position. Pins/start object counts are array sizes and can remain fixed across hole variants. A full native MEM1 comparative dump is a separate, S001-approved capability study (#148/#151/#153), not automatically required when existing source-labelled fields suffice. Multiple MEM1 comparator draft PRs (#149/#151/#152/#153) overlap in purpose; S000/S002 should designate **one canonical offline comparator** rather than merging all four.
+
+## Existing-capture phase/jointness follow-up (no new Dolphin)
+
+Operator's full Windows tests for the previous #150 head (`cfd8e96`) **passed**, per operator's direct report. This confirmation predates the following new isolated helper and its synthetic tests, so the branch must pass Windows focused and full tests **again** before merge.
+
+Why: 24 prior historical outcome captures have 176 snapshots with coarse max 22-frame non-atomic brackets. Pin reference changes in 7/24 capture files and player start reference changes in 7/24, but the older aggregate could not tell if those were the **same seven files** or the **same observed snapshot boundary**. Five files also showed a wind-arrow/minimap flag change, but we do not know if those are the same files. Neither overlapping file counts nor cochanged adjacent brackets prove the pin/ball moved or that the game transitioned at that moment.
+
+New OFFLINE implementation:
+- `src/wii_ai_golf/audit/environment_phase_joint.py`: checks each private capture using the strict earlier Rev1/mode4/member/frame gates, compares ONLY adjacent reads **inside the same capture file**, and sums transitions grouped as `within_pre`, `pre_to_post`, `within_post`, `post_to_settled`, `within_settled`.
+- `scripts/audit_environment_phase_joint_private.py`: reads only 2–64 canonical local `outcome-*-RAW-PRIVATE.jsonl` files from the ignored sibling Data directory, rejects any malformed file rather than silently cherry-picking, prints and writes one privacy-minimal aggregate summary. **NO ROM, savestate, raw memory, pointer values, absolute addresses, paths, per-file IDs, SHA hashes, RPC, controller writes, Dolphin, Git publication.**
+- `tests/test_environment_phase_joint.py`: synthetic cochange, one-sided difference, UI coincidence, phase, invalid pointer, wrong revision, chronology, privacy and bounds.
+
+The analysis counts pin/start pointer changes at the **same adjacent sample pair**, not necessarily the same emulated frame: each sample may span up to 22 emulated frames, and stage boundaries cross variable unmeasured time. `pre_to_post` includes the known historical shot, so do not assert it identifies pin selection rather than results-scene change.
+
+Run after previous worktree refresh and exact test gate:
+
+```powershell
+$root = "D:\Projects\Wii Golf AI"
+$repo = "$root\Wii-AI-Golf"
+$work = "$root\Wii-AI-Golf-Environment-Offline"
+$branch = "agent/research/environment-memory-offline-audit"
+if (git -C $work status --porcelain) { throw "Worktree dirty; preserve changes" }
+git -C $repo fetch origin "refs/heads/${branch}:refs/remotes/origin/${branch}"
+if ($LASTEXITCODE -ne 0) { throw "Fetch failed" }
+git -C $work switch --detach "origin/$branch"
+if ($LASTEXITCODE -ne 0) { throw "Study refresh failed" }
+Set-Location $work
+py -m unittest discover -s tests -p "test_environment_phase_joint.py" -v
+if ($LASTEXITCODE -ne 0) { throw "New targeted tests failed" }
+py -m unittest discover -s tests -v
+if ($LASTEXITCODE -ne 0) { throw "Full suite failed; do not interpret new cohort" }
+py scripts/audit_environment_phase_joint_private.py
+if ($LASTEXITCODE -ne 0) { throw "Private cochange cohort rejected; preserve records" }
+```
+
+Share ONLY the new printed JSON summary. If an existing legacy capture has missing stages, changed instance identity, bad frame brackets, or unsupported format, it is a valid **study blocker** and will not be suppressed. Next S002 work: verify source-backed pin/start subclass transforms and the wind backing object in both MEM1/MEM2 as required; #3 has a private single native MEM1 finding that scene/config/field object instances are MEM2-resident, so a MEM1-only scan cannot suffice for the environment.
