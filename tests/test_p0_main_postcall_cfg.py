@@ -133,6 +133,25 @@ class TestMainPostcallCfg(unittest.TestCase):
         self.assertFalse(report[
             "source_qualified_scene_completion_site_verified"])
 
+    def test_last_linked_call_would_return_into_distinct_next_function(self):
+        words = list(fixture())
+        words[-1] = bl(m.END - 4, 0x8029B554)
+        report = m.review_source_words(tuple(words))
+        self.assertTrue(report[
+            "source_possible_fallthrough_into_distinct_next_function"])
+        self.assertFalse(report[
+            "source_qualified_post_integrator_completion_site_verified"])
+
+    def test_last_conditional_bclr_has_possible_next_function_fallthrough(self):
+        words = list(fixture())
+        # BO=12 conditional bclr, not plain BO=20 unconditional BLR.
+        words[-1] = (19 << 26) | (12 << 21) | (16 << 1)
+        report = m.review_source_words(tuple(words))
+        self.assertTrue(report[
+            "source_possible_fallthrough_into_distinct_next_function"])
+        self.assertEqual(report["source_LR_branch_possible_exit_offsets"],
+                         ["+0x0190"])
+
     def test_unknown_external_branch_remains_exit(self):
         report = m.review_source_words(fixture({
             0x88: bl(m.ENTRY + 0x88, 0x8029A204, linked=False)
