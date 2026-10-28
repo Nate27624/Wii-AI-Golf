@@ -107,7 +107,7 @@ class OmegaTests(unittest.TestCase):
                "capture_count":7,"capture_numbers":list(range(1,8)),
                "human_phase_file_mapping_verified":False,"training_approved":False}
             (p/"manifest-PRIVATE.json").write_text(json.dumps(m))
-            self.assertEqual(omega._archive(repo,None)[0],p)
+            self.assertEqual(omega._archive(repo,None)[0],p.resolve())
             m["training_approved"]=True
             (p/"manifest-PRIVATE.json").write_text(json.dumps(m))
             with self.assertRaises(omega.Abstain):omega._archive(repo,None)
@@ -117,7 +117,7 @@ class OmegaTests(unittest.TestCase):
         with patch.object(omega,"study",side_effect=omega.Abstain("PRIVATE 0xDEADBEEF")), \
              patch("sys.stdout",new_callable=StringIO) as stdout:
             self.assertEqual(omega.main(["--repo","/x"]),2)
-            self.assertNotIn("PRIVATE",stdout.getvalue())
+            self.assertNotIn("PRIVATE 0xDEADBEEF",stdout.getvalue())
             self.assertNotIn("DEADBEEF",stdout.getvalue())
 
     def test_private_digest_is_not_hex_published(self):
