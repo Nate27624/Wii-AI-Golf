@@ -1,0 +1,27 @@
+name: P0 SimulateManager r26 owner inside published function
+on:
+  push:
+    branches: [ 'agent/research/p0-simulate-f1-r26-function-entry-source-*' ]
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_simulate_f1_r26_function_source_private.py'
+      - 'tests/test_p0_simulate_f1_r26_function_source_private.py'
+      - '.github/workflows/p0-simulate-f1-r26-function-source.yml'
+jobs:
+  native-free:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile source-only Python
+        run: python -m py_compile scripts/audit_p0_simulate_f1_r26_function_source_private.py tests/test_p0_simulate_f1_r26_function_source_private.py
+      - name: New function-bounded r26 synthetic tests
+        run: python -I tests/test_p0_simulate_f1_r26_function_source_private.py
+      - name: Parent exact f1 source store synthetic tests
+        run: python -I tests/test_p0_simulate_distance_f1_store_private.py
