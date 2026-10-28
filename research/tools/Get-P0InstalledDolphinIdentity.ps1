@@ -274,6 +274,31 @@ function Invoke-P0SyntheticSelfTest {
         if ((Find-P0Preview4LiteralInFile $candidate) -ne 'NONE') {
             throw 'No-revision control failed'
         }
+        # Exercise the public-output schema on a fabricated positive PE file.
+        $mockPe = New-Object byte[] 512
+        $mockPe[0] = 0x4D; $mockPe[1] = 0x5A
+        $mockPe[0x3C] = 0x80
+        $mockPe[0x80] = 0x50; $mockPe[0x81] = 0x45
+        $mockPe[0x84] = 0x64; $mockPe[0x85] = 0x86
+        [System.Buffer]::BlockCopy($needle, 0, $mockPe, 256, $needle.Length)
+        [System.IO.File]::WriteAllBytes($exe, $mockPe)
+        $report = Add-P0Preview4LiteralEvidence (Get-P0BinaryIdentity $exe) $exe
+        if ($report.embedded_public_preview4_revision_present -ne $true -or
+            $report.embedded_public_preview4_revision_encoding -ne 'ASCII' -or
+            $report.exact_installed_source_fork_verified -ne $false -or
+            $report.embedded_revision_string_proves_source_build -ne $false -or
+            $report.embedded_revision_string_proves_running_process -ne $false -or
+            $report.game_simulation_step_callback_verified -ne $false) {
+            throw 'Public-only match incorrectly promotes installed source/physics proof'
+        }
+        [System.Array]::Clear($mockPe, 256, $needle.Length)
+        [System.IO.File]::WriteAllBytes($exe, $mockPe)
+        $noMatch = Add-P0Preview4LiteralEvidence (Get-P0BinaryIdentity $exe) $exe
+        if ($noMatch.embedded_public_preview4_revision_present -ne $false -or
+            $noMatch.embedded_public_preview4_revision_encoding -ne $null -or
+            $noMatch.exact_installed_source_fork_verified -ne $false) {
+            throw 'Absent source literal not reported as inconclusive'
+        }
         Write-Output 'P0_OFFLINE_INSTALLED_BINARY_PROBE_SYNTHETIC_TESTS=PASS'
     } finally {
         Remove-Item -LiteralPath $root -Force -Recurse -ErrorAction SilentlyContinue
