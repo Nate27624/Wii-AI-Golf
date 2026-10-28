@@ -1,0 +1,28 @@
+name: S002 P0 Airborne Pin Control (Offline)
+on:
+  pull_request:
+    paths:
+      - "scripts/audit_p0_flight_pin_control_private.py"
+      - "tests/test_p0_flight_pin_control_private.py"
+      - ".github/workflows/s002-p0-pin-control.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fabricated-source:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile source-guarded pin diagnostic
+        run: python -m compileall -q scripts/audit_p0_flight_pin_control_private.py tests/test_p0_flight_pin_control_private.py
+      - name: Run fabricated-data adversarial pin and privacy tests
+        run: python -m unittest discover -s tests -p test_p0_flight_pin_control_private.py -v
