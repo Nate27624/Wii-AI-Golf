@@ -175,6 +175,17 @@ def audit(rows: list[dict], summary: dict) -> dict:
     if len(set(observed)) != 8 or set(observed) != expected:
         raise ValueError("Saved candidates are not the four source handle pairs")
 
+    # Candidate summary addresses alone do not establish a persistent change.
+    # Independently require stable PRE and SETTLED words, with a different
+    # SETTLED value, for EVERY ID and pointer member of each alleged pair.
+    for slot in range(4):
+        for component in (0, 1):
+            observed_words = [snapshot[slot][component] for snapshot in readings]
+            if (not _same(observed_words[:3])
+                    or not _same(observed_words[5:])
+                    or observed_words[0] == observed_words[5]):
+                raise ValueError("Saved candidate is not a persistent phase change")
+
     result = []
     for slot, (id_off, ptr_off) in enumerate(SLOTS):
         ids = [record[slot][0] for record in readings]
