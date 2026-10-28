@@ -11,7 +11,7 @@ for item in (str(ROOT), str(ROOT / "src"), str(ROOT / "scripts")):
     if item in sys.path:
         sys.path.remove(item)
     sys.path.insert(0, item)
-from scripts.collect_outcome_transition import run_session
+from scripts.collect_outcome_transition import main as collector_main, run_session
 from scripts.probe_swing import build_probe
 
 
@@ -148,6 +148,40 @@ class OutcomeCaptureCliTests(unittest.TestCase):
         self.assertEqual(result["settled_screen_observation"],
                          "screen_had_already_transitioned_before_settled_samples")
         self.assertFalse(result["candidate_ranking"]["game_score_verified"])
+        self.assertTrue(result["candidate_ranking"]["candidate_ranking_quarantined"])
+        self.assertEqual(result["candidate_ranking"]["candidates"], [])
+
+    def test_offgreen_100ft_does_not_match_unrelated_memory_word(self):
+        responses = iter(["", "", "", "yes", "no", "100ft"])
+        with tempfile.TemporaryDirectory() as d:
+            result = run_session(object(), raw_path=Path(d) / "RAW.jsonl",
+                pre_samples=2, post_samples=2, settled_samples=2, interval=0,
+                input_fn=lambda _q: next(responses),
+                snapshot_fn=lambda _r, phase: row(
+                    phase, {"pre": 0, "post": 2, "settled": 100}[phase]),
+                swing_fn=lambda _r: {"state": "complete"})
+        self.assertEqual(result["candidate_ranking"]["all_phase_stable_change_count"], 1)
+        self.assertEqual(
+            result["candidate_ranking"]["candidates"][0]["matches_displayed_numeric_label_as"], [])
+        self.assertFalse(result["candidate_ranking"]["game_score_verified"])
+
+    def test_collector_exit_codes_distinguish_cancellations_from_success(self):
+        class DummyRPC:
+            def __enter__(self):
+                return object()
+            def __exit__(self, *args):
+                return False
+        for child_status, expected in (
+            ({"cancelled": True, "raw_data_created": False}, 40),
+            ({"cancelled": True, "raw_data_created": True,
+              "swing_dispatch": {"state": "complete"}}, 41),
+        ):
+            with self.subTest(expected=expected), \
+                 patch("scripts.collect_outcome_transition.FelkRPC",
+                       return_value=DummyRPC()), \
+                 patch("scripts.collect_outcome_transition.run_session",
+                       return_value=child_status):
+                self.assertEqual(collector_main(["--send-live-swing"]), expected)
 
     def test_early_cancel_does_not_write_or_swing(self):
         with tempfile.TemporaryDirectory() as d:
