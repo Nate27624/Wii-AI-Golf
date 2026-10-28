@@ -17,6 +17,9 @@ MEM2_BASE, MEM2_LEN = 0x90000000, 0x04000000
 FIELD_MANAGER_SINGLETON = 0x804BF868
 CURRENT_PIN = 0x44
 CURRENT_START = 0x50
+CUP_OBJECT = 0x54  # cup subclass layout at +0x30 is UNVERIFIED
+NUM_TARGET_OBJECTS = 0x30
+TARGET_OBJECTS_ARRAY = 0x34
 TRANSLATION = 0x30
 
 class DiagnosticError(Exception):
@@ -84,6 +87,37 @@ def inspect(banks: DumpBanks) -> dict:
             entry['status'] = 'rejected'
             entry['reason'] = str(exc)
         output['observations'][name] = entry
+    # Optional related objects; no assumptions about Target array element size.
+    # A cup object's subclass/base offset has NOT been verified.
+    extra = {}
+    try:
+        ptr = object_pointer(banks, manager + CUP_OBJECT, 'cup')
+        translation = banks.vec3(ptr + TRANSLATION)
+        if not all(math.isfinite(v) and abs(v) <= 1e7 for v in translation):
+            raise DiagnosticError('non-finite or too-large cup translation hypothesis')
+        extra['cup'] = {'status': 'unverified_base_layout_hypothesis',
+                        'object_pointer': f"0x{ptr:08X}",
+                        'candidate_translation_xyz': [round(v, 7) for v in translation]}
+    except DiagnosticError as exc:
+        extra['cup'] = {'status': 'no_usable_cup_candidate', 'reason': str(exc)}
+    try:
+        count = banks.word(manager + NUM_TARGET_OBJECTS)
+        array = banks.word(manager + TARGET_OBJECTS_ARRAY)
+        # This is collection metadata only, not a validated per-target array layout.
+        if count > 1024:
+            raise DiagnosticError(f'implausible target count {count}')
+        if count:
+            if array == 0 or array & 3:
+                raise DiagnosticError('non-empty target array null/unaligned')
+            banks.read(array, 4)
+        extra['target_collection'] = {
+            'status': 'unverified_collection_metadata',
+            'count_candidate': count,
+            'array_pointer_candidate': f"0x{array:08X}"}
+    except DiagnosticError as exc:
+        extra['target_collection'] = {'status': 'no_usable_target_collection', 'reason': str(exc)}
+    output['optional_context'] = extra
+
     if all(x['status'] == 'finite_source_layout_candidate' for x in output['observations'].values()):
         output['status'] = 'two_candidate_translations_found_not_verified'
     else:
