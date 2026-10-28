@@ -91,6 +91,11 @@ class CrossHitStratificationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             mod.stratify([q])
 
+    def test_wide_source_config_offset_is_supported(self):
+        x = mod.stratify([run("no", [candidate("+0x1C70", window="golf_config")])])
+        self.assertEqual(x["signature_recurrence"][0]["source_relative_alias_signature"],
+                         "golf_config+0x1C70")
+
     def test_rejects_invalid_outcomes(self):
         with self.assertRaises(ValueError):
             mod.stratify([run("implicitly_no", [candidate()])])
