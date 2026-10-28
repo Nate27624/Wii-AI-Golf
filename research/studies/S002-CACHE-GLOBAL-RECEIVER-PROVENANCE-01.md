@@ -155,3 +155,24 @@ Integrated into existing source-gated, before/after-hashed wedge W5/W6/W7 native
 
 Do not merge until original canonical #231 14-bank SHA trust gate and #247/#253 archive hardening have been reviewed. `allowed_to_publish=false`, model training not approved, same guest frame/real ball XYZ/velocity/power/contact/score still unknown.
 
+
+## 2026-10-28 REAL constructor return study — exact reviewed source 1d250d3
+
+Operator executed source HEAD `1d250d3bcd8d1b9ea2b78d6279c6a2713fe8e953` in a detached local Windows worktree, 11/11 constructor and 13/13 null-guard synthetic tests PASS, and real original W5/W6/W7 source-selected native memory audit PASS. The sanitized new result `static_source_global_slot_xrefs.separate_global_ball_constructor_return_candidates` reports:
+
+| Item | Actual result |
+| --- | --- |
+| Exact public function entry | `fn_8029AB78`, RPGolMapObjBall, 0x21C-byte function |
+| Exact BL to MapObjBase constructor | VERIFIED at unit `+0x3BB8` → `fn_80290A48` |
+| Incoming `r3` source save | ONE candidate: `r31` |
+| Identified plain `blr` returns in function | ONE at unit `+0x3DB8` |
+| Nearest supported `r3` value-side writer | `mr r3,r31` at unit `+0x3DA4` |
+| `r3` return from entry saved register | Syntactically possible TRUE |
+| Class/data opcode at unit `+0x3BCC` | Integer store opcode; exact class meaning UNKNOWN |
+| All paths preserve receiver and return it | FALSE / unproven |
+| Runtime construction/flight or predicted endpoint | FALSE / unproven |
+
+This independently corroborates source-level C++ constructor returning its input object pointer *candidate*, now combined with previously real-verified `fn_8029A038` `operator new(size_t)` → `cmpwi cr0,r3,0` → `beq` null-skip → `bl fn_8029AB78` → `stw r3,source-global-ball-slot`. The only missing source-level edge for constructed-pointer preservation is whether `r31` is altered along reachable constructor paths and whether `r3` can be clobbered after `mr r3,r31` before the final `blr`; even a static proof will NOT establish active runtime execution, rendered ball, world XYZ, projectile velocity, touch/contact/power/score, same guest frame, forecast role or training.
+
+Next distinct S002 target owned by #240: conservative in-function register clobber/return suffix classification for `r31` and `r3` in exactly known public function range; source-only, no broad RAM or source scan, avoid #258 existing **different** global slot-store `r3` micro-CFG and #254/#255 cache receiver CFG. Preserve original private archive and manifest gates; no code changes or uploads outside S002. #219/#262 own source public BL mapping already concluded.
+
