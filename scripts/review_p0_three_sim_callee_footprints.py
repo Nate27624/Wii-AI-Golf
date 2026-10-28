@@ -139,14 +139,14 @@ def analyze(main_words, callee_words, main_report):
             dest=_bc_target(ENTRY+off,w)
             row["source_class"]="conditional_branch"
             row["forward_branch_bypasses_second_BL_syntactically"]=(
-                dest>ENTRY+0x90 and dest<ENTRY+0x194)
+                dest>ENTRY+0x90 and 0x80000000<=dest<0x81800000)
             row["target_main_function_relative_pc"]=(
                 _rel(dest,ENTRY) if ENTRY<=dest<ENTRY+0x194 else None)
         elif op==18:
             dest=_bl_target(ENTRY+off,w)
             row["source_class"]="direct_BL" if w&1 else "direct_B"
             row["forward_branch_bypasses_second_BL_syntactically"]=(
-                not(w&1) and dest>ENTRY+0x90 and dest<ENTRY+0x194)
+                not(w&1) and dest>ENTRY+0x90 and 0x80000000<=dest<0x81800000)
             row["target_main_function_relative_pc"]=(
                 _rel(dest,ENTRY) if ENTRY<=dest<ENTRY+0x194 else None)
         elif op==19:
