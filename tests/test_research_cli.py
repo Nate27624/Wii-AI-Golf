@@ -157,6 +157,7 @@ class ResearchCliTests(unittest.TestCase):
                     "contact_human": "yes",
                     "initial_club_pose_human": "back",
                     "displayed_distance_human": 2.1,
+                    "finished_on_green_human": "yes",
                     "private_player_name": "MUST NEVER PUBLISH",
                 },
                 "known_good_swing_request": {
@@ -220,16 +221,16 @@ class ResearchCliTests(unittest.TestCase):
 
     def test_unqualified_zero_exit_does_not_publish_or_guess_contact(self):
         from wii_ai_golf.lab.github_sync import SyncReport
-        with tempfile.TemporaryDirectory() as folder, \\
+        with tempfile.TemporaryDirectory() as folder, \
              patch.object(research_cli, "sync_merged_main",
-                          return_value=SyncReport("up_to_date")), \\
-             patch.object(research_cli, "_run", return_value=0), \\
-             patch.object(research_cli, "v1_clean_boot_args", return_value=[]), \\
-             patch.object(research_cli, "DATA", Path(folder)), \\
+                          return_value=SyncReport("up_to_date")), \
+             patch.object(research_cli, "_run", return_value=0), \
+             patch.object(research_cli, "v1_clean_boot_args", return_value=[]), \
+             patch.object(research_cli, "DATA", Path(folder)), \
              patch.object(research_cli, "_fresh_human_labels",
-                          return_value={"capture_status": "none_or_ambiguous"}), \\
-             patch.object(research_cli, "_fallback_human_observation") as fallback, \\
-             patch.object(research_cli, "publish_summary") as publish, \\
+                          return_value={"capture_status": "none_or_ambiguous"}), \
+             patch.object(research_cli, "_fallback_human_observation") as fallback, \
+             patch.object(research_cli, "publish_summary") as publish, \
              patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
                    return_value={"revision": "V1-neutral-swing-calls",
                                  "safe_for_isolated_legacy_copy": True}):
@@ -245,16 +246,16 @@ class ResearchCliTests(unittest.TestCase):
     def test_canceled_or_failed_child_never_publishes_or_prompts_contact(self):
         from wii_ai_golf.lab.github_sync import SyncReport
         for child_exit in (40, 41, 1, 2):
-            with self.subTest(child_exit=child_exit), \\
-                 tempfile.TemporaryDirectory() as folder, \\
+            with self.subTest(child_exit=child_exit), \
+                 tempfile.TemporaryDirectory() as folder, \
                  patch.object(research_cli, "sync_merged_main",
-                              return_value=SyncReport("up_to_date")), \\
-                 patch.object(research_cli, "_run", return_value=child_exit), \\
-                 patch.object(research_cli, "v1_clean_boot_args", return_value=[]), \\
-                 patch.object(research_cli, "DATA", Path(folder)), \\
-                 patch.object(research_cli, "_fresh_human_labels") as labels, \\
-                 patch.object(research_cli, "_fallback_human_observation") as fallback, \\
-                 patch.object(research_cli, "publish_summary") as publish, \\
+                              return_value=SyncReport("up_to_date")), \
+                 patch.object(research_cli, "_run", return_value=child_exit), \
+                 patch.object(research_cli, "v1_clean_boot_args", return_value=[]), \
+                 patch.object(research_cli, "DATA", Path(folder)), \
+                 patch.object(research_cli, "_fresh_human_labels") as labels, \
+                 patch.object(research_cli, "_fallback_human_observation") as fallback, \
+                 patch.object(research_cli, "publish_summary") as publish, \
                  patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
                        return_value={"revision": "V1-neutral-swing-calls",
                                      "safe_for_isolated_legacy_copy": True}):
