@@ -109,8 +109,8 @@ function Get-P0BinaryIdentity([string]$Path) {
         $size = [long]$start.Length
         $hash = (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256 -ErrorAction Stop).Hash
         $end = Get-Item -LiteralPath $item.FullName -ErrorAction Stop
-        if ([long]$end.Length -ne $size -or $end.LastWriteTimeUtc.Ticks -ne $stamp
-            -or $hash -cnotmatch '^[0-9A-F]{64}$') {
+        if ([long]$end.Length -ne $size -or $end.LastWriteTimeUtc.Ticks -ne $stamp -or
+            $hash -cnotmatch '^[0-9A-F]{64}$') {
             return (New-P0Abstain 'BINARY_CHANGED_DURING_READ')
         }
         $result.binary_sha256 = $hash.ToLowerInvariant()
@@ -145,18 +145,18 @@ function Invoke-P0SyntheticSelfTest {
         [System.IO.File]::WriteAllBytes($exe, $bytes)
 
         $positive = Get-P0BinaryIdentity $exe
-        if ($positive.status -ne 'LOCAL_BINARY_IDENTIFIED_SOURCE_UNVERIFIED'
-            -or $positive.binary_machine -ne 'AMD64'
-            -or $positive.binary_sha256.Length -ne 64
-            -or $positive.game_simulation_step_callback_verified
-            -or $positive.allowed_to_publish) {
+        if ($positive.status -ne 'LOCAL_BINARY_IDENTIFIED_SOURCE_UNVERIFIED' -or
+            $positive.binary_machine -ne 'AMD64' -or
+            $positive.binary_sha256.Length -ne 64 -or
+            $positive.game_simulation_step_callback_verified -or
+            $positive.allowed_to_publish) {
             throw 'Positive synthetic PE/header control failed'
         }
         $invalid = Join-Path $root 'invalid.exe'
         [System.IO.File]::WriteAllBytes($invalid, (New-Object byte[] 512))
         $negative = Get-P0BinaryIdentity $invalid
-        if ($negative.abstain_reason -ne 'NOT_MZ_EXECUTABLE'
-            -or $negative.binary_sha256 -ne $null) {
+        if ($negative.abstain_reason -ne 'NOT_MZ_EXECUTABLE' -or
+            $negative.binary_sha256 -ne $null) {
             throw 'Invalid header was not rejected'
         }
         $missing = Get-P0BinaryIdentity (Join-Path $root 'absent.exe')
