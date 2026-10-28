@@ -20,6 +20,7 @@ def fixture(*, start_equals_ball=True, start_selfref=True):
     words, refs = synthetic()
     source_flow_fixture(words)
     pm = refs["pm"]
+    words[refs["config"] + 0x98] = 1
     field = words[roster.GOLF_FIELD_STATIC]
     start = 0x91040000
     start_vec = start + 0x30
