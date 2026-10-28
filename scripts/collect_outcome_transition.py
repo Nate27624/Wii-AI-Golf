@@ -76,6 +76,42 @@ def _visual_label(input_fn: Callable[[str], str]) -> dict[str, Any]:
             "game_distance_verified_by_memory": False}
 
 
+
+def _result_first_checkpoint(input_fn: Callable[[str], str]) -> dict[str, Any]:
+    """Human-only prompt BEFORE post-shot RAM reads; never infer a screen from RPC.
+
+    One fast categorical response is prioritized over numeric transcription.
+    The operator may save a PRIVATE screenshot locally before entering a
+    category. No screenshot/path/frame is read, inferred, or published.
+    """
+    choices = {"g": "on_green", "m": "off_green",
+               "u": "visible_unknown", "t": "transitioned", "q": "cancelled"}
+    while True:
+        response = input_fn(
+            "RESULT VISIBLE NOW? g=ball ON green, m=OFF green, "
+            "u=screen visible/uncertain, t=already transitioned, "
+            "q=cancel (optional PRIVATE screenshot before reply): "
+        ).strip().lower()
+        if response in choices:
+            break
+        print("Enter g, m, u, t or q; never guess a missed screen.")
+    category = choices[response]
+    value, unit = None, "not-visible"
+    if category == "on_green":
+        # Ask only on-green proximity, immediately after the category; do not
+        # loop through long surveys while a transient result disappears.
+        raw = input_fn("ON-GREEN displayed distance NOW (e.g. 2.1ft; blank if unseen): ").strip()
+        if raw.lower() == "q":
+            return {"category": "cancelled", "distance": None, "unit": "not-visible"}
+        try:
+            value, suffix = parse_displayed_distance(raw)
+            unit = (suffix or "unknown") if value is not None else "not-visible"
+        except ValueError:
+            print("Unparseable on-screen text: treating distance as UNSEEN.")
+    return {"category": category, "distance": value, "unit": unit}
+
+
+
 def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 post_samples: int, settled_samples: int, interval: float,
                 input_fn: Callable[[str], str] = operator_input,
@@ -89,7 +125,8 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 speed_scale: float = 1.0,
                 backswing_scale: float = 1.0,
                 trial_seed: int | None = None,
-                ask_power: bool = False) -> dict[str, Any]:
+                ask_power: bool = False,
+                result_first: bool = False) -> dict[str, Any]:
     """One opted-in forward shot, bounded RAM snapshots and human landing label.
 
     Write private raw JSONL immediately, exclusively; cancellation preserves
@@ -193,25 +230,47 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         if not isinstance(stroke, dict):
             raise RuntimeError("Swing scheduler did not return a status dict")
         print("Swing dispatch finished; this does NOT establish ball contact.", flush=True)
-        print("WATCH THE BALL: only brief post-shot snapshots precede the landing prompt. "
-              "Do not wait for the game's automatic next-screen transition.", flush=True)
-        capture_stage("post", post_samples)
-        while True:
-            label = input_fn(
-                "As soon as the ball stops (BEFORE next screen), press ENTER. "
-                "If already transitioned, type t; q cancels: ").strip().lower()
-            if label in ("", "t", "q"):
-                break
-            print("Please use ENTER, t (already transitioned), or q.")
-        if label == "q":
-            return {"cancelled": True, "raw_data_created": True,
-                    "partial_samples": len(rows), "swing_dispatch": stroke}
-        stage_valid = label == ""
-        # A transition may already show a different game phase: keep PRE/POST
-        # raw evidence but do not call subsequent RAM samples "settled".
-        if stage_valid:
-            capture_stage("settled", settled_samples)
-    annotation = _visual_label(input_fn)
+        checkpoint = None
+        if result_first:
+            # The high-priority human-visible terminal result precedes EVERY
+            # post-swing RAM snapshot. Do NOT claim late memory belongs to the
+            # on-screen final ball: no post/settled reads in this mode.
+            checkpoint = _result_first_checkpoint(input_fn)
+            if checkpoint["category"] == "cancelled":
+                return {"cancelled": True, "raw_data_created": True,
+                        "partial_samples": len(rows), "swing_dispatch": stroke}
+            stage_valid = checkpoint["category"] not in ("transitioned",)
+        else:
+            print("WATCH THE BALL: brief post-shot snapshots precede the landing prompt. "
+                  "Do not wait for the game's automatic next-screen transition.", flush=True)
+            capture_stage("post", post_samples)
+            while True:
+                label = input_fn(
+                    "As soon as the ball stops (BEFORE next screen), press ENTER. "
+                    "If already transitioned, type t; q cancels: ").strip().lower()
+                if label in ("", "t", "q"):
+                    break
+                print("Please use ENTER, t (already transitioned), or q.")
+            if label == "q":
+                return {"cancelled": True, "raw_data_created": True,
+                        "partial_samples": len(rows), "swing_dispatch": stroke}
+            stage_valid = label == ""
+            if stage_valid:
+                capture_stage("settled", settled_samples)
+    if result_first:
+        # Contact itself is later human recollection, not a bridge-verified hit.
+        contact = _answer("Was the ball visibly struck? [yes/no/unknown]: ",
+                          allowed={"yes", "no", "unknown"}, input_fn=input_fn)
+        green = ("yes" if checkpoint["category"] == "on_green" else
+                 "no" if checkpoint["category"] == "off_green" else "unknown")
+        annotation = {
+            "contact_human": contact, "finished_on_green_human": green,
+            "displayed_distance_human": checkpoint["distance"],
+            "displayed_unit_human": checkpoint["unit"],
+            "game_distance_verified_by_memory": False,
+        }
+    else:
+        annotation = _visual_label(input_fn)
     if ask_power:
         while True:
             value = input_fn("Observed on-screen power percent (0..100; blank if not visible): ").strip()
@@ -239,14 +298,16 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         and not (distance == 100 and annotation["displayed_unit_human"] == "ft")
         else None
     )
-    if stage_valid:
+    if stage_valid and not result_first:
         ranked = rank_outcome_candidates(rows, human_distance=measured_candidate)
     else:
         ranked = {
             "schema_version": 1, "candidates": [],
             "all_phase_stable_change_count": 0,
             "candidate_ranking_quarantined": True,
-            "not_ranked_reason": "terminal_screen_already_transitioned",
+            "not_ranked_reason": (
+                "result_first_no_guest_settled_epoch" if result_first
+                else "terminal_screen_already_transitioned"),
             "game_score_verified": False, "ball_position_verified": False,
         }
     return {"schema_version": 1, "source": "live-emulator-read-only-US-Rev1+human-result-label",
@@ -281,6 +342,10 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                     else "externally_injected_swing_unknown"),
             },
             "human_observation": annotation,
+            "terminal_capture_mode": (
+                "result_first_human_prompt" if result_first else "legacy_post_ram_first"),
+            "terminal_human_category": (
+                checkpoint["category"] if checkpoint else "legacy_unqualified"),
             "settled_screen_observation": (
                 "operator_confirmed_before_transition" if stage_valid
                 else "screen_had_already_transitioned_before_settled_samples"),
@@ -312,6 +377,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="Scale only backward-travel distance; preserve forward travel, speed and A timing")
     p.add_argument("--trial-seed", type=int, default=None)
     p.add_argument("--ask-power", action="store_true",help="Record the visible game power meter if shown")
+    p.add_argument("--result-first", action="store_true",
+                   help="Human terminal result BEFORE any post-shot RAM; no settled RAM claims")
     args = p.parse_args(argv)
     if not args.send_live_swing:
         p.error("Requires --send-live-swing and the canonical fresh-launch wrapper")
@@ -349,7 +416,7 @@ def main(argv: list[str] | None = None) -> int:
                              motion_scale=scale,speed_scale=args.speed_scale,
                              backswing_scale=args.backswing_scale,
                              trial_seed=args.trial_seed,
-                             ask_power=args.ask_power)
+                             ask_power=args.ask_power, result_first=args.result_first)
     if result.get("cancelled"):
         print("Session cancelled (NOT a completed shot):", result)
         # Distinct from a successful 0 exit. The outer launcher may forward
