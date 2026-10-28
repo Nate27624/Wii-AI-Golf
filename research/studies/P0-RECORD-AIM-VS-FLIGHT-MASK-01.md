@@ -17,3 +17,18 @@ Never prints run-specific pointers, absolute RAM addresses, bytes, whole 51-word
 ## Owner and dependency
 
 Stacked on draft #223 (and its inherited #181/#163/#160 source readers). This script does NOT edit #223 source reader or #224 pin owner, another agent's four-slot test, S001 #222 V1 swing/bridge, or S000 #205 registry. S002/S000 review needed; S001 already has 32/32 stationary and 70/70 no-contact reader feasibility but no source-joined actual flight. No new swing/export required for this offline question. Tests are synthetic until exact private source-gated Windows execution; do not claim actual 21-vs-WASD overlap without that operator result.
+
+## Actual Windows private-bank execution (2026-10-28, exact original code HEAD ec0ff012b5e570e9855c08f7a7f9c251abd2a086)
+
+The operator executed the exact SHA-pinned **synthetic 14/14 PASS** tests and then the **REAL** private B0/B1/B2/B3 plus preserved human-airborne RAM comparison. The source-gated analysis completed `P0_RECORD_AIM_FLIGHT_ANALYSIS_COMPLETE`; native SHA, revision, source owner/selected slot/hole/self-reference gates passed. No Dolphin launch or private raw publication.
+
+| Original human-labeled transition | Selected player record changed u32 word count |
+| --- | ---: |
+| B0 idle → B1 idle | 1 |
+| B1 idle → B2 WASD-only aim | 18 |
+| B2 WASD-only aim → B3 idle after aim | 1 |
+| B0 idle → human-observed airborne | 21 |
+
+**Exact 18 overlapping aim/control offsets:** `+0x03C,+0x040,+0x044,+0x048,+0x04C,+0x090,+0x094,+0x098,+0x09C,+0x0A0,+0x0A4,+0x0A8,+0x0AC,+0x0B0,+0x0B4,+0x0B8,+0x0BC,+0x0C0`. They ALL changed during B1→B2 aim-only, so MUST NOT be called flight-unique. **Only THREE changed record words absent from all B0→B1/B1→B2/B2→B3 no-shot-control changes:** `+0x034,+0x038,+0x074`. These three are *control-exclusive*, not yet shot- or flight-causal, and may reflect game UI, shot-phase, lifecycle or different boot rather than motion physics. Selected candidate ball vector **stable across B0–B3** and start stable; flight is separately observed human-airborne. Selected PIN pointer and START pointer changed B0→flight despite hole/slot stable, and PIN translation changed 3/3, so static target geometry still confounded (S002 #224). Separate inactive three ball slots unchanged while selected slot changed in flight; caches are four distinct 3-word patterns including current during flight (S002 #225). Neither implies guest-atomic export or physics target.
+
+**Follow-up owner question:** perform source-backed Rev1 RPGolPlayer/PlayerManager read/write and receiver tracing specifically for `record+0x34,+0x38,+0x74`, if not already covered by other active source studies; do not infer field types from offset arithmetic or represent a `lwz/stw/lfs/stfs` displacement as a proven record receiver. Check same-phase idle/no-contact controls or heldout actual timed shot only after owners approve. All `actual_world_xyz`, velocity, power, score, frame identity and `training_approved` remain false. The prior "synthetic only" statement above describes **pre-operator** state and is superseded here by this successful real offline audit; draft ownership, full-suite and merge reviews still outstanding.
