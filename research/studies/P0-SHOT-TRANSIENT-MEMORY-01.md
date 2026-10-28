@@ -38,8 +38,8 @@ $present = (git -C $work rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $present -ne $expected) { throw 'Existing worktree is not the reviewed head; preserve it and STOP' }
 $changes = @(git -C $work status --porcelain)
 if ($LASTEXITCODE -ne 0 -or $changes.Count -ne 0) { throw 'Review worktree dirty; preserve existing changes and STOP' }
-& (Join-Path $work 'scripts\Invoke-P0ShotTransientAudit.ps1')
-if (-not $?) { throw 'Private audit failed' }
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $work 'scripts\Invoke-P0ShotTransientAudit.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Private audit failed' }
 Set-Location -LiteralPath $repo
 ```
 
