@@ -71,7 +71,7 @@ class ManifestGuardTests(unittest.TestCase):
 
     def test_exact_14_original_bank_digests_pass(self):
         path, digest = audit.verify_original_archive(self.folder)
-        self.assertEqual(path, self.folder)
+        self.assertEqual(path, self.folder.resolve(strict=True))
         self.assertEqual(len(digest), 64)
 
     def test_preexisting_modified_bank_is_refused_even_when_stable(self):
@@ -136,7 +136,7 @@ class ManifestGuardTests(unittest.TestCase):
         with patch.object(audit.writer, "run_local",
                           return_value=self._safe_result()) as reader:
             report = audit.run_local(self.folder)
-        reader.assert_called_once_with(self.folder)
+        reader.assert_called_once_with(self.folder.resolve(strict=True))
         self.assertTrue(report[
             "original_seven_archive_14_bank_manifest_sha_matched_before_after"])
         self.assertFalse(report["human_phase_mapping_independently_verified"])
