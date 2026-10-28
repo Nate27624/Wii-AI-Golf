@@ -1,0 +1,28 @@
+name: P0 SimulateManager one F1 source store destination
+on:
+  push:
+    branches:
+      - 'agent/research/p0-simulate-distance-f1-store-destination-*'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_simulate_distance_f1_store_private.py'
+      - 'tests/test_p0_simulate_distance_f1_store_private.py'
+      - '.github/workflows/p0-simulate-one-distance-f1-store.yml'
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile Python
+        run: python -m py_compile scripts/audit_p0_simulate_distance_f1_store_private.py tests/test_p0_simulate_distance_f1_store_private.py
+      - name: New native-free exact source-site tests
+        run: python -I tests/test_p0_simulate_distance_f1_store_private.py
+      - name: Prior source-call coverage
+        run: python -I tests/test_p0_golf_vec_f1_and_arguments_private.py
