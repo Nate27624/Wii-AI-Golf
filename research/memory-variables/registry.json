@@ -211,13 +211,16 @@
       "evidence": {
         "source_urls": [
           "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolFieldManager.h",
-          "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolMapObjBase.h"
+          "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolMapObjBase.h",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/223",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
         ],
         "capture_groups": [
           "B0–B3 single study",
-          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study",
+          "B0 idle vs human airborne private 24MiB/64MiB bank comparison, source chain checked, pin confounded"
         ],
-        "observed_behavior": "Finite identical three-component candidate in B0–B3; static during study | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON.",
+        "observed_behavior": "Finite identical three-component candidate in B0–B3; static during study | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON. | 2026-10-28 HUMAN-OBSERVED AIRBORNE fullbank vs B0 source-gated comparison: 0/3 big-endian component words DIFFER (B0 idle vs flight), same source hole/player index, stable Golf executable regions; start 0/3 changes, pin 3/3 changes. Ball changed but no guest-frame atomicity, same-boot proof, verified world axes/units, vertical velocity or training. Caches may alias/copy other ball state; pin needs provenance and source-pointer control.",
         "source_confidence": "field_pointer_source_backed_translation_layout_hypothesis"
       },
       "limitations": [
@@ -295,13 +298,16 @@
       "evidence": {
         "source_urls": [
           "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolFieldManager.h",
-          "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolMapObjBase.h"
+          "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolMapObjBase.h",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/223",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
         ],
         "capture_groups": [
           "B0–B3 single study",
-          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study",
+          "B0 idle vs human airborne private 24MiB/64MiB bank comparison, source chain checked, pin confounded"
         ],
-        "observed_behavior": "Finite stable XYZ candidate; X/Z coincide with cup translation hypothesis | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON.",
+        "observed_behavior": "Finite stable XYZ candidate; X/Z coincide with cup translation hypothesis | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON. | 2026-10-28 HUMAN-OBSERVED AIRBORNE fullbank vs B0 source-gated comparison: 3/3 big-endian component words DIFFER (B0 idle vs flight), same source hole/player index, stable Golf executable regions; start 0/3 changes, pin 3/3 changes. Ball changed but no guest-frame atomicity, same-boot proof, verified world axes/units, vertical velocity or training. Caches may alias/copy other ball state; pin needs provenance and source-pointer control.",
         "source_confidence": "source_layout_and_snapshot_correlated"
       },
       "limitations": [
@@ -784,14 +790,17 @@
         "source_urls": [
           "https://github.com/Nate27624/Wii-AI-Golf/pull/160",
           "https://github.com/Nate27624/Wii-AI-Golf/pull/162",
-          "https://github.com/Nate27624/Wii-AI-Golf/pull/181"
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/181",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/223",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
         ],
         "capture_groups": [
           "one unique still-state source-gated pair",
           "B0–B3 operator no-shot/aim study",
-          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study",
+          "B0 idle vs human airborne private 24MiB/64MiB bank comparison, source chain checked, pin confounded"
         ],
-        "observed_behavior": "Record+0x54 copied into linked ball object's +0x4C translation through verified Rev1 PPC writer; matches start 3/3 in still-state. Not dynamic flight verified. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON.",
+        "observed_behavior": "Record+0x54 copied into linked ball object's +0x4C translation through verified Rev1 PPC writer; matches start 3/3 in still-state. Not dynamic flight verified. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON. | 2026-10-28 HUMAN-OBSERVED AIRBORNE fullbank vs B0 source-gated comparison: 0/3 big-endian component words DIFFER (B0 idle vs flight), same source hole/player index, stable Golf executable regions; start 0/3 changes, pin 3/3 changes. Ball changed but no guest-frame atomicity, same-boot proof, verified world axes/units, vertical velocity or training. Caches may alias/copy other ball state; pin needs provenance and source-pointer control.",
         "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
       },
       "limitations": [
@@ -865,14 +874,17 @@
       "evidence": {
         "source_urls": [
           "https://github.com/Nate27624/Wii-AI-Golf/pull/162",
-          "https://github.com/Nate27624/Wii-AI-Golf/pull/160"
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/160",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/223",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
         ],
         "capture_groups": [
           "one unique still-state source-gated pair",
           "B0–B3 operator no-shot/aim study",
-          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study",
+          "B0 idle vs human airborne private 24MiB/64MiB bank comparison, source chain checked, pin confounded"
         ],
-        "observed_behavior": "Source-selected START getter initializes record+0x60/+0x64/+0x68; 3/3 matches at still-state. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON.",
+        "observed_behavior": "Source-selected START getter initializes record+0x60/+0x64/+0x68; 3/3 matches at still-state. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON. | 2026-10-28 HUMAN-OBSERVED AIRBORNE fullbank vs B0 source-gated comparison: 0/3 big-endian component words DIFFER (B0 idle vs flight), same source hole/player index, stable Golf executable regions; start 0/3 changes, pin 3/3 changes. Ball changed but no guest-frame atomicity, same-boot proof, verified world axes/units, vertical velocity or training. Caches may alias/copy other ball state; pin needs provenance and source-pointer control.",
         "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
       },
       "limitations": [
@@ -954,14 +966,17 @@
           "https://github.com/Nate27624/Wii-AI-Golf/pull/181",
           "https://github.com/Nate27624/Wii-AI-Golf/pull/219",
           "https://github.com/Nate27624/Wii-AI-Golf/pull/215",
-          "https://github.com/Nate27624/Wii-AI-Golf/pull/218"
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/218",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/223",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
         ],
         "capture_groups": [
           "one unique still-state source-gated pair",
           "B0–B3 operator no-shot/aim study",
-          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study",
+          "B0 idle vs human airborne private 24MiB/64MiB bank comparison, source chain checked, pin confounded"
         ],
-        "observed_behavior": "Source-checked code loads ball object +0x4C selfref to +0x30 triple, and copies selected record; one still-state 3/3 equality with start, inactive slots differ. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON. | S002 source PPC trace in PR #219 finds RPGolMain->PlayerManager fn_802A30F8->fn_802A0320 with 3 float stores to source-linked nested ball translation; S001 post-recovery native stationary watch qualified 32/32 low-latency samples; subsequent source-selected no-contact V1 control had 70/70 private 51-word player records, 45 observed A frames, 89/89 dispatch, no visible ball movement and unchanged candidate translation. These are source connectivity and stationary controls, NOT real in-flight XYZ/velocity.",
+        "observed_behavior": "Source-checked code loads ball object +0x4C selfref to +0x30 triple, and copies selected record; one still-state 3/3 equality with start, inactive slots differ. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON. | S002 source PPC trace in PR #219 finds RPGolMain->PlayerManager fn_802A30F8->fn_802A0320 with 3 float stores to source-linked nested ball translation; S001 post-recovery native stationary watch qualified 32/32 low-latency samples; subsequent source-selected no-contact V1 control had 70/70 private 51-word player records, 45 observed A frames, 89/89 dispatch, no visible ball movement and unchanged candidate translation. These are source connectivity and stationary controls, NOT real in-flight XYZ/velocity. | 2026-10-28 HUMAN-OBSERVED AIRBORNE fullbank vs B0 source-gated comparison: 3/3 big-endian component words DIFFER (B0 idle vs flight), same source hole/player index, stable Golf executable regions; start 0/3 changes, pin 3/3 changes. Ball changed but no guest-frame atomicity, same-boot proof, verified world axes/units, vertical velocity or training. Caches may alias/copy other ball state; pin needs provenance and source-pointer control.",
         "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
       },
       "limitations": [
@@ -1038,14 +1053,17 @@
           "https://github.com/Nate27624/Wii-AI-Golf/pull/181",
           "https://github.com/Nate27624/Wii-AI-Golf/pull/183",
           "https://github.com/Nate27624/Wii-AI-Golf/pull/162",
-          "https://github.com/Nate27624/Wii-AI-Golf/pull/219"
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/219",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/223",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
         ],
         "capture_groups": [
           "one unique still-state source-gated pair",
           "B0–B3 operator no-shot/aim study",
-          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study",
+          "B0 idle vs human airborne private 24MiB/64MiB bank comparison, source chain checked, pin confounded"
         ],
-        "observed_behavior": "Rev1 PPC initialization copies current translation into +0xCC triple; matched source START 3/3 in still B0. Separate writer may copy from another ball object. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON. | Static PPC caller graph #219 identifies two routes to ball cache refresh fn_80299C70 from SimulateManager/MapObjBall code, but neither branch nor cache writes are proven executed during physical flight; current B0–B3 caches stayed unchanged.",
+        "observed_behavior": "Rev1 PPC initialization copies current translation into +0xCC triple; matched source START 3/3 in still B0. Separate writer may copy from another ball object. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON. | Static PPC caller graph #219 identifies two routes to ball cache refresh fn_80299C70 from SimulateManager/MapObjBall code, but neither branch nor cache writes are proven executed during physical flight; current B0–B3 caches stayed unchanged. | 2026-10-28 HUMAN-OBSERVED AIRBORNE fullbank vs B0 source-gated comparison: 3/3 big-endian component words DIFFER (B0 idle vs flight), same source hole/player index, stable Golf executable regions; start 0/3 changes, pin 3/3 changes. Ball changed but no guest-frame atomicity, same-boot proof, verified world axes/units, vertical velocity or training. Caches may alias/copy other ball state; pin needs provenance and source-pointer control.",
         "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
       },
       "limitations": [
@@ -1118,14 +1136,17 @@
         "source_urls": [
           "https://github.com/Nate27624/Wii-AI-Golf/pull/183",
           "https://github.com/Nate27624/Wii-AI-Golf/pull/181",
-          "https://github.com/Nate27624/Wii-AI-Golf/pull/219"
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/219",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/223",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
         ],
         "capture_groups": [
           "one unique still-state source-gated pair",
           "B0–B3 operator no-shot/aim study",
-          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study",
+          "B0 idle vs human airborne private 24MiB/64MiB bank comparison, source chain checked, pin confounded"
         ],
-        "observed_behavior": "PPC conditional path writes current position to +0xF0/+0xF4/+0xF8 after goal-related planar first/third-component calculation; B0 matches source START. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON. | Static PPC caller graph #219 traces two BL entry routes to fn_80299C70; branch conditions and active receiver not identified at runtime. No observed in-flight cache changes.",
+        "observed_behavior": "PPC conditional path writes current position to +0xF0/+0xF4/+0xF8 after goal-related planar first/third-component calculation; B0 matches source START. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON. | Static PPC caller graph #219 traces two BL entry routes to fn_80299C70; branch conditions and active receiver not identified at runtime. No observed in-flight cache changes. | 2026-10-28 HUMAN-OBSERVED AIRBORNE fullbank vs B0 source-gated comparison: 3/3 big-endian component words DIFFER (B0 idle vs flight), same source hole/player index, stable Golf executable regions; start 0/3 changes, pin 3/3 changes. Ball changed but no guest-frame atomicity, same-boot proof, verified world axes/units, vertical velocity or training. Caches may alias/copy other ball state; pin needs provenance and source-pointer control.",
         "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
       },
       "limitations": [
@@ -1196,14 +1217,17 @@
         "source_urls": [
           "https://github.com/Nate27624/Wii-AI-Golf/pull/183",
           "https://github.com/Nate27624/Wii-AI-Golf/pull/181",
-          "https://github.com/Nate27624/Wii-AI-Golf/pull/219"
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/219",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/223",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
         ],
         "capture_groups": [
           "one unique still-state source-gated pair",
           "B0–B3 operator no-shot/aim study",
-          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study"
+          "B0–B3 no-shot/aim source-object JSON: 10 tests passed; true ball phase unverified outside this study",
+          "B0 idle vs human airborne private 24MiB/64MiB bank comparison, source chain checked, pin confounded"
         ],
-        "observed_behavior": "Separate PPC branch writes current position to +0xFC/+0x100/+0x104 following middle-component comparison; B0 matches source START. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON. | Static PPC caller graph #219 traces two BL entry routes to fn_80299C70; branch conditions and active receiver not identified at runtime. No observed in-flight cache changes.",
+        "observed_behavior": "Separate PPC branch writes current position to +0xFC/+0x100/+0x104 following middle-component comparison; B0 matches source START. | 2026-10-28 operator four-phase JSON: B0 idle baseline → B1 delayed idle → B2 WASD aim → B3 idle after aim (one study): source-selected ball XYZ, player-record position +0x54/+0x60 and start/pin map translations each changed 0/0/0 of 3 components; all 4 ball-object current +0x30 and caches +0xCC/+0xF0/+0xFC changed 0/0/0 of 3 components. Selected player record slot 0 changed 1/18/1 total aligned words; other slots each 0/0/0. The ball vector stayed word-equal to selected start in every phase. Real operator ran private source-window script and 10/10 synthetic tests passed. This is an aim/idle no-shot negative, NOT independent proof of physical ball motion, frame atomicity or a specific nonstationary JSON. | Static PPC caller graph #219 traces two BL entry routes to fn_80299C70; branch conditions and active receiver not identified at runtime. No observed in-flight cache changes. | 2026-10-28 HUMAN-OBSERVED AIRBORNE fullbank vs B0 source-gated comparison: 3/3 big-endian component words DIFFER (B0 idle vs flight), same source hole/player index, stable Golf executable regions; start 0/3 changes, pin 3/3 changes. Ball changed but no guest-frame atomicity, same-boot proof, verified world axes/units, vertical velocity or training. Caches may alias/copy other ball state; pin needs provenance and source-pointer control.",
         "source_confidence": "PPC_source_related_snapshot_corroborated_not_physical"
       },
       "limitations": [
@@ -1653,20 +1677,9 @@
   "authority_boundary": "This is the typed discovery/extraction access index and training-eligibility gate. PR #154 research/memory/field-evidence-ledger.json remains the more detailed source-evidence/identity/behavior ledger; this registry DOES NOT supersede its records. Reconcile references during PR reviews.",
   "last_operator_evidence": {
     "date": "2026-10-28",
-    "source": "https://github.com/Nate27624/Wii-AI-Golf/pull/205",
-    "study": "11 human-contact positive-hit recordings: contested outcome label",
-    "summary": "2026-10-28 operator disputes the single originally recorded green=yes label; says they do not recall ANY shot landing on the green. Preserve raw entry yes:1/no:10/unknown:0 as original unverified human annotations, but positive outcome is now adjudication=DISPUTED, game-confirmed green landings=0 established; do not infer that its real physical outcome was no. No outcome-specific training or success/failure label until replay or screenshot verification.",
-    "raw_labels": {
-      "recorded_green_yes": 1,
-      "recorded_green_no": 10,
-      "recorded_green_unknown": 0
-    },
-    "adjudication": {
-      "recorded_green_yes_status": "disputed_by_operator",
-      "independently_confirmed_green_yes_count": 0,
-      "confirmed_absence_of_green_landing": false,
-      "verify_using": "same-shot visual capture, original game UI or independent replay"
-    },
+    "study": "Source-gated B0 vs operator-airborne dual-bank pair; strong selected ball+cache change but pin control 3/3 changed",
+    "source": "https://github.com/Nate27624/Wii-AI-Golf/pull/223",
+    "summary": "Selected ball and three cache vectors all differ 3/3, player record +0x54/+0x60 and start 0/3, PIN 3/3; source/hole/slot gates pass, full-bank hash preservation; world XYZ/velocity/frame/units/training unverified.",
     "training_allowed": false
   },
   "research_source_links": {
@@ -1674,5 +1687,60 @@
     "current_PPC_writer_callgraph": "https://github.com/Nate27624/Wii-AI-Golf/pull/219",
     "idle_watcher_native_qualification": "https://github.com/Nate27624/Wii-AI-Golf/pull/215",
     "no_contact_reference": "https://github.com/Nate27624/Wii-AI-Golf/pull/220"
-  }
+  },
+  "operator_evidence_history": [
+    {
+      "date": "2026-10-28",
+      "source": "https://github.com/Nate27624/Wii-AI-Golf/pull/205",
+      "study": "11 human-contact positive-hit recordings: contested outcome label",
+      "summary": "2026-10-28 operator disputes the single originally recorded green=yes label; says they do not recall ANY shot landing on the green. Preserve raw entry yes:1/no:10/unknown:0 as original unverified human annotations, but positive outcome is now adjudication=DISPUTED, game-confirmed green landings=0 established; do not infer that its real physical outcome was no. No outcome-specific training or success/failure label until replay or screenshot verification.",
+      "raw_labels": {
+        "recorded_green_yes": 1,
+        "recorded_green_no": 10,
+        "recorded_green_unknown": 0
+      },
+      "adjudication": {
+        "recorded_green_yes_status": "disputed_by_operator",
+        "independently_confirmed_green_yes_count": 0,
+        "confirmed_absence_of_green_landing": false,
+        "verify_using": "same-shot visual capture, original game UI or independent replay"
+      },
+      "training_allowed": false,
+      "kind": "disputed_green_outcome_label"
+    },
+    {
+      "date": "2026-10-28",
+      "kind": "human_observed_airborne_fullbank_vs_idle_b0",
+      "source": "https://github.com/Nate27624/Wii-AI-Golf/pull/223",
+      "source_evidence_issue": "https://github.com/Nate27624/Wii-AI-Golf/issues/121",
+      "comparison_tool": "Operator independent read-only PowerShell preserved/compared full MRAM 24MiB + EXRAM 64MiB",
+      "phase_association": "B0 idle vs human-observed airborne ball; UI power ~1/3 is an unverified human meter estimate",
+      "integrity": "B0 both banks manifest SHA verified, archived flight both banks copy SHA verified, six Rev1 source code units bytewise equal, source player/ball/field chains independently gated, same source hole and selected record slot",
+      "changed_u32_components_of_three": {
+        "golf.ball_object.current_translation_candidate": 3,
+        "golf.ball_object.initialized_cache_cc": 3,
+        "golf.ball_object.conditional_cache_f0": 3,
+        "golf.ball_object.conditional_cache_fc": 3,
+        "golf.player.selected_record.initial_position_candidate": 0,
+        "golf.player.selected_record.start_copy_candidate": 0,
+        "golf.tee_start.map_translation_xyz": 0,
+        "golf.pin.map_translation_xyz": 3
+      },
+      "within_snapshot": "B0 selected ball equals B0 start 3/3; flight selected ball matches flight start 0/3 and record+0x54/+0x60 each 0/3",
+      "changed_pages_4k": {
+        "MEM1": 444,
+        "MEM2": 538
+      },
+      "negative_controls": "pin translation changed 3/3, so stable tee alone does not establish a stable world reference/target; active pin object allocation/receiver/boot identity unresolved",
+      "limitations": [
+        "Banks exported sequentially, same guest frame unverified",
+        "same boot unverified; matching hole/slot is necessary not sufficient",
+        "current/cache changed counts do not prove independence, equality, lag or direction",
+        "pin movement could be source object relocation, dynamic pin state or different reference, not diagnosed",
+        "no world coordinate units, velocity, verified power, or model training permission"
+      ],
+      "training_allowed": false
+    }
+  ],
+  "current_p0_hypothesis": "Selected ball+0x4C→+0x30 has phase-associated, source-owned differential evidence when human observes airborne ball. The target pin 3/3 change and unsynchronized/maybe different-boot banks prevent physical world XYZ claim; owner S002 PR #223 must add pin/identity gate and compare cache-vs-current within each phase."
 }
