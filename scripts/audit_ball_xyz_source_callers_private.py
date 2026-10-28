@@ -66,6 +66,13 @@ UPSTREAM_ENTRIES = (
 # Limit output to a few source offsets per unit. These are CODE offsets only.
 OUTPUT_CALLSITE_LIMIT = 16
 
+# Immutable PUBLIC source ownership map from ogws RSPE01_01 splits.txt.
+# Only code-unit metadata, not private game bytes/heap addresses.
+PUBLIC_SPLITS_SHA = "df4085de5285b0d188fdfec8c097b301382263d3"
+PUBLIC_INDEX = (Path(__file__).resolve().parents[1] /
+                "research" / "source_maps" / "RSPE01_01_public_text_units.json")
+PUBLIC_UNIT_COUNT = 832
+
 
 class UntrustedInput(Exception):
     """Does not echo a private filename/hash/native byte value."""
@@ -188,6 +195,71 @@ def short_entry_unconditional_destination(data: bytes, start: int) -> dict:
             "is_main_writer_function_interior": 0x802A0320 < dest < 0x802A0674,
         }
     return {"found": False, "reason": "no_direct_unconditional_branch"}
+
+
+def load_public_text_units(file: Path = PUBLIC_INDEX) -> tuple[tuple[int, int, str], ...]:
+    """Load version-pinned source-only ogws .text splits with strict fail-close."""
+    try:
+        ensure(file.is_file() and not file.is_symlink() and
+               0 < file.stat().st_size <= 128 * 1024)
+        payload = json.loads(file.read_text("utf-8"))
+        ensure(isinstance(payload, dict) and
+               payload.get("kind") == "PUBLIC-RSPE01-REV1-TEXT-OBJECT-SPLITS" and
+               payload.get("game_id") == "RSPE01" and
+               payload.get("disc_revision") == 1 and
+               payload.get("source_repo") == "doldecomp/ogws" and
+               payload.get("source_file") == "config/RSPE01_01/splits.txt" and
+               payload.get("source_blob_sha") == PUBLIC_SPLITS_SHA)
+        rows = payload.get("intervals")
+        ensure(type(rows) is list and len(rows) == PUBLIC_UNIT_COUNT)
+        tuples = []
+        previous_end = 0
+        for item in rows:
+            ensure(type(item) is list and len(item) == 3)
+            a, b, name = item
+            ensure(type(a) is int and type(b) is int and
+                   0x80000000 <= a < b <= 0x81000000 and a % 4 == 0 and
+                   b % 4 == 0 and a >= previous_end and
+                   type(name) is str and 1 <= len(name) <= 180 and
+                   name.endswith((".cpp", ".c", ".S", ".s")))
+            tuples.append((a, b, name))
+            previous_end = b
+        for _name, start, end in UNITS:
+            ensure(any(a <= start and end <= b for a, b, _n in tuples))
+        return tuple(tuples)
+    except (OSError, TypeError, KeyError, ValueError, AttributeError):
+        raise UntrustedInput from None
+
+
+def public_branch_destination(data: bytes, start: int,
+                              intervals: tuple[tuple[int, int, str], ...]) -> dict:
+    """Classify the actual 2-instruction PPC jump by PUBLIC code unit only."""
+    entry = 0x802A0318
+    if start > entry or start + len(data) < entry + 8:
+        return {"public_code_owner_found": False, "reason": "entry_not_captured"}
+    jump = short_entry_unconditional_destination(data, start)
+    if jump.get("found") is not True:
+        return {"public_code_owner_found": False,
+                "reason": "no_direct_nonlink_unconditional_branch"}
+    pc = entry + 4 * jump["instruction_index"]
+    word = struct.unpack_from(">I", data, pc - start)[0]
+    decoded = decode_ppc_branch(pc, word)
+    ensure(decoded is not None and decoded[1] is False)
+    dest = decoded[0]
+    for a, b, name in intervals:
+        if a <= dest < b:
+            return {
+                "public_code_owner_found": True,
+                "destination_public_source_file": name,
+                "destination_public_source_relative_offset": f"+0x{dest-a:04X}",
+                "within_original_six_golf_units": source_unit(dest) is not None,
+                "source_execution_during_shot_verified": False,
+            }
+    return {
+        "public_code_owner_found": False,
+        "reason": "outside_all_832_published_rev1_text_units",
+        "source_execution_during_shot_verified": False,
+    }
 
 
 def summarize_code(data: bytes, start: int, *, maximum: int = OUTPUT_CALLSITE_LIMIT) -> dict:
@@ -365,6 +437,16 @@ def audit(session: Path, data_root: Path) -> dict:
                    any(region[i:i+4] != b"\x00\x00\x00\x00"
                        for i in range(0, len(region), 4)))
         result = summarize_code(block, lo)
+        source_units = load_public_text_units()
+        result["short_writer_entry_public_source_destination"] = (
+            public_branch_destination(block, lo, source_units)
+        )
+        result["public_rev1_text_split_index"] = {
+            "public_source": "doldecomp/ogws RSPE01_01 splits.txt",
+            "source_blob_sha_matches_pinned_public_index": True,
+            "text_unit_count": len(source_units),
+            "private_native_data_in_public_index": False,
+        }
     result["native_source_b0_sha256_verified"] = True
     result["capture_phase_is_idle_not_flight"] = True
     return result
