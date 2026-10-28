@@ -16,6 +16,11 @@ $actual=(& git -C $repo rev-parse HEAD 2>$null | Out-String).Trim()
 if($LASTEXITCODE -ne 0 -or $actual -ne $ExpectedCommit.ToLowerInvariant()){
     throw 'ABSTAIN: not the exact reviewed code SHA'
 }
+$expectedData=Join-Path (Split-Path $repo -Parent) 'Wii-AI-Golf-Data'
+$actualData=(Resolve-Path -LiteralPath $DataRoot -ErrorAction Stop).Path
+if($actualData -ne $expectedData){
+    throw 'ABSTAIN: original source loader requires ignored data root sibling to reviewed checkout'
+}
 $captures=Join-Path $DataRoot 'captures'
 $eligible=@(Get-ChildItem -LiteralPath $captures -Directory -ErrorAction Stop | Where-Object {
     $_.Name -like 'p0-new-cohort-*-PRIVATE' -and
