@@ -3,7 +3,8 @@
 # canonical 14-bank manifest SHA check before AND after native read.
 param(
     [Parameter(Mandatory=$false)]
-    [string]$Archive
+    [string]$Archive,
+    [switch]$SyntheticOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,7 +16,7 @@ $ErrorActionPreference = 'Stop'
     if ($null -eq $py) { $py = Get-Command python -ErrorAction SilentlyContinue }
     if ($null -eq $py) { throw 'Python launcher not available. No native RAM read attempted.' }
 
-    if ([string]::IsNullOrWhiteSpace($Archive)) {
+    if (-not $SyntheticOnly -and [string]::IsNullOrWhiteSpace($Archive)) {
         if (-not (Test-Path -LiteralPath $captures -PathType Container)) {
             throw 'Ignored sibling private captures root unavailable. No RAM read attempted.'
         }
@@ -49,6 +50,10 @@ $ErrorActionPreference = 'Stop'
         # the actual process exit code determines test pass/fail.
         & $py.Source -I -B -m unittest discover -s tests -p test_p0_seven_cache_update_tags_private.py -v
         if ($LASTEXITCODE -ne 0) { throw 'Synthetic test failure. Native RAM will not be read.' }
+        if ($SyntheticOnly) {
+            Write-Host 'P0_CACHE_TAG_WINDOWS_POWERSHELL_SYNTHETIC_ONLY=PASS'
+            return
+        }
 
         Write-Host '=== P0 #242: READ-ONLY CANONICAL SEVEN-PAIR TAG AUDIT ==='
         $json = @(& $py.Source -I -B scripts/audit_p0_seven_cache_update_tags_private.py --archive $Archive)
