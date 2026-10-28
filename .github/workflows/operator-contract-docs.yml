@@ -45,3 +45,17 @@ jobs:
         run: python -m unittest discover -s tests -p test_research_cli.py -v
       - name: Full Windows unittest suite (no live Dolphin)
         run: python -m unittest discover -s tests -v
+      - name: Check out unchanged main for comparison after branch tests
+        if: always()
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+      - name: Compare full Windows suite on main (diagnostic, not a pass gate)
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          git rev-parse HEAD
+          python -m unittest discover -s tests -v
+
