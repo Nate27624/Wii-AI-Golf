@@ -43,6 +43,15 @@ try {
     Pop-Location
 }
 Write-Host 'P0_INFLIGHT_SYNTHETIC_TESTS=PASS'
+
+# Execute the actual isolated Python command path BEFORE opening private RAM.
+# Synthetic unittest imports cannot by themselves establish -I compatibility.
+$help = @(& $exe.Source -I $analyzer --help 2>&1)
+if ($LASTEXITCODE -ne 0 -or
+    -not (($help -join [Environment]::NewLine).Contains('--baseline'))) {
+    throw 'Python -I source helper import preflight failed; no private RAM read'
+}
+Write-Host 'P0_INFLIGHT_ISOLATED_PYTHON_IMPORT=PASS'
 if ($TestsOnly) { return }
 
 if (-not (Test-Path -LiteralPath $data -PathType Container)) {
