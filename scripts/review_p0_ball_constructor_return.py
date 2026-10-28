@@ -48,12 +48,26 @@ def _direct_branch(pc,word):
 def _r3_assignment_class(word):
     op=word>>26
     m=_mr(word)
-    if m is not None and m[0]==3:
-        return "mr_from_r%d"%m[1]
+    if m is not None:
+        # Canonical PPC mr writes destination rA; its rS field is a READ.
+        # 'mr r4,r3' does not redefine r3; 'mr r3,r31' does.
+        return ("mr_from_r%d"%m[1]) if m[0]==3 else None
     rt=(word>>21)&31
     ra=(word>>16)&31
-    if op in (14,15,32,33,34,35,40,41,42,43) and rt==3:
-        return "addi" if op==14 else "load_or_other_integer_writer"
+    if op in (12,13,14,15,32,33,34,35,40,41,42,43):
+        if rt==3:
+            return "addi" if op==14 else "load_or_other_integer_writer"
+        # D-form integer load-with-update writes both rT and the rA base.
+        # A load into r0 using r3 as base invalidates an earlier r3 def.
+        if op in (33,35,41,43) and ra==3:
+            return "integer_load_update_base_r3"
+        return None
+    # Store-update (including FP memory update variants) writes base rA.
+    # The first GPR/FPR field is a SOURCE and is not a GPR destination.
+    if op in (37,39,45,49,51,53,55):
+        return "memory_update_base_r3" if ra==3 else None
+    if op in (36,38,44,47,48,50,52,54):
+        return None
     if op in (20,21,23,24,25,26,27,28,29) and ra==3:
         return "rotate_or_logical_writer"
     if op==46 and rt<=3:
