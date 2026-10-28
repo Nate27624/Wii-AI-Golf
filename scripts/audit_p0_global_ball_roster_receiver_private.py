@@ -50,6 +50,8 @@ def roster_global_membership(read, sample:dict, pointer:int) -> dict:
         "global_matches_source_selected_slot":pointer==slot[chosen],
         "global_matches_an_inactive_player_slot":any(i!=chosen for i in matches),
         "global_matches_exactly_zero_player_slots":len(matches)==0,
+        # Internal-only; compared across samples, NEVER included in public JSON.
+        "_private_roster_ball_pointers":tuple(slot),
         # no source memory addresses or slot identities printed
     }
 
@@ -107,7 +109,7 @@ def trace_r31_inputs(read) -> list[dict]:
             "later_supported_r31_assignment_count":len(late),
             "r31_from_entry_r3_unambiguous_linear_candidate":(
                 first=="mr_r31_from_entry_r3_candidate" and not late
-                and not branch_before_assignment
+                and not branch_before_assignment and not branch_seen
             ),
             "source_call_can_prove_runtime_receiver":False,
         })
@@ -122,11 +124,41 @@ def summarize(samples:dict[int,dict], code:dict[int,dict], caller:list[dict]) ->
             raise ValueError("within shot actor/hole changed")
         if any(samples[a]["refs"][key]!=samples[b]["refs"][key] for key in ("ball","pin","start","scene_field")):
             raise ValueError("within shot source identity changed")
-    rows=[dict(phase=i,**code[i]) for i in range(1,8)]
+    # A same-numbered player slot alone does not establish the same four
+    # roster actors or reference frame across any two captures.
+    for i in range(1, 8):
+        roster_ids=code[i].get("_private_roster_ball_pointers")
+        selectors=code[i].get("_private_config_selectors")
+        if (type(roster_ids) is not tuple or len(roster_ids)!=4
+                or len(set(roster_ids))!=4
+                or type(selectors) is not tuple or len(selectors)!=3
+                or any(type(x) is not int for x in selectors)):
+            raise ValueError("complete source roster/config reference required")
+        if type(code[i].get("_private_global_source_slot")) is not int:
+            raise ValueError("exact global small-data source slot unavailable")
+        for label in ("source_selected_pin","source_current_start"):
+            v=samples[i].get("triplets",{}).get(label)
+            if type(v) is not tuple or len(v)!=3 or any(type(x) is not int for x in v):
+                raise ValueError("source pin/start vector incomplete")
+    if len({code[i]["_private_global_source_slot"] for i in range(1,8)})!=1:
+        raise ValueError("PPC global source r13 displacement drift")
+    for a,b in ((1,2),(5,6),(6,7),(5,7)):
+        if code[a]["_private_roster_ball_pointers"] != code[b]["_private_roster_ball_pointers"]:
+            raise ValueError("four player-slot child ball objects changed")
+        if code[a]["_private_config_selectors"]!=code[b]["_private_config_selectors"]:
+            raise ValueError("Config selector changed across provisional shot pair")
+        for label in ("source_selected_pin","source_current_start"):
+            if samples[a]["triplets"][label]!=samples[b]["triplets"][label]:
+                raise ValueError("source pin/start vector changed across provisional shot pair")
+    rows=[dict(phase=i,**{k:v for k,v in code[i].items() if not k.startswith("_private_")})
+          for i in range(1,8)]
     source_is_outside_all_four=all(code[i]["global_matches_exactly_zero_player_slots"] for i in (5,6,7))
     return {
         "kind":"P0-SANITIZED-GLOBAL-BALL-VERSUS-FOUR-ROSTER-AND-R31-SOURCE",
         "source_validated_seven_snapshots":7,
+        "original_fourteen_bank_manifest_verified_by_this_extension":False,
+        "human_phase_order_and_same_shot_independently_verified":False,
+        "crossphase_roster_pin_start_config_and_source_slot_consistent":True,
         "per_phase_global_roster_pointer_identity":rows,
         "wedge_source_global_outside_all_four_roster_balls":source_is_outside_all_four,
         "two_cache_writer_call_r31_source_classification":caller,
@@ -160,14 +192,22 @@ def run(directory:Path) -> dict:
                 mem[bank]=stack.enter_context(mmap.mmap(fp.fileno(),0,access=mmap.ACCESS_READ))
             read=roster.TwoBankReader(mem["MEM1"],mem["MEM2"]).u32
             samples[phase]=seven._source_sample(mem["MEM1"],mem["MEM2"])
+            config=read(roster.GOLF_CONFIG_STATIC)
+            if roster._bank(config,0xC8)!="MEM2":
+                raise ValueError("source golf Config out of native MEM2")
+            selectors=tuple(read(config+off) for off in (0xBC,0xC0,0xC4))
             source=prev.source_global_slot(read)
             if not source["static_source_global_slot_supported"]:
                 raise ValueError("PPC global r13 load must be verified")
             glob=prev.sample_runtime(read,samples[phase],source)
             code[phase]=roster_global_membership(
                 read,samples[phase],glob["_private_runtime_source_global_pointer"])
-            if callers is None:
-                callers=trace_r31_inputs(read)
+            code[phase]["_private_config_selectors"]=selectors
+            code[phase]["_private_global_source_slot"]=source["slot"]
+            phase_callers=trace_r31_inputs(read)
+            if callers is not None and phase_callers!=callers:
+                raise ValueError("PPC cache caller/r31 candidate changed between phases")
+            callers=phase_callers
         for bank,path in pair.items():
             if seven._hash(path)!=before[bank]:
                 raise ValueError("bank changed during offline read")
