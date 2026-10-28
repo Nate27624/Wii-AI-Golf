@@ -19,7 +19,7 @@ import audit_ball_xyz_source_callers_private as source
 
 CFG_SHA = "8696a46a315499f220ee7c87580a21dc99f21462"
 CFG_RELATIVE = Path("scripts/review_p0_cache_receiver_cfg_mustdef.py")
-SOURCE_FAMILY = "Pack/RPSports/RPGolScene/"
+EXPECTED_SOURCE_OWNER = "Pack/RPSports/RPGolScene/RPGolMapObjBall.cpp"
 EXPECTED_CALLERS = (
     ("fn_80299ACC", 0x80299ACC, 0x80299B64),
     ("fn_80299C20", 0x80299C20, 0x80299C58),
@@ -96,13 +96,15 @@ def _validate_source_ownership(public_units):
     if not isinstance(public_units, (list, tuple)) or not public_units:
         raise QualificationError
     for _, entry, call in EXPECTED_CALLERS:
+        # Exactly ONE published Rev1 code unit must contain this entire
+        # source slice, and it MUST be the expected MapObjBall.cpp unit.
+        # Another Golf file with broader fabricated bounds is not enough.
+        containing = [(a, b, name) for a, b, name in public_units
+                      if a <= entry and call + 4 <= b]
         if not (source.UNITS[2][1] <= entry < call
                 and call + 4 <= source.UNITS[2][2]
-                and any(
-                    a <= entry and call + 4 <= b and
-                    name.startswith(SOURCE_FAMILY)
-                    for a, b, name in public_units
-                )):
+                and len(containing) == 1
+                and containing[0][2] == EXPECTED_SOURCE_OWNER):
             raise QualificationError
 
 
