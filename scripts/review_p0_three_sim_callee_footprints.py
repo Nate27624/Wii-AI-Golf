@@ -163,8 +163,36 @@ def analyze(main_words, callee_words, main_report):
             row["source_class"]="other_PPC_source_instruction"
             row["forward_branch_bypasses_second_BL_syntactically"]=False
         gap.append(row)
+    # One original Rev1 control site is inside the four-word gap after
+    # fn_B554's BL. A backward conditional branch that lands AT/BEFORE
+    # the BL supplies a static possible re-entry path through that BL.
+    # This is a counterexample to "one B554 hit == one scene update",
+    # NOT proof of which BO/BI condition ever runs on a real frame.
+    first_bl_offset = CALLEES[0][3]
+    reentry = []
+    for offset in range(0x80, 0x90, 4):
+        word = main_words[offset // 4]
+        op = word >> 26
+        if op == 16:
+            target = _bc_target(ENTRY + offset, word)
+        elif op == 18 and (word & 1) == 0:
+            target = _bl_target(ENTRY + offset, word)
+        else:
+            continue
+        if ENTRY <= target <= ENTRY + first_bl_offset < ENTRY + offset:
+            reentry.append({
+                "branch_function_relative_site": _rel(ENTRY + offset, ENTRY),
+                "branch_target_function_relative_site": _rel(target, ENTRY),
+                "crosses_first_sim_source_BL": True,
+                "branch_executed_or_call_repeated_at_runtime_verified": False,
+            })
     return {
         "kind":"P0-REV1-THREE-SIM-CALLEE-BOUNDED-FOOTPRINT",
+        "first_sim_call_source_site_has_backward_reentry_candidate": bool(reentry),
+        "first_sim_call_source_backward_reentry_edges": reentry,
+        "first_sim_call_once_per_scene_callback_verified": False,
+        "loop_branch_actually_taken_or_multiple_calls_runtime_verified": False,
+        "after_integrator_guest_step_completion_site_verified": False,
         "prior_101_word_source_BL_and_prefix_gates_held":True,
         "exact_three_source_callee_instruction_total":237,
         "callee_source_code_unchanged_across_seven":True,
