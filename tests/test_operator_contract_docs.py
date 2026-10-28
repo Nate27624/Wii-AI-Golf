@@ -159,6 +159,15 @@ class OperatorContractDocsTests(unittest.TestCase):
         self.assertIn('"--no-upload"', source)
         self.assertIn('_ALLOWED = {"test", "v1"}', source)
 
+    def test_merge_checklist_requires_sanitized_upload_and_durable_findings(self):
+        text = read("docs/merging-requirements.md")
+        for term in ("Automatic result publication", "research/observations",
+                     "SANITIZED", "PRIVATE", "same PowerShell command",
+                     "NOT UPLOADED", "Important findings recorded",
+                     "FINDING", "research/ledger.md", "S000/S002"):
+            with self.subTest(term=term):
+                self.assertIn(term.casefold(), text.casefold())
+
     def test_no_draft_feature_claimed_as_merged(self):
         text = read("docs/operator-powershell-contract.md")
         self.assertIn("draft until merged", text)
