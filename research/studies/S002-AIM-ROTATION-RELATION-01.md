@@ -47,3 +47,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Rotation report failed' }
 4. Treat +0x94..+0xC0 as a second untyped orientation/matrix neighborhood pending independent PPC source trace; do not identify club quaternion/impact from plausible float values alone.
 
 Keep verified-world XYZ, contact, swing power, velocity and training false.
+## Additional independent rotation-like pattern
+
+The same selected record's aim-specific changed float neighborhood contains TWO adjacent four-float groups at +0xA0..+0xAC and +0xB0..+0xBC. Both sets have near-unit squared norms when interpreted as XYZW quaternions in operator's B1 and B2. Under the **hypothetical** conventional XYZW quaternion Y-axis decomposition, +0xA0..+0xAC predicts nearly the same relative angle before/after aiming as the independent +0x40..+0x4C 2D matrix; +0xB0..+0xBC is near identity with small additional change. This is independent numerical corroboration of shared rotation state, not a source-typed quaternion nor verified world/game aim axis.
+
+`scripts/inspect_golf_aim_rotation_private.py` now evaluates both quaternion norms, A-derived hypothetical Y-axis angle difference against matrix-derived angle (<0.25-degree preregistered tolerance), and exact no-shot idle constancy, retaining strict `quaternion_semantics_verified=false`. Synthetic rotation tests cover normal exact geometry and incorrect-sign/nonunit cases. Source ownership still requires finding actual PPC writers/readers for +0x3C..+0x4C and +0xA0..+0xBC. Do not infer +0xC0 is swing power or +0x90 a shot timer merely because it changes.
