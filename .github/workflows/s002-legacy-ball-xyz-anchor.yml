@@ -1,0 +1,29 @@
+name: S002 historic golf ball XYZ address (synthetic)
+
+on:
+  push:
+    branches:
+      - agent/research/p0-legacy-golf-ball-xyz-20261028
+  pull_request:
+    paths:
+      - scripts/audit_legacy_ball_xyz_anchor_private.py
+      - tests/test_legacy_ball_xyz_anchor_private.py
+      - .github/workflows/s002-legacy-ball-xyz-anchor.yml
+
+permissions:
+  contents: read
+
+jobs:
+  legacy-xyz-anchor:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test historical-ball address against fake gated Rev1 RAM
+        run: python -m unittest discover -s tests -p test_legacy_ball_xyz_anchor_private.py -v
