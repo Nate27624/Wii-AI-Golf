@@ -28,6 +28,7 @@ import review_p0_global_slot_symbol_nullguard as public_symbol_guard
 import review_p0_ball_constructor_return as constructor_return
 import review_p0_ball_ctor_return_register_risks as ctor_risks
 import review_p0_global_slot_load_consumers as global_consumers
+import review_p0_global_call_translation_followup as call_translation_followup
 
 seven=owner.seven
 roster=owner.roster
@@ -209,6 +210,9 @@ def validate_and_read_three(directory:Path) -> dict:
                     [site for site in code_ref["source_global_r13_reference_sites"]
                      if site["source_access_type"] == "direct_lwz_read"],
                     disp)
+                code_ref["three_global_pointer_BL_targets_and_translation_use"]=call_translation_followup.analyze(
+                    rd.u32, code_ref["source_global_pointer_read_first_use_hints"],
+                    disp, UNITS)
                 code_ref["single_direct_slot_store_source_candidate"]=classify_known_writer_value(rd.u32,disp)
                 code_ref["single_direct_slot_store_bounded_cfg"]=writer_cfg.analyze(rd.u32,disp)
                 code_ref["single_direct_slot_store_post_return_paths"]=post_return.analyze(rd.u32,disp)
