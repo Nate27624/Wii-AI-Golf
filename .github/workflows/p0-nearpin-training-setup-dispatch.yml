@@ -1,0 +1,34 @@
+name: P0 NearPin training-setup bounded source review
+on:
+  push:
+    paths:
+      - 'scripts/audit_p0_nearpin_training_setup_dispatch_private.py'
+      - 'tests/test_p0_nearpin_training_setup_dispatch_private.py'
+      - '.github/workflows/p0-nearpin-training-setup-dispatch.yml'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_nearpin_training_setup_dispatch_private.py'
+      - 'tests/test_p0_nearpin_training_setup_dispatch_private.py'
+      - '.github/workflows/p0-nearpin-training-setup-dispatch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-synthetic:
+    name: 61-word synthetic-only source review
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Source/test syntax
+        run: python -m compileall -q scripts/audit_p0_nearpin_training_setup_dispatch_private.py tests/test_p0_nearpin_training_setup_dispatch_private.py
+      - name: Synthetic source and safety tests
+        run: python -m unittest discover -s tests -p 'test_p0_nearpin_training_setup_dispatch_private.py' -v
