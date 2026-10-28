@@ -94,6 +94,21 @@ class CalleeFootprint(unittest.TestCase):
             "gap_after_first_before_second_call"][0]
         self.assertEqual(row["source_class"],"compare_r3_to_zero_syntax")
 
+    def test_forward_conditional_exit_beyond_main_still_can_bypass_second_call(self):
+        pc=m.ENTRY+0x84
+        x=run(modmain={0x84:bc(pc,m.ENTRY+0x1A0)})
+        self.assertTrue(x["gap_after_first_before_second_call"][1][
+            "forward_branch_bypasses_second_BL_syntactically"])
+        self.assertIsNone(x["gap_after_first_before_second_call"][1][
+            "target_main_function_relative_pc"])
+        self.assertFalse(x["game_update_function_semantics_verified"])
+
+    def test_lmw_is_load_not_object_store(self):
+        row=run(modcallees={"fn_8029B554":{4:d(46,3,30,8)}})[
+            "callee_footprints"][0]
+        self.assertEqual(row["source_integer_D_form_store_sites"],[])
+        self.assertEqual(row["source_integer_D_form_load_count"],1)
+
     def test_invalid_or_missing_callee_window_abstains(self):
         main,callees,report=fixture()
         callees["fn_8029B554"]=callees["fn_8029B554"][:-1]
