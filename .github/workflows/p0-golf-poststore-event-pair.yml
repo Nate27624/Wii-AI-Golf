@@ -1,0 +1,34 @@
+name: P0 Golf hypothetical post-store event-pairing synthetics
+on:
+  push:
+    paths:
+      - scripts/review_p0_golf_poststore_event_trace.py
+      - tests/test_p0_golf_poststore_event_trace.py
+      - .github/workflows/p0-golf-poststore-event-pair.yml
+  pull_request:
+    paths:
+      - scripts/review_p0_golf_poststore_event_trace.py
+      - tests/test_p0_golf_poststore_event_trace.py
+      - .github/workflows/p0-golf-poststore-event-pair.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  event-pairing-synthetic-only:
+    name: ${ matrix.os } candidate post-store pairing
+    runs-on: ${ matrix.os }
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile pure source contract
+        run: python -m compileall -q scripts/review_p0_golf_poststore_event_trace.py tests/test_p0_golf_poststore_event_trace.py
+      - name: Fifteen synthetic negative and positive trace-pairing controls
+        run: python -I -B -m unittest discover -s tests -p test_p0_golf_poststore_event_trace.py -v
