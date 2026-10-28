@@ -173,12 +173,14 @@ class CfgReceiverMustDefTests(unittest.TestCase):
         s=fixture()
         # PPC stwu r0,8(r3) updates address register r3.
         s[E+20]=dform(37,0,3,8)
+        s[E+24]=NOP  # do not restore r3 via the fixture's normal mr
         self.assertEqual(check(s)["status"],"NOT_PROVEN_FOR_ALL_REACHING_PATHS")
 
     def test_ori_ra_r3_overwrites_even_when_rs_not_r3(self):
         s=fixture()
         # PPC ori r3,r5,0 destination is rA, source is rS.
         s[E+20]=dform(24,5,3,0)
+        s[E+24]=NOP  # no post-clobber mr r3,r31 repair
         self.assertEqual(check(s)["status"],"NOT_PROVEN_FOR_ALL_REACHING_PATHS")
 
     def test_native_free_cli(self):
