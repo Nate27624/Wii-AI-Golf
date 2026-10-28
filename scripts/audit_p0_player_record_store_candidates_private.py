@@ -99,7 +99,12 @@ def scan_candidate_stores(data: bytes, base: int, units):
 def audit(session: Path, data_root: Path):
     # Upstream source and SHA-gated B0 owns provenance, not this module.
     import audit_ball_xyz_source_callers_private as upstream
-    file = upstream.checked_private_b0(session, data_root)
+    def checked_b0():
+        try:
+            return upstream.checked_private_b0(session, data_root)
+        except upstream.UntrustedInput:
+            raise ValueError("Untrusted source provenance") from None
+    file = checked_b0()
     lo = min(x[1] for x in upstream.UNITS if x[0] in PLAYER_UNITS)
     hi = max(x[2] for x in upstream.UNITS if x[0] in PLAYER_UNITS)
     with file.open("rb") as fh:
@@ -111,7 +116,7 @@ def audit(session: Path, data_root: Path):
     if len(data)!=hi-lo or all(data[i:i+4]==b"\0\0\0\0" for i in range(0,len(data),4)):
         raise ValueError("Absent source code")
     # Reject mutation between source-provenance check and source read.
-    upstream.checked_private_b0(session, data_root)
+    checked_b0()
     report = scan_candidate_stores(data, lo, upstream.UNITS)
     report["native_source_b0_sha256_verified_before_and_after_read"] = True
     return report
