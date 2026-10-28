@@ -9,6 +9,7 @@ on:
   pull_request:
     paths:
       - 'scripts/audit_p0_player_record_store_candidates_private.py'
+      - 'scripts/Invoke-P0PlayerStoreProvenance.ps1'
       - 'tests/test_p0_player_record_store_candidates_private.py'
       - '.github/workflows/p0-player-record-store-candidates.yml'
   workflow_dispatch:
