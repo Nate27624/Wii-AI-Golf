@@ -121,6 +121,14 @@ class P0CleanCliV1Tests(unittest.TestCase):
         x, y = list(a[0].args[0]), list(b[0].args[0])
         index = x.index("--a-lead-frames") + 1
         self.assertEqual(index, y.index("--a-lead-frames") + 1)
+        token_index = x.index("--run-token") + 1
+        self.assertEqual(token_index, y.index("--run-token") + 1)
+        self.assertEqual(len(x[token_index]), 32)
+        self.assertEqual(len(y[token_index]), 32)
+        self.assertNotEqual(x[token_index], y[token_index])
+        # Per-shot identity is deliberately randomized. Only the requested
+        # swing A lead may differ in the remainder of each command.
+        x[token_index] = y[token_index] = "<unique-private-token>"
         self.assertEqual(x[:index] + x[index+1:], y[:index] + y[index+1:])
         self.assertEqual(x[index], "0")
         self.assertEqual(y[index], "45")
