@@ -97,6 +97,31 @@ class SourceTests(unittest.TestCase):
         self.assertTrue(p["bounded_window_crosses_branch"])
         self.assertTrue(p["not_proven_register_receiver_identity"])
 
+    def test_previous_function_return_blocks_false_r3_inference(self):
+        b=fake_unit()
+        # Old unrelated function computes r3 and returns.
+        struct.pack_into(">I",b,0x2C4C,
+                         (31<<26)|(3<<21)|(0<<16)|(31<<11)|(266<<1))
+        # blr/bclr boundary immediately before new function prologue.
+        struct.pack_into(">I",b,0x2C80,(19<<26)|(20<<21)|(16<<1))
+        p=m.prior_definition(bytes(b),0x2CCC,3)
+        self.assertFalse(p["nearest_linear_definition_found"])
+        self.assertTrue(p["preceding_lr_or_ctr_boundary_found"])
+        self.assertEqual(p["source_relative_boundary"],"+0x2C80")
+        self.assertNotIn("source_relative_pc",p)
+        self.assertTrue(p["not_proven_register_receiver_identity"])
+
+    def test_same_function_r31_copy_found_after_return_boundary(self):
+        b=fake_unit()
+        struct.pack_into(">I",b,0x2C80,(19<<26)|(20<<21)|(16<<1))
+        struct.pack_into(">I",b,0x2C94,
+                         (31<<26)|(3<<21)|(31<<16)|(3<<11)|(444<<1))
+        p=m.prior_definition(bytes(b),0x2CCC,31)
+        self.assertTrue(p["nearest_linear_definition_found"])
+        self.assertEqual(p["source_relative_pc"],"+0x2C94")
+        self.assertTrue(p["preceding_lr_or_ctr_boundary_found"])
+        self.assertEqual(p["operation"],"mr r31, r3")
+
     def test_no_prior_def_is_explicitly_unknown(self):
         b=bytes(fake_unit())
         p=m.prior_definition(b,0x2CCC,3)
