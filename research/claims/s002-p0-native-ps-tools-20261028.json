@@ -1,0 +1,34 @@
+{
+  "worker_id": "s002-p0-native-ps-tools-20261028",
+  "role": "S002 support / independent PowerShell tooling",
+  "study_id": "S002-NATIVE-PHASE-POWERSHELL-01",
+  "claim_comment": "https://github.com/Nate27624/Wii-AI-Golf/pull/201#issuecomment-6460948837",
+  "branch": "agent/support/p0-native-phase-ps-tools-20261028",
+  "owned_paths": [
+    "scripts/New-GolfNativeShotSession.ps1",
+    "scripts/Test-GolfNativeShotPair.ps1",
+    "tests/test_s002_native_phase_powershell.py",
+    ".github/workflows/s002-p0-native-ps-tools.yml",
+    "research/studies/S002-NATIVE-PHASE-POWERSHELL-01.md",
+    "research/claims/s002-p0-native-ps-tools-20261028.json"
+  ],
+  "does_not_touch": [
+    "S001 Dolphin input/watch/launch",
+    "S002 #201 DME reader/wrapper",
+    "S002 #184 keeper",
+    "S000 publisher/CLI",
+    "raw user RAM"
+  ],
+  "upstream": [
+    "#201",
+    "#184",
+    "#180",
+    "#206/#211 future watched V1 source"
+  ],
+  "downstream": [
+    "S002 native PRE/POST verification",
+    "S000 PowerShell-only integration review"
+  ],
+  "status": "draft, offline-only, no live Dolphin approval",
+  "data_classification": "Public: source/tests/docs only. RAW-PRIVATE banks and manifests remain in ignored sibling Data."
+}
