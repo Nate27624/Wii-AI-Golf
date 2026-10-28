@@ -33,6 +33,10 @@ def analyze(read_u32):
         "static_branch_or_call_before_load": None,
         "static_control_transfer_after_candidate_r3_definition": None,
         "nearby_call_before_load_could_write_r3": None,
+        "preload_exact_direct_bl_count": None,
+        "preload_direct_bl_source_code_targets": None,
+        "preload_call_targets_are_static_public_code_only": True,
+        "preload_bl_was_executed_in_capture_verified": False,
         "status": "ABSTAIN_SOURCE_LOADER_MISMATCH",
         "source_entry_is_verified_function_extent": False,
         "all_path_r3_reaching_definition_verified": False,
@@ -69,6 +73,25 @@ def analyze(read_u32):
     result["exact_outer_callsite_syntactic_source_qualified"] = True
     result["actual_source_load_is_lwz_r4_plus_0x6b4_r3"] = True
     result["candidate_load_entry_relative_offset"] = offset
+    # Public PowerPC code PCs only; these are not game heap pointers.
+    # Source syntax cannot establish execution, return value or function
+    # boundaries. op19 indirect/linked calls remain explicit unknown hazards.
+    direct=[]
+    for index_before, instruction in enumerate(src):
+        if instruction >> 26 != 18 or not (instruction & 1):
+            continue
+        target=upstream._bl(ENTRY+index_before*4, instruction)
+        if target is None or target%4 or not 0x80000000<=target<0x81000000:
+            result["status"]="ABSTAIN_PRELOAD_DIRECT_CALL_UNQUALIFIED"
+            return result
+        direct.append({
+            "callsite_source_entry_relative_offset":f"+0x{index_before*4:03X}",
+            "target_public_rev1_code_pc":f"0x{target:08X}",
+            "target_function_name_verified":False,
+            "call_return_is_base_r3_verified":False,
+        })
+    result["preload_exact_direct_bl_count"]=len(direct)
+    result["preload_direct_bl_source_code_targets"]=direct
     result["static_branch_or_call_before_load"] = any(
         upstream._control(x) for x in src)
     result["nearby_call_before_load_could_write_r3"] = any(
