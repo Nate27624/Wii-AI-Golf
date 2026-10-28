@@ -221,7 +221,7 @@ def load_public_text_units(file: Path = PUBLIC_INDEX) -> tuple[tuple[int, int, s
                    0x80000000 <= a < b <= 0x81000000 and a % 4 == 0 and
                    b % 4 == 0 and a >= previous_end and
                    type(name) is str and 1 <= len(name) <= 180 and
-                   name.endswith((".cpp", ".c", ".S", ".s")))
+                   name.endswith((".cpp", ".c", ".S", ".s", ".o")))
             tuples.append((a, b, name))
             previous_end = b
         for _name, start, end in UNITS:
