@@ -230,7 +230,7 @@ class VisualFirstJoinTests(unittest.TestCase):
             ("--a-lead", "45", "--backswing-scale", "0.8"),
         )
         with patch.object(research_cli, "sync_merged_main",
-                          return_value=SyncReport("up_to_date")), \\
+                          return_value=SyncReport("up_to_date")), \
              patch.object(research_cli, "_run") as launch:
             for settings in bad:
                 with self.subTest(settings=settings), self.assertRaises(SystemExit) as outcome:
@@ -244,10 +244,10 @@ class VisualFirstJoinTests(unittest.TestCase):
         from wii_ai_golf.lab.github_sync import SyncReport
         with tempfile.TemporaryDirectory() as directory:
             with patch.object(research_cli, "sync_merged_main",
-                              return_value=SyncReport("up_to_date")), \\
-                 patch.object(research_cli, "DATA", Path(directory)), \\
-                 patch.object(research_cli, "_run", return_value=4) as launch, \\
-                 patch.object(research_cli, "publish_summary") as publish, \\
+                              return_value=SyncReport("up_to_date")), \
+                 patch.object(research_cli, "DATA", Path(directory)), \
+                 patch.object(research_cli, "_run", return_value=4) as launch, \
+                 patch.object(research_cli, "publish_summary") as publish, \
                  patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
                        return_value={"revision": "V1-neutral-swing-calls",
                                      "safe_for_isolated_legacy_copy": True}):
