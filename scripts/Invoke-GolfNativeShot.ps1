@@ -12,7 +12,7 @@
           refuses missing evidence, inconsistent hashes or missing attestations.
   NEVER pauses/starts Dolphin, swings, acquires RAM, or publishes raw data.
 .EXAMPLE
-  $session = & .\Invoke-GolfNativeShot.ps1 -Action Start
+  $session = & .\Invoke-GolfNativeShot.ps1 -Action Start -Workspace 'D:\Projects\Wii Golf AI'
   & .\Invoke-GolfNativeShot.ps1 -Action Status -Session $session
   # Only after the existing S002 native capture has saved PRE and POST:
   & .\Invoke-GolfNativeShot.ps1 -Action Verify -Session $session
@@ -23,6 +23,7 @@ param(
     [ValidateSet('Start', 'Status', 'Verify')]
     [string] $Action,
     [string] $Session,
+    [string] $Workspace,
     [ValidatePattern('^[A-Za-z0-9_-]{4,60}$')]
     [string] $Id
 )
@@ -85,10 +86,21 @@ function Assert-Session([string] $Path, [string] $Captures) {
     return $actual
 }
 
-# A separate PR worktree is supported; private data stays under the shared
-# sibling Wii-AI-Golf-Data rather than in the code checkout.
-$repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).ProviderPath
-$workspace = Split-Path -Parent $repo
+# Works either from a repository scripts folder or an arbitrary downloaded
+# location when -Workspace is supplied. Never silently create an unrelated
+# "Wii-AI-Golf-Data" directory next to Downloads.
+if ($Workspace) {
+    $workspace = (Resolve-Path -LiteralPath $Workspace -ErrorAction Stop).ProviderPath
+} else {
+    $parent = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).ProviderPath
+    $folder = Split-Path -Leaf $parent
+    if ($folder -eq 'Wii-AI-Golf-Data' -or $folder -like 'Wii-AI-Golf*') {
+        $workspace = Split-Path -Parent $parent
+    } else {
+        throw 'Set -Workspace to your Wii Golf AI workspace when running a downloaded script.'
+    }
+}
+Assert-RealDir $workspace
 $data = Join-Path $workspace 'Wii-AI-Golf-Data'
 $captures = Join-Path $data 'captures'
 
