@@ -112,6 +112,17 @@ class SourceFollowup(unittest.TestCase):
                          "potential_translation_register_clobber")
         self.assertFalse(x["three_distinct_component_offsets_seen"])
 
+    def test_translation_register_r0_is_not_dform_vector_base(self):
+        # lwz r0,+0x4C(r3), then lfs f1,0(r0): rA=0 is literal zero.
+        modified={UNIT+0x2CFC:d(32,0,3,0x4C),
+                  UNIT+0x2D00:d(48,1,0,0),
+                  UNIT+0x2D04:d(48,2,0,4),
+                  UNIT+0x2D08:d(48,3,0,8)}
+        o=analyze(modified)["source_global_translation_field_read"]
+        self.assertEqual(o["pointer_destination_GPR"],"r0")
+        self.assertFalse(o["three_distinct_component_offsets_seen"])
+        self.assertEqual(o["recognized_direct_f32_accesses"],[])
+
     def test_wrong_first_consumer_class_refused(self):
         report=_report()
         report["source_only_first_use_hints"][0]["first_bounded_consumer_class"]="field_load_from_source_global_pointer"
