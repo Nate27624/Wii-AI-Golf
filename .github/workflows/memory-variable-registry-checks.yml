@@ -9,6 +9,7 @@ on:
       - 'scripts/triage_private_object_windows_summary.py'
       - 'scripts/contrast_p0_hit_signatures_private.py'
       - 'scripts/validate_p0_airborne_study_matrix.py'
+      - 'scripts/Invoke-P0FlightEvidenceMatrix.ps1'
       - 'tests/test_memory_registry.py'
       - 'tests/test_json_motion_inventory.py'
       - 'tests/test_private_object_windows_summary.py'
@@ -42,3 +43,12 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_hit_signatures_private.py -v
       - name: Run P0 independent-source flight evidence matrix synthetic tests
         run: python -m unittest discover -s tests -p test_p0_airborne_study_matrix.py -v
+      - name: Parse Windows PowerShell P0 flight matrix runner
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          $path = (Resolve-Path -LiteralPath 'scripts/Invoke-P0FlightEvidenceMatrix.ps1').Path
+          [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
