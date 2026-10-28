@@ -38,3 +38,18 @@ Existing S002 source facts: PRs #122 and #129, doldecomp/ogws and ogws_info Rev1
 ## Coordination and validation
 
 New-only standalone source, test and study files. No overlapping edits with S000 CLI, S001 bridge/control, S002 capture, S003 model, PR #150 environment audit, PR #151 four-timepoint MEM1 differencer or PR #147 frame markers. Linux isolated synthetic tests 5/5 PASS and compileall PASS; **no real raw files have been analyzed by this author, and full current Windows suite remains unrun on this branch**. S002 domain review + S000 privacy review and operator real-data stdout are required before merging. Preserve existing dumps locally and never publish private RAM or runtime pointers.
+
+
+## Follow-up: typed MEM2 field shapes (added after real pair output)
+
+The actual existing-pair run established one source-gated scene chain and six mapped field pointers (all MEM2), source config mode raw4, current hole raw1, pin count 6 and start count 31. The two dump modification timestamps differ by 111.41s: structural consistency is useful, but NOT same-frame or independent-boot verification.
+
+Verified public source headers at kiwi515/ogws_info:
+- RPGolFieldManager.h: mShowWindArrow at +0x6C, mShowGreenSlope at +0x7C, mGreenSlopeOpacity f32 at +0x80, mShowMiniMap at +0x88, mSunPos VEC3 at +0x5C, mCourseObj at +0x70.
+- RPGolMapObjBase.h: base mTrans VEC3 at +0x30; mCourseObj is declared RPGolMapObjBase* in FieldManager. This is a **course-object translation SHAPE candidate**, not a terrain, pin or ball coordinate.
+- The forward-declared RPGolMapObjPin/RPGolMapObjPlayer subclasses have no verified mTrans offsets in the checked headers. We deliberately DO NOT interpret current_pin/current_start raw bytes as XYZ.
+
+The updated local-only tool reports canonical boolean-value candidates only when the memory byte is 0 or 1. It reports whether opacity lies in [0,1] and whether source-labeled sun/course VEC3 candidates have finite components; **not** the raw float values, game units, object class/vtable identity, visible UI verification or gameplay semantics. Power, ball XYZ, club pose, wind physical direction/speed and collision terrain remain FALSE.
+
+After the updated branch is fetched into the same clean worktree, run targeted 7-test suite AND the complete Windows regression before treating the new output as reviewed. The new code was pushed through a connector and has not been run against the operator's actual RAM or full Windows suite yet.
+
