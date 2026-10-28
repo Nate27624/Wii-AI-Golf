@@ -1,4 +1,4 @@
-"""Guarded, attach-only V1/45-frame-A contact recheck for an already-ready golfer.
+"""Guarded, attach-only V1/45-or-90-frame-A contact recheck for an already-ready golfer.
 
 No Dolphin boot, savestate load, controller waveform changes, or automatic
 success labeling. Reuses collect_outcome_transition.py exclusively. The
@@ -21,14 +21,16 @@ BRIDGE = ROOT.parent / "tools" / "mcp_bridge_swing_legacy_eval.py"
 
 
 def build_collector_command(*, python: str = sys.executable, root: Path = ROOT,
-                            port: int = 55355) -> list[str]:
+                            port: int = 55355, a_lead_frames: int = 45) -> list[str]:
     """Do not add a fresh launcher, change the waveform, or prime by RPC count."""
+    if type(a_lead_frames) is not int or a_lead_frames not in (45, 90):
+        raise ValueError('V1 timing comparison accepts only 45 or 90 observed A-lead frames')
     collector = root / "scripts" / "collect_outcome_transition.py"
     if not collector.is_file():
         raise ValueError("canonical attached RAM/shot collector missing")
     return [
         python, str(collector), "--send-live-swing",
-        "--a-prime-requests", "0", "--a-lead-frames", "45",
+        "--a-prime-requests", "0", "--a-lead-frames", str(a_lead_frames),
         "--observe-start-pose", "--ask-power", "--port", str(port),
     ]
 
@@ -71,12 +73,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--send-live-swing", action="store_true",
                    help="explicit permission for ONE shot after collector prompts")
     p.add_argument("--port", type=int, default=55355)
+    p.add_argument("--a-lead-frames", type=int, choices=(45, 90), default=45,
+                   help='45 previously observed hitting trial, or controlled 90-frame prehold retry')
     p.add_argument("--expected-bridge", type=Path, default=BRIDGE)
     args = p.parse_args(argv)
     if args.port not in range(1, 65536):
         p.error("port must be between 1 and 65535")
     try:
-        command = build_collector_command(port=args.port)
+        command = build_collector_command(port=args.port, a_lead_frames=args.a_lead_frames)
         check_local_v1_source(args.expected_bridge)
         if not args.send_live_swing:
             print("DRY RUN ONLY. Attached collector command:", command)
@@ -85,7 +89,7 @@ def main(argv: list[str] | None = None) -> int:
         ensure_running_bridge(args.port)
         print("READY-BALL V1 A45 recheck: existing advancing Dolphin only; NO reset.", flush=True)
         print("Local V1 file is validated but loaded bridge identity is not proven by ping.", flush=True)
-        print("Original 89-sample forward waveform; measured 45-frame A prehold.", flush=True)
+        print(f"Original 89-sample forward waveform; measured {args.a_lead_frames}-frame A prehold.", flush=True)
         print("Human observation still required; dispatch is NOT proof of contact.", flush=True)
         result = subprocess.run(command, cwd=ROOT, check=False)
         return int(result.returncode)
