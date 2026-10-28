@@ -91,6 +91,40 @@ class SevenManualDumpTests(unittest.TestCase):
         self.assertFalse(data["p0_ball_world_xyz_verified"])
         self.assertFalse(data["approved_for_model_training"])
 
+    def test_three_phase_temporal_mask_classifies_reversion_and_continuing_pages(self):
+        # Synthetic pages: W5 baseline zero; W6 changes pages 1,2,3;
+        # W7 retains page1, restores page2, evolves page3 and adds page4.
+        # A=5->6 {1,2,3}; B=6->7 {2,3,4};
+        # C=5->7 {1,3,4}; common=2, all-three=1, restored=1.
+        self.fixture(5)
+        self.fixture(6)
+        self.fixture(7)
+        for bank in (1, 2):
+            def alter(phase, changes):
+                path = self.folder / f"{phase}.{bank}.raw"
+                with path.open("r+b") as out:
+                    for page, value in changes:
+                        out.seek(page * 4096 + 1)
+                        out.write(bytes([value]))
+            alter(6, [(1, 0x10), (2, 0x30), (3, 0x50)])
+            alter(7, [(1, 0x10), (3, 0x60), (4, 0x70)])
+        result = self.run_ps()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("WEDGE TEMPORAL MEM1", result.stdout)
+        self.assertIn("WEDGE TEMPORAL MEM2", result.stdout)
+        reports = list(self.folder.glob("P0-SEVEN-AUDIT-*-PRIVATE/report-RAW-PRIVATE.json"))
+        self.assertEqual(len(reports), 1)
+        data = json.loads(reports[0].read_text())
+        for bank in ("MEM1", "MEM2"):
+            m = data["wedge_temporal_page_triage"][bank]
+            self.assertEqual(m["changed_in_both_adjacent_intervals"], 2)
+            self.assertEqual(m["changed_in_all_three_pairwise_contrasts"], 1)
+            self.assertEqual(m["changed_in_both_adjacent_intervals_but_first_equals_last_page"], 1)
+            self.assertEqual(m["changed_only_in_first_adjacent_interval"], 1)
+            self.assertEqual(m["changed_only_in_second_adjacent_interval"], 1)
+            self.assertTrue(m["three_state_page_triangle_consistent"])
+            self.assertTrue(m["page_mask_intersection_is_NOT_ball_world_xyz"])
+
     def test_wrong_game_header_rejected_before_any_report(self):
         self.fixture(5, good_header=False)
         self.fixture(6, altered=True)
