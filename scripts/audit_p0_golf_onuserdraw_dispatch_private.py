@@ -22,6 +22,7 @@ if _HERE in sys.path:
     sys.path.remove(_HERE)
 sys.path.insert(0, _HERE)
 import audit_p0_golf_oncalculate_dispatch_private as prior
+import review_p0_golf_draw_main_13word_source as draw_main
 
 DRAW_PC = 0x8028DF78
 NEXT_NAMED_ENTRY = 0x8028DF80
@@ -74,6 +75,7 @@ def analyze(archive):
     archive=Path(archive)
     folders=prior.seven._check_archive(archive)
     draw_words=[]
+    main_body_words=[]
     calculate_words=[]
     main_owner=[]
     for n in prior.PHASES:
@@ -101,8 +103,11 @@ def analyze(archive):
             calculate_words.append((u(prior.CALCULATE_PC),
                                     u(prior.CALCULATE_PC+4)))
             draw_words.append((u(DRAW_PC),u(DRAW_PC+4)))
+            main_body_words.append(tuple(
+                u(draw_main.ENTRY+j*4) for j in range(draw_main.WORD_COUNT)))
     if (any(x!=calculate_words[0] for x in calculate_words[1:]) or
-            any(x!=draw_words[0] for x in draw_words[1:])):
+            any(x!=draw_words[0] for x in draw_words[1:]) or
+            any(x!=main_body_words[0] for x in main_body_words[1:])):
         raise ValueError("Rev1 source code was not stable in seven originals")
     existing=prior.classify_two_word_source(calculate_words[0])
     if not existing["oncalculate_to_main_direct_thunk_supported"]:
@@ -110,6 +115,17 @@ def analyze(archive):
     if any(owner!="MEM2" for owner in main_owner):
         raise ValueError("scene RPGolMain member identity class changed")
     result=classify_draw_two_words(draw_words[0])
+    # Only study the published 13-word source after its exact entry is
+    # authenticated by the two-word native draw thunk.
+    if (result.get("qualified_target_public_PPC_code_PC") !=
+            f"0x{draw_main.ENTRY:08X}"):
+        main_study = None  # negative source; never speculate a callee identity
+    else:
+        verified_words = main_body_words[0]
+        main_study = draw_main.census(
+            lambda pc:verified_words[(pc-draw_main.ENTRY)//4]
+            if draw_main.ENTRY <= pc < draw_main.END and pc%4==0
+            else (_ for _ in ()).throw(ValueError("out of exact draw range")))
     prior.seven._check_archive(archive)
     return {
         "kind":"P0-SANITIZED-REV1-GOLF-ONUSERDRAW-DISPATCH-AUDIT",
@@ -118,6 +134,8 @@ def analyze(archive):
         "scene_main_member_MEM2_all_seven":True,
         "calculate_2_word_thunk_precondition_still_source_qualified":True,
         "source_draw_2_word_window_identical_seven_of_seven":True,
+        "source_draw_target_13_word_window_identical_seven_of_seven":True,
+        "source_draw_main_13_word_census":main_study,
         **{k:v for k,v in result.items() if k!="kind"},
     }
 
