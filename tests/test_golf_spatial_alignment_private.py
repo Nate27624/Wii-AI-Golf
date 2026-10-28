@@ -32,11 +32,20 @@ def fabricated():
         words[obj + 0x4C] = obj + 0x30
         for i, val in enumerate(vals):
             words[obj + 0x30 + 4*i] = val
+    # Upstream synthetic selected-link fixture deliberately uses an EXTERNAL
+    # allocated vec3 pointer. This SPATIAL test requires the independently
+    # constructor-supported *self-reference* seen in real MEM2 (child+0x30).
+    selected = words[pm + 4 + 0x88]
+    old_dest = words[selected + 0x4C]
+    words[selected + 0x4C] = selected + 0x30
+    for j in range(3):
+        words[selected + 0x30 + 4*j] = words[old_dest + 4*j]
     shared = (0xC1B00000, 0x40000000, 0x41000000)
     for i in (1, 2, 3):
         rec = pm + 4 + i*roster.ROSTER_STRIDE
         obj = words[rec + 0x88]
-        dest = words[obj + 0x4C]
+        words[obj + 0x4C] = obj + 0x30
+        dest = obj + 0x30
         for j, val in enumerate(shared):
             words[dest + j*4] = val
     return words, dict(refs, field=field, pin=objs[0][1],
