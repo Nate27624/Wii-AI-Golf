@@ -4,6 +4,8 @@ on:
     paths:
       - "scripts/audit_selected_ball_start_link_private.py"
       - "tests/test_selected_ball_start_link_private.py"
+      - "scripts/audit_selected_ball_four_phase_private.py"
+      - "tests/test_selected_ball_four_phase_private.py"
       - ".github/workflows/s002-selected-ball-start-offline.yml"
   workflow_dispatch:
 
@@ -24,5 +26,9 @@ jobs:
           python-version: '3.13'
       - name: Compile source-gated private analyzer
         run: python -m compileall -q scripts/audit_selected_ball_start_link_private.py tests/test_selected_ball_start_link_private.py
+      - name: Compile four-phase no-shot audit
+        run: python -m compileall -q scripts/audit_selected_ball_four_phase_private.py tests/test_selected_ball_four_phase_private.py
+      - name: Synthetic selected-ball four-phase controls
+        run: python -m unittest discover -s tests -p test_selected_ball_four_phase_private.py -v
       - name: Synthetic source ownership and privacy
         run: python -m unittest discover -s tests -p test_selected_ball_start_link_private.py -v
