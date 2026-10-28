@@ -1,0 +1,29 @@
+name: P0 source-gated wedge cache endpoint ordering
+on:
+  push:
+    branches:
+      - agent/research/p0-wedge-cache-endpoint-ordering-20261028
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_wedge_cache_endpoint_order_private.py'
+      - 'tests/test_p0_wedge_cache_endpoint_order_private.py'
+      - '.github/workflows/p0-wedge-cache-endpoint-order.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-only:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run entirely fabricated negative/positive controls
+        run: python -m unittest discover -s tests -p test_p0_wedge_cache_endpoint_order_private.py -v
+      - name: Compile private analyzer and tests
+        run: python -m compileall -q scripts/audit_p0_wedge_cache_endpoint_order_private.py tests/test_p0_wedge_cache_endpoint_order_private.py
