@@ -1,5 +1,9 @@
 # Wii AI Golf
 
+## P0 agent research: fetch vetted Python through `gh`
+
+For future agents, [AGENTS.md](AGENTS.md#operator-requested-p0-memory-audits-github-cli-first-python-allowed-2026-10-28) defines the operator-requested offline memory-audit workflow: **Python analysis is allowed; retrieve the exact reviewed script and its dependencies first using authenticated GitHub CLI (`gh`), verify its pinned commit, run focused tests, then run the read-only private audit locally.** Provide a single copy-pasteable **Windows PowerShell** block, and optional tested Bash/WSL equivalent. Do not send the operator raw Python source to paste, run mutable PR HEADs, start Dolphin, re-scan the same archive without a P0 hypothesis, or upload private memory. This is for **explicit operator-run P0 research**, not automatic execution of unmerged Lab tests or live game actions.
+
 ## One-command research status sharing (existing Git authentication)
 
 ```powershell
