@@ -29,12 +29,12 @@ class GameMemoryEvidenceLedgerTests(unittest.TestCase):
 
     def test_current_ledger_is_valid_without_training_claims(self):
         fields = validate_memory_ledger(self.doc)
-        self.assertEqual(len(fields), 32)
+        self.assertEqual(len(fields), 33)
         self.assertFalse(any(x["training_eligible"] for x in fields))
         self.assertEqual(len([x for x in fields if x["negative_control"]]), 4)
         self.assertEqual(len([x for x in fields if x["identity_level"] == "unlocated"]), 10)
         self.assertEqual(len([x for x in fields if x["object_role"] == "golf_field_manager"]), 6)
-        self.assertEqual(len(read_memory_ledger(SOURCE)), 32)
+        self.assertEqual(len(read_memory_ledger(SOURCE)), 33)
 
     def test_environment_reference_is_not_a_physical_quantity(self):
         entries = validate_memory_ledger(self.doc)
@@ -94,6 +94,22 @@ class GameMemoryEvidenceLedgerTests(unittest.TestCase):
             validate_memory_ledger(self.mutate(
                 "golfer.ball_related_translation_write_path",
                 training_eligible=True))
+
+    def test_source_written_state_is_not_contact_or_power_decoder(self):
+        rows = {f["field_id"]: f for f in validate_memory_ledger(self.doc)}
+        state = rows["golfer.player_record_state_word_candidate"]
+        self.assertEqual(state["relative_offset"], "+0x024")
+        self.assertTrue(state["writer_instruction_verified"])
+        self.assertFalse(state["source_typed_member_verified"])
+        self.assertFalse(state["gameplay_value_verified"])
+        self.assertFalse(state["training_eligible"])
+        self.assertIn("not an exhaustive enum", state["notes"])
+        self.assertEqual(rows["gameplay.contact_event"]["identity_level"], "unlocated")
+        self.assertEqual(rows["gameplay.ball_landing"]["identity_level"], "unlocated")
+        self.assertEqual(rows["gameplay.swing_power"]["identity_level"], "unlocated")
+        with self.assertRaisesRegex(ValueError, "Training promotion"):
+            validate_memory_ledger(self.mutate(
+                "golfer.player_record_state_word_candidate", training_eligible=True))
 
     def test_a_time_correlated_field_cannot_be_promoted_directly(self):
         with self.assertRaisesRegex(ValueError, "Training promotion"):
