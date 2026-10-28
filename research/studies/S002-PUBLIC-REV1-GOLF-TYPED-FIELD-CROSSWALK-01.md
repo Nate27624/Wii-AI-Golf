@@ -18,14 +18,22 @@ The following **public header descriptions**, not new RAM measurements, are rele
 | Same FieldManager | `mMapBallEff` | `+0x9C` | Minimap effect pointer, NOT a verified rendered physical ball pointer or world-position field. |
 | Same FieldManager | `mKillTargetEffEmitter` | `+0xA4` | Bool kill flag; corroborates but must not conflate with ball contact. |
 | [`RPGolMapObjBase`](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPGolScene/RPGolMapObjBase.h) | `nw4r::math::VEC3 mTrans`, `nw4r::math::VEC3* mpTrans` | `+0x30`, `+0x4C` | Strong independent static map-object position schema match to S002's `+0x4C -> +0x30` selfref. Not automatically physical ball and not Player+0x30. |
-| [`RPGolConfig`](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPGolScene/RPGolConfig.h) | `u32 mStrokeTotal[9][4]` | `+0x04` (144 bytes) | Potential typed score-table source for S002 #239/#245; not equivalent to current player `mStrokeNum`. |
+| [`RPGolConfig`](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPGolScene/RPGolConfig.h) **versus** [kiwi515/ogws_info Config](https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolConfig.h) | **CONFLICT:** Kokeshi `mStrokeTotal[9][4]`, ogws_info `mPlayerScores[4][9]` | Both `+0x04` (144 bytes) | Same raw 36 words, **row order DISPUTED**. No selected hole/player cell indexing may be trusted until exact original Rev1 PPC getter arithmetic verified. Distinct from current player `mStrokeNum`. |
 | Same Config | `mGameMode`, `mCurrentHole` | `+0x94`, `+0x98` | Distinct source-class fields from unknown Config controls `+0xBC/+0xC0/+0xC4`. |
+
+**Important source-conflict correction (2026-10-28):** Do not privilege
+Kokeshi's `[9][4]` Config score annotation over kiwi515/ogws_info's `[4][9]`
+without game PPC indexing evidence. They agree on size/location but disagree
+on memory order. Earlier crosswalk drafts called Config [9][4] without
+explicitly identifying the contradictory upstream. Treat Config selected-cell
+semantics as P0 **UNRESOLVED**; use original-code source check in draft #278
+before any S000 catalog score-index promotion.
 
 ### Why this matters more than another PPC-offset scan
 
 1. Existing PR #244 original B0 source proves a **possible**, local, two-store same-receiver code path: `RPGolPlayer` *compilation unit* `+0x2008: stfs f0,+0x30(r30)` → `+0x201C: mr r3,r30` → `+0x2024: BL +0x1BD4` → `+0x1BE8: mr r31,r3` → `+0x1C18: stfs f0,+0x90(r31)`. This does **not** type the pointer. In particular, **Kokeshi does not name Player +0x30 or +0x90**, so do not transfer MapObjBase's `mTrans` field to player offsets by coincidence.
 2. Independent Kokeshi `RPGolMapObjBase +0x30/+0x4C` is a structural crosscheck for the map objects in #183/#240. It **does not** decide which of global and inline ball-related objects is visually rendered, nor establish same physics frame.
-3. Kokeshi `RPGolConfig+0x04` [9][4] stroke table plus `RPGolPlayer+0x78` current stroke count gives two **distinct, typed score witnesses** for #239/#245. The zero-difference score-table result in some preserved intervals cannot disprove a shot/impact. Avoid calling shot power based on these fields.
+3. **Two independent public annotations CONFLICT on the Config +0x04 table's row order:** Kokeshi [9][4] versus kiwi515/ogws_info [4][9]. Existing #239 original four-edge 0/36 aggregate negative remains unaffected; the selected hole/player cell is **unresolved**. See [draft #278](https://github.com/Nate27624/Wii-AI-Golf/pull/278) for a bounded original-B0 PPC getter arithmetic audit at 0x8029CBD4/0x8029CC54. The independent Player+0x78 current-stroke candidate is a **different owner/field**. No score should be called power or impact.
 4. The Kokeshi `FieldManager` public layout independently corroborates the S002 source `mCurrentPinObj` / `mCurrentStartObj` offsets and S002's pin/target confound.
 
 ### Recommended single read-only follow-up (not run or authorized here)
