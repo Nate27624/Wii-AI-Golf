@@ -28,3 +28,22 @@ Run focused 11 synthetic tests (including 1, 2 and 0 possible matching component
 No Dolphin, controller, shot, new dump, automatic GitHub publisher or training. The script accepts the canonical #231 **p0-private-numbered-capture-inventory** archive schema, not the distinct generic seven-dump inventory manifest. It intentionally never falls back to ungated files.
 
 S000 #205 can catalog only the *coincidence result* after an actual local audit; S002 source owner must review whether +0x30 belongs to physics vs render object and independently calibrate axes; S001 can only do future observed frame-tied trajectory after separately approved safe live sampling. Remain unmerged DRAFT until full native suite and owners' reviews.
+
+
+## Actual operator Windows result — real seven-pair source gate PASS (2026-10-28)
+
+The operator ran the exact pinned PR #234 commit `fe7d520da6346c2c3c3248ef11da4e1671837449` in a clean detached worktree. All **11/11 local synthetic tests PASS**; original generic inventory **14/14 native bank SHA** PASS and precisely one matching canonical `p0-new-cohort-*-PRIVATE` archive was found. The analyzer's inherited #231 manifest/source/owner/scene/revision/geometry gates PASSED; output `P0_AXIS_ANCHOR_ANALYSIS=COMPLETE`, `SourceGeometryStable=True`; no Dolphin, raw memory publication or original-bank writes.
+
+| Source component index | W5 -> W6 | W6 -> W7 | W6 between W5/W7 | W7 bitwise/near PIN | W7 bitwise TEE | Pin-anchor coincidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0 | increase | increase | true | false / false | false | false |
+| 1 | decrease | decrease | true | false / false | false | false |
+| 2 | decrease | decrease | true | false / false | false | false |
+
+Result: `CandidateCount=0`, `UniquePinCoincidence=False`, `PhysicalVerticalAxisVerified=False`, `WorldXYZVerified=False`, `TrainingApproved=False`. This is a **successful falsification of the specific pin-coordinate coincidence selector** on the human-labeled W7 snapshot, **NOT** a falsification of the ball translation as a moving-position candidate, nor of any component as eventual height. W7 is human-reported flag-hit / on-green UI, not independently verified physics-settled or exactly at pin elevation. All three components are strictly monotone in W5->W6->W7; monotonicity alone cannot identify gravity direction.
+
+### Independent corrected cup-vs-pin context, not a promotion of this test
+
+Separate operator source/geometry investigation on the SAME preserved seven-bank cohort (documented in [PR #234 discussion](https://github.com/Nate27624/Wii-AI-Golf/pull/234) and [PR #205](https://github.com/Nate27624/Wii-AI-Golf/pull/205)) corrected an earlier PowerShell array-flattening defect and verified **exactly three** cup-versus-pin component equalities **[true,false,true]** both in D1 and W5, with candidate CUP component 1 **numerically lower** than selected PIN component 1. Together with wedge selected-ball candidate component 1 decreasing twice, this provides **source-relative component-1 elevation-hypothesis support**, not a verified physical vertical axis. The corrected CUP/PIN equality mask supersedes the invalid legacy single-element `[false]` mask. The geometry cup and pin are different source objects; physical ground/score semantics, native unit conversion, W7 ball touchdown, and frame timestamps remain unknown. **Do not change any training approval.**
+
+For S002 next review, inspect original source field types/physics gravity or world-up basis against this **component index 1 hypothesis**. For S001, a safely approved frame-stamped trajectory with independent visual height labels and actual ground contact is still necessary for calibration. Do not use the 15.2-foot human UI alone to fit a unit ratio, and do not rerun duplicate CC endpoint scans.
