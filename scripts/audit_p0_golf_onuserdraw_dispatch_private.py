@@ -110,8 +110,10 @@ def analyze(archive):
             any(x!=main_body_words[0] for x in main_body_words[1:])):
         raise ValueError("Rev1 source code was not stable in seven originals")
     existing=prior.classify_two_word_source(calculate_words[0])
-    if not existing["oncalculate_to_main_direct_thunk_supported"]:
-        raise ValueError("original independently qualified Calculate thunk changed")
+    if (not existing["oncalculate_to_main_direct_thunk_supported"] or
+            existing["candidate_target_public_code_pc"] !=
+            f"0x{prior.main_update.MAIN_ENTRY:08X}"):
+        raise ValueError("original exact Calculate thunk target changed")
     if any(owner!="MEM2" for owner in main_owner):
         raise ValueError("scene RPGolMain member identity class changed")
     result=classify_draw_two_words(draw_words[0])
