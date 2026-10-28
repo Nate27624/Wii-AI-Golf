@@ -547,7 +547,7 @@
         "https://github.com/Nate27624/Wii-AI-Golf/pull/159",
         "https://github.com/Nate27624/Wii-AI-Golf/pull/160"
       ],
-      "notes": "S002 private DOL analysis traces 0x802A08B4..0x802A08F0: indexed 428-byte simulator record from singleton r13; writes pointer to r30 player record+0x88. One saved paired-bank roster has four source-data-shaped object pairs spaced 0xCC, but active record selection, object type, lifetime and same frame unverified."
+      "notes": "S002 private DOL analysis traces the Rev1 Player source code range: indexed 428-byte simulator record from singleton r13; writes pointer to r30 player record+0x88. One saved paired-bank roster has four source-data-shaped object pairs spaced 0xCC, but active record selection, object type, lifetime and same frame unverified."
     },
     {
       "field_id": "golfer.ball_related_translation_write_path",
@@ -567,7 +567,7 @@
         "https://github.com/Nate27624/Wii-AI-Golf/pull/159",
         "https://github.com/Nate27624/Wii-AI-Golf/pull/160"
       ],
-      "notes": "S002 reported DOL dataflow 0x802A0388..0x802A03C8, `lwz r4,136(r3)` then `lwz r4,76(r4)` then 3 stfs at derived target+0,+4,+8 from player-record+0x54..0x5C. Base DOL constructor separately sets `obj+0x4C=obj+0x30`. This is source writer path, but live object type and exact active world ball semantics remain unverified."
+      "notes": "S002 reported DOL dataflow a bounded Rev1 Player source writer range, `lwz r4,136(r3)` then `lwz r4,76(r4)` then 3 stfs at derived target+0,+4,+8 from player-record+0x54..0x5C. Base DOL constructor separately sets `obj+0x4C=obj+0x30`. This is source writer path, but live object type and exact active world ball semantics remain unverified."
     },
     {
       "field_id": "golfer.player_manager_inline_roster",
@@ -587,7 +587,7 @@
         "https://github.com/Nate27624/Wii-AI-Golf/pull/159",
         "https://github.com/Nate27624/Wii-AI-Golf/pull/160"
       ],
-      "notes": "S002 DOL reports manager array constructor with count4 stride204 and record initializer calls in 0x802A344C..0x802A34EC; observed 4 candidate ball/player reference pairs in one saved image. No active player index, frame identity or game ball coordinates verified."
+      "notes": "S002 DOL reports manager array constructor with count4 stride204 and record initializer calls in the Rev1 PlayerManager constructor code range; observed 4 candidate ball/player reference pairs in one saved image. No active player index, frame identity or game ball coordinates verified."
     }
   ]
 }
