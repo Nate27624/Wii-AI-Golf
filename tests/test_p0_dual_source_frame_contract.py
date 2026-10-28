@@ -163,12 +163,62 @@ class DualObjectTests(unittest.TestCase):
     def test_good_distinct_native_ram_pointers_still_accepted(self):
         rows = self.cohort()
         for row in rows:
-            row["selected_ball_object_pointer"] = 0x817FFFFC
+            row["selected_ball_object_pointer"] = 0x817FFFB0
             row["source_global_ball_object_pointer"] = 0x90000000
         result = mod.summarize_private_samples(rows)
         self.assertTrue(result["selected_global_object_pointers_distinct"])
         self.assertFalse(result["rendered_ball_object_identity_verified"])
         self.assertFalse(result["training_approved"])
+
+    def test_reject_selected_ball_pointer_with_no_room_for_4c_member(self):
+        # Both values are aligned and inside native banks with one word
+        # available, but PPC's ball-object +0x4C load would cross the end.
+        for bad in (0x817FFFFC, 0x817FFFB4, 0x93FFFFFC, 0x93FFFFB4):
+            with self.subTest(bank_end_pointer=bad):
+                rows = self.cohort()
+                for row in rows:
+                    row["selected_ball_object_pointer"] = bad
+                with self.assertRaisesRegex(ValueError, "bounded canonical"):
+                    mod.summarize_private_samples(rows)
+
+    def test_reject_global_ball_pointer_with_no_room_for_4c_member(self):
+        for bad in (0x817FFFFC, 0x817FFFB4, 0x93FFFFFC, 0x93FFFFB4):
+            with self.subTest(bank_end_pointer=bad):
+                rows = self.cohort()
+                for row in rows:
+                    row["source_global_ball_object_pointer"] = bad
+                with self.assertRaisesRegex(ValueError, "bounded canonical"):
+                    mod.summarize_private_samples(rows)
+
+    def test_selected_and_global_balls_can_reach_last_full_4c_field(self):
+        rows = self.cohort()
+        for row in rows:
+            row["selected_ball_object_pointer"] = 0x817FFFB0
+            row["source_global_ball_object_pointer"] = 0x93FFFFB0
+        result = mod.summarize_private_samples(rows)
+        self.assertTrue(result["accepted_for_offline_relationship_review"])
+        self.assertTrue(result["selected_global_object_pointers_distinct"])
+        self.assertFalse(result["actual_guest_physics_time_verified_by_analyzer"])
+
+    def test_other_object_types_retain_one_word_only_not_guessed_spans(self):
+        # No evidence here for pin/start/field-manager member sizes.
+        rows = self.cohort()
+        for row in rows:
+            row["pin_object_pointer"] = 0x817FFFFC
+            row["start_object_pointer"] = 0x93FFFFFC
+            row["field_manager_pointer"] = 0x817FFFF8
+        self.assertTrue(mod.summarize_private_samples(rows)[
+            "accepted_for_offline_relationship_review"])
+
+    def test_4c_span_helper_fails_closed_on_bad_minimums(self):
+        for minimum in (0, 1, 3, 5, -4, True, 2.0):
+            with self.subTest(minimum=minimum):
+                self.assertFalse(mod._canonical_native_guest_pointer(
+                    0x90001000, min_bytes=minimum))
+        self.assertTrue(mod._canonical_native_guest_pointer(
+            0x93FFFFB0, min_bytes=0x50))
+        self.assertFalse(mod._canonical_native_guest_pointer(
+            0x93FFFFB4, min_bytes=0x50))
 
     def test_reject_pointer_relocation_selected(self):
         rows=self.cohort();rows[3]["selected_ball_object_pointer"]+=4
