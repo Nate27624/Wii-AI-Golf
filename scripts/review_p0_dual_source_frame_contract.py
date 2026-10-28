@@ -57,12 +57,22 @@ def _u32(x: object) -> bool:
     return type(x) is int and 0 <= x <= 0xFFFFFFFF
 
 
-# The source-qualified RPGolMapObjBall pointers (selected and global)
-# both have a PPC dereference of their +0x4C member. Requiring one u32 at
-# the object base admits a final-bank-word pointer that cannot supply that
-# member. This checks only the outer ball object, NOT the nested +0x4C
-# pointer's target, its type, or whether the emulator executed the read.
-BALL_MEMBER_4C_MIN_SPAN = 0x50
+# MINIMUM native MEM2 object footprints, crosschecked against the existing
+# SHA-gated Rev1 original-capture readers, not inferred from raw traces:
+# selected ball _bank(ball,0x108)==MEM2 [#231]; global _bank(ptr,0x50)
+# ==MEM2 [#240]; pin+start _bank(...,0x50)==MEM2 [#231];
+# field manager _bank(field,0xA8)==MEM2 [#231].
+# These are only NECESSARY outer-object span checks. They do not dereference
+# actual runtime pointers or verify the nested +0x4C targets.
+SOURCE_OBJECT_MEM2_MIN_SPANS = {
+    "selected_ball_object_pointer": 0x108,
+    "source_global_ball_object_pointer": 0x50,
+    "pin_object_pointer": 0x50,
+    "start_object_pointer": 0x50,
+    "field_manager_pointer": 0xA8,
+}
+MEM2_NATIVE_START, MEM2_NATIVE_END = NATIVE_GUEST_RAM_RANGES[1]
+BALL_MEMBER_4C_MIN_SPAN = 0x50  # Compatibility; not enough for selected.
 
 
 def _canonical_native_guest_pointer(x: object, *, min_bytes: int = 4) -> bool:
@@ -72,6 +82,19 @@ def _canonical_native_guest_pointer(x: object, *, min_bytes: int = 4) -> bool:
     return (_u32(x) and x % 4 == 0
             and any(start <= x and x + min_bytes <= end
                     for start, end in NATIVE_GUEST_RAM_RANGES))
+
+
+def _qualified_mem2_object_span(x: object, *, min_bytes: int) -> bool:
+    """Source-consistent original MEM2 object footprint, not a typed object."""
+    return (
+        _u32(x)
+        and type(min_bytes) is int
+        and min_bytes >= 4
+        and min_bytes % 4 == 0
+        and x % 4 == 0
+        and MEM2_NATIVE_START <= x
+        and x + min_bytes <= MEM2_NATIVE_END
+    )
 
 
 def _vector(v: object) -> tuple[int, int, int]:
@@ -118,14 +141,11 @@ def _checked_row(row: object) -> dict[str, Any]:
         if type(row[key]) is not str or not 1 <= len(row[key]) <= 128:
             raise ValueError("missing frame provenance identity")
     for key in POINTERS:
-        # The two ball objects are source-qualified to expose a +0x4C
-        # member, so the entire 4-byte field must fit inside one bank.
-        # Other pointer types have NO independently confirmed minimum
-        # source span here: retain the original conservative 1-word gate.
-        span = (BALL_MEMBER_4C_MIN_SPAN if key in (
-            "selected_ball_object_pointer", "source_global_ball_object_pointer"
-        ) else 4)
-        if not _canonical_native_guest_pointer(row[key], min_bytes=span):
+        # All five source-qualified objects are MEM2; the global pointer's
+        # static r13 slot can be MEM1, but its OBJECT is MEM2. Use each
+        # original reader's FULL minimum accessible object footprint.
+        span = SOURCE_OBJECT_MEM2_MIN_SPANS[key]
+        if not _qualified_mem2_object_span(row[key], min_bytes=span):
             raise ValueError("missing bounded canonical source-object identity")
     for key in (*VECTORS, "config_bc_c0_c4_words"):
         _vector(row[key])
