@@ -139,7 +139,7 @@ def analyze(archive: Path) -> dict:
         if report["oncalculate_to_main_direct_thunk_supported"] else None)
     if main_report is not None:
         main_report["independent_prior_0x100_original_BL_prefix_matched"] = (
-            main_update.require_prior_prefix_match(main_report))
+            main_update.require_prior_prefix_match(main_report, main_source_words[0]))
     sim_stable = all(words == sim_callee_source_windows[0]
                      for words in sim_callee_source_windows[1:])
     if not sim_stable:
