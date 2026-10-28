@@ -147,7 +147,11 @@ def _joined_visual_first(run_token: str, start: datetime, *,
         if (not re.fullmatch(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{10}", run_token)
                 or path.is_symlink() or not path.is_file()
                 or not 0 < path.stat().st_size <= 2_000_000
-                or path.stat().st_mtime < start.timestamp()):
+                # On Windows temporary files may report coarser modification
+                # times than UTC datetime.now(). The high-entropy exact run
+                # token and semantic record checks remain the identity gate;
+                # allow <=2 seconds timestamp rounding, not older captures.
+                or path.stat().st_mtime < start.timestamp() - 2.0):
             return invalid
         item = json.loads(path.read_text(encoding="utf-8"))
         if type(item) is not dict or item.get("run_token") != run_token:
