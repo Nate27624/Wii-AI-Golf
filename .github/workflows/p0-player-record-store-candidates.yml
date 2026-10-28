@@ -1,0 +1,31 @@
+name: S002 player-record source store candidates (synthetic)
+on:
+  push:
+    paths:
+      - 'scripts/audit_p0_player_record_store_candidates_private.py'
+      - 'tests/test_p0_player_record_store_candidates_private.py'
+      - '.github/workflows/p0-player-record-store-candidates.yml'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_player_record_store_candidates_private.py'
+      - 'tests/test_p0_player_record_store_candidates_private.py'
+      - '.github/workflows/p0-player-record-store-candidates.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Source-only synthetic negative controls
+        run: python -m unittest discover -s tests -p 'test_p0_player_record_store_candidates_private.py' -v
+      - name: Parse scripts without native ROM or RAM
+        run: python -m compileall -q scripts/audit_p0_player_record_store_candidates_private.py tests/test_p0_player_record_store_candidates_private.py
