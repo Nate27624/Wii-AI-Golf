@@ -4,6 +4,8 @@ on:
     paths:
       - 'scripts/audit_p0_seven_record_phase_masks_private.py'
       - 'tests/test_p0_seven_record_phase_masks_private.py'
+      - 'scripts/audit_p0_seven_record_two_word_roles_private.py'
+      - 'tests/test_p0_seven_record_two_word_roles_private.py'
       - '.github/workflows/p0-selected-record-phase-masks.yml'
 permissions:
   contents: read
@@ -20,3 +22,4 @@ jobs:
         with:
           python-version: '3.13'
       - run: python -m unittest discover -s tests -p test_p0_seven_record_phase_masks_private.py -v
+      - run: python -m unittest discover -s tests -p test_p0_seven_record_two_word_roles_private.py -v
