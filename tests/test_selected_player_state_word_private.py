@@ -17,7 +17,8 @@ def encode_dform(opcode, rt, ra, displacement):
 
 def entries(states=(1, 1, 2, 2)):
     return [
-        {"state": v, "slot": 0, "hole": 1, "record": 0x90010000,
+        {"state": v, "peer_states": (v, 1, 2, 3),
+         "slot": 0, "hole": 1, "record": 0x90010000,
          "source_gate": True}
         for v in states
     ]
@@ -60,6 +61,40 @@ class StateWordTests(unittest.TestCase):
         self.assertNotIn("AABBCCDD", rendered)
         self.assertNotIn("0x90010000", rendered)
         self.assertFalse(report["candidate_state_exhaustive_enum_verified"])
+
+    def test_all_zero_is_unknown_not_contact(self):
+        items = entries((0, 0, 0, 0))
+        for e in items:
+            e["peer_states"] = (0, 0, 0, 0)
+        report = summarize(items, all_bank_pairs_changed=True)
+        self.assertEqual(report["candidate_state_is_zero_each_phase"],
+                         [True] * 4)
+        self.assertEqual(report["any_slot_state_in_five_source_literals_each_phase"],
+                         [False] * 4)
+        self.assertEqual(report["other_slots_equal_to_selected_state_count_each_phase"],
+                         [3] * 4)
+        self.assertEqual(report["nonselected_slot_state_changes_by_transition"],
+                         [0, 0, 0])
+        self.assertFalse(report["candidate_state_has_verified_gameplay_semantics"])
+
+    def test_selected_state_stable_but_peer_aim_changed(self):
+        items = entries((0, 0, 0, 0))
+        for j, e in enumerate(items):
+            e["peer_states"] = (0, 0 if j < 2 else 4, 0, 0)
+        report = summarize(items, all_bank_pairs_changed=True)
+        self.assertTrue(report["candidate_state_stable_all_four_no_shot_phases"])
+        self.assertEqual(report["nonselected_slot_state_changes_by_transition"],
+                         [0, 1, 0])
+        self.assertEqual(report["any_slot_state_in_five_source_literals_each_phase"],
+                         [False, False, True, True])
+        self.assertFalse(report["observed_contact_or_ball_motion"])
+        self.assertFalse(report["training_allowed"])
+
+    def test_reject_selected_peer_mismatch(self):
+        items = entries((0, 0, 0, 0))
+        items[2]["peer_states"] = (5, 0, 0, 0)
+        with self.assertRaises(ValueError):
+            summarize(items, all_bank_pairs_changed=True)
 
     def test_reject_wrong_slot_record_hole(self):
         for field, value in (("slot", 1), ("record", 0x90050000),
