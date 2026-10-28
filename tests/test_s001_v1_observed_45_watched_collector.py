@@ -74,6 +74,7 @@ class V1ObservedCaptureTests(unittest.TestCase):
 
     def test_preflight_verifies_v1_and_never_calls_controller(self):
         rpc = FakeRPC()
+        rpc.statuses = ["idle"]
         self.assertTrue(v1.preflight(rpc)["v1_provenance_checked"])
         self.assertTrue(all(not name.startswith("controller.") for name, _ in rpc.calls))
 
@@ -154,10 +155,15 @@ class V1ObservedCaptureTests(unittest.TestCase):
 
     def test_bad_source_hash_cannot_pass_local_preflight(self):
         with tempfile.TemporaryDirectory() as d:
-            p=Path(d)/v1.WATCHED_BRIDGE_NAME
-            p.write_text("fake source",encoding="utf-8")
-            with self.assertRaises(ValueError):
-                v1.verify_local_bridge(p)
+            fake_repo = Path(d) / "Wii-AI-Golf"
+            fake_repo.mkdir()
+            tools = Path(d) / "tools"
+            tools.mkdir()
+            p = tools / v1.WATCHED_BRIDGE_NAME
+            p.write_text("fake source", encoding="utf-8")
+            with patch.object(v1, "ROOT", fake_repo):
+                with self.assertRaisesRegex(ValueError, "SHA mismatch"):
+                    v1.verify_local_bridge(p)
 
     def test_wrong_target_before_attach_never_starts_game(self):
         with patch.object(v1,"FelkRPC",side_effect=AssertionError("RPC must not open")):
