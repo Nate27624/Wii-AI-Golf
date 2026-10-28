@@ -55,8 +55,14 @@ def inspect_local_base_definition(data: bytes, start: int, unit_start: int,
         # Any flow transfer (including calls) invalidates local linear reach.
         if primary in (16, 17, 18, 19):
             kind = "control_flow_barrier"
-        elif primary in (32, 33, 34, 35, 40, 41, 42, 43):
+        elif primary in (32, 34, 40, 42):
             kind = "memory_load_candidate" if rt == base_reg else None
+        elif primary in (33, 35, 41, 43):
+            kind = ("memory_load_candidate" if rt == base_reg else
+                    "update_form_base_modified" if ra == base_reg else None)
+        elif primary in (49, 51):
+            # lfsu/lfdu update the GPR address base, not the floating dest.
+            kind = "update_form_base_modified" if ra == base_reg else None
         elif primary in (14, 15):
             kind = "immediate_arithmetic_candidate" if rt == base_reg else None
         elif primary in (24, 25, 26, 27, 28, 29):
@@ -74,7 +80,7 @@ def inspect_local_base_definition(data: bytes, start: int, unit_start: int,
         elif primary in (7, 8, 12, 13, 20, 21, 22, 23, 30):
             kind = "unknown_integer_possible_definition" if (
                 rt == base_reg or ra == base_reg) else None
-        elif primary not in (36, 38, 44, 52, 54, 59, 63, 4):
+        elif primary not in (36, 38, 44, 48, 50, 52, 54, 59, 63, 4):
             kind = "unknown_opcode_barrier"
         else:
             kind = None
