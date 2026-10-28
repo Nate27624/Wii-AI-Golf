@@ -1,0 +1,30 @@
+name: P0 Golf sprintf r4 destination semantics review
+
+on:
+  push:
+    branches:
+      - 'agent/review/p0-sprintf-r4-writes-*'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_golf_sprintf_arg_origins_private.py'
+      - 'tests/test_p0_golf_sprintf_r4_write_review.py'
+      - '.github/workflows/p0-sprintf-r4-write-review.yml'
+
+jobs:
+  source-only:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile reviewed code
+        run: python -m py_compile scripts/audit_p0_golf_sprintf_arg_origins_private.py tests/test_p0_golf_sprintf_r4_write_review.py
+      - name: Existing original 12 synthetics
+        run: python -I tests/test_p0_golf_sprintf_arg_origins_private.py
+      - name: New 11 PPC destination tests
+        run: python -I tests/test_p0_golf_sprintf_r4_write_review.py
