@@ -52,7 +52,7 @@ class DualObjectTests(unittest.TestCase):
         self.assertTrue(r["selected_global_object_pointers_distinct"])
         self.assertEqual(r["global_object_changed_components_per_transition"],[0,0,0])
         self.assertEqual(r["selected_ball_changed_components_per_transition"],[3,3,3])
-        self.assertEqual(r["source_global_equals_selected_cc_components_per_sample"],[3,3,3])
+        self.assertEqual(r["source_global_equals_selected_cc_components_per_sample"],[3,3,3,3])
         self.assertFalse(r["actual_ball_world_xyz_verified"])
 
     def test_no_real_frame_claim_from_attestation(self):
