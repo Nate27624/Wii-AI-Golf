@@ -64,6 +64,56 @@ class P0TrainingSetupSourceTests(unittest.TestCase):
         self.assertEqual(m._branch_target(bl(pc,pc-0x10),pc,False),pc-0x10)
         self.assertEqual(m._branch_target(bc(pc,pc-0x10),pc,True),pc-0x10)
 
+    def test_bcl_direct_link_counted_but_not_claimed_callee(self):
+        words=list(fixture()[0])
+        t=m.WINDOWS[0][1]
+        words[6]=bc(t+24,t+36) | 1
+        r=m.classify_window(*m.WINDOWS[0],tuple(words))
+        self.assertEqual(r["unconditional_direct_bl_site_count"],2)
+        self.assertEqual(r["conditional_direct_bcl_site_count"],1)
+        self.assertEqual(r["direct_linked_branch_site_count"],3)
+        match=[z for z in r["direct_linked_branch_sites"] if z["site"]=="+0x018"]
+        self.assertEqual(len(match),1)
+        self.assertEqual(match[0]["opcode_family"],"BC")
+        self.assertTrue(match[0]["conditional"])
+        self.assertTrue(match[0]["link"])
+        self.assertEqual(match[0]["target_region"],"IN_THIS_FUNCTION+0x024")
+        self.assertIn(match[0],r["direct_nonlinked_or_conditional_branches"])
+        self.assertFalse(r["linked_sites_are_executed_calls_verified"])
+
+    def test_nonlinked_conditional_branch_does_not_inflate_linked_counts(self):
+        words=list(fixture()[0])
+        t=m.WINDOWS[0][1]
+        words[6]=bc(t+24,t+36)  # LK=0
+        r=m.classify_window(*m.WINDOWS[0],tuple(words))
+        self.assertEqual(r["conditional_direct_bcl_site_count"],0)
+        self.assertEqual(r["unconditional_direct_bl_site_count"],2)
+        self.assertEqual(r["direct_linked_branch_site_count"],2)
+
+    def test_bcl_pc_plus_four_idiom_is_not_a_verified_function_call(self):
+        words=list(fixture()[0])
+        t=m.WINDOWS[0][1]
+        words[6]=bc(t+24,t+28) | 1
+        r=m.classify_window(*m.WINDOWS[0],tuple(words))
+        row=next(z for z in r["direct_linked_branch_sites"]
+                 if z["site"]=="+0x018")
+        self.assertTrue(row["pc_plus_four_link_pattern"])
+        self.assertEqual(row["target_region"],"IN_THIS_FUNCTION+0x01C")
+        self.assertFalse(r["linked_sites_are_executed_calls_verified"])
+
+    def test_bcl_absolute_direct_source_target(self):
+        words=list(fixture()[0])
+        t=m.WINDOWS[0][1]
+        # Absolute BD=0x180, AA=1, LK=1. Not relative to Golf Config.
+        words[6]=0x40000183
+        r=m.classify_window(*m.WINDOWS[0],tuple(words))
+        row=next(z for z in r["direct_linked_branch_sites"]
+                 if z["site"]=="+0x018")
+        self.assertTrue(row["absolute"])
+        self.assertEqual(row["target_region"],
+                         "OUTSIDE_PUBLISHED_CONFIG_UNIT_UNTYPED")
+        self.assertEqual(r["conditional_direct_bcl_site_count"],1)
+
     def test_literal_three_and_five_are_controls(self):
         a=list(fixture()[0]);a[2]=0x2c000003;a[7]=0x28000005
         res=m.classify_window(*m.WINDOWS[0],tuple(a))
