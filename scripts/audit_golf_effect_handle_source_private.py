@@ -44,6 +44,18 @@ LOOP_LOAD_CHILD_PC=0x80290E78
 LOOP_LOAD_CHILD_WORD=0x807D0004
 LOOP_ADVANCE_PC=0x80290EB8
 LOOP_ADVANCE_WORD=0x3BBD0004
+# Rev1 symbols.txt (doldecomp/ogws), exact function intervals.
+FIELD_FUNC_START=0x80290DB0
+FIELD_FUNC_END=0x80290F78
+EMITTER_POWER_WRITER_SITES={
+    0x80194FCC:(0xD003007C,"RPSysEffect::setPowerSpecDirAdd"),
+    0x80195064:(0xD3E3007C,"RPSysEffect::setPowerSpecDir"),
+}
+# Source class layout: Emitter::mParameter at +0x20 and
+# EmitterParameter::mVelPowerSpecDir at +0x5C => +0x7C (f32).
+EMITTER_PARAMETER_BASE=0x20
+EMITTER_POWER_FIELD_REL=0x5C
+
 
 
 def _method_shaped_prologue(word:int)->bool:
@@ -127,6 +139,18 @@ def analyze(get_word):
     # The scanner only knows select dest opcode families, not full CFG. This
     # proves an exact static idiom and no RECOGNIZED intervening r31 writes.
     field_static_chain=(r29_chain_source_seen and not r31_changed_after_source)
+    # "mr r31,r3" says only what r3 was at that PC. Whether it still
+    # contains function-entry 'this' requires separate instruction dataflow.
+    source_float_sites=[
+        {"pc":f"0x{pc:08X}","function":name,
+         "source_signature_verified":get_word(pc)==word,
+         "typed_receiver":"nw4r::ef::Emitter",
+         "typed_member":"mParameter.mVelPowerSpecDir (f32)",
+         "typed_emitter_field_offset":"+0x07C",
+         "is_RPSysEffect_mHandle_pointer_store":False,
+         "is_golf_swing_power_store":False}
+        for pc,(word,name) in sorted(EMITTER_POWER_WRITER_SITES.items())
+    ]
 
     hits=[]
     for pc in range(EFFECT_TEXT_START,EFFECT_TEXT_END,4):
@@ -173,8 +197,18 @@ def analyze(get_word):
         "field_manager_r31_to_r29_pc":"0x80290E4C",
         "field_manager_r31_candidate_defs":r31_candidates,
         "field_manager_r31_candidate_contexts":field_contexts,
-        "field_manager_r31_from_incoming_r3_source_pattern_verified":
+        "field_manager_r31_from_r3_at_80290dd0_static_pattern_verified":
             field_static_chain,
+        "field_manager_r3_at_80290dd0_is_method_incoming_this_verified":False,
+        "field_manager_function_from_rev1_symbols":{
+            "symbol":"fn_80290DB0",
+            "start":f"0x{FIELD_FUNC_START:08X}",
+            "end_exclusive":f"0x{FIELD_FUNC_END:08X}"},
+        "field_manager_prologue_to_r31_definition_code":[
+            {"pc":f"0x{pc:08X}",
+             "word":f"0x{get_word(pc):08X}",
+             "approximate_disassembly":context.decode(get_word(pc),pc)}
+            for pc in range(FIELD_FUNC_START,R31_FROM_R3_PC+4,4)],
         "field_manager_r31_source_pattern_pc":f"0x{R31_FROM_R3_PC:08X}",
         "field_manager_r31_no_recognized_intervening_redefinition":
             r31_from_r3_source_seen and not r31_changed_after_source,
@@ -197,6 +231,14 @@ def analyze(get_word):
         "RPSysEffectBase_float_store_offset_07c_collision_count":sum(
             x["float_store_incompatible_with_direct_pointer_write"]
             for x in hits),
+        "RPSysEffectBase_two_float_writes_typed_as_emitter_parameter":
+            source_float_sites,
+        "source_field_Emitter_parameter_offset_hex":
+            f"+0x{EMITTER_PARAMETER_BASE:03X}",
+        "source_field_EmitterParameter_mVelPowerSpecDir_offset_hex":
+            f"+0x{EMITTER_POWER_FIELD_REL:03X}",
+        "source_field_Emitter_direct_mVelPowerSpecDir_offset_hex":
+            f"+0x{EMITTER_PARAMETER_BASE + EMITTER_POWER_FIELD_REL:03X}",
         "RPSysEffectBase_literal_offset_search_exhausts_handle_mutations":False,
         "RPSysEffectBase_contexts":contexts,
         "RPSysEffect_base_receiver_proven":False,
