@@ -74,6 +74,23 @@ function Assert-Header([string] $FilePath) {
         $stream.Dispose()
     }
 }
+function Hash-PrivateFile([string] $FilePath) {
+    # Works on native Windows PowerShell 5.1 even if Get-FileHash is absent.
+    # Hash through a streamed .NET API, never loading 24/64 MiB into RAM.
+    $stream = [IO.File]::Open($FilePath, [IO.FileMode]::Open,
+        [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    try {
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try {
+            $digest = $sha.ComputeHash($stream)
+            return [BitConverter]::ToString($digest).Replace('-', '')
+        } finally {
+            $sha.Dispose()
+        }
+    } finally {
+        $stream.Dispose()
+    }
+}
 function Assert-Session([string] $Path, [string] $Captures) {
     Assert-RealDir $Path
     $actual = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $Path).ProviderPath).TrimEnd([char[]]@('\','/'))
@@ -222,7 +239,7 @@ foreach ($phase in $order) {
         if ($claimed -isnot [string] -or $claimed -cnotmatch '^[a-fA-F0-9]{64}$') {
             throw 'Missing native bank digest in PRIVATE keeper manifest.'
         }
-        $actualSha = (Get-FileHash -LiteralPath $bankPath -Algorithm SHA256).Hash
+        $actualSha = (Hash-PrivateFile $bankPath)
         if ($actualSha -ine $claimed) {
             throw ($phase + ' ' + $bank + ' digest mismatch.')
         }
