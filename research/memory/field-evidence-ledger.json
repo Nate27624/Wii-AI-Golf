@@ -4,7 +4,7 @@
   "game_id": "RSPE01",
   "target_revision": 1,
   "status": "research_only_no_verified_power_fields",
-  "source_state": "Source trace identifies four record/simulator links and nested translation writer; runtime selected candidate0, only 1/4 nested vector matches (which slot still unreported in current public result), plus source-indexed raw wind direction/speed lookup; no verified world ball, units or same-frame readings.",
+  "source_state": "User independently executed current #160 source-gated saved pair: selected candidate slot0 record and nested simulation translation and current start are exactly 3/3 word-equal, with 0/3 unselected start matches. Strong static ball-at-start initialization candidate, NOT verified active ball motion, units, same-frame scene, wind or swing power.",
   "evidence_levels_note": "Identity and behavior are separate axes; runtime candidate and observed change are NOT verified gameplay meaning.",
   "training_gate": "No field can be used as a verified game-state training feature or target without verified code writer, independent boot, same-shot frame provenance and gameplay semantics. Stored booleans are evidence claims, not inferred from numerical correlations.",
   "fields": [
@@ -547,7 +547,7 @@
         "https://github.com/Nate27624/Wii-AI-Golf/pull/159",
         "https://github.com/Nate27624/Wii-AI-Golf/pull/160"
       ],
-      "notes": "S002 private DOL analysis traces the Rev1 Player source code range: indexed 428-byte simulator record from singleton r13; writes pointer to r30 player record+0x88. One saved paired-bank roster has four source-data-shaped object pairs spaced 0xCC, but active record selection, object type, lifetime and same frame unverified."
+      "notes": "PPC source-backed four inline PlayerManager records stride0xCC and SimManager records stride0x1AC; record-relative+0x88 points to matching candidate simulator object. Operator source gate chooses record index0; its three source-position words and ball-related nested translation match selected start marker 3/3, while three other slot vectors do not fully match selected start. Active player selection and live-game ball identity remain unverified."
     },
     {
       "field_id": "golfer.ball_related_translation_write_path",
@@ -567,7 +567,7 @@
         "https://github.com/Nate27624/Wii-AI-Golf/pull/159",
         "https://github.com/Nate27624/Wii-AI-Golf/pull/160"
       ],
-      "notes": "S002 source traces indexed player-record+0x88 sim pointer, sim child's +0x4C three-f32 destination, player record f32 +0x60..+0x68 copied to +0x54..+0x5C then three stores to translation pointer. Operator 1/4 exact word-triplet matches across four slots, selected source index candidate0. Individual selected-slot equality not emitted in user's sanitized report. No active-ball identity or world units verified."
+      "notes": "Actual operator #160 preserved-pair report: source selector candidate record index0; selected record+0x54, selected record+0x60, ball-related nested translation via record+0x88 and child+0x4C, and source-selected start marker translation ALL agree word-for-word on 3/3 components. Zero of three unselected ball-related vectors fully match the current start. All 4 candidate nested pointers mapped; only 1/4 record triplets match nested. Source code traces 3-f32 translation writer and start initialization, but dynamic motion/active ball/world units, same-frame/boot, contact and power remain unverified."
     },
     {
       "field_id": "golfer.player_manager_inline_roster",
