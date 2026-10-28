@@ -1,0 +1,694 @@
+{
+  "schema_version": 1,
+  "kind": "wii-golf-memory-variable-registry",
+  "purpose": "Discoverable game memory variables with safe source-derived resolution and strict training gates",
+  "status_vocabulary": [
+    "unresolved",
+    "source_candidate",
+    "snapshot_correlated",
+    "runtime_verified",
+    "rejected"
+  ],
+  "privacy": "Only source-derived static addresses and relative offsets may be committed; no raw RAM, ROM, savestates, per-run heap addresses, raw vectors, local private paths, secrets or personal identifiers",
+  "scope": "RSPE01 US revision 1; never assume offsets apply to other revisions",
+  "agents": "S001–S005: every new, changed, rejected or disproven game-memory variable must be recorded here in agent PR with evidence, controls, owner, type, source, phase and training gate. Coordinator S000 handles contract conflicts.",
+  "source_links": {
+    "source_scene_mgr": "https://github.com/doldecomp/ogws/blob/main/include/egg/core/eggSceneManager.h",
+    "source_field_mgr": "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolFieldManager.h",
+    "source_golf_scene": "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolScene.h"
+  },
+  "variables": [
+    {
+      "id": "scene.current_id",
+      "name": "Current Wii Sports scene ID",
+      "role": "context",
+      "priority": "P0",
+      "status": "snapshot_correlated",
+      "datatype": "u32",
+      "unit": "enum",
+      "memory_locator": {
+        "kind": "pointer_chain",
+        "expression": "be_u32(be_u32(0x804BF4D8) + 0x18)",
+        "root_static_address": "0x804BF4D8",
+        "steps": [
+          {
+            "op": "read_ptr",
+            "type": "be_u32"
+          },
+          {
+            "op": "add",
+            "offset": "0x18"
+          },
+          {
+            "op": "read",
+            "type": "be_u32"
+          }
+        ],
+        "corroboration": "scene pointer manager+0x0C, scene ID scene+0x1C, scene manager-backptr scene+0x20"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/doldecomp/ogws/blob/main/include/egg/core/eggSceneManager.h",
+          "https://github.com/doldecomp/ogws/blob/main/include/egg/core/eggScene.h",
+          "https://github.com/doldecomp/ogws/blob/main/config/RSPE01_01/splits.txt"
+        ],
+        "capture_groups": [
+          "B0–B3 single study",
+          "two older checkpoint names but independently validated boot provenance unknown"
+        ],
+        "observed_behavior": "ID 5 across six full-bank snapshots, with manager/scene cross-checks; independent menu negative missing",
+        "source_confidence": "source_layout_and_snapshot_correlated"
+      },
+      "limitations": [
+        "Manager object address is dynamic; static singleton slot is revision-specific",
+        "Not proof golfer ready to swing",
+        "Independent fresh boot and non-Golf menu transition not tested"
+      ],
+      "required_controls": [
+        "new fresh boot scene ID 5",
+        "real non-Golf scene, expected menu ID 9"
+      ],
+      "owner": "S002",
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "unknown_or_not_independently_verified",
+      "training": {
+        "approved": false,
+        "reason": "Not yet cross-boot/phase/units and independent negative-control verified",
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "allowed_when": "Only after independent source verification, S002 signoff, approved versioned training contract and leakage-safe holdout evaluation"
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28"
+    },
+    {
+      "id": "golf.main_ptr",
+      "name": "Golf main object pointer",
+      "role": "debug_pointer",
+      "priority": "P0",
+      "status": "snapshot_correlated",
+      "datatype": "pointer_u32",
+      "unit": "address",
+      "memory_locator": {
+        "kind": "pointer_chain",
+        "expression": "be_u32(be_u32(be_u32(0x804BF4D8)+0x0C)+0x9C)",
+        "root_static_address": "0x804BF4D8",
+        "steps": [
+          {
+            "op": "read_ptr",
+            "type": "be_u32"
+          },
+          {
+            "op": "add",
+            "offset": "0x0C"
+          },
+          {
+            "op": "read_ptr",
+            "type": "be_u32"
+          },
+          {
+            "op": "add",
+            "offset": "0x9C"
+          },
+          {
+            "op": "read",
+            "type": "be_u32"
+          }
+        ],
+        "corroboration": "current scene is Golf scene 5"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolScene.h",
+          "https://github.com/doldecomp/ogws/blob/main/include/egg/core/eggSceneManager.h"
+        ],
+        "capture_groups": [
+          "B0–B3 single study"
+        ],
+        "observed_behavior": "Non-null stable main pointer in all B0–B3; does not imply ball state",
+        "source_confidence": "source_layout_and_snapshot_correlated"
+      },
+      "limitations": [
+        "Not a ball position variable",
+        "Dynamic object addresses vary across boots"
+      ],
+      "required_controls": [
+        "new independent boot and sanity-check object pointers"
+      ],
+      "owner": "S002",
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "unknown_or_not_independently_verified",
+      "training": {
+        "approved": false,
+        "reason": "Not yet cross-boot/phase/units and independent negative-control verified",
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "allowed_when": "Only after independent source verification, S002 signoff, approved versioned training contract and leakage-safe holdout evaluation"
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28"
+    },
+    {
+      "id": "golf.tee_start.map_translation_xyz",
+      "name": "Current tee/start scene-object translation",
+      "role": "scenario_geometry_candidate",
+      "priority": "P0",
+      "status": "snapshot_correlated",
+      "datatype": "float32_be_triplet",
+      "unit": "game_units_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain",
+        "expression": "BE_f32x3(be_u32(be_u32(0x804BF868)+0x50)+0x30)",
+        "root_static_address": "0x804BF868",
+        "steps": [
+          {
+            "op": "read_ptr",
+            "type": "be_u32"
+          },
+          {
+            "op": "add",
+            "offset": "0x50"
+          },
+          {
+            "op": "read_ptr",
+            "type": "be_u32"
+          },
+          {
+            "op": "add",
+            "offset": "0x30"
+          },
+          {
+            "op": "read",
+            "type": "be_f32x3"
+          }
+        ],
+        "corroboration": "Current start object field manager+0x50, candidate inherited map-object translation +0x30"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolFieldManager.h",
+          "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolMapObjBase.h"
+        ],
+        "capture_groups": [
+          "B0–B3 single study"
+        ],
+        "observed_behavior": "Finite identical three-component candidate in B0–B3; static during study",
+        "source_confidence": "field_pointer_source_backed_translation_layout_hypothesis"
+      },
+      "limitations": [
+        "Likely scene object transform, NOT necessarily ball actual XYZ",
+        "Subobject base offset, coordinate axes, world origin, units not independently proven"
+      ],
+      "required_controls": [
+        "change tee/hole in separate captured scenario",
+        "compare to visual tee location and known distance/target",
+        "verify class inheritance/transform semantics"
+      ],
+      "owner": "S002",
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "unknown_or_not_independently_verified",
+      "training": {
+        "approved": false,
+        "reason": "Not yet cross-boot/phase/units and independent negative-control verified",
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "allowed_when": "Only after independent source verification, S002 signoff, approved versioned training contract and leakage-safe holdout evaluation"
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28"
+    },
+    {
+      "id": "golf.pin.map_translation_xyz",
+      "name": "Current pin scene-object translation",
+      "role": "scenario_geometry_candidate",
+      "priority": "P0",
+      "status": "snapshot_correlated",
+      "datatype": "float32_be_triplet",
+      "unit": "game_units_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain",
+        "expression": "BE_f32x3(be_u32(be_u32(0x804BF868)+0x44)+0x30)",
+        "root_static_address": "0x804BF868",
+        "steps": [
+          {
+            "op": "read_ptr",
+            "type": "be_u32"
+          },
+          {
+            "op": "add",
+            "offset": "0x44"
+          },
+          {
+            "op": "read_ptr",
+            "type": "be_u32"
+          },
+          {
+            "op": "add",
+            "offset": "0x30"
+          },
+          {
+            "op": "read",
+            "type": "be_f32x3"
+          }
+        ],
+        "corroboration": "Current pin object field manager+0x44; candidate inherited map-object translation +0x30"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolFieldManager.h",
+          "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolMapObjBase.h"
+        ],
+        "capture_groups": [
+          "B0–B3 single study"
+        ],
+        "observed_behavior": "Finite stable XYZ candidate; X/Z coincide with cup translation hypothesis",
+        "source_confidence": "source_layout_and_snapshot_correlated"
+      },
+      "limitations": [
+        "Scene pin transform, not verified physical cup or ball target",
+        "Axes and unit conversions unknown"
+      ],
+      "required_controls": [
+        "independently vary current pin/hole",
+        "confirm visual geometry distance and units"
+      ],
+      "owner": "S002",
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "unknown_or_not_independently_verified",
+      "training": {
+        "approved": false,
+        "reason": "Not yet cross-boot/phase/units and independent negative-control verified",
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "allowed_when": "Only after independent source verification, S002 signoff, approved versioned training contract and leakage-safe holdout evaluation"
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28"
+    },
+    {
+      "id": "golf.cup.map_translation_xyz",
+      "name": "Cup scene-object translation candidate",
+      "role": "scenario_geometry_candidate",
+      "priority": "P0",
+      "status": "snapshot_correlated",
+      "datatype": "float32_be_triplet",
+      "unit": "game_units_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "expression": "BE_f32x3(be_u32(be_u32(0x804BF868)+0x54)+0x30)",
+        "root_static_address": "0x804BF868",
+        "steps": [
+          {
+            "op": "read_ptr",
+            "type": "be_u32"
+          },
+          {
+            "op": "add",
+            "offset": "0x54"
+          },
+          {
+            "op": "read_ptr",
+            "type": "be_u32"
+          },
+          {
+            "op": "add",
+            "offset": "0x30"
+          },
+          {
+            "op": "read",
+            "type": "be_f32x3"
+          }
+        ],
+        "corroboration": "Cup pointer is documented; +0x30 relies on unverified base-layout assumption"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolFieldManager.h",
+          "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolMapObjBase.h"
+        ],
+        "capture_groups": [
+          "B0–B3 single study"
+        ],
+        "observed_behavior": "Candidate X/Z same as pin; Y offset ~-0.09174; four captures agree",
+        "source_confidence": "partially_source_backed_hypothesis"
+      },
+      "limitations": [
+        "Cup subclass/base offset not independently established",
+        "Relationship alone does not verify physical units, vertical axis, or target scoring coordinate"
+      ],
+      "required_controls": [
+        "validate cup class base field layout",
+        "vary pin placement and confirm matching relative movement"
+      ],
+      "owner": "S002",
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "unknown_or_not_independently_verified",
+      "training": {
+        "approved": false,
+        "reason": "Not yet cross-boot/phase/units and independent negative-control verified",
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "allowed_when": "Only after independent source verification, S002 signoff, approved versioned training contract and leakage-safe holdout evaluation"
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28"
+    },
+    {
+      "id": "golf.target_collection.count_candidate",
+      "name": "Target-object collection count",
+      "role": "debug_candidate",
+      "priority": "P1",
+      "status": "snapshot_correlated",
+      "datatype": "u32",
+      "unit": "count",
+      "memory_locator": {
+        "kind": "pointer_chain",
+        "expression": "be_u32(be_u32(0x804BF868)+0x30)",
+        "root_static_address": "0x804BF868",
+        "steps": [
+          {
+            "op": "read_ptr",
+            "type": "be_u32"
+          },
+          {
+            "op": "add",
+            "offset": "0x30"
+          },
+          {
+            "op": "read",
+            "type": "be_u32"
+          }
+        ],
+        "corroboration": "Source shows mNumTargetObjs +0x30 and mTargetObjs +0x34; array element layout unknown"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolFieldManager.h"
+        ],
+        "capture_groups": [
+          "B0–B3 single study"
+        ],
+        "observed_behavior": "Count 0 with non-null array-like pointer in four captures; not evidence of active targets",
+        "source_confidence": "source_layout_and_snapshot_correlated"
+      },
+      "limitations": [
+        "Target array not interpreted",
+        "Not a direct outcome/target XYZ for training"
+      ],
+      "required_controls": [
+        "change mode where targets expected and verify count"
+      ],
+      "owner": "S002",
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "unknown_or_not_independently_verified",
+      "training": {
+        "approved": false,
+        "reason": "Not yet cross-boot/phase/units and independent negative-control verified",
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "allowed_when": "Only after independent source verification, S002 signoff, approved versioned training contract and leakage-safe holdout evaluation"
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28"
+    },
+    {
+      "id": "golf.unknown_float_pair.change_cluster",
+      "name": "Two changing BE-float-compatible words (meaning unknown)",
+      "role": "unknown_memory_candidate",
+      "priority": "P1",
+      "status": "unresolved",
+      "datatype": "float32_be_pair_hypothesis",
+      "unit": "unknown",
+      "memory_locator": {
+        "kind": "unresolved",
+        "expression": null,
+        "root_static_address": null,
+        "steps": [],
+        "corroboration": "Only private session-specific addresses identified by B0–B3 alias graph; NO repeatable pointer resolver proven"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/192",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
+        ],
+        "capture_groups": [
+          "B0–B3 single study, phase labels not verified"
+        ],
+        "observed_behavior": "Two adjacent finite floats change across four distinct RAM captures; surrounding candidate VEC3 windows have at most two varying components; no independent ball-motion linkage",
+        "source_confidence": "private_offline_diff_only"
+      },
+      "limitations": [
+        "At least one JSON-associated ball not completely still by human recollection, but exact B-index unknown",
+        "Downward velocity was a human hypothesis, not a measurement",
+        "Could be animation or unrelated state; never label vertical velocity or ball XYZ"
+      ],
+      "required_controls": [
+        "locate exact JSON and same-shot capture provenance",
+        "prove stable pointer resolver across boots",
+        "track value with visually confirmed flight and settled controls"
+      ],
+      "owner": "S002/S003",
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "unknown_or_not_independently_verified",
+      "training": {
+        "approved": false,
+        "reason": "Not yet cross-boot/phase/units and independent negative-control verified",
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "allowed_when": "Only after independent source verification, S002 signoff, approved versioned training contract and leakage-safe holdout evaluation"
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28"
+    },
+    {
+      "id": "golf.unknown_main_counter",
+      "name": "Increasing word at RPGolMain-relative +0x74",
+      "role": "unknown_memory_candidate",
+      "priority": "P1",
+      "status": "unresolved",
+      "datatype": "u32_candidate",
+      "unit": "unknown",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "expression": "be_u32(golf.main_ptr+0x74)",
+        "root_static_address": null,
+        "steps": [],
+        "corroboration": "Object membership unverified; could be counter, timer or unrelated data"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/192"
+        ],
+        "capture_groups": [
+          "B0–B3 single study"
+        ],
+        "observed_behavior": "Monotonic values 6048, 6410, 9012, 9591; no paired frame count proof",
+        "source_confidence": "offline_diff_only"
+      },
+      "limitations": [
+        "Not validated as emulation frame or timer",
+        "No training use permitted"
+      ],
+      "required_controls": [
+        "compare against exact emulated frame increments and fresh boots"
+      ],
+      "owner": "S002",
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "unknown_or_not_independently_verified",
+      "training": {
+        "approved": false,
+        "reason": "Not yet cross-boot/phase/units and independent negative-control verified",
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "allowed_when": "Only after independent source verification, S002 signoff, approved versioned training contract and leakage-safe holdout evaluation"
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28"
+    },
+    {
+      "id": "golf.ball.world_xyz",
+      "name": "Actual dynamic ball world XYZ",
+      "role": "training_feature_or_target",
+      "priority": "P0",
+      "status": "unresolved",
+      "datatype": "float32_be_triplet_candidate",
+      "unit": "unknown",
+      "memory_locator": {
+        "kind": "unresolved",
+        "expression": null,
+        "root_static_address": null,
+        "steps": [],
+        "corroboration": "No verified ball-world coordinate pointer chain as of study"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/192",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
+        ],
+        "capture_groups": [
+          "B0–B3 single study; unverified game phases"
+        ],
+        "observed_behavior": "NOT FOUND. At least one JSON-associated ball may have been moving; exact bank linkage unknown",
+        "source_confidence": "unverified"
+      },
+      "limitations": [
+        "Do not substitute tee/start object translation for ball XYZ",
+        "Do not infer from variable-looking floats or UI penalty distances",
+        "Do not label a snapshot settled solely from filename"
+      ],
+      "required_controls": [
+        "verified same-shot before/contact/flight/settled snapshots",
+        "two independent shots with human video or other independent movement evidence",
+        "stationary no-swing negative and aim-only negative",
+        "known axis, origin and unit scale"
+      ],
+      "owner": "S002/S003",
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "unknown_or_not_independently_verified",
+      "training": {
+        "approved": false,
+        "reason": "Not yet cross-boot/phase/units and independent negative-control verified",
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "allowed_when": "Only after independent source verification, S002 signoff, approved versioned training contract and leakage-safe holdout evaluation"
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28"
+    },
+    {
+      "id": "golf.ball.velocity_xyz",
+      "name": "Actual ball velocity vector",
+      "role": "optional_training_feature",
+      "priority": "P1",
+      "status": "unresolved",
+      "datatype": "float32_be_triplet_candidate",
+      "unit": "unknown",
+      "memory_locator": {
+        "kind": "unresolved",
+        "expression": null,
+        "root_static_address": null,
+        "steps": [],
+        "corroboration": "No verified velocity pointer chain"
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
+        ],
+        "capture_groups": [],
+        "observed_behavior": "Operator suspects downward velocity in one JSON-associated capture; direction and value unmeasured",
+        "source_confidence": "human_hypothesis_only"
+      },
+      "limitations": [
+        "Do not infer direction from still images or off-green penalty",
+        "Do not confuse nonstationary observed ball with numeric velocity validation"
+      ],
+      "required_controls": [
+        "two or more time-ordered samples with known frame deltas",
+        "independent motion-direction control including stationary negative",
+        "document coordinate axes, update rate and units"
+      ],
+      "owner": "S002/S003",
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "unknown_or_not_independently_verified",
+      "training": {
+        "approved": false,
+        "reason": "Not yet cross-boot/phase/units and independent negative-control verified",
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "allowed_when": "Only after independent source verification, S002 signoff, approved versioned training contract and leakage-safe holdout evaluation"
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28"
+    }
+  ]
+}
