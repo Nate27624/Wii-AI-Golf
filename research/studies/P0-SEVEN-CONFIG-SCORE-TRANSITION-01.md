@@ -55,3 +55,48 @@ A stable table in D1→D2 and W6→W7 would mean this specific score array is **
 Use an exact reviewed SHA in a clean detached worktree, then run `py -m unittest discover -s tests -p test_p0_seven_config_score_private.py -v` and `py -I scripts/audit_p0_seven_config_score_private.py --archive <unique existing p0-new-cohort-*-PRIVATE folder>`. The source-gated archive must be under ignored sibling `Wii-AI-Golf-Data/captures`, with manifest kind `p0-private-numbered-capture-inventory`; the alternate `seven-dump-inventory-*-PRIVATE` format is intentionally not accepted. No fresh Dolphin, new swing, writes, raw publication or publisher calls. Reader hashes all 14 banks before and after analysis.
 
 **Not verified**: human phase-to-file machine linkage, atomic guest frame or tick intervals, actual world XYZ/velocity, impact, game-accepted power, score/reward or units; `training_approved=false`. Full Windows repo suite, source owner #213/#231 and registry #205 review required before merging.
+
+## Human-operated real Rev1 getter source: old suffix false negative explained
+
+Operator ran exact #278 source `bae21e85b9706430c772359f5a6c7be82acb9bd8`
+on the ORIGINAL numbered archive: 12/12 fabricated suffix tests PASS and
+**all 14 original bank SHA before/after PASS**. The separate
+`get_nth_hole_strokes` function yielded
+`STROKES_HOLE_MAJOR_CANDIDATE=True` and
+`SOURCE_SUFFIX_BRANCH_FREE=True`.
+
+The initial first-getter flags `SCORE_GETTER_TWO_STRIDES=False` and
+`SCORE_MINUS_PAR_CANDIDATE=False` were **NOT code-level counterevidence**.
+The overly rigid decoder expected `lwz r3,+0x04(r3)` at +0x74 and
+`subf r3,r4,r3` at +0x78; the actual source showed
+`+0x70 lwz r4,+0x04(r4)`,
+`+0x74 lwz r0,+0x04(r3)`,
+`+0x78 subf r3,r4,r0`. The latter computes `r0-r4`.
+Earlier real B0 source confirmed `mulli r5,r3,36`,
+`slwi r3,r3,4` and `slwi r0,r4,2`.
+Therefore **strokes minus the hole's par is a concrete, testable source
+hypothesis**, not an inferred UI value.
+
+New decoder on tested exact code commit
+`1dd88821a6ca7653956382a6b1349893a14e9d2f` corrects those
+register operands, updates the synthetic fixture to mirror the observed
+`r0` result register, and adds independent checks:
+1. `addis r6,r0,imm` at getter +0x50 followed by
+   `addi r6,r6,imm` at +0x60 constructs the **public Rev1
+   `RPGolConfig::sHoleInfo` symbol** candidate (boolean only).
+2. Both getter candidates load roots into **r7** (score function)
+   and **r5** (strokes function) from a possible **common r13 SDA slot**
+   (compare code displacements, without emitting them).
+3. Full effective original 14-bank source, revision, branch-free suffix and
+   exact operand matches remain gated. Registered getter entry root, dynamic
+   singleton value, actual live hole and selected score are NOT proven.
+
+The new source report remains strictly `typed_score_row_orientation_fully_verified=false`
+until an owner verifies the caller arguments and both base identities.
+No raw private words, scores, pointers, SHA hashes, paths or capture data
+are published. Do not merge/enable training based on this hypothesis.
+Hosted focused synthetic tests for all current #278 suites **PASS on
+Windows and Ubuntu**, [Actions run 40774802547](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40774802547).
+One source-qualified operator re-read on the existing original archive is
+still pending.
+
