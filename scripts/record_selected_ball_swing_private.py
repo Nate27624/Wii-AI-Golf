@@ -40,6 +40,18 @@ def summarize(samples: list[dict], *, human_ball_moved: str) -> dict:
     holes = {s["source_hole_index"] for s in samples}
     trace_frames = [s for s in samples if s["trace_sample_index_if_active"] is not None]
     idle_frames = [s for s in samples if s["trace_sample_index_if_active"] is None]
+    first_trace = next((i for i, s in enumerate(samples)
+                        if s["trace_sample_index_if_active"] is not None), None)
+    pretrace_count = first_trace if first_trace is not None else len(samples)
+    pretrace_balls = balls[:pretrace_count]
+    pretrace_stable = (
+        pretrace_count >= 2
+        and all(v == pretrace_balls[0] for v in pretrace_balls)
+    )
+    ball_changed_after_trace_starts = (
+        first_trace is not None
+        and any(x != pretrace_balls[0] for x in balls[first_trace:])
+    )
     start_fixed = all(x == starts[0] for x in starts)
     ball_changed = any(x != balls[0] for x in balls[1:])
     return {
@@ -52,12 +64,16 @@ def summarize(samples: list[dict], *, human_ball_moved: str) -> dict:
         "source_selected_slot_stable": len(slots) == 1,
         "source_hole_stable": len(holes) == 1,
         "start_vector_stable": start_fixed,
+        "pretrace_control_samples": pretrace_count,
+        "pretrace_candidate_ball_stationary": pretrace_stable,
         "candidate_ball_vector_changed_during_recording": ball_changed,
+        "candidate_ball_changed_after_trace_start": ball_changed_after_trace_starts,
         "candidate_record_triplet_equal_ball_triplet_count":
             sum(a == b for a, b in zip(records, balls)),
         "human_observed_ball_movement": human_ball_moved,
         "candidate_motion_corroborated_by_human": (
-            ball_changed and start_fixed and len(slots) == 1
+            pretrace_stable and ball_changed_after_trace_starts
+            and start_fixed and len(slots) == 1
             and len(holes) == 1 and human_ball_moved == "yes"),
         "guest_emulator_frame_verified": False,
         "actual_active_ball_xyz_verified": False,
