@@ -122,36 +122,48 @@ def audit_directory(root: Path, max_files: int = DEFAULT_MAX_FILES,
                     max_total_bytes: int = DEFAULT_MAX_TOTAL_BYTES) -> dict:
     root = root.resolve(strict=True)
     scanned, skipped, total = [], Counter(), 0
+    skipped_file_refs = []
     for base, dirs, names in os.walk(root, followlinks=False):
         dirs[:] = sorted(d for d in dirs if not (Path(base) / d).is_symlink())
         for filename in sorted(names):
             path = Path(base) / filename
             if path.suffix.lower() not in (".json", ".jsonl"):
                 continue
+            # Never recursively ingest the inventory's own private output.
+            if filename.startswith("json-motion-inventory-PRIVATE-"):
+                skipped["self_generated_report"] += 1
+                continue
+            rel = path.relative_to(root).as_posix()
+            file_id = rel_identifier(rel)
             if path.is_symlink() or not path.is_file():
                 skipped["symlink_or_unreadable"] += 1
+                skipped_file_refs.append({"file_id": file_id, "reason": "symlink_or_unreadable"})
                 continue
             size = path.stat().st_size
             if size > max_file_bytes:
                 skipped["oversize"] += 1
+                skipped_file_refs.append({"file_id": file_id, "reason": "oversize", "bytes": size,
+                                          "relative_path_PRIVATE": rel})
                 continue
             if len(scanned) >= max_files or total + size > max_total_bytes:
                 skipped["budget"] += 1
+                skipped_file_refs.append({"file_id": file_id, "reason": "budget", "bytes": size,
+                                          "relative_path_PRIVATE": rel})
                 continue
             total += size
             records, kind = parse_capture(path)
-            rel = path.relative_to(root).as_posix()
             result = summarize_records(records)
             score = (len(result["ball_related_paths"]) +
                      2 * len(result["velocity_related_paths"]) +
                      len(result["timing_or_provenance_paths"]) +
                      4 * len(result["candidate_changing_ball_vector_paths"]))
-            scanned.append({"relative_path_PRIVATE": rel, "file_id": rel_identifier(rel),
+            scanned.append({"relative_path_PRIVATE": rel, "file_id": file_id,
                             "file_bytes": size, "file_kind": kind, "evidence_score": score, **result})
     scanned.sort(key=lambda row: (-row["evidence_score"], row["relative_path_PRIVATE"]))
     return {"kind": "PRIVATE-local-json-motion-provenance-inventory",
             "files_scanned": len(scanned), "bytes_scanned": total,
             "files_skipped_by_reason": dict(skipped),
+            "skipped_file_refs_PRIVATE": skipped_file_refs,
             "training_approved": False, "no_raw_vector_values_in_report": True,
             "candidate_files": scanned}
 
@@ -183,6 +195,10 @@ def main(argv=None) -> int:
     print("Scanned:", result["files_scanned"],
           "candidate JSON/JSONL files; skipped:", result["files_skipped_by_reason"])
     print("Local private report:", report_path)
+    if result["skipped_file_refs_PRIVATE"]:
+        print("Skipped capture file IDs (paths only inside PRIVATE report):")
+        for item in result["skipped_file_refs_PRIVATE"][:20]:
+            print(item["file_id"], "reason=",item["reason"], "bytes=",item.get("bytes","unknown"))
     print("Highest-ranked records (field names only; no raw values):")
     for row in result["candidate_files"][:max(0, min(args.top, 40))]:
         print(row["file_id"], "score=", row["evidence_score"],
