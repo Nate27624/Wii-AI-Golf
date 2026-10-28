@@ -1,0 +1,37 @@
+name: S000 memory ledger privacy and no-training gates
+
+on:
+  push:
+    branches:
+      - agent/coordinator/game-memory-field-evidence-ledger
+    paths:
+      - "research/memory/**"
+      - "src/wii_ai_golf/audit/game_memory_ledger.py"
+      - "tests/test_game_memory_evidence_ledger.py"
+      - ".github/workflows/s000-memory-ledger-gate.yml"
+  pull_request:
+    paths:
+      - "research/memory/**"
+      - "src/wii_ai_golf/audit/game_memory_ledger.py"
+      - "tests/test_game_memory_evidence_ledger.py"
+      - ".github/workflows/s000-memory-ledger-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ledger:
+    name: Privacy and semantic gate (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Validate ledger and negative-control test cases
+        run: python -m unittest discover -s tests -p "test_game_memory_evidence_ledger.py" -v
