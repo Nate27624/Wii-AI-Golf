@@ -49,6 +49,7 @@ def fixture(private):
                 (MGR+0x18,5),(MGR+0x0C,SCENE)):
                 put(a,MEM1,addr,value)
             for addr, value in (
+                (SCENE,0x803C7718),(PM,0x803C7DD0),(BALL,0x803C7918),
                 (SCENE+0x1C,5),(SCENE+0x20,MGR),(SCENE+0x54,2),
                 (CONFIG+0x94,4),(CONFIG+0x98,1),
                 (FIELD+0x50,START),(FIELD+0x44,PIN),(FIELD+0x54,CUP),
@@ -143,6 +144,39 @@ class MatrixPowerShellTests(unittest.TestCase):
         finally:
             with bank.open("r+b") as f: put(f,MEM1,MGR+0x18,5)
             data["checkpoints"]["B2"]["sha256"]["MEM1"]=original
+            path.write_text(json.dumps(data))
+
+
+    def test_mismatched_source_data_hint_rejected_with_rehashed_bank(self):
+        bank=self.private/"B2-MEM2.bin"
+        with bank.open("r+b") as f: put(f,MEM2,BALL,0)
+        path=self.private/"checkpoint-manifest-PRIVATE.json"
+        data=json.loads(path.read_text())
+        old=data["checkpoints"]["B2"]["sha256"]["MEM2"]
+        data["checkpoints"]["B2"]["sha256"]["MEM2"]=sha(bank)
+        path.write_text(json.dumps(data))
+        try:
+            p=self.invoke()
+            self.assertNotEqual(p.returncode,0)
+            self.assertIn("ABORTED",p.stderr)
+            self.assertNotIn(str(self.private),p.stderr)
+        finally:
+            with bank.open("r+b") as f: put(f,MEM2,BALL,0x803C7918)
+            data["checkpoints"]["B2"]["sha256"]["MEM2"]=old
+            path.write_text(json.dumps(data))
+
+    def test_wrong_operator_phase_label_is_not_trusted(self):
+        path=self.private/"checkpoint-manifest-PRIVATE.json"
+        data=json.loads(path.read_text())
+        old=data["checkpoints"]["B2"]["phase_operator_label"]
+        data["checkpoints"]["B2"]["phase_operator_label"]="flight_verified"
+        path.write_text(json.dumps(data))
+        try:
+            p=self.invoke()
+            self.assertNotEqual(p.returncode,0)
+            self.assertIn("ABORTED",p.stderr)
+        finally:
+            data["checkpoints"]["B2"]["phase_operator_label"]=old
             path.write_text(json.dumps(data))
 
 class ContractTests(unittest.TestCase):
