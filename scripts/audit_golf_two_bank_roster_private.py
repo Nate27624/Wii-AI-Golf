@@ -187,6 +187,59 @@ def source_member_flow_evidence(read_u32) -> dict:
     }
 
 
+def _start_ball_vec3_code_evidence(read_u32) -> dict:
+    """Strict, bounded PPC source paths; no code bytes or runtime values emitted.
+
+    These checks establish translation *copy* logic, not units, world-space
+    coordinates, ball physics, shot activity, or same-frame capture.
+    """
+    start_getter = all((
+        _dform_matches(read_u32, 0x802922EC, 32, 3, 3, 0x50),
+        _dform_matches(read_u32, 0x802922F0, 32, 3, 3, 0x4C),
+        _dform_matches(read_u32, 0x8029F244, 32, 3, 13, -23320),
+        _bl_matches(read_u32, 0x8029F248, 0x802922EC),
+    ))
+    start_to_record = all(
+        _dform_matches(read_u32, 0x8029F24C + j * 0x0C, 48, 0, 3, j * 4)
+        and _dform_matches(read_u32, 0x8029F254 + j * 0x0C, 52, 0, 29,
+                           0x60 + j * 4)
+        for j in range(3)
+    )
+    ball_to_record = all((
+        _dform_matches(read_u32, 0x8029F300, 32, 3, 29, 0x88),
+        _dform_matches(read_u32, 0x8029F304, 32, 4, 3, 0x4C),
+    )) and all(
+        _dform_matches(read_u32, 0x8029F308 + j * 8, 48, 0, 4, j * 4)
+        and _dform_matches(read_u32, 0x8029F30C + j * 8, 52, 0, 29,
+                           0x60 + j * 4)
+        for j in range(3)
+    )
+    record_to_ball = all((
+        _dform_matches(read_u32, 0x802A038C, 48, 2, 3, 0x60),
+        _dform_matches(read_u32, 0x802A0390, 48, 1, 3, 0x64),
+        _dform_matches(read_u32, 0x802A0394, 48, 0, 3, 0x68),
+        _dform_matches(read_u32, 0x802A03A4, 52, 2, 3, 0x54),
+        _dform_matches(read_u32, 0x802A03A8, 52, 1, 3, 0x58),
+        _dform_matches(read_u32, 0x802A03AC, 52, 0, 3, 0x5C),
+        _dform_matches(read_u32, 0x802A03A0, 32, 4, 3, 0x88),
+        _dform_matches(read_u32, 0x802A03B4, 32, 4, 4, 0x4C),
+        _dform_matches(read_u32, 0x802A03B8, 52, 2, 4, 0),
+        _dform_matches(read_u32, 0x802A03BC, 48, 0, 3, 0x58),
+        _dform_matches(read_u32, 0x802A03C0, 52, 0, 4, 4),
+        _dform_matches(read_u32, 0x802A03C4, 48, 0, 3, 0x5C),
+        _dform_matches(read_u32, 0x802A03C8, 52, 0, 4, 8),
+    ))
+    return {
+        "start_object_translation_getter_source_supported": start_getter,
+        "start_translation_to_record_plus_0x60_source_supported": start_to_record,
+        "ball_translation_to_record_plus_0x60_source_supported": ball_to_record,
+        "record_plus_0x60_through_0x54_to_ball_translation_source_supported":
+            record_to_ball,
+        "actual_world_space_ball_xyz_verified": False,
+        "dynamic_movement_verified": False,
+    }
+
+
 class TwoBankReader:
     def __init__(self, mem1, mem2):
         if len(mem1) != MEM1_SIZE or len(mem2) != MEM2_SIZE:
@@ -300,6 +353,62 @@ def triage(read_u32, header: bytes) -> dict:
         and len(selected_indices) == 1 else None
     )
     source_code_stride = _code_stride_instruction_counts(read_u32)
+    start_vector_code = _start_ball_vec3_code_evidence(read_u32)
+    start_matches = {
+        "selected_record_054": 0,
+        "selected_record_060": 0,
+        "selected_ball_nested": 0,
+        "unselected_ball_nested_full_match_count": 0,
+        "current_start_translation_selfref": False,
+        "current_start_pointer_mapped": False,
+    }
+    # A content equality comparison only, not a position decoder. Gate on
+    # source-proven getter & copy sites and one source-derived selected slot.
+    if (selected_index is not None
+            and all(start_vector_code[k] for k in (
+                "start_object_translation_getter_source_supported",
+                "start_translation_to_record_plus_0x60_source_supported",
+                "ball_translation_to_record_plus_0x60_source_supported",
+                "record_plus_0x60_through_0x54_to_ball_translation_source_supported"))):
+        start_obj = read_u32(field + 0x50)
+        if _bank(start_obj, 0x50) == "MEM2":
+            start_vec = read_u32(start_obj + 0x4C)
+            if _bank(start_vec, 12) == "MEM2":
+                start_matches["current_start_pointer_mapped"] = True
+                start_matches["current_start_translation_selfref"] = (
+                    start_vec == start_obj + 0x30
+                )
+                selected_rec = pm + 4 + selected_index * ROSTER_STRIDE
+                selected_ball = read_u32(selected_rec + 0x88)
+                if (_bank(selected_ball, 0x50) == "MEM2"
+                        and _in_data(read_u32(selected_ball), BALL_DATA)):
+                    selected_vec = read_u32(selected_ball + 0x4C)
+                    if _bank(selected_vec, 12) == "MEM2":
+                        for component in range(3):
+                            original = read_u32(start_vec + 4 * component)
+                            for label, address in (
+                                ("selected_record_054", selected_rec + 0x54),
+                                ("selected_record_060", selected_rec + 0x60),
+                                ("selected_ball_nested", selected_vec),
+                            ):
+                                start_matches[label] += (
+                                    read_u32(address + 4 * component) == original
+                                )
+                for idx in range(ROSTER_SLOTS):
+                    if idx == selected_index:
+                        continue
+                    rec = pm + 4 + idx * ROSTER_STRIDE
+                    ball = read_u32(rec + 0x88)
+                    if (_bank(ball, 0x50) != "MEM2"
+                            or not _in_data(read_u32(ball), BALL_DATA)):
+                        continue
+                    vec = read_u32(ball + 0x4C)
+                    if _bank(vec, 12) != "MEM2":
+                        continue
+                    start_matches["unselected_ball_nested_full_match_count"] += all(
+                        read_u32(vec + 4 * comp) == read_u32(start_vec + 4 * comp)
+                        for comp in range(3)
+                    )
     exact_subobject_vtable_matches = sum(
         _bank(p) == "MEM2" and read_u32(p) == 0x803C7D28
         for p in players
@@ -325,6 +434,9 @@ def triage(read_u32, header: bytes) -> dict:
         "ball_related_child_plus_0x4c_mapped_triplet_count": nested_pointer_count,
         "nested_triplets_equal_record_triplet_count": local_triplet_equal_count,
         "nested_three_word_destination_is_world_ball_xyz_verified": False,
+        "start_to_selected_ball_source_code_evidence": start_vector_code,
+        "selected_start_three_word_equality_component_counts": start_matches,
+        "start_vector_physically_ball_xyz_verified": False,
         "source_gated_selected_record_index_hypothesis": selected_index,
         "source_selected_record_identity_confirmed": False,
         "source_supported_record_layout_not_gameplay_semantics":
