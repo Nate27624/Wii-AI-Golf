@@ -81,6 +81,95 @@ def _code_stride_instruction_counts(read_u32) -> dict:
     }
 
 
+
+def _dform_matches(read_u32, pc: int, opcode: int, value_reg: int,
+                   base_reg: int, disp: int) -> bool:
+    word = read_u32(pc)
+    return (word >> 26 == opcode
+            and (word >> 21) & 31 == value_reg
+            and (word >> 16) & 31 == base_reg
+            and (word & 0xFFFF) == (disp & 0xFFFF))
+
+
+def _mr_matches(read_u32, pc: int, target_reg: int, source_reg: int) -> bool:
+    word = read_u32(pc)
+    return (word >> 26 == 31 and (word >> 1) & 1023 == 444
+            and (word >> 16) & 31 == target_reg
+            and (word >> 21) & 31 == source_reg
+            and (word >> 11) & 31 == source_reg)
+
+
+def _relative_branch_target(pc: int, word: int, opcode: int) -> int | None:
+    if word >> 26 != opcode or word & 2:  # exclude absolute branch forms
+        return None
+    if opcode == 18:
+        disp = word & 0x03FFFFFC
+        if disp & 0x02000000:
+            disp -= 0x04000000
+    elif opcode == 16:
+        disp = word & 0xFFFC
+        if disp & 0x8000:
+            disp -= 0x10000
+    else:
+        return None
+    return (pc + disp) & 0xFFFFFFFF
+
+
+def _bl_matches(read_u32, pc: int, target: int) -> bool:
+    word = read_u32(pc)
+    return bool(word & 1 and _relative_branch_target(pc, word, 18) == target)
+
+
+def source_member_flow_evidence(read_u32) -> dict:
+    """Bounded instruction-pattern corroboration with explicit provenance limits.
+
+    These exact PC ranges are publicly documented Rev1 code units.
+    Checks verify register movement along specified basic blocks, not a full
+    interprocedural dataflow analysis. No raw instruction words are returned.
+    """
+    manager_record_loop = all((
+        _mr_matches(read_u32, 0x802A3194, 29, 3),
+        _dform_matches(read_u32, 0x802A3200, 14, 31, 29, 4),
+        _mr_matches(read_u32, 0x802A3214, 3, 31),
+        _mr_matches(read_u32, 0x802A3218, 4, 30),
+        _bl_matches(read_u32, 0x802A321C, 0x802A08A0),
+        _dform_matches(read_u32, 0x802A3224, 14, 31, 31, 0xCC),
+        _dform_matches(read_u32, 0x802A3228, 11, 0, 30, 4),
+        _relative_branch_target(0x802A322C, read_u32(0x802A322C), 16)
+            == 0x802A3214,
+    ))
+    ball_member_access = all((
+        _mr_matches(read_u32, 0x802A08B4, 30, 3),
+        _dform_matches(read_u32, 0x802A08F0, 36, 0, 30, 0x88),
+        _dform_matches(read_u32, 0x8029F0E4, 32, 3, 3, 0x88),
+        _bl_matches(read_u32, 0x8029F0E8, 0x80297124),
+    ))
+    nested_three_float_writer = all((
+        _dform_matches(read_u32, 0x802A03A0, 32, 4, 3, 0x88),
+        _dform_matches(read_u32, 0x802A03B4, 32, 4, 4, 0x4C),
+        _dform_matches(read_u32, 0x802A03B8, 52, 2, 4, 0),
+        _dform_matches(read_u32, 0x802A03C0, 52, 0, 4, 4),
+        _dform_matches(read_u32, 0x802A03C8, 52, 0, 4, 8),
+    ))
+    player_subobject_constructor = all((
+        _dform_matches(read_u32, 0x802A0D74, 15, 3, 0, -32708),
+        _dform_matches(read_u32, 0x802A0D7C, 14, 3, 3, 32040),
+        _dform_matches(read_u32, 0x802A0D88, 36, 3, 31, 0),
+        _dform_matches(read_u32, 0x802A0D94, 36, 31, 30, 0xC4),
+    ))
+    return {
+        "four_inline_0xcc_record_loop_source_supported": manager_record_loop,
+        "record_plus_0x88_ball_code_path_source_supported": ball_member_access,
+        "ball_child_plus_0x4c_three_float_writer_source_supported":
+            nested_three_float_writer,
+        "record_plus_0xc4_allocated_subobject_source_supported":
+            player_subobject_constructor,
+        "full_interprocedural_register_dataflow_proven": False,
+        "world_space_ball_xyz_or_units_verified": False,
+        "actual_player_selection_verified": False,
+    }
+
+
 class TwoBankReader:
     def __init__(self, mem1, mem2):
         if len(mem1) != MEM1_SIZE or len(mem2) != MEM2_SIZE:
@@ -163,6 +252,11 @@ def triage(read_u32, header: bytes) -> dict:
 
     all_pairs = all(paired)
     source_code_stride = _code_stride_instruction_counts(read_u32)
+    source_flow = source_member_flow_evidence(read_u32)
+    exact_subobject_vtable_matches = sum(
+        _bank(p) == "MEM2" and read_u32(p) == 0x803C7D28
+        for p in players
+    ) if source_flow["record_plus_0xc4_allocated_subobject_source_supported"] else 0
     return {
         "kind": "local_golf_source_gated_two_bank_roster_hypothesis",
         "schema_version": 1,
@@ -178,6 +272,12 @@ def triage(read_u32, header: bytes) -> dict:
             source_code_stride["ppc_mulli_immediate_matching_stride"] > 0
             and source_code_stride["ppc_addi_immediate_matching_stride"] > 0),
         "player_manager_source_code_stride_checks": source_code_stride,
+        "bounded_source_register_flow_evidence": source_flow,
+        "exact_constructor_firstword_matches_for_plus_0xc4_subobjects":
+            exact_subobject_vtable_matches,
+        "source_supported_record_layout_not_gameplay_semantics":
+            bool(source_flow["four_inline_0xcc_record_loop_source_supported"]
+                 and source_flow["record_plus_0x88_ball_code_path_source_supported"]),
         "ball_data_region_firstword_match_count": len(balls),
         "player_data_region_firstword_match_count": len(players),
         "slots_with_both_data_region_hints": sum(paired),
