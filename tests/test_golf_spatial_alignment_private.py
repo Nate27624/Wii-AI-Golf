@@ -91,6 +91,12 @@ class IntraMem2SpatialAlignmentTests(unittest.TestCase):
             with self.subTest(offset=offset), self.assertRaises(ValueError):
                 inspect(words)
 
+    def test_pin_and_cup_object_alias_does_not_count_as_spatial_confirmation(self):
+        words, refs = fabricated()
+        words[refs["field"] + 0x54] = refs["pin"]
+        with self.assertRaisesRegex(ValueError, "independent source-labelled"):
+            inspect(words)
+
     def test_nonfinite_nan_and_infinite_map_vectors_rejected(self):
         for raw in (0x7F800000, 0x7FC00000, 0xFF800000):
             words, refs = fabricated()
