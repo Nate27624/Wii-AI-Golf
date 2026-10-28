@@ -122,6 +122,9 @@ def analyze_words(words: list[int], lookahead: int = MAX_LOOKAHEAD) -> dict:
                     found_join = True
                 continue
 
+            if n_op == 46:  # lmw overwrites multiple registers; cannot track
+                break
+
             if _is_mem(nxt):
                 base = _ra(nxt)
                 disp = _signed16(nxt)
