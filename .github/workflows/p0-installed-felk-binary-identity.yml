@@ -26,6 +26,9 @@ jobs:
           [void][System.Management.Automation.Language.Parser]::ParseFile(
             $script, [ref]$tokens, [ref]$parseErrors)
           if ($null -ne $parseErrors -and $parseErrors.Count -gt 0) {
+            foreach ($err in $parseErrors) {
+              Write-Host ("Parser diagnostic: {0} at line {1}, column {2}" -f $err.ErrorId, $err.Extent.StartLineNumber, $err.Extent.StartColumnNumber)
+            }
             throw "PowerShell probe syntax invalid"
           }
       - name: Local generated PE header and fail-closed selftests
