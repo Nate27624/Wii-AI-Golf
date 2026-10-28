@@ -11,8 +11,8 @@ New script `scripts/audit_felk_startup_crash_events.ps1` uses Windows' read-only
 Because PR #172 is still a draft and not present in `main`, first make a disposable **isolated read-only worktree** of the PR; never overwrite an existing worktree:
 
 ~~~powershell
-$repo = "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf"
-$work = "D:\\Projects\\Wii Golf AI\\Wii-AI-Golf-Crash-Audit"
+$repo = "D:\Projects\Wii Golf AI\Wii-AI-Golf"
+$work = "D:\Projects\Wii Golf AI\Wii-AI-Golf-Crash-Audit"
 if (Test-Path $work) { throw "Existing worktree; preserve it" }
 git -C $repo fetch origin pull/172/head
 if ($LASTEXITCODE -ne 0) { throw "PR fetch failed" }
