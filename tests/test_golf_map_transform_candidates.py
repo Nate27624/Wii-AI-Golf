@@ -56,6 +56,8 @@ def fixture():
         put(m2, obj, 0x803C7800)
         put(m2, obj + 0x08, 0x90000000 + map_obj)
         vector(m2, obj + 0x30, xyz)
+        put(m2, obj + 0x48, 0x90000000 + obj + 0x0C)
+        put(m2, obj + 0x4C, 0x90000000 + obj + 0x30)
         vector(m2, map_obj + 0x08, xyz)
     return m1, m2
 
@@ -65,6 +67,8 @@ class GolfMapCandidateTests(unittest.TestCase):
         one, two = fixture()
         safe, private = audit_paired_map_candidates(one, two, strict_size=False)
         self.assertTrue(safe["selected_objects"]["pin"]["base_plus_0x30_triplet_finite_and_bounded"])
+        self.assertTrue(safe["selected_objects"]["pin"]["constructor_layout_consistent_candidate"])
+        self.assertTrue(safe["selected_objects"]["start"]["constructor_layout_consistent_candidate"])
         self.assertTrue(safe["selected_objects"]["pin"]["two_unverified_triplets_agree_within_tolerance"])
         self.assertTrue(safe["candidate_vectors_separated_by_nonzero_distance"])
         self.assertTrue(safe["mapobj_base_documented_offset_overlap"])
@@ -90,6 +94,9 @@ class GolfMapCandidateTests(unittest.TestCase):
         self.assertTrue(safe["mapobj_base_documented_offset_overlap"])
         self.assertEqual(set(safe["selected_objects"]["pin"]), {
             "selected_object_in_mem2",
+            "base_constructor_rotation_selfref_matches",
+            "base_constructor_translation_selfref_matches",
+            "constructor_layout_consistent_candidate",
             "first_word_in_map_object_module_data_range",
             "base_plus_0x30_triplet_finite_and_bounded",
             "base_plus_0x30_triplet_nonzero",
@@ -98,6 +105,29 @@ class GolfMapCandidateTests(unittest.TestCase):
             "hypothetical_pmp_plus_0x08_triplet_nonzero",
             "two_unverified_triplets_agree_within_tolerance",
         })
+
+    def test_false_self_reference_does_not_promote_float_to_world_xyz(self):
+        one, two = fixture()
+        # Finite numbers may exist in a non-MapObjBase object. The new
+        # constructor selfrefs at +0x48/+0x4C distinguish that possibility.
+        put(two, 0x1880 + 0x48, 0x90001F00)
+        put(two, 0x1880 + 0x4C, 0x90001F30)
+        safe, _ = audit_paired_map_candidates(one, two, strict_size=False)
+        pin = safe["selected_objects"]["pin"]
+        self.assertTrue(pin["base_plus_0x30_triplet_finite_and_bounded"])
+        self.assertFalse(pin["base_constructor_rotation_selfref_matches"])
+        self.assertFalse(pin["base_constructor_translation_selfref_matches"])
+        self.assertFalse(pin["constructor_layout_consistent_candidate"])
+        self.assertFalse(safe["pin_world_xyz_verified"])
+
+    def test_one_self_reference_is_not_enough(self):
+        one, two = fixture()
+        put(two, 0x1880 + 0x4C, 0)
+        safe, _ = audit_paired_map_candidates(one, two, strict_size=False)
+        pin = safe["selected_objects"]["pin"]
+        self.assertTrue(pin["base_constructor_rotation_selfref_matches"])
+        self.assertFalse(pin["base_constructor_translation_selfref_matches"])
+        self.assertFalse(pin["constructor_layout_consistent_candidate"])
 
     def test_nan_and_out_of_range_are_rejected_without_leaking(self):
         one, two = fixture()
