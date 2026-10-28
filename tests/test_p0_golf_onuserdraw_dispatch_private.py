@@ -105,7 +105,7 @@ class DrawThunkTests(unittest.TestCase):
                     "0x90000000","scene_runtime_ptr"):
             self.assertNotIn(bad,x)
 
-    def test_fabricated_full_seven_sha_before_after_and_two_word_scene(self):
+    def _run_fabricated_seven_with_calculate_target(self, calculate_target, *, expect_success):
         # In-memory mock source words; seven 4-byte fabricated files ONLY.
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
@@ -124,7 +124,7 @@ class DrawThunkTests(unittest.TestCase):
                     0x8028E0B0:0x60000000,
                     d.prior.CALCULATE_PC:lwz_main(),
                     d.prior.CALCULATE_PC+4:branch(
-                        d.prior.CALCULATE_PC+4,d.prior.MAIN_UNIT_LO+0x120),
+                        d.prior.CALCULATE_PC+4,calculate_target),
                 }
                 return vals.get(pc,0)
             chk={n:root for n in range(1,8)}
@@ -138,6 +138,11 @@ class DrawThunkTests(unittest.TestCase):
                  patch.object(d.prior.roster,"_bank",
                      side_effect=lambda ptr,size:
                      "MEM1" if ptr==0x80001000 else "MEM2"):
+                if not expect_success:
+                    with self.assertRaisesRegex(ValueError, "exact Calculate"):
+                        d.analyze(root)
+                    self.assertEqual(check.call_count,1)
+                    return
                 result=d.analyze(root)
                 self.assertEqual(check.call_count,2)
                 self.assertTrue(result["original_14_native_bank_SHA_pre_and_post_verified"])
@@ -147,6 +152,16 @@ class DrawThunkTests(unittest.TestCase):
                 self.assertFalse(result["source_draw_main_13_word_census"]["render_object_submit_function_typed_and_verified"])
                 self.assertFalse(result["actual_ball_render_submission_verified"])
                 self.assertFalse(result["guest_game_physics_frame_clock_verified"])
+
+    def test_fabricated_full_seven_sha_before_after_and_two_word_scene(self):
+        self._run_fabricated_seven_with_calculate_target(
+            0x8028E158,expect_success=True)
+
+    def test_in_unit_but_noncanonical_calculate_target_abstains(self):
+        # Published RPGolMain unit membership is insufficient: user's real
+        # canonical original source target was exactly 0x8028E158, not E1B8.
+        self._run_fabricated_seven_with_calculate_target(
+            0x8028E1B8,expect_success=False)
 
     def test_isolated_help_from_other_cwd(self):
         p=Path(__file__).resolve().parents[1]/"scripts"/"audit_p0_golf_onuserdraw_dispatch_private.py"
