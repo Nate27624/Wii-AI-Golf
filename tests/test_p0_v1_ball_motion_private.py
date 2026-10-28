@@ -83,10 +83,12 @@ def fixture(motion=True, contact="yes", movement="yes"):
             "idle_control_vector_stationary": True,
             "pretrace_candidate_ball_stationary": True,
             "candidate_ball_changed_after_trace_start": bool(motion),
-            "candidate_record_triplet_equal_ball_triplet_count": (
-                15 - (6 if motion else 0)),
+            "candidate_record_triplet_equal_ball_triplet_count": sum(
+                r["record_translation_f32_candidate"] == r["ball_translation_f32_candidate"]
+                for r in rows),
             "phase_sample_counts": {
-                "idle_control": 2, "a_prime": 2, "trace": 9, "posttrace": 2,
+                name: sum(r["input_stage"] == name for r in rows)
+                for name in ("idle_control", "a_prime", "trace", "posttrace")
             },
         },
         "PRIVATE_UNVERIFIED_NUMERIC_VECTORS": rows,
@@ -137,6 +139,7 @@ class TrajectoryEvidenceTests(unittest.TestCase):
     def test_early_a_prime_change_is_confound(self):
         p=fixture()
         p["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"][3]["ball_translation_f32_candidate"]=[2.0,2.0,3.0]
+        p["safe_summary"]["pretrace_candidate_ball_stationary"] = False
         self.assertFalse(m.audit(p)["source_ball_vector_correlated_with_observed_swing_not_physics_verified"])
 
     def test_backswing_change_is_confound(self):
@@ -152,6 +155,7 @@ class TrajectoryEvidenceTests(unittest.TestCase):
     def test_tee_must_be_fixed(self):
         p=fixture()
         p["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"][10]["current_start_f32_candidate"]=[4.0,2.0,3.0]
+        p["safe_summary"]["start_vector_stable"] = False
         self.assertFalse(m.audit(p)["source_ball_vector_correlated_with_observed_swing_not_physics_verified"])
 
     def test_wrong_or_incomplete_trace_id_rejected(self):
@@ -188,6 +192,8 @@ class TrajectoryEvidenceTests(unittest.TestCase):
             r for r in p["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"]
             if r["trace_sample_index_if_active"] not in (48,64)]
         p["watch_status"]["samples"]=len(p["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"])
+        p["safe_summary"]["phase_sample_counts"]["trace"]=7
+        p["safe_summary"]["candidate_record_triplet_equal_ball_triplet_count"]=7
         r=m.audit(p)
         self.assertIn("followthrough",r["missing_phases"])
         self.assertFalse(r["source_ball_vector_correlated_with_observed_swing_not_physics_verified"])
