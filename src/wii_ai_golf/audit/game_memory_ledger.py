@@ -37,10 +37,10 @@ _BEHAVIOR = {
     "unobserved", "control_dynamic", "control_stable",
     "action_correlated", "intervention_replicated",
 }
-_ID = re.compile(r"[a-z][a-z0-9_]*(?:[.][a-z0-9_]+)+\\Z")
-_OFFSET = re.compile(r"\\+0x[0-9A-F]{3,4}\\Z")
+_ID = re.compile(r"[a-z][a-z0-9_]*(?:[.][a-z0-9_]+)+\Z")
+_OFFSET = re.compile(r"\+0x[0-9A-F]{3,4}\Z")
 _PUBLIC_REF = "https://github.com/Nate27624/Wii-AI-Golf/"
-_HEX_POINTER = re.compile(r"0x[89][0-9A-Fa-f]{7}\\b")
+_HEX_POINTER = re.compile(r"0x[89][0-9A-Fa-f]{7}\b")
 
 
 def validate_memory_ledger(doc: Any) -> list[dict[str, Any]]:
