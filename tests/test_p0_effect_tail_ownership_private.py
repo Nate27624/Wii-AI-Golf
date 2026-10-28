@@ -49,9 +49,23 @@ def positive_shot():
         for off, base in ((0x94, player), (0x98, line), (0x9C, ball)):
             _write(row, field + off, base)
         # Remove fixture-only 4 transient candidates and 1 persistent.
+        # Remove original synthetic transients, its one persistent word,
+        # and five NON-EFFECT unsettled fixture words; real observation has
+        # all five unsettled at the ball-named window's last 20 bytes.
         for addr in (config + 0x100, config + 0x104,
-                     field + 0x80, seq + 0x40, player + 0x108):
+                     config + 0x108, config + 0x10C,
+                     field + 0x80, field + 0x84,
+                     seq + 0x40, seq + 0x44,
+                     player + 0x108, player + 0x110):
             _write(row, addr, 0)
+        if row["phase"] in ("post", "settled"):
+            if row["phase"] == "post":
+                tail_value = 0x3F400000
+            else:
+                # Real cohort: two distinct settled patterns, last != PRE.
+                tail_value = 0x3F000000 if rows.index(row) == 5 else 0x40000000
+            for offset in m.TAIL_OFFSETS:
+                _write(row, ball + offset, tail_value)
         if row["phase"] != "pre":
             # Eight actual persistent *positions* as four adjacent pairs;
             # fixture values are invented synthetic integers, not RAM evidence.
@@ -141,7 +155,7 @@ class TailOwnershipTests(unittest.TestCase):
             c = root / (stem + m.OUTPUT_SUFFIX)
             a.write_text(json.dumps(summary), encoding="utf-8")
             b.write_text("\n".join(json.dumps(x) for x in rows), encoding="utf-8")
-            with patch.object(m.prior, "PRIVATE_ROOT", root), patch.object(m.settled.prior, "PRIVATE_ROOT", root):
+            with patch.object(m.prior, "PRIVATE_ROOT", root), patch.object(m.settled.p0, "PRIVATE_ROOT", root):
                 with redirect_stdout(io.StringIO()):
                     self.assertEqual(m.main(["--summary", str(a), "--raw", str(b), "--output", str(c)]), 0)
                 original = c.read_bytes()
