@@ -31,20 +31,35 @@ def _d_form(word):
 
 
 def _reg_def_class(word, reg):
-    """Categorize only selected PPC syntax that MAY define GPR r3 or r4."""
+    """Classify plausible writes to GPR reg; never resurrect a stale r4.
+
+    PPC is *not* uniformly RT-destination: rotating/logical immediates
+    write RA, lmw writes a *range*, and update forms write their base RA.
+    Unknown X-form writes are conservatively categorized (syntax only).
+    """
     op, rt, ra, _ = _d_form(word)
-    if op == 14 and rt == reg:
-        return f"addi_from_r{ra}"
-    if op == 15 and rt == reg:
-        return f"addis_from_r{ra}"
-    if op in (24, 25) and ra == reg:
-        return f"ori_or_oris_from_r{rt}"
-    if op in (32, 33) and rt == reg:
-        return f"lwz_from_r{ra}"
-    if op in (34, 35) and rt == reg:
-        return f"lbz_from_r{ra}"
-    if op in (40, 41, 42, 43) and rt == reg:
-        return f"lhz_or_lha_from_r{ra}"
+    if op in (14, 15) and rt == reg:
+        if ra == 0:
+            return "addi_or_addis_from_literal_zero_base"
+        return ("addi_from_r%d" if op == 14 else "addis_from_r%d") % ra
+    if op in (20, 21, 23, 24, 25, 26, 27, 28, 29) and ra == reg:
+        return "rotate_or_logical_immediate_rA_write_unknown_value"
+    if op == 46 and rt <= reg:
+        # lmw rT, d(rA) loads *every* GPR in [rT, r31].
+        return "lmw_range_includes_register"
+    if op in (32, 33, 34, 35, 40, 41, 42, 43):
+        if rt == reg:
+            if op in (32, 33):
+                return f"lwz_from_r{ra}"
+            if op in (34, 35):
+                return f"lbz_from_r{ra}"
+            return f"lhz_or_lha_from_r{ra}"
+        if op in (33, 35, 41, 43) and ra == reg:
+            return "integer_load_update_base_rA_write"
+    if op in (37, 39, 45, 49, 51, 53, 55) and ra == reg:
+        return "memory_update_base_rA_write_unknown_value"
+    # Nonupdating GPR stores, FPR operations and stmw (47) do not
+    # overwrite the given GPR merely because RT/RS bits equal its index.
     if op == 31:
         xo = (word >> 1) & 1023
         rs = (word >> 21) & 31
