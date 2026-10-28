@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 from contextlib import ExitStack
 import json
+import math
 import mmap
 import os
 from pathlib import Path
@@ -50,6 +51,31 @@ class SourceRAM:
 
     def mapped(self, addr: int | None, length: int = 4) -> bool:
         return _bank(addr, length) is not None
+
+    def u8(self, addr: int) -> int | None:
+        bank = _bank(addr, 1)
+        if bank is None:
+            return None
+        base = MEM1_BASE if bank == "MEM1" else MEM2_BASE
+        return self.banks[bank][addr - base]
+
+    def f32(self, addr: int) -> float | None:
+        bank = _bank(addr, 4)
+        if bank is None:
+            return None
+        base = MEM1_BASE if bank == "MEM1" else MEM2_BASE
+        return struct.unpack_from(">f", self.banks[bank], addr - base)[0]
+
+
+def _plausible_vec3(r: SourceRAM, addr: int | None) -> dict:
+    """Shape validation only. NEVER return raw f32 values or claim coordinates."""
+    if not r.mapped(addr, 12):
+        return {"mapped": False, "three_finite_components": False,
+                "nonzero": False}
+    values = [r.f32(addr + i * 4) for i in range(3)]
+    finite = all(v is not None and math.isfinite(v) for v in values)
+    return {"mapped": True, "three_finite_components": finite,
+            "nonzero": bool(finite and any(v != 0.0 for v in values))}
 
 
 def audit(mem1, mem2, *, timestamp_gap_seconds: float | None = None) -> dict:
@@ -96,6 +122,27 @@ def audit(mem1, mem2, *, timestamp_gap_seconds: float | None = None) -> dict:
     start_count = r.u32(field + 0x48) if field_ok else None
     def bounded(x):
         return x if x is not None and x <= 10000 else None
+
+    # Exact source-defined RPGolFieldManager members. These are RAM-level
+    # field shapes, NOT validated in-game visual semantics or physics.
+    ui_offsets = {"wind_arrow": 0x6C, "green_slope_preview": 0x7C,
+                  "minimap": 0x88}
+    ui_states = {}
+    for name, offset in ui_offsets.items():
+        raw = r.u8(field + offset) if field_ok else None
+        ui_states[name] = bool(raw) if raw in (0, 1) else None
+    opacity = r.f32(field + 0x80) if field_ok else None
+    opacity_unit_interval = bool(
+        opacity is not None and math.isfinite(opacity) and 0 <= opacity <= 1
+    )
+    sun_shape = _plausible_vec3(r, field + 0x5C if field_ok else None)
+
+    # mCourseObj is declared RPGolMapObjBase* in source; base mTrans+0x30
+    # is eligible only as a source-layout *candidate*, never terrain/ball XYZ.
+    course_ptr = r.u32(field + 0x70) if field_ok else None
+    course_trans = _plausible_vec3(
+        r, course_ptr + 0x30 if r.mapped(course_ptr, 0x3C) else None
+    )
     gap = round(timestamp_gap_seconds, 2) if timestamp_gap_seconds is not None else None
     return {
         "kind": "local-source-gated-mem1-mem2-pair-audit", "schema_version": 1,
@@ -118,6 +165,13 @@ def audit(mem1, mem2, *, timestamp_gap_seconds: float | None = None) -> dict:
             "pin_count_raw_if_bounded": bounded(pin_count),
             "start_count_raw_if_bounded": bounded(start_count)},
         "source_field_pointer_candidates": fields,
+        "source_labeled_ui_flag_candidates": ui_states,
+        "source_labeled_green_slope_opacity_in_unit_interval": opacity_unit_interval,
+        "source_labeled_sun_vec3_shape": sun_shape,
+        "source_course_base_mtrans_vec3_shape": course_trans,
+        "field_member_shape_claim_only": True,
+        "source_field_member_layout_reference":
+            "ogws_info/RPGolFieldManager.h and RPGolMapObjBase.h, RSPE01 Rev1",
         "ball_xyz_verified": False, "club_pose_verified": False,
         "swing_power_verified": False, "shot_contact_verified": False,
         "wind_speed_direction_verified": False, "terrain_verified": False,
