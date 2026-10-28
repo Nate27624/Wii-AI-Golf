@@ -132,6 +132,40 @@ class P0CleanCliV1Tests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(len(calls), 0)
 
+    def test_visual_first_integrated_run_keeps_clean_boot_and_exact_token(self):
+        # Synthetic one-shot action composition. Missing child report must be
+        # an ineligible observation, not a fallback success or hidden launch.
+        self.prepare_clean()
+        code, calls = self.patched_main([
+            "v1", "--live", "--visual-first", "--no-upload",
+            "--a-lead", "45", "--speed-scale", "1.0",
+            "--backswing-scale", "1.0",
+        ])
+        self.assertEqual(code, 2)  # no exact collector artifact: fail closed
+        self.assertEqual(len(calls), 1)
+        argv = calls[0].args[0]
+        self.assertEqual(argv[argv.index("--dolphin") + 1],
+                         str(self.clean / "Dolphin.exe"))
+        self.assertEqual(argv[argv.index("--dolphin-user") + 1],
+                         str(self.clean / "User"))
+        self.assertEqual(argv[argv.index("--a-prime-requests") + 1], "0")
+        self.assertEqual(argv[argv.index("--a-lead-frames") + 1], "45")
+        self.assertIn("--visual-first", argv)
+        self.assertNotIn("--no-upload", argv)  # parent controls publishing, not child
+        self.assertEqual(argv.count("--send-live"), 1)
+        self.assertEqual(argv.count("--send-live-swing"), 1)
+        import re
+        token = argv[argv.index("--run-token") + 1]
+        self.assertRegex(token, r"^[0-9]{8}T[0-9]{6}Z-[a-f0-9]{10}$")
+
+    def test_visual_first_rejects_unmarked_clean_executable_before_dispatch(self):
+        self.prepare_clean()
+        (self.clean / "portable.txt").unlink()
+        code, calls = self.patched_main([
+            "v1", "--live", "--visual-first", "--no-upload", "--a-lead", "45"])
+        self.assertEqual(code, 2)
+        self.assertEqual(calls, [])
+
     def test_offline_test_path_does_not_require_clean_dolphin(self):
         code, calls = self.patched_main([
             "test", "--no-upload", "--pattern",
