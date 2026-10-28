@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "kind": "golf-memory-source-anchored-field-register",
+  "game": "RSPE01",
+  "revision": 1,
+  "raw_data_never_committed": true,
+  "evidence_tiers": {
+    "L0": "Unmapped or pointer-shaped only, no verified meaning",
+    "L1": "Documented class/field source offset, observed on one source-gated memory pair",
+    "L2": "Candidate dynamic type supported by source .data and code-region references, still not proved",
+    "L3": "Runtime-write-PC/source/phase validated on repeated independent boots",
+    "L4": "Gameplay-measured physical units and causal intervention validated with held-out shots"
+  },
+  "entries": [
+    {
+      "id": "golf.scene",
+      "owner": "RPSysSceneMgr / EGG::Scene",
+      "source_relative_offset": "manager +0x18; scene +0x1C/+0x20/+0x54",
+      "datatype": "u32 + pointer backlink",
+      "current_tier": "L1",
+      "training_role": "episode gate",
+      "observed": "Golf scene 5 / sport 2 / backlink true"
+    },
+    {
+      "id": "golf.game_mode",
+      "owner": "RPGolConfig",
+      "source_relative_offset": "+0x94",
+      "datatype": "u32",
+      "current_tier": "L1",
+      "training_role": "episode gate",
+      "observed": "training mode 4"
+    },
+    {
+      "id": "golf.hole_raw",
+      "owner": "RPGolConfig",
+      "source_relative_offset": "+0x98",
+      "datatype": "u32",
+      "current_tier": "L1",
+      "training_role": "context",
+      "observed": "raw index 1 in B0; index semantics not proven by game outcome"
+    },
+    {
+      "id": "golf.score_array",
+      "owner": "RPGolConfig",
+      "source_relative_offset": "+0x004 .. +0x093",
+      "datatype": "u32[4][9]",
+      "current_tier": "L1",
+      "training_role": "reward / score",
+      "observed": "36 of 36 slots zero at B0; no shot test"
+    },
+    {
+      "id": "course.current_start_transform",
+      "owner": "RPGolFieldManager -> RPGolMapObjBase",
+      "source_relative_offset": "field +0x50 -> map object +0x0C rotation / +0x30 translation / +0x3C scale",
+      "datatype": "f32 matrix33 + vec3 + vec3",
+      "current_tier": "L1",
+      "training_role": "start position / aim geometry",
+      "observed": "finite coordinates, orthonormal rotation, positive scale"
+    },
+    {
+      "id": "course.current_pin_transform",
+      "owner": "RPGolFieldManager -> RPGolMapObjBase",
+      "source_relative_offset": "field +0x44 -> map object +0x0C/+0x30/+0x3C",
+      "datatype": "f32 matrix33 + vec3 + vec3",
+      "current_tier": "L1",
+      "training_role": "target geometry",
+      "observed": "same horizontal location as cup in B0"
+    },
+    {
+      "id": "course.cup_transform",
+      "owner": "RPGolFieldManager -> RPGolMapObjBase",
+      "source_relative_offset": "field +0x54 -> map object +0x0C/+0x30/+0x3C",
+      "datatype": "f32 matrix33 + vec3 + vec3",
+      "current_tier": "L1",
+      "training_role": "target geometry",
+      "observed": "same horizontal location as pin in B0"
+    },
+    {
+      "id": "course.course_transform",
+      "owner": "RPGolFieldManager -> RPGolMapObjBase",
+      "source_relative_offset": "field +0x70 -> map object +0x0C/+0x30/+0x3C",
+      "datatype": "f32 matrix33 + vec3 + vec3",
+      "current_tier": "L1",
+      "training_role": "scene geometry",
+      "observed": "source-anchored read; identity-like transform"
+    },
+    {
+      "id": "course.tee_marker_transform",
+      "owner": "RPGolFieldManager -> RPGolMapObjBase",
+      "source_relative_offset": "field +0x2C -> map object +0x0C/+0x30/+0x3C",
+      "datatype": "f32 matrix33 + vec3 + vec3",
+      "current_tier": "L1",
+      "training_role": "reference geometry",
+      "observed": "finite, non-identity rotation, not necessarily current player position"
+    },
+    {
+      "id": "player.source_candidate",
+      "owner": "RPGolScene +0x9C -> RPGolMain +0x030",
+      "source_relative_offset": "golf main +0x030",
+      "datatype": "unverified object pointer",
+      "current_tier": "L2",
+      "training_role": "player dynamics search anchor",
+      "observed": "target first word within RPGolPlayer .data; 8/12 function-table words in RPGolPlayer .text; one such candidate in main first 0x100"
+    },
+    {
+      "id": "player.club_pose",
+      "owner": "UNKNOWN likely nested player",
+      "source_relative_offset": "UNKNOWN",
+      "datatype": "UNKNOWN",
+      "current_tier": "L0",
+      "training_role": "control dynamics",
+      "observed": "not decoded or identified"
+    },
+    {
+      "id": "player.swing_power",
+      "owner": "UNKNOWN",
+      "source_relative_offset": "UNKNOWN",
+      "datatype": "UNKNOWN",
+      "current_tier": "L0",
+      "training_role": "supervised action outcome",
+      "observed": "not decoded or identified"
+    },
+    {
+      "id": "ball.world_xyz",
+      "owner": "UNKNOWN",
+      "source_relative_offset": "UNKNOWN",
+      "datatype": "UNKNOWN",
+      "current_tier": "L0",
+      "training_role": "physics state",
+      "observed": "not decoded or identified"
+    },
+    {
+      "id": "ball.velocity_xyz",
+      "owner": "UNKNOWN",
+      "source_relative_offset": "UNKNOWN",
+      "datatype": "UNKNOWN",
+      "current_tier": "L0",
+      "training_role": "physics state / reward",
+      "observed": "not decoded or identified"
+    },
+    {
+      "id": "main.frame_like_counter",
+      "owner": "RPGolMain candidate",
+      "source_relative_offset": "+0x074",
+      "datatype": "u32-like monotonic",
+      "current_tier": "L1",
+      "training_role": "negative-control nuisance not swing indicator",
+      "observed": "17/17 frame-correlated same-stage transitions incl idle; other 3 child word deltas same pattern"
+    }
+  ],
+  "limits": {
+    "pair_at_B0_only": true,
+    "non_atomic_memory_exports": true,
+    "no_source_verified_player_CPP_type": true,
+    "no_verified_ball_or_club": true,
+    "no_shot_labels": true,
+    "training_allowed": false
+  }
+}
