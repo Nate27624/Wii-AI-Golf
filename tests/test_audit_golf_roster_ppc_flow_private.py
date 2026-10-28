@@ -48,6 +48,11 @@ class TestRosterPPCFlow(unittest.TestCase):
              add(9, 8, 10), dform(32, 3, 9, 0xC8)]
         self.assertEqual(m.analyze_words(w)['mulli_sites_with_bounded_index_plus_base_add'], 0)
 
+    def test_lmw_stops_unknown_multi_register_clobber(self):
+        w = [dform(7, 8, 6, 0xCC), dform(46, 8, 7, 0),
+             add(9, 8, 10), dform(32, 3, 9, 0x8C)]
+        self.assertEqual(m.analyze_words(w)['mulli_sites_with_bounded_index_plus_base_add'], 0)
+
     def test_addi_0xcc_not_mulli(self):
         w = [dform(14, 8, 6, 0xCC), dform(32, 3, 9, 0x8C)]
         r = m.analyze_words(w)
