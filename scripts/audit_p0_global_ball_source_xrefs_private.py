@@ -89,6 +89,74 @@ def classify_source_refs(read, global_slot_offset:int) -> dict:
     }
 
 
+
+# This narrow window follows the previously verified 0x80299C70..0x8029A030
+# source cache routine. It is a SOURCE CODE WINDOW, not a newly asserted
+# function entry or executed control-flow path.
+WRITER_WINDOW_START=0x8029A030
+WRITER_PC=0x8029A05C
+WRITER_UNIT_BASE=0x80296FD8
+
+
+def classify_known_writer_value(read, displacement:int) -> dict:
+    """Classify one exact stw's register source and bounded near-def.
+
+    A static nearest write is not branch-sensitive reaching definition and
+    can miss unrecognized opcodes, indirect aliasing or a call-clobbered reg.
+    """
+    word=read(WRITER_PC)
+    d=prev.dform(word)
+    if (d["op"],d["ra"],d["imm"])!=(36,13,displacement):
+        raise ValueError("the sole source-global direct stw at reviewed PC changed")
+    reg=d["rt"]  # For stw, D-form bits 21..25 encode rS, NOT an output rT.
+    defs=[]
+    hazards=[]
+    for pc in range(WRITER_WINDOW_START,WRITER_PC,4):
+        ins=read(pc)
+        di=prev.dform(ins)
+        op=di["op"]
+        if op in (16,17,18) or (
+            op==19 and ((ins>>1)&1023) in (16,50,528)):
+            hazards.append(pc)
+        source=None
+        if op==14 and di["rt"]==reg:
+            source=("literal_zero_candidate" if di["ra"]==0 and di["imm"]==0
+                    else "addi_other")
+        elif op==15 and di["rt"]==reg:
+            source="addis_other"
+        elif op in (32,33,34,35,40,42,46) and di["rt"]==reg:
+            source="integer_memory_load"
+        elif op==31 and ((ins>>1)&1023)==444:
+            rs=(ins>>21)&31
+            ra=(ins>>16)&31
+            rb=(ins>>11)&31
+            if ra==reg and rb==rs:
+                source=("mr_from_same_reg" if rs==reg
+                        else "mr_from_other_register")
+        if source is not None:
+            defs.append((pc,source))
+    last=defs[-1] if defs else None
+    later_hazard=any(pc>last[0] for pc in hazards) if last else bool(hazards)
+    return {
+        "source_unit":"RPGolMapObjBall",
+        "source_unit_relative_store_pc":f"+0x{WRITER_PC-WRITER_UNIT_BASE:04X}",
+        "exact_stw_source_slot_verified":True,
+        "store_source_register":f"r{reg}",
+        "candidate_nearest_recognized_definition_class":
+            last[1] if last else "unknown_no_recognized_def_in_bounded_window",
+        "candidate_nearest_definition_unit_relative_pc":
+            f"+0x{last[0]-WRITER_UNIT_BASE:04X}" if last else None,
+        "control_transfer_in_window":bool(hazards),
+        "control_transfer_after_candidate_definition":later_hazard,
+        "source_value_may_be_zero_candidate":
+            bool(last and last[1]=="literal_zero_candidate"),
+        "store_value_runtime_zero_verified":False,
+        "source_register_reaching_definition_fully_verified":False,
+        "source_writer_ran_during_wedge_verified":False,
+        "window_is_not_verified_function_entry":True,
+    }
+
+
 def validate_and_read_three(directory:Path) -> dict:
     directory=seven._private_directory(directory)
     observations=[]
@@ -130,6 +198,7 @@ def validate_and_read_three(directory:Path) -> dict:
             if source_digest is None:
                 source_digest=digest
                 code_ref=classify_source_refs(rd.u32,disp)
+                code_ref["single_direct_slot_store_source_candidate"]=classify_known_writer_value(rd.u32,disp)
             elif digest!=source_digest:
                 raise ValueError("Rev1 golf source code differs across wedge phases")
             observations.append({
