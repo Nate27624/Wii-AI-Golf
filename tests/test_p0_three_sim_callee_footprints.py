@@ -124,6 +124,15 @@ class CalleeFootprint(unittest.TestCase):
         report["source_direct_linked_calls"][0]["target_public_code_pc"]="0x8029B558"
         with self.assertRaises(ValueError):m.analyze(main,callees,report)
 
+    def test_main_source_bl_opcode_must_match_report_at_three_targets(self):
+        # Report alone is insufficient; original PPC opcode must be a BL.
+        with self.assertRaisesRegex(ValueError,"real main source BL"):
+            run(modmain={0x90:0x60000000})
+        with self.assertRaisesRegex(ValueError,"real main source BL"):
+            run(modmain={0x168:bl(m.ENTRY+0x168,0x8029B554)})
+        with self.assertRaisesRegex(ValueError,"real main source BL"):
+            run(modmain={0x7C:bl(m.ENTRY+0x7C,0x8029B554,linked=False)})
+
     def test_noncode_direct_call_and_malformed_instruction_refused(self):
         with self.assertRaises(ValueError):
             run(modcallees={"fn_8029B554":{4:-1}})
