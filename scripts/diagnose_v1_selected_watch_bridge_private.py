@@ -6,6 +6,7 @@ runtime paths, controller calls, emulation, or generated files.
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 from pathlib import Path
@@ -17,7 +18,10 @@ sys.path.insert(0, str(ROOT / "src"))
 from wii_ai_golf.integration.atomic_patch import PATCH_MARKER, BOOT_MARKER
 from wii_ai_golf.integration.swing_patch import SWING_MARKER, SWING_NEUTRAL_V2_MARKER
 from wii_ai_golf.integration.ball_watch_patch import BALL_WATCH_MARKER
-from wii_ai_golf.integration.v1_ball_watch_compat import KNOWN_CONTACT_V1_SHA256
+from wii_ai_golf.integration.v1_ball_watch_compat import (
+    KNOWN_CONTACT_V1_SHA256, extend_known_v1_with_selected_watch,
+    V1BallWatchCompatibilityError,
+)
 
 COUNTS = {
     "handler_table": "HANDLERS = {",
@@ -83,7 +87,22 @@ def diagnostic(source: Path) -> dict:
     except UnicodeDecodeError:
         report["preflight"] = "SOURCE_ENCODING_REJECTED"
         return report
-    return inspect_text(text, actual_sha256=hashlib.sha256(data).hexdigest())
+    report = inspect_text(text, actual_sha256=hashlib.sha256(data).hexdigest())
+    if report["preflight"] != "SOURCE_PREFLIGHT_PASS":
+        return report
+    try:
+        patched = extend_known_v1_with_selected_watch(text)
+    except V1BallWatchCompatibilityError:
+        report["preflight"] = "SOURCE_TRANSFORM_REJECTED"
+        return report
+    try:
+        compile(patched, "<OFFLINE-V1-TRANSFORM>", "exec",
+                flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)
+    except SyntaxError:
+        report["preflight"] = "SOURCE_COMPILE_REJECTED"
+        return report
+    report["in_memory_source_transform_and_compile_passed"] = True
+    return report
 
 
 def main(argv=None) -> int:
