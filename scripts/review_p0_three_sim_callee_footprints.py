@@ -62,6 +62,10 @@ def analyze(main_words, callee_words, main_report):
     if type(main_words) not in(tuple,list) or len(main_words)!=101:
         raise ValueError("main function word window mismatch")
     for w in main_words:_word(w)
+    for name,entry,size,offset in CALLEES:
+        w=main_words[offset//4]
+        if w>>26 != 18 or not (w & 1) or _bl_target(ENTRY+offset,w) != entry:
+            raise ValueError("real main source BL instruction no longer matches three proven call targets")
     if type(callee_words) is not dict or set(callee_words)!={
             x[0] for x in CALLEES}:
         raise ValueError("three callee source windows required")
