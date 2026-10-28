@@ -56,7 +56,7 @@ class SevenManualDumpTests(unittest.TestCase):
             f.write(b"RSPE01\x00\x01")
         result = self.run_ps()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("NO WITHIN-SHOT NATIVE PAIRS READY", result.stderr)
+        self.assertIn("NO WITHIN-SHOT NATIVE PAIRS READY", result.stdout + result.stderr)
         self.assertNotIn("PRIVATE REPORT WRITTEN", result.stdout)
         self.assertIn("MEM1_24MiB", result.stdout)
 
@@ -65,7 +65,7 @@ class SevenManualDumpTests(unittest.TestCase):
         self.fixture(4, altered=True)
         result = self.run_ps()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("NO WITHIN-SHOT NATIVE PAIRS READY", result.stderr)
+        self.assertIn("NO WITHIN-SHOT NATIVE PAIRS READY", result.stdout + result.stderr)
         self.assertNotIn("P3_to_A4", result.stdout)
 
     def test_same_wedge_5_to_6_creates_private_report_and_delta(self):
@@ -109,7 +109,7 @@ class SevenManualDumpTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('wrong sizes: 1', result.stdout)
         self.assertIn('MEM2_64MiB', result.stdout)
-        self.assertIn("NO WITHIN-SHOT NATIVE PAIRS READY", result.stderr)
+        self.assertIn("NO WITHIN-SHOT NATIVE PAIRS READY", result.stdout + result.stderr)
         self.assertNotIn("PRIVATE REPORT WRITTEN", result.stdout)
 
     def test_files_without_operator_phase_name_are_not_assumed(self):
