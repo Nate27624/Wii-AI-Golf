@@ -47,3 +47,33 @@ This child review makes the contract fail closed if any row aliases selected and
 The future trace schema accepts a `stage="shot_observation"` label, but this is an operator-provided annotation rather than a game-attested contact event. The previous reviewer checked stable identities and sample indices without asserting that *any* of the three object/cache source vectors had changed. Thus a wholly stationary sample cohort could be marked accepted for shot observation, even though its bitwise data could not help identify the moving ball. The source-only reviewer now **abstains** on shot-labeled samples when selected, source-global and CC triplets all stay bitwise unchanged across the cohort. This is a necessary source-motion condition, NOT proof of actual rendered-ball movement, physical axes, cause, collision, contact or shot success. Motion in ANY of the three is sufficient for source-only relationship review; physical positive/negative labels remain unverified. Idle control still requires absolute stationarity and emits `candidate_vector_change_observed=false`. Two new boolean schema fields clearly separate source bitwise changes from physical rendered-ball motion: `candidate_vector_change_observed` and `candidate_change_proves_rendered_ball_motion=false`.
 
 No new live watcher, frame attestation, RAM access or Dolphin actions. Three additional fabricated tests: stationary shot label rejects, global-only candidate change is accepted without rendered-ball promotion, and stable idle remains accepted with explicit false motion.
+
+
+## P0 offline source-pointer validation guard (October 28, 2026)
+
+The offline reviewer previously accepted every *nonzero u32* for
+selected-ball, source-global ball, pin, start, and field manager pointer
+identities. This allowed obviously malformed candidate evidence such
+as nonaligned 0x90001001 or out-of-native-range 0x12345678 to pass
+the offline relationship acceptance check when all other fields were
+fabricated as valid.
+
+The review now requires all five pointer fields to be aligned on a
+4-byte boundary and contained in one of the **original native captured
+guest RAM address ranges**: MEM1 [0x80000000,0x81800000) or
+MEM2 [0x90000000,0x94000000), with room for a 4-byte word.
+Unknown mirrored/uncached aliases are **not** silently accepted;
+source owners must explicitly qualify alternate address forms before
+any relaxation. New synthetic tests reject pointers outside the banks,
+odd/halfword addresses, nonzero null-like aliases, and values exactly
+at upper bounds; accept boundary-aligned final words and distinguish
+valid MEM1/MEM2 selected/global pointers.
+
+**This is a syntactic/canonical range gate, not object-type proof.**
+A numeric address falling in MEM1/MEM2 does not establish that it is
+a valid Golf ball, currently live, rendered, of stable boot identity,
+or sampled atomically with game physics. All attestation, game-frame,
+visual, XYZ, velocity, power, score and training flags remain unchanged.
+No Dolphin process, game action, private capture or pointer value
+has been read to implement this fix. Owner #248, S001 #215 and
+S000 #205 must review before integration.
