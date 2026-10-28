@@ -79,6 +79,15 @@ def fixture(motion=True, contact="yes", movement="yes"):
             "source_hole_stable": True,
             "source_owner_consistency_checks_passed": True,
             "read_performance_checks_passed": True,
+            "start_vector_stable": True,
+            "idle_control_vector_stationary": True,
+            "pretrace_candidate_ball_stationary": True,
+            "candidate_ball_changed_after_trace_start": bool(motion),
+            "candidate_record_triplet_equal_ball_triplet_count": (
+                15 - (7 if motion else 0)),
+            "phase_sample_counts": {
+                "idle_control": 2, "a_prime": 2, "trace": 9, "posttrace": 2,
+            },
         },
         "PRIVATE_UNVERIFIED_NUMERIC_VECTORS": rows,
     }
@@ -191,6 +200,15 @@ class TrajectoryEvidenceTests(unittest.TestCase):
         self.assertNotIn("0x900",blob)
         self.assertNotIn('"id": 123',blob)
         self.assertIn('"approved_for_training": false',blob)
+
+    def test_conflicting_producer_summary_fails_closed(self):
+        for field in ("start_vector_stable", "candidate_ball_changed_after_trace_start",
+                      "candidate_record_triplet_equal_ball_triplet_count",
+                      "phase_sample_counts"):
+            p = fixture()
+            p["safe_summary"][field] = None
+            with self.subTest(field=field):
+                self.reject(p)
 
     def test_path_guard_accepts_only_ignored_sibling(self):
         with tempfile.TemporaryDirectory() as d:
