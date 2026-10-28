@@ -1,8 +1,9 @@
 """Offline candidate-only golf pin/start transforms from S002's paired bank gate.
 
 Research stack depends on PR #151 golf_cross_bank_state, not another live
-collector. Source member annotations are internally contradictory beyond +0x3C;
-DO NOT dereference supposed +0x40/+0x44 map-object pointer members.
+collector. Published source header has erroneous pointer annotations +0x40/+0x44.
+A separate operator DOL-based constructor review identified the real self-reference
+fields at +0x48/+0x4C. DO NOT dereference these or assume derived class identity.
 Actual position semantics, class inheritance and MEM1/MEM2 snapshot atomicity
 are unverified. Candidate floats are returned only in a SEPARATE PRIVATE result.
 """
@@ -20,6 +21,11 @@ from .golf_cross_bank_state import (
 
 # Source: kiwi515/ogws_info/RPGolMapObjBase.h, candidate-only.
 BASE_TRANSLATION_OFFSET = 0x30
+# PPC constructor evidence (RPGolMapObjBase::RPGolMapObjBase at 0x80290A48):
+# stores obj+0x0C at obj+0x48 and obj+0x30 at obj+0x4C.
+# These are identity checks only; do NOT follow a pointer from either slot.
+BASE_ROTATION_SELFREF_OFFSET = 0x48
+BASE_TRANSLATION_SELFREF_OFFSET = 0x4C
 BASE_MAPOBJ_POINTER_OFFSET = 0x08
 # This is **on-disk** PMP map entry documentation (not proven runtime object).
 PMP_POSITION_OFFSET = 0x08
@@ -43,8 +49,12 @@ def _candidate_vec(banks, address: int):
 
 def inspect_named_map_object(banks, address: int) -> tuple[dict, dict]:
     """Bounded source *hypotheses*. Never assert pointer is derived Base class."""
-    if banks.region(address, 0x3C) != "MEM2":
+    if banks.region(address, 0x50) != "MEM2":
         raise ValueError("Selected map candidate requires bounded MEM2 object")
+    rotation_selfref = banks.u32(address + BASE_ROTATION_SELFREF_OFFSET)
+    translation_selfref = banks.u32(address + BASE_TRANSLATION_SELFREF_OFFSET)
+    constructor_selfrefs = (rotation_selfref == address + 0x0C and
+                            translation_selfref == address + BASE_TRANSLATION_OFFSET)
     first = banks.u32(address)
     data_hint = any(a <= first < b for a, b in POSSIBLE_GOLF_MAP_DATA_RANGES)
     v = _candidate_vec(banks, address + BASE_TRANSLATION_OFFSET)
@@ -58,6 +68,10 @@ def inspect_named_map_object(banks, address: int) -> tuple[dict, dict]:
     plaus = lambda vv: vv is not None and any(abs(x) >= 1e-3 for x in vv)
     safe = {
         "selected_object_in_mem2": True,
+        "base_constructor_rotation_selfref_matches": rotation_selfref == address + 0x0C,
+        "base_constructor_translation_selfref_matches": (
+            translation_selfref == address + BASE_TRANSLATION_OFFSET),
+        "constructor_layout_consistent_candidate": constructor_selfrefs,
         "first_word_in_map_object_module_data_range": data_hint,
         "base_plus_0x30_triplet_finite_and_bounded": v is not None,
         "base_plus_0x30_triplet_nonzero": plaus(v),
@@ -108,6 +122,7 @@ def audit_paired_map_candidates(mem1, mem2, *, strict_size=True) -> tuple[dict, 
         "both_base_translation_candidates_present": both,
         "candidate_vectors_separated_by_nonzero_distance":
             separation is not None and separation >= 0.01,
+        "mapobj_base_published_pointer_offsets_corrected_by_rev1_ctor": True,
         "mapobj_base_documented_offset_overlap": True,
         "source_known_derived_class_inheritance": False,
         "runtime_pmp_layout_verified": False,
@@ -119,9 +134,10 @@ def audit_paired_map_candidates(mem1, mem2, *, strict_size=True) -> tuple[dict, 
         "wind_vector_verified": False,
         "approved_for_model_training": False,
         "warning": ("Finite numbers and module-data hints do NOT establish world coordinates. "
-                    "RPGolMapObjBase VEC3 scale annotations overlap purported later pointer "
-                    "annotations; do not dereference +0x40/+0x44. Position candidates "
-                    "are untyped until S002 confirms subclass/member access via DOL."),
+                    "The public RPGolMapObjBase pointer offsets +0x40/+0x44 overlap scale; "
+                    "Rev1 ctor evidence instead identifies selfrefs at +0x48/+0x4C. "
+                    "Matching selfrefs is a base-layout clue, NOT proof of subclass "
+                    "identity or physical world coordinates."),
     }, {
         "kind": "PRIVATE-UNVERIFIED-golf-map-transform-floats",
         "selected_objects": private,
