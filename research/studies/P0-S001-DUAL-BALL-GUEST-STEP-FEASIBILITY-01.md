@@ -79,3 +79,32 @@ A single human-reviewed, **OFFLINE provenance report before any runtime interact
 - What is the non-interfering observer overhead baseline measured on a human-approved stationary session? Existing 5ms cap is necessary but insufficient; compare with no-observer cadence in identical scene before any allowed swing.
 
 **Owner decision:** until a source-attested guest update boundary AND visual/guest link are available, `dual_object_same_guest_physics_frame_ready=false`, `screenshot_frame_matches_RAM_sample=false`, and **do not request a new live shot**. S001 #215 owns emulator/bridge readiness; S002 #240 owns actual global source identity; S000 #205 owns privacy and training veto. Only an operator-approved action after their review may change NO-GO.
+
+
+## HIGH-IMPACT SOURCE CORRECTION: breakpoint event != executed game update (2026-10-28)
+
+Independently fetched exact public Felk/dolphin source via GitHub connector (upstream `master`, **NOT locally installed build attestation**):
+
+| File | Immutable Git blob SHA | Critical lines / code |
+|---|---|---|
+| `Source/Core/Core/API/Events.h` | `39daf9080c5c65eb3dad1467de22a1d7dab125de` | `CodeBreakpoint {u32 addr}`, `MemoryBreakpoint {bool write,u32 addr,u64 value}`; `EventContainer<T>::EmitEvent` asserts CPU thread and calls handlers synchronously, with CPU/GIL deadlock comments |
+| `Source/Core/Core/PowerPC/BreakPoints.cpp` | `510d2f5e48d486ff0969ff61295bb7e39d52585b` | `BreakPoints::GetRegularBreakpoint(u32 address)` emits `CodeBreakpoint{address}` at line 53 **BEFORE** searching `m_breakpoints` and before determining if any enabled breakpoint exists; `BreakPoints::Add` invalidates JIT instruction cache (lines 112–119, 127–152); `TMemCheck::Action` emits `MemoryBreakpoint{write,addr,value}` BEFORE checking trigger/break conditions (lines 384–403). |
+| `Source/Core/Core/PowerPC/PowerPC.cpp` | `3cc1112bd7bf31db3570aa24ecce29d75c1a3ee4` | `PowerPCManager::CheckBreakPoints()` requests `GetBreakpoint(m_ppc_state.pc)` and only **after** lookup evaluates enabled/condition; `CheckAndHandleBreakPoints` may actually break the CPU if triggered, so event emission and CPU pause are distinct stages. |
+| `Source/Core/Core/API/Memory.cpp` | `c63e2cf52770350971d8b4ba19856ef23cbc573d` | `AddMemcheck` registers a `TMemCheck`; ordinary read methods call `Core::CPUThreadGuard` and guest MMU HostRead methods; this is NOT an atomic multi-field physics-state snapshot guarantee. |
+
+**Consequences for trustworthy P0 evidence:**
+
+1. A `CodeBreakpoint` subscriber gets an address **from a lookup event** in this source implementation. Crucially, `GetRegularBreakpoint` emits **even when that function later returns no matching regular breakpoint**. `GetBreakpoint` can also be called by code querying configured breakpoints, not only the actually executing guest CPU. Therefore `CodeBreakpoint(addr)` alone is **not an authenticated instruction-executed event**, much less a completed `RPGolSimulateManager` step. Discriminate actual CPU execution from mere queries/lookup, breakpoint enable state and exact callback placement before accepting a clock.
+2. `MemoryBreakpoint(write,addr,value)` is emitted in `TMemCheck::Action` prior to the condition/stop decision; it contains **no guest instruction PC, no guest physics tick**, and may incur expensive callback frequency. A memory event does not establish that a given position writer committed a complete 3-component vector or that both game objects are consistent.
+3. Registering/altering code breakpoints invalidates JIT I-cache. `break_on_hit` can pause the CPU, and CPU-thread callback Python code may deadlock if reentrant/threading/locks violate the source's own comments. Even 'non-breaking' breakpoints may change JIT execution path or timing. **NO automatic code breakpoint/memcheck registration or live P0 watcher through these APIs** until source-to-installed-build match and S001 owner explicitly verifies safety, callsite semantics, and no-baseline observer perturbation.
+4. Neither `CodeBreakpoint` nor `MemoryBreakpoint` exposes a reliable *frame/step ID* in its payload. A named game-specific `OnCalculate` code target (original 7-bank source #279 `0x8028E158`) is a much better static entrypoint lead but **still not proof** of actual per-physics-step callback or visual correspondence.
+
+**Recommended S001 decision:** keep `authenticated_guest_physics_step_clock=false`, `code_breakpoint_event_is_execution_witness=false`, `memory_breakpoint_event_is_complete_ball_update=false`, `live_breakpoint_monitor_authorized=false`. Request a bounded **installed-binary source identity** review (#282/#286) first, then a **no-execution static C++ callback-origin feasibility** determination from actual Felk build and Wii Golf `RPGolMain`/SimulateManager callgraph. Do not ask the operator for another shot, code breakpoint, pausing or unrestricted memory scan.
+
+The public sources can be inspected at:
+- https://github.com/Felk/dolphin/blob/master/Source/Core/Core/PowerPC/BreakPoints.cpp
+- https://github.com/Felk/dolphin/blob/master/Source/Core/Core/PowerPC/PowerPC.cpp
+- https://github.com/Felk/dolphin/blob/master/Source/Core/Core/API/Events.h
+- https://github.com/Felk/dolphin/blob/master/Source/Core/Core/API/Memory.cpp
+
+No Dolphin, game or user archives accessed in this review. All training/physics/frame/render/score flags remain false.
