@@ -25,6 +25,7 @@ PINS = {
 }
 TESTS = {
     "omega": "test_p0_omega_offline_private.py",
+    "operand": "test_p0_outer_operand_r4_r30_source.py",
     "receiver": "test_p0_authenticated_receiver_chain_private.py",
     "outer": "test_p0_outer_receiver_argument_source.py",
     "canonical": "test_p0_seven_numbered_source_pairs_private.py",
@@ -220,6 +221,28 @@ def _receiver_extract(recv):
     }
 
 
+def _operand_extract(report):
+    rows=report.get("source_operand_hints")
+    if (report.get("original_fourteen_native_banks_sha_verified_before_and_after") is not True
+            or report.get("two_source_code_windows_identical_all_seven") is not True
+            or report.get("source_selected_scene_gated_for_all_seven") is not True
+            or type(rows) is not list or len(rows)!=2):
+        raise Abstain("upstream operand original source qualification missing")
+    expected=(("SimulateManager_outer_to_ball_local","r4"),
+              ("MapObjBall_outer_to_ball_local","r30"))
+    if tuple((x.get("outer_source_function"),x.get("tracked_source_operand"))
+             for x in rows)!=expected:
+        raise Abstain("upstream operand source case changed")
+    return [{
+        "outer_source_function":x["outer_source_function"],
+        "tracked_operand":x["tracked_source_operand"],
+        "nearest_write_class":x.get("nearest_pre_mr_operand_write_class"),
+        "source_status":x.get("status"),
+        "control_flow_hazard":x.get("control_transfer_after_candidate_write"),
+        "all_path_source_verified":False,
+    } for x in rows]
+
+
 def study(repo, archive=None, *, tests=True):
     repo = Path(repo).resolve(strict=True)
     if not (repo / ".git").exists():
@@ -234,7 +257,7 @@ def study(repo, archive=None, *, tests=True):
         if any(path.parent != repo.parent for path in checked.values()):
             raise Abstain("source worktree and canonical data root are not siblings")
         if tests:
-            for task in ("receiver", "outer", "omega"):
+            for task in ("receiver", "outer", "operand", "omega"):
                 _run_test(repo, "omega", TESTS[task])
             for name in PINS:
                 _run_test(checked[name], name, TESTS[name])
@@ -254,6 +277,12 @@ def study(repo, archive=None, *, tests=True):
              "review_p0_cache_receiver_cfg_mustdef.py"],
             "P0-SANITIZED-SOURCE-GATED-OUTER-INNER-RECEIVER-JOIN")
         receiver_summary = _receiver_extract(recv)
+        operands = _json_study(repo,
+            [repo / "scripts" / "audit_p0_outer_operand_r4_r30_private.py",
+             "--archive", local,
+             "--canonical-source-scripts", checked["canonical"] / "scripts"],
+            "P0-SANITIZED-SEVEN-CAPTURE-R4-R30-ORIGIN-TRIAGE")
+        operand_summary = _operand_extract(operands)
         _json_study(repo, [canonical, "--archive", local],
                     "P0-SANITIZED-SEVEN-NUMBERED-SOURCE-PAIR-AUDIT")
         if _file_digest(manifest) != manifest_before:
@@ -268,6 +297,7 @@ def study(repo, archive=None, *, tests=True):
             "provisional_human_phase_labels_treated_as_ground_truth": False,
             "label_free_graph": graph_summary,
             "source_receiver_chain": receiver_summary,
+            "outer_r4_r30_source_hints": operand_summary,
             "actual_runtime_receiver_global_vs_player_ball_verified": False,
             "rendered_projectile_ownership_verified": False,
             "guest_frame_or_same_shot_proven": False,
