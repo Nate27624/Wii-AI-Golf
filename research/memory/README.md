@@ -2,7 +2,7 @@
 
 **Owner:** S000 schema/claims gate. S002 owns source and capture facts; S001 owns controller/frame-callback timing; S003 reviews identifiability before any training. **Status:** proposal, not merged, no new live capture.
 
-The machine-readable [field-evidence-ledger.json](field-evidence-ledger.json) contains **32 entries**: twenty-two source/runtime structural, base-class, source-writer or negative-control candidates (including eight named environment references, one constructor-backed Base member, two unverified selected-object hypotheses, three PPC writer/roster leads and two source-identified raw wind lookup tables), plus ten deliberately **unlocated** gameplay variables. Nothing is labelled verified game power, ball velocity or club pose. Synthetic tests reject guessed offsets, untrusted URLs, raw runtime pointers, unsupported private fields, and unsupported training promotion.
+The machine-readable [field-evidence-ledger.json](field-evidence-ledger.json) contains **33 entries**: twenty-three source/runtime structural, base-class, source-writer or negative-control candidates (including eight named environment references, one constructor-backed Base member, two unverified selected-object hypotheses, four PPC writer/roster/state leads and two source-identified raw wind lookup tables), plus ten deliberately **unlocated** gameplay variables. Nothing is labelled verified game power, ball velocity or club pose. Synthetic tests reject guessed offsets, untrusted URLs, raw runtime pointers, unsupported private fields, and unsupported training promotion.
 
 ## Exactly what a field claim must establish
 
@@ -227,6 +227,72 @@ still-unlocated `gameplay.wind` quantity.
 source/runtime equality is not equivalent to actual dynamic ball-motion
 labels. No same-frame independent snapshot, ball-on-screen intervention,
 velocity, contact, club pose or power has been established.
+
+## Four-checkpoint null result, player-state lead and first frame-watch negative
+
+**Four-phase offline source-player window** (S002
+[PR #151](https://github.com/Nate27624/Wii-AI-Golf/pull/151)):
+The operator collected B0 idle, B1 idle, B2 WASD aim and B3 returned idle in
+one session, then ran `audit_golf_player_four_phase_private.py`. All
+four paired snapshots passed Rev1/source-scene/mode4 and the Player-like
+chain. The first 0x80 bytes of the source-witness
+`RPGolMain+0x030` child were **32/32 u32 words unchanged** in all
+three adjacent transitions. This is a **negative finding for one
+128-byte window**, not evidence that WASD was applied, that player
+power was constant, or that any ball-related nested translation was
+tested. Pointer-shaped data may remain static while actual fields
+lie deeper or in separate objects. Do not re-run the same narrow
+window expecting ball physics.
+
+**New source writer, untyped player-record state** (S002
+[PR #162](https://github.com/Nate27624/Wii-AI-Golf/pull/162)):
+Private Rev1 PPC source inspection found distinct branches that store
+literal small integers 5,1,2,3,4 to the **same** player-record relative
+`+0x24` field; nearby code accesses ball-related objects. This is
+strong evidence the field is *assigned in code*, not proof of an
+exhaustive enum or of a contact, in-flight, landing, hit quality or
+power interpretation. Ledger `golfer.player_record_state_word_candidate`
+is source-lead/write-site-proven but remains **unobserved**, untyped,
+non-training and separate from `gameplay.contact_event`,
+`gameplay.ball_landing` and `gameplay.swing_power`. S002 #160/#163
+may optionally read one source-selected value from saved private B0
+and return **in-known-literal-set only**, without raw numeric output;
+a future frame watch could add one gated u32 only after S001
+performance and owner review.
+
+**First operator-controlled watched V2 trial** (S001
+[PR #166](https://github.com/Nate27624/Wii-AI-Golf/pull/166)):
+The human reported a visible but too-weak club swing and **no ball
+movement**. The first pilot yielded 50 bridge-tick samples
+(18 pretrace /22 trace/10 post), a stable start/slot/hole,
+nested ball/record equality in **50/50** samples and no
+ball-vector change. **That watch was drained before completion**,
+so the data are a partial exploratory stationary/no-contact negative,
+not a successful dynamic four-phase experiment or proof that
+instrumentation is nonperturbing. Distinguish Felk callback ticks
+from independently verified guest/game frames. New PR #166 owner
+fixes require watch status `complete`, exact V1 trace SHA256,
+separated idle/A prime/trace/post phases, stable source identities,
+read budgets and safe abstention. Operator Windows full-suite PASS
+was reported on the earlier offline PR head; re-test owner changes,
+then require S001/S002 review before any further live experiment.
+
+**Current top confound for actual movement:** the operator's V1
+candidate backup and installed V2-neutral-only bridge produce
+different *source-level* numbers of motion API invocations for the
+same 89-sample trace. Source analysis predicts V1 89 versus V2 35
+calls (not measured gameplay). The visible but too-weak V2 swing
+could be related to input protocol rather than ball-memory identity.
+S001 should use the existing isolated V1-versus-V2 no-watch,
+single-operator controlled contact comparison with exact frozen
+waveform, identical intro/A45 and no changes to swing parameters;
+DO NOT automate a live trial, change savestates, relabel bridge
+tick as guest frame or claim source counts prove shot behavior.
+
+**CI:** S000's targeted ledger validator suite now runs on
+Windows and Ubuntu from
+`.github/workflows/s000-memory-ledger-gate.yml`. This CI only
+checks schema/privacy/claims; it cannot verify real game semantics.
 
 ## Full-MEM1 checkpoints are discovery data, NOT instant semantic labels
 
