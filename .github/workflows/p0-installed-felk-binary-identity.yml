@@ -36,4 +36,6 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & .\research\tools\Get-P0InstalledDolphinIdentity.ps1 -SelfTest
-          if ($LASTEXITCODE -ne 0) { throw 'Offline P0 PE identity selftest failed' }
+          # This is a PowerShell script with terminating throws, not a native
+          # executable. $LASTEXITCODE may be null/stale and is NOT its exit code.
+          # ErrorActionPreference=Stop lets any failed self-test terminate CI.
