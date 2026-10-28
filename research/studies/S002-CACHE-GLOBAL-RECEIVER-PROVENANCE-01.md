@@ -37,3 +37,14 @@ For both static MapObjBall callsites (`fn_80299ACC` and `fn_80299C20`), direct B
 
 **Next discriminating step:** determine whether the source-global object is any of the FOUR player roster ball pointers (rather than an independent simulation/global object), and whether each caller's persistent `r31` is copied from its incoming `r3` receiver. These are distinct from existing #219 broad source caller scan and #183 cache arithmetic. If source-only tracing cannot prove receiver across control flow, explicitly leave it unresolved. Do not promote the observed CC match to a verified predicted endpoint, position XYZ, velocity, score, power, contact or training.
 
+
+## Next offline P0 discriminator: four roster slots and caller r31 assignment, real result pending
+
+New additive `scripts/audit_p0_global_ball_roster_receiver_private.py` **reuses** original seven selected-object reader and global pointer source verifier rather than broad RAM scanner. For each original private 24MiB/64MiB pair: verify selected manager and all four record `+0x88` ball pointers, distinct MEM2 map-object buffers, per-ball translation `ball+0x4C==ball+0x30`, original selected index pointer equality, and global source pointer membership in *any* of those four pointers. Emit booleans for global in roster, selected, other inactive slot, or OUTSIDE roster; **do not print pointer values or slot index**. This is the cleanest next falsifiable separation between alternate player slot and separate simulation/global object. If any slot is unallocated/untrusted, ABSTAIN, not unsupported physical inference.
+
+Source-only second part: two exact `bl fn_80299C70` callsite gates in known functions `fn_80299ACC` and `fn_80299C20`; scan only from each known function entry to its call for bounded PPC writes to `r31`, report first candidate definition class (e.g. `mr r31,r3`), later recognized overwrites and control-flow hazards. A plausible incoming-`r3` receiver is **not an executed r27 receiver or branch-sensitive reaching-definition proof**; no callgraph recursion or arbitrary code scan.
+
+**Synthetic verification:** 15/15 non-skipped fabricated native-free Python tests per Windows and Ubuntu PASS in [GitHub run 40648260430](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40648260430). Includes fake four-slot roster member, inactive alias, missing/broken record, duplicate pointers, PPC r31 copy, branch hazard, overwrite, wrong BL and privacy. Existing #240 15-test direct global pointer script remained unchanged.
+
+Real operator run on original seven snapshots **not yet performed** for the roster/r31 extension; no inferred result or simulation endpoint promotion. `global_source_is_simulation_endpoint_verified=false`, `r31_runtime_receiver_verified=false`, source RAM atomic frame, physical XYZ, velocity, score and training all false.
+
