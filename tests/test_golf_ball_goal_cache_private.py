@@ -25,6 +25,16 @@ def fabricate(*, target_count=0):
     words, refs = fixture()
     field = words[roster.GOLF_FIELD_STATIC]
     pm = refs["pm"]
+    # Source Ball objects are 0x1AC bytes, never 0x100. The reused fixture
+    # places synthetic objects 0x100 apart, so extending caches clobbers
+    # the next fake object's first word unless disjoint full-size slots used.
+    for slot in range(roster.ROSTER_SLOTS):
+        record = pm + 4 + slot * roster.ROSTER_STRIDE
+        old_ball = words[record + 0x88]
+        new_ball = 0x91100000 + slot * 0x400
+        words[record + 0x88] = new_ball
+        words[new_ball] = words[old_ball]
+        words[new_ball + 0x4C] = words[old_ball + 0x4C]
     pin = 0x91065000
     words[field + 0x30] = target_count
     words[field + 0x44] = pin
