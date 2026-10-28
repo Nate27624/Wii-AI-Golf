@@ -32,18 +32,29 @@ UNITS = (
 )
 # Three source-identified position/dataflow routines from S002 #162/#183.
 # A region may be a function *interior*, so BL==0 does not establish 'unused'.
+# Boundaries are corroborated by public ogws RSPE01_01 symbols.txt.
+# A BL to a FUNCTION ENTRY of a function containing stores does not prove
+# those internal conditional stores executed (especially during flight).
 TARGETS = (
-    ("player_to_ball_translation_write", 0x802A02C0, 0x802A03C8,
-     "stores from selected player position to ball object+0x4C pointee"),
-    ("ball_to_player_position_read", 0x8029F2B0, 0x8029F340,
-     "reads ball object+0x4C pointee to selected player position"),
-    ("ball_unit_goal_cache_update", 0x80299C70, 0x8029A030,
-     "copies current position to candidate caches +0xCC/F0/FC"),
+    ("player_to_ball_translation_write", 0x802A0318, 0x802A0674,
+     "fn_802A0318 8-byte thunk and fn_802A0320 contain +0x0388..03C8 position stores"),
+    ("ball_to_player_position_read", 0x8029F0A0, 0x8029F41C,
+     "fn_8029F0A0 contains +0xF300..F31C ball-to-player reads"),
+    ("ball_unit_goal_cache_update", 0x80299C70, 0x8029A038,
+     "fn_80299C70 contains +0xCC/F0/FC position-cache update paths"),
     ("field_target_or_pin_position", 0x80292294, 0x802922B4,
-     "returns target or pin translation pointer"),
+     "fn_80292294 returns target or pin translation pointer"),
     ("field_start_position_getter", 0x802922EC, 0x802922F8,
-     "returns current-start translation pointer"),
+     "fn_802922EC returns current-start translation pointer"),
 )
+# Exact function starts (source addresses only), not all possible entries.
+FUNCTION_ENTRY_POINTS = {
+    "player_to_ball_translation_write": (0x802A0318, 0x802A0320),
+    "ball_to_player_position_read": (0x8029F0A0,),
+    "ball_unit_goal_cache_update": (0x80299C70,),
+    "field_target_or_pin_position": (0x80292294,),
+    "field_start_position_getter": (0x802922EC,),
+}
 # Limit output to a few source offsets per unit. These are CODE offsets only.
 OUTPUT_CALLSITE_LIMIT = 16
 
@@ -75,6 +86,23 @@ def decode_ppc_branch(pc: int, word: int) -> tuple[int, bool] | None:
     target = (immediate if absolute else pc + immediate) & 0xFFFFFFFF
     link = bool(word & 1)
     return target, link
+
+
+def source_thunk_forwards_to_writer(data: bytes, start: int) -> bool | None:
+    """Check 8-byte fn_802A0318 thunk for nonlink b to fn_802A0320.
+
+    Returns None on partial synthetic windows; never infer a thunk alias from
+    a nearby address without an actual PPC branch in the verified executable.
+    """
+    thunk = 0x802A0318
+    main = 0x802A0320
+    if start > thunk or start + len(data) < main:
+        return None
+    return any(
+        decode_ppc_branch(pc, struct.unpack_from(">I", data, pc - start)[0])
+        == (main, False)
+        for pc in (thunk, thunk + 4)
+    )
 
 
 def summarize_code(data: bytes, start: int, *, maximum: int = OUTPUT_CALLSITE_LIMIT) -> dict:
@@ -112,6 +140,14 @@ def summarize_code(data: bytes, start: int, *, maximum: int = OUTPUT_CALLSITE_LI
                 "target_window_relative_offsets": [
                     f"+0x{h[3]:03X}" for h in from_unit if h[2]
                 ][:maximum],
+                "direct_bl_at_known_function_entry_count": sum(
+                    h[2] and low + h[3] in FUNCTION_ENTRY_POINTS[name]
+                    for h in from_unit
+                ),
+                "direct_bl_to_function_interior_count": sum(
+                    h[2] and low + h[3] not in FUNCTION_ENTRY_POINTS[name]
+                    for h in from_unit
+                ),
                 "additional_callsites_omitted": max(
                     0, sum(h[2] for h in from_unit) - maximum),
             })
@@ -120,6 +156,14 @@ def summarize_code(data: bytes, start: int, *, maximum: int = OUTPUT_CALLSITE_LI
             "source_meaning_hypothesis": meaning,
             "window_size_bytes": high - low,
             "direct_bl_into_window_count": sum(h[2] for h in hits),
+            "direct_bl_at_known_function_entry_count": sum(
+                h[2] and low + h[3] in FUNCTION_ENTRY_POINTS[name]
+                for h in hits
+            ),
+            "direct_bl_to_function_interior_count": sum(
+                h[2] and low + h[3] not in FUNCTION_ENTRY_POINTS[name]
+                for h in hits
+            ),
             "nonlink_branches_into_window_count": sum(not h[2] for h in hits),
             "source_units": unit_summaries,
             "no_direct_call_cannot_disprove_indirect_dispatch": True,
@@ -131,6 +175,10 @@ def summarize_code(data: bytes, start: int, *, maximum: int = OUTPUT_CALLSITE_LI
         "disc_revision": 1,
         "code_scan_limited_to_published_golf_source_units": True,
         "direct_ppc_b_bl_only": True,
+        "source_function_boundaries": "public_ogws_RSPE01_01_symbols_txt",
+        "short_player_writer_entry_thunk_branches_to_main_function":
+            source_thunk_forwards_to_writer(data, start),
+        "source_function_call_does_not_prove_conditional_stores_executed": True,
         "conditional_indirect_and_dynamic_calls_unresolved": True,
         "source_scan_word_count": sum((hi - lo) // 4 for _, lo, hi in UNITS),
         "targets": results,
