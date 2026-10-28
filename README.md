@@ -2,6 +2,14 @@
 
 ## START HERE — CURRENT OPERATOR WORKFLOW (2026-10-27)
 
+### NEW AI AGENT? READ THIS BEFORE ANSWERING OR EDITING
+
+**This is a mandatory onboarding gate, not optional reference material.** Every new or resumed agent (S000–S005), including an agent reached by switching ChatGPT contexts, MUST **read** root [AGENTS.md](AGENTS.md), the [agent session/rebaseline protocol](docs/agent-session-protocol.md), [operator PowerShell rules](docs/operator-powershell-contract.md), [repository map](docs/repository-map.md), [research coordination](research/coordination.md), and the relevant live GitHub issue/PR/handoff and evidence **before giving advice, code or commands**. Read [merge rules](docs/merging-requirements.md) and existing script/tests before proposing changes. **Do not merely link to the rules: read them.**
+
+**RE-BASELINE EVERY SUBSTANTIVE RESPONSE:** The operator switches between independent agent conversations. Each agent must reconcile the latest PowerShell output and refresh relevant current GitHub branch/head, PR/CI/owner claim, frozen baseline input method, evidence status and next P0 blocker. A short Current baseline is enough: **source checked | P0 goal | verified vs candidate | blocker/owner | next one action**. Do not present a draft as merged, cached chat as fresh evidence or guess a current state. Do not make the operator repeat already supplied results. No full-repo reread needed on every trivial turn; recheck only state material to the answer.
+
+**Before handing off:** Post a dated HANDOFF in the owning GitHub issue/PR with actual commit, focused tests, sanitized observation URL or NOT UPLOADED, verified/negative evidence, current blocker and next owner. The new agent rechecks that handoff instead of trusting another chat. See [session protocol](docs/agent-session-protocol.md). Repository instructions improve consistency but cannot technically force an external AI to read; agents must attest truthfully to what they checked.
+
 **The operator uses Windows PowerShell only. No Lab GUI, manual Dolphin launch/loading, Git Bash instructions, ad hoc RPC/swing code, or experimental replacement of the already validated A-button and 89-sample swing methods.** Agents: follow [mandatory PowerShell/operator contract](docs/operator-powershell-contract.md) and [repository map](docs/repository-map.md) before giving any command. These rules supersede older date-stamped runbooks below.
 
 **Read-only setup check (safe; from any PowerShell directory):**
