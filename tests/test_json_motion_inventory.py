@@ -95,6 +95,45 @@ class JsonMotionInventoryTests(unittest.TestCase):
             self.assertEqual(result["candidate_files"][0]["file_id"],
                              mod.rel_identifier("f.jsonl"))
 
+    def test_generated_report_is_excluded_on_rerun(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root/"json-motion-inventory-PRIVATE-20261028T010000Z.json").write_text(
+                json.dumps({"candidate_files":[{"ball":{"position":[1,2,3]}}]}))
+            (root/"real.json").write_text('{"shot_id":"synthetic"}')
+            report = mod.audit_directory(root)
+            self.assertEqual(report["files_scanned"],1)
+            self.assertEqual(report["files_skipped_by_reason"]["self_generated_report"],1)
+
+    def test_skipped_large_file_is_identified_without_stdout_values(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root/"large.jsonl").write_bytes(b'x'*512)
+            report = mod.audit_directory(root,max_file_bytes=64)
+            self.assertEqual(report["files_scanned"],0)
+            self.assertEqual(report["skipped_file_refs_PRIVATE"][0]["file_id"],
+                             mod.rel_identifier("large.jsonl"))
+            self.assertEqual(report["skipped_file_refs_PRIVATE"][0]["reason"],"oversize")
+            self.assertEqual(report["skipped_file_refs_PRIVATE"][0]["bytes"],512)
+
+    def test_known_watch_safe_summary_keeps_observed_vs_verified_separate(self):
+        body = {"kind":"PRIVATE-UNVERIFIED-selected-ball-frame-watch",
+                "safe_summary":{"watch_complete":False,
+                                "candidate_ball_vector_changed_during_recording":False,
+                                "ball_velocity_verified":False,
+                                "human_observed_ball_movement":"no",
+                                "private_pointer":"0x91BE3834",
+                                "raw_float":[12345.67,23.45,11.12]}}
+        result = mod.watcher_evidence([body])
+        self.assertFalse(result["watch_complete"])
+        self.assertEqual(result["human_observed_ball_movement"],"no")
+        self.assertFalse(result["ball_velocity_verified"])
+        self.assertNotIn("0x91BE3834",json.dumps(result))
+        self.assertNotIn("12345.67",json.dumps(result))
+
+    def test_unrecognized_capture_has_no_watcher_claim(self):
+        self.assertEqual(mod.watcher_evidence([{"kind":"unknown"}]), {})
+
     def test_capture_paths_are_local_only_fields(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
