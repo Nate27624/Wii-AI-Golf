@@ -46,15 +46,18 @@ def _gated_window(read_u32, start: int, size: int, expected_bank="MEM2") -> dict
     }
 
 
-def _vector(read_u32, address: int) -> dict:
+def _vector(read_u32, address: int, *, strict=True) -> dict:
     if roster._bank(address, 12) != "MEM2":
         raise ValueError("Source vector is unmapped")
     words = [read_u32(address + k * 4) for k in range(3)]
     floats = [struct.unpack(">f", struct.pack(">I", w))[0] for w in words]
-    if not all(math.isfinite(f) and abs(f) <= MAX_F32 for f in floats):
-        raise ValueError("Candidate vector contains invalid/implausible values")
+    plausible = all(math.isfinite(f) and abs(f) <= MAX_F32 for f in floats)
+    if strict and not plausible:
+        raise ValueError("Required candidate vector contains invalid/implausible values")
     return {"word_u32_hex": [f"0x{w:08X}" for w in words],
-            "be_f32": floats, "units_verified": False, "world_xyz_verified": False}
+            "be_f32": floats if plausible else None,
+            "f32_finite_bounded": plausible,
+            "units_verified": False, "world_xyz_verified": False}
 
 
 def sample_one(read_u32, header: bytes) -> dict:
@@ -104,7 +107,8 @@ def sample_one(read_u32, header: bytes) -> dict:
         "selected_ball": None,
     }
     if "selected_pin" in windows:
-        vectors["selected_pin"] = _vector(read_u32, pin + 0x30)
+        vectors["selected_pin"] = _vector(read_u32, pin + 0x30,
+                                          strict=False)
 
     balls_seen = set()
     for i in range(roster.ROSTER_SLOTS):
@@ -127,7 +131,8 @@ def sample_one(read_u32, header: bytes) -> dict:
             if read_u32(ball + 0x4C) != ball + 0x30:
                 raise ValueError("Selected ball translation pointer mismatch")
             vectors["selected_record_plus_054"] = _vector(read_u32, record + 0x54)
-            vectors["selected_record_plus_060"] = _vector(read_u32, record + 0x60)
+            vectors["selected_record_plus_060"] = _vector(
+                read_u32, record + 0x60, strict=False)
             vectors["selected_ball"] = _vector(read_u32, ball + 0x30)
     if len(windows) > MAX_WINDOWS or any(v is None for v in vectors.values()):
         raise ValueError("Too many windows or required translation not found")
