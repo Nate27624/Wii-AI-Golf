@@ -1,0 +1,26 @@
+name: P0 stationary drift anchor review
+on:
+  push:
+    branches:
+      - 'agent/review/p0-stationary-anchor-drift-negative-*'
+  pull_request:
+    paths:
+      - 'scripts/qualify_v1_selected_watch_readonly.py'
+      - 'tests/test_s001_v1_stationary_watch_qualification.py'
+      - '.github/workflows/p0-stationary-anchor-drift-review.yml'
+jobs:
+  synthetic:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile changed source and tests
+        run: python -m py_compile scripts/qualify_v1_selected_watch_readonly.py tests/test_s001_v1_stationary_watch_qualification.py
+      - name: Existing and adversarial stationary tests (no Dolphin)
+        run: python -I tests/test_s001_v1_stationary_watch_qualification.py
