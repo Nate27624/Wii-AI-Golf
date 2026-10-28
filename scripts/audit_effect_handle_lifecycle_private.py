@@ -103,7 +103,7 @@ def _windows(row: dict) -> tuple[int, dict[str, tuple[int, bytes]]]:
             raise ValueError("Truncated source window")
         out[name] = (base, data)
     bases = [out[n][0] for n in WINDOWS]
-    if bases[1] - bases[0] != 0x90 or bases[2] - bases[1] != 0x120:
+    if bases[1] - bases[0] != 0x90 or bases[2] - bases[1] != 0x90:
         raise ValueError("Invalid repeated effect window alignment")
     return bases[0], out
 
