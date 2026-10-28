@@ -4,7 +4,7 @@
   "game_id": "RSPE01",
   "target_revision": 1,
   "status": "research_only_no_verified_power_fields",
-  "source_state": "Operator-confirmed source-compatible MEM1/MEM2 scene and eight configuration/field reference candidates; no gameplay physics or independently verified power/ball/club state.",
+  "source_state": "Operator-confirmed source-consistent paired banks plus two unverified selected map transforms; DOL constructor supports Base translation member but does not source-type selected pin/start subclasses. No verified ball/club/power physics.",
   "evidence_levels_note": "Identity and behavior are separate axes; runtime candidate and observed change are NOT verified gameplay meaning.",
   "training_gate": "No field can be used as a verified game-state training feature or target without verified code writer, independent boot, same-shot frame provenance and gameplay semantics. Stored booleans are evidence claims, not inferred from numerical correlations.",
   "fields": [
@@ -468,6 +468,66 @@
         "https://github.com/Nate27624/Wii-AI-Golf/pull/157"
       ],
       "notes": "Object reference present; no interpreted collision/height/material information."
+    },
+    {
+      "field_id": "environment.map_base_translation",
+      "object_role": "source_RPGolMapObjBase",
+      "relative_offset": "+0x030",
+      "semantic_hypothesis": "Three source-confirmed f32 translation components in RPGolMapObjBase; NOT proof selected pin/start subclass or world coordinates",
+      "identity_level": "source_lead",
+      "behavior_level": "unobserved",
+      "source_typed_member_verified": true,
+      "writer_instruction_verified": true,
+      "independent_boot_replication_verified": false,
+      "same_shot_frame_join_verified": false,
+      "gameplay_value_verified": false,
+      "negative_control": false,
+      "training_eligible": false,
+      "evidence_refs": [
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/159",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/151"
+      ],
+      "notes": "S002 reports verified Rev1 DOL constructor stfs of three 0.0 values into receiver offsets +0x30/+0x34/+0x38, constructor-only writer. Scale components +0x3C/+0x40/+0x44; in-object pointers actually at +0x48 to +0x0C and +0x4C to +0x30. Independent runtime update writer and class identity still unverified."
+    },
+    {
+      "field_id": "environment.selected_pin_translation_candidate",
+      "object_role": "selected_pin_object_untyped",
+      "relative_offset": "+0x030",
+      "semantic_hypothesis": "Source Base layout hypothesized at selected pin pointer; two numeric triplets agree within 0.1 unknown units",
+      "identity_level": "runtime_candidate",
+      "behavior_level": "unobserved",
+      "source_typed_member_verified": false,
+      "writer_instruction_verified": false,
+      "independent_boot_replication_verified": false,
+      "same_shot_frame_join_verified": false,
+      "gameplay_value_verified": false,
+      "negative_control": false,
+      "training_eligible": false,
+      "evidence_refs": [
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/159",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/151"
+      ],
+      "notes": "Operator B0 paired-bank PR159: selected pin in MEM2, f32 finite/nonzero, candidate map entry finite/nonzero, two triplets agree within 0.1. First word NOT in checked narrow map-object module .data interval; subclass/base-at-zero and physical XYZ unverified."
+    },
+    {
+      "field_id": "environment.selected_start_translation_candidate",
+      "object_role": "selected_start_object_untyped",
+      "relative_offset": "+0x030",
+      "semantic_hypothesis": "Source Base layout hypothesized at selected start marker; two independently read numeric triplets disagree",
+      "identity_level": "runtime_candidate",
+      "behavior_level": "unobserved",
+      "source_typed_member_verified": false,
+      "writer_instruction_verified": false,
+      "independent_boot_replication_verified": false,
+      "same_shot_frame_join_verified": false,
+      "gameplay_value_verified": false,
+      "negative_control": false,
+      "training_eligible": false,
+      "evidence_refs": [
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/159",
+        "https://github.com/Nate27624/Wii-AI-Golf/pull/151"
+      ],
+      "notes": "Operator B0 paired-bank PR159: selected start in MEM2; both finite/nonzero; base+0x30 and hypothetical map entry+0x08 triplets DISAGREE. First word not in narrow map-unit .data interval. Does not identify current moving ball or world XYZ."
     }
   ]
 }
