@@ -1,5 +1,8 @@
 """Synthetic, license-safe tests for offline whole-MEM1 differential triage."""
 from __future__ import annotations
+from contextlib import redirect_stdout, redirect_stderr
+from io import StringIO
+from unittest.mock import patch
 import json
 from pathlib import Path
 import tempfile
@@ -13,6 +16,11 @@ SPEC = spec_from_file_location(
     "mem1_checkpoint_diff.py")
 m = module_from_spec(SPEC)
 SPEC.loader.exec_module(m)
+
+CLI_SPEC = spec_from_file_location("mem1_cli", ROOT / "scripts" /
+                                   "analyze_mem1_checkpoints.py")
+cli = module_from_spec(CLI_SPEC)
+CLI_SPEC.loader.exec_module(cli)
 
 
 def snapshots(size=8192):
@@ -179,6 +187,63 @@ class WholeMem1OfflineTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 m.analyze_private_mem1_files(
                     [missing]*4,private_root=missing,output=private/"result.json")
+
+    def test_cli_public_printed_shape_excludes_private_page_indices(self):
+        report = m.compare_mem1_views(*with_control_aim_return())
+        safe = cli._public_counts_only(report)
+        encoded = json.dumps(safe)
+        self.assertNotIn("top_candidate_pages", encoded)
+        self.assertNotIn("mem1_relative_page", encoded)
+        self.assertNotIn("+0x001000", encoded)
+        self.assertNotIn("0x80000000", encoded)
+        self.assertNotIn("DEADBEEF", encoded)
+        self.assertTrue(safe["private_page_index_and_word_values_omitted"])
+        self.assertFalse(safe["allowed_to_publish"])
+
+    def test_cli_blocks_arbitrary_root_that_could_be_a_git_worktree(self):
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            (home / "Wii-AI-Golf-Data").mkdir()
+            untrusted = home / "Wii-AI-Golf"
+            untrusted.mkdir()
+            args = ["--private-root", str(untrusted),
+                    "--b0", str(untrusted / "a.raw"),
+                    "--b1", str(untrusted / "b.raw"),
+                    "--b2", str(untrusted / "c.raw"),
+                    "--b3", str(untrusted / "d.raw"),
+                    "--output", str(untrusted / "summary.json")]
+            err = StringIO()
+            with patch.object(cli, "ROOT", home / "Wii-AI-Golf-Review"):
+                with patch.object(cli, "analyze_private_mem1_files") as analyze:
+                    with redirect_stderr(err):
+                        self.assertEqual(cli.main(args), 1)
+                    analyze.assert_not_called()
+            self.assertNotIn(str(untrusted), err.getvalue())
+
+    def test_cli_accepts_sibling_private_root_and_prints_counts_only(self):
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            data = home / "Wii-AI-Golf-Data"
+            captures = data / "mem1-checkpoints"
+            captures.mkdir(parents=True)
+            args = ["--private-root", str(captures),
+                    "--b0", str(captures / "B0.raw"),
+                    "--b1", str(captures / "B1.raw"),
+                    "--b2", str(captures / "B2.raw"),
+                    "--b3", str(captures / "B3.raw"),
+                    "--output", str(captures / "local-summary.json")]
+            report = m.compare_mem1_views(*with_control_aim_return())
+            stdout = StringIO()
+            with patch.object(cli, "ROOT", home / "Wii-AI-Golf-Review"):
+                with patch.object(cli, "analyze_private_mem1_files",
+                                  return_value=report) as analyze:
+                    with redirect_stdout(stdout):
+                        self.assertEqual(cli.main(args), 0)
+                    analyze.assert_called_once()
+            self.assertNotIn("mem1_relative_page", stdout.getvalue())
+            self.assertNotIn("+0x001000", stdout.getvalue())
+            self.assertIn("local-mem1-four-checkpoint-counts-only",
+                          stdout.getvalue())
 
 if __name__ == "__main__":
     unittest.main()
