@@ -67,3 +67,31 @@ Return only the short sanitized JSON terminal output, never raw memory, manifest
 ## Tests and merge gate
 
 A dedicated Windows GitHub Actions job executes native-size sparse SYNTHETIC positive fixtures and negative corrupt-SHA/wrong-scene fixtures. A Linux job runs source/static no-live contract checks (PowerShell-dependent cases skip if unavailable). These do not constitute tests against the user's native B0–B3 session; S002 and S000 review plus full Windows repository tests are required prior to merge. Do not initiate a new V1 or V2 swing merely for this study.
+
+
+## 2026-10-28 actual operator B0–B3 evidence (initial 11-field version)
+
+Operator executed EXACT SHA 65fb249233d40f0f77bc8c7f2e49d54814fa9ba4 on Windows. **Six synthetic tests passed and REAL preserved full-bank audit completed**. Hash, selected slot/hole and geometry stability all true; both banks differed in all three transitions; B0→B1 and B2→B3: zero changed word-components across all 11 fields. B1→B2: aim angle candidate +0x3C changed 1/1, four aim matrix words +0x40…0x4C changed 4/4; all other nine fields 0. This confirms an AIM-ONLY within-study correlation, not actual shot/ball motion or training data. Recorded in PR #213 / #205 / issue #121.
+
+## Extended source-defined context/score and rendering-negative controls (PENDING real run)
+
+This same existing script now includes **12 additional registry proposals**, with source-derived US Rev1 layout. These are direct in-struct member offsets after independently locating and gating the existing source-static manager pointer. **No new static addresses or heap pointers are published**. The 36 entries of the score table are a distinct array, not 36 independent sampled shots.
+
+| Proposed registry ID | Exact relative memory expression | Source datatype | Semantic limitation |
+| --- | --- | --- | --- |
+| golf.config.mode_id | BE_u32(BE_ptr(0x804BF8C4)+0x94) | u32 | Source enum; existing 4-mode gate, not a recorded shot |
+| golf.config.current_hole_index | BE_u32(BE_ptr(0x804BF8C4)+0x98) | u32 | Source's current-hole index; not independently verified by displayed hole |
+| golf.config.player_scores_4x9_candidate | BE_u32[36](BE_ptr(0x804BF8C4)+0x04) | 4×9 u32 | Score table; NOT verified strokes, scoring delta, or landing label |
+| golf.field.target_object_count | BE_u32(BE_ptr(0x804BF868)+0x30) | u32 | Target collection count |
+| golf.field.pin_object_count | BE_u32(BE_ptr(0x804BF868)+0x3C) | u32 | Map pin objects |
+| golf.field.player_start_object_count | BE_u32(BE_ptr(0x804BF868)+0x48) | u32 | Map start objects |
+| golf.field.tree_shadow_update_timer | BE_u32(BE_ptr(0x804BF868)+0x10) | i32 bits | Camera/render timing, useful false-positive negative |
+| golf.field.wind_object_pointer_present | bool(BE_ptr(BE_ptr(0x804BF868)+0x68) != null) | pointer-presence boolean | NOT wind direction/speed |
+| golf.field.wind_arrow_visible | byte(BE_ptr(0x804BF868)+0x6C) | C++ bool u8 | Display only; NOT wind speed |
+| golf.field.green_slope_visible | byte(BE_ptr(0x804BF868)+0x7C) | C++ bool u8 | Display only |
+| golf.field.minimap_visible | byte(BE_ptr(0x804BF868)+0x88) | C++ bool u8 | UI false-positive control |
+| golf.field.target_emitter_kill_flag | byte(BE_ptr(0x804BF868)+0xA4) | C++ bool u8 | Visual-effect lifecycle; NOT contact |
+
+Source: [RPGolConfig.h](https://github.com/kiwi515/ogws_info/blob/master/RP/RPSports/RPGolScene/RPGolConfig.h) and [RPGolFieldManager.h](https://github.com/kiwi515/ogws_info/blob/master/RP/RPSports/RPGolScene/RPGolFieldManager.h) (Wii Sports RSPE01 US revision 1 scope). The upstream canonical registry PR #205 still owns semantics, stable IDs and training gates. These proposed keys must not be treated as accepted schema until S000 review. The source declares RPGolConfig::GetWind but its implementation fields for actual speed/direction are NOT mapped here; an mWindObj pointer is only an object-presence marker.
+
+The extended mapper checks 1-byte bool fields as bytes (0 or 1), preserves u32/i32 bit patterns for difference counts (no casting scores to float), refuses unmapped non-null wind-object pointers, and reports only word-component difference counts. It NEVER prints the 36 score values, underlying pointer words, UI status values or unverified ball/score data. Source-relative locations are verified by public headers; actual-score semantics and shot labels require controlled observed before/after shot provenance. No operator action until synthetic Windows CI has passed the extended branch.
