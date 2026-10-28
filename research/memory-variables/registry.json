@@ -875,7 +875,7 @@
       "memory_locator": {
         "kind": "pointer_chain_hypothesis",
         "root_static_address": null,
-        "expression": "BE_f32x3(source_selected_ball_object + 0x4C)",
+        "expression": "BE_f32x3(be_u32(source_selected_ball_object + 0x4C))",
         "steps": [
           {
             "op": "resolve_upstream",
@@ -887,11 +887,15 @@
             "offset": "0x4C"
           },
           {
+            "op": "read_ptr",
+            "type": "be_u32"
+          },
+          {
             "op": "read",
             "type": "be_f32x3"
           }
         ],
-        "corroboration": "Relative field 0x4C is source-described in source_selected_ball_object; dynamic root not independently reproducible; use #160/#162 source-gated resolver, not hard-coded heap addresses"
+        "corroboration": "Source-linked object pointer+0x4C dereferences the object's +0x30 translation vector, not an inline vec3."
       },
       "evidence": {
         "source_urls": [
@@ -1174,12 +1178,12 @@
       "priority": "P0",
       "role": "aim_orientation_candidate",
       "status": "source_candidate",
-      "datatype": "float32_be_triplet",
+      "datatype": "float32_be",
       "unit": "game_units_unverified",
       "memory_locator": {
         "kind": "pointer_chain_hypothesis",
         "root_static_address": null,
-        "expression": "BE_f32x3(source_selected_player_record + 0x3C)",
+        "expression": "BE_f32(source_selected_player_record + 0x3C)",
         "steps": [
           {
             "op": "resolve_upstream",
@@ -1192,10 +1196,10 @@
           },
           {
             "op": "read",
-            "type": "be_f32x3"
+            "type": "be_f32"
           }
         ],
-        "corroboration": "Relative field 0x3C is source-described in source_selected_player_record; dynamic root not independently reproducible; use #160/#162 source-gated resolver, not hard-coded heap addresses"
+        "corroboration": "An angle-like single f32 at record+0x3C; independent 2x2 orientation floats span +0x40..+0x4C and are NOT the same vec3."
       },
       "evidence": {
         "source_urls": [
