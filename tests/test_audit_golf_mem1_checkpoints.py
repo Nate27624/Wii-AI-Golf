@@ -38,7 +38,7 @@ def create_checkpoints(directory, *, extended=False):
         with path.open("wb") as f:
             f.truncate(size)  # sparse, does not write copyrighted RAM
             f.seek(0)
-            f.write(b"RSPE01\x00\x01")  # replaced in generator below
+            f.write(b"RSPE01\x00\x01")  # synthetic boot header
             for addr, value in SOURCE.items():
                 f.seek(addr - audit.MEM1_BASE)
                 f.write(struct.pack(">I", value))
