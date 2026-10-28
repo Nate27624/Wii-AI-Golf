@@ -22,6 +22,9 @@ import inspect_golf_aim_offsets_private as base
 
 THETA_OFFSET = 0x3C
 MATRIX_OFFSETS = (0x40, 0x44, 0x48, 0x4C)
+QUATERNION_A = (0xA0, 0xA4, 0xA8, 0xAC)
+QUATERNION_B = (0xB0, 0xB4, 0xB8, 0xBC)
+QUATERNION_YAW_DEG_TOLERANCE = 0.25
 UNIT_TOLERANCE = 2e-3
 PHASE_TOLERANCE_RAD = 2e-3
 
@@ -33,6 +36,26 @@ def _as_f32(word: int) -> float:
 
 def signed_wrap(angle: float) -> float:
     return (angle + math.pi) % (2 * math.pi) - math.pi
+
+
+def _quaternion_guess(words, offsets, matrix_angle: float) -> dict:
+    "Interpret fixed floats as XYZW; this is still a source-unverified hypothesis."
+    x, y, z, w = (_as_f32(words[offset // 4]) for offset in offsets)
+    if not all(math.isfinite(t) for t in (x, y, z, w)):
+        raise ValueError("Non-finite quaternion-like candidate")
+    norm_squared = x*x + y*y + z*z + w*w
+    yaw = math.atan2(2 * (w*y + x*z), 1 - 2*(y*y + z*z))
+    discrepancy = math.degrees(signed_wrap(yaw - matrix_angle))
+    return {
+        "component_offsets_hex": [f"+0x{off:03X}" for off in offsets],
+        "hypothetical_component_order": "x,y,z,w",
+        "norm_squared": norm_squared,
+        "norm_residual": norm_squared - 1,
+        "hypothetical_Y_rotation_degrees": math.degrees(yaw),
+        "yaw_matrix_angle_discrepancy_degrees": discrepancy,
+        "norm_consistent_with_unit_quaternion":
+            abs(norm_squared - 1) < UNIT_TOLERANCE,
+    }
 
 
 def inspect(report: dict) -> dict:
@@ -61,8 +84,16 @@ def inspect(report: dict) -> dict:
             and abs(unit_residual) < UNIT_TOLERANCE
             and abs(quarter_turn_residual) < PHASE_TOLERANCE_RAD
         )
+        qa = _quaternion_guess(words, QUATERNION_A, angle_from_matrix)
+        qb = _quaternion_guess(words, QUATERNION_B, angle_from_matrix)
         rec.append({
             "phase": base.PHASES[i],
+            "quaternion_A_candidate": qa,
+            "quaternion_B_candidate": qb,
+            "quaternion_A_Y_rotation_agrees_with_matrix":
+                qa["norm_consistent_with_unit_quaternion"]
+                and abs(qa["yaw_matrix_angle_discrepancy_degrees"])
+                    < QUATERNION_YAW_DEG_TOLERANCE,
             "theta_radians": theta,
             "theta_degrees": math.degrees(theta),
             "matrix_derived_angle_radians": angle_from_matrix,
@@ -100,6 +131,16 @@ def inspect(report: dict) -> dict:
         "theta_matrix_delta_discrepancy_degrees": theta_delta - matrix_delta,
         "all_phases_rotation_like": all(r[
             "consistent_with_2d_rotation_hypothesis"] for r in rec),
+        "all_phases_quaternion_A_Y_rotation_agrees":
+            all(r["quaternion_A_Y_rotation_agrees_with_matrix"] for r in rec),
+        "all_phases_quaternion_B_norm_consistent":
+            all(r["quaternion_B_candidate"]["norm_consistent_with_unit_quaternion"]
+                for r in rec),
+        "quaternion_A_B_idle_controls_stable": all(
+            rows[0][off // 4] == rows[1][off // 4]
+            and rows[2][off // 4] == rows[3][off // 4]
+            for off in (*QUATERNION_A, *QUATERNION_B)),
+        "quaternion_semantics_verified": False,
         "source_field_semantics_verified": False,
         "screen_aim_angle_verified": False,
         "world_axes_verified": False,
