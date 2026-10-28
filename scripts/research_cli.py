@@ -263,6 +263,10 @@ def _joined_visual_first(run_token: str, start: datetime, *,
                       "shot_start_bridge_tick_before_trace": shot_start,
                       "displayed_power_percent_human": power},
             "settled_screen_observation": screen,
+            "outcome_is_censored_penalty": source == "offgreen_100ft_penalty",
+            # A human HUD number is never a measured physical carry distance.
+            "numeric_distance_target_eligible": False,
+            "train_approved": False,
             "verified_game_score": False,
             "physical_distance_verified": False,
         }
