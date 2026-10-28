@@ -110,7 +110,7 @@ def classify_source_words(words, *, thunk_target: str) -> dict:
         "allowed_to_publish":False,
     }
 
-def require_prior_prefix_match(report: dict) -> bool:
+def require_prior_prefix_match(report: dict, original_main_words) -> bool:
     """Compare first 0x100 bytes against independently SHA-gated #279 report.
 
     The earlier original 7-bank prefix found 10 linked direct BL instructions
@@ -141,6 +141,18 @@ def require_prior_prefix_match(report: dict) -> bool:
     required={("+0x007C","0x8029B554"),("+0x0090","0x8029B43C")}
     if len(prefix) != 10 or actual != required:
         raise ValueError("original 0x100 prefix direct call witness mismatch")
-    # These exact synthetic source-control counts are from the independent
-    # original #279 source prefix; this helper doesn't verify 5 BC positions.
+    if (type(original_main_words) not in (list, tuple) or
+        len(original_main_words) != SOURCE_WORDS or
+        any(type(w) is not int or not 0 <= w <= 0xffffffff
+            for w in original_main_words)):
+        raise ValueError("original 0x100 source word witness missing")
+    first_64 = original_main_words[:0x100 // 4]
+    branch_conditional = sum((w >> 26) == 16 for w in first_64)
+    branch_direct_unlinked = sum((w >> 26) == 18 and not(w & 1)
+                                 for w in first_64)
+    branch_indirect = sum(
+        (w >> 26) == 19 and ((w >> 1) & 1023) in (16, 528)
+        for w in first_64)
+    if (branch_conditional, branch_direct_unlinked, branch_indirect) != (5, 0, 0):
+        raise ValueError("original 0x100 prefix control-flow witness mismatch")
     return True
