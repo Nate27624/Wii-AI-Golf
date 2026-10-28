@@ -384,6 +384,13 @@ def main(argv: list[str] | None = None) -> int:
                 summary["kind"] = "v1_attempt"
                 summary["attempt_status"] = "terminal_result_missing_or_unqualified"
                 summary["trial_valid_for_action_outcome"] = False
+            elif (type(summary.get("human")) is not dict
+                  or summary["human"].get("contact_human") != "yes"):
+                # A completed controller trace is NOT evidence of impact.
+                # Keep no/unknown-contact attempts local, not training examples.
+                summary["kind"] = "v1_attempt"
+                summary["attempt_status"] = "positive_ball_contact_not_observed"
+                summary["trial_valid_for_action_outcome"] = False
             else:
                 summary["trial_valid_for_action_outcome"] = True
         private = DATA / "research-cli"
