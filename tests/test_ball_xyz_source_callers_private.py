@@ -307,5 +307,61 @@ class PPCStaticTests(unittest.TestCase):
                 for row in report["upstream_function_entry_calls"]), 0)
         self.assertFalse(report["approved_for_model_training"])
 
+
+    def test_short_entry_reports_real_direct_branch_target_as_source_offset(self):
+        entry = 0x802A0318
+        target = 0x802A0200  # Earlier publicly mapped RPGolPlayer function
+        data = struct.pack(">II", 0x60000000,
+                           branch(entry + 4, target, link=False))
+        output = m.short_entry_unconditional_destination(data, entry)
+        self.assertTrue(output["found"])
+        self.assertEqual(output["instruction_index"], 1)
+        self.assertEqual(output["destination_source_unit"], "RPGolPlayer")
+        self.assertEqual(output["destination_source_relative_offset"],
+                         f"+0x{target-m.UNITS[4][1]:04X}")
+        self.assertFalse(output["is_main_writer_function_entry"])
+        self.assertFalse(output["is_main_writer_function_interior"])
+        serialized = json.dumps(output)
+        self.assertNotIn("0x802A0200", serialized)
+        self.assertNotIn("mem1", serialized.lower())
+
+    def test_short_entry_branches_directly_to_writer_or_interior(self):
+        entry = 0x802A0318
+        for target, expected in ((0x802A0320, "is_main_writer_function_entry"),
+                                 (0x802A0388, "is_main_writer_function_interior")):
+            with self.subTest(target=target):
+                data = struct.pack(">II", branch(entry, target, link=False),
+                                   0x60000000)
+                result = m.short_entry_unconditional_destination(data, entry)
+                self.assertTrue(result["found"])
+                self.assertTrue(result[expected])
+                self.assertEqual(result["destination_source_unit"], "RPGolPlayer")
+
+    def test_short_entry_branch_outside_known_units_does_not_leak_dest(self):
+        entry = 0x802A0318
+        outside = 0x80280000
+        data = struct.pack(">II", 0x60000000,
+                           branch(entry + 4, outside, link=False))
+        result = m.short_entry_unconditional_destination(data, entry)
+        self.assertTrue(result["found"])
+        self.assertFalse(result["destination_in_scanned_golf_units"])
+        self.assertIsNone(result["destination_source_relative_offset"])
+        self.assertNotIn("0x80280000", json.dumps(result))
+
+    def test_short_entry_no_branch_is_not_invented(self):
+        entry = 0x802A0318
+        self.assertEqual(
+            m.short_entry_unconditional_destination(struct.pack(">II",
+                0x60000000, 0x60000000), entry),
+            {"found": False, "reason": "no_direct_unconditional_branch"})
+        self.assertEqual(
+            m.short_entry_unconditional_destination(b"", entry),
+            {"found": False, "reason": "not_captured"})
+        called = struct.pack(">II", 0x60000000,
+                             branch(entry + 4, 0x802A0320, link=True))
+        self.assertEqual(
+            m.short_entry_unconditional_destination(called, entry),
+            {"found": False, "reason": "linked_call_not_direct_jump"})
+
 if __name__ == "__main__":
     unittest.main()
