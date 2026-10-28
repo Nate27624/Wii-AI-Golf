@@ -93,6 +93,27 @@ class TestAliasAudit(unittest.TestCase):
         with self.assertRaises(audit.ReadError):
             audit.analyze(FakeCaptures(), depth=1, max_nodes=1)
 
+    def test_second_hop_cap_reports_partial_instead_of_aborting(self):
+        fake = FakeCaptures()
+        report = audit.analyze(fake, depth=2, max_nodes=2)
+        self.assertEqual(report['coverage_status'], 'bounded_partial')
+        self.assertFalse(report['coverage_complete_within_declared_scope'])
+        self.assertEqual(report['second_hop_new_pointees_omitted'], 1)
+        self.assertEqual(report['total_unique_changed_addresses_outside_root'], 1)
+        self.assertEqual(report['second_hop_root_alias_parents_skipped'], 1)
+
+    def test_one_hop_stays_complete_with_node_limit(self):
+        report = audit.analyze(FakeCaptures(), depth=1, max_nodes=2)
+        self.assertTrue(report['coverage_complete_within_declared_scope'])
+        self.assertEqual(report['second_hop_new_pointees_omitted'], 0)
+        self.assertEqual(report['total_unique_changed_addresses_outside_root'], 1)
+
+    def test_uncapped_two_hop_reports_complete(self):
+        report = audit.analyze(FakeCaptures(), depth=2, max_nodes=3)
+        self.assertEqual(report['coverage_status'], 'complete')
+        self.assertEqual(report['second_hop_new_pointees_sampled'], 1)
+        self.assertEqual(report['total_unique_changed_addresses_outside_root'], 2)
+
     def test_bad_snapshot_scene_rejected(self):
         fake = FakeCaptures()
         fake.word_put('B2', 0x9000801C, 9)
