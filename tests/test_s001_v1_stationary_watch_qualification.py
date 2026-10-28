@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from contextlib import nullcontext
 import sys
 import unittest
 from unittest.mock import patch
@@ -9,6 +10,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "scripts")]
 import qualify_v1_selected_watch_readonly as q
+from wii_ai_golf.integration.post_boot import post_boot_action_args
 
 
 def sample(i):
@@ -71,6 +73,31 @@ class StationaryQualificationTests(unittest.TestCase):
     def test_dry_run_never_connects(self):
         with patch.object(q,"watched_v1_rpc",side_effect=AssertionError("no RPC")):
             self.assertEqual(q.main([]),0)
+
+    def test_live_direct_invocation_refused_before_file_or_rpc(self):
+        with (patch.object(q, "verify_local_bridge", side_effect=AssertionError("no file")),
+              patch.object(q, "watched_v1_rpc", side_effect=AssertionError("no RPC")),
+              patch("builtins.input", side_effect=AssertionError("no prompt"))):
+            with self.assertRaises(SystemExit) as cm:
+                q.main(["--read-only-live"])
+        self.assertEqual(cm.exception.code, 2)
+
+    def test_canonical_dispatcher_injects_qualifier_handoff_only(self):
+        self.assertEqual(
+            post_boot_action_args("qualify_v1_selected_watch_readonly.py", ["--read-only-live"]),
+            ["--attach-running", "--read-only-live"],
+        )
+        self.assertEqual(post_boot_action_args("unreviewed.py", ["--read-only-live"]),
+                         ["--read-only-live"])
+        with self.assertRaises(ValueError):
+            post_boot_action_args("qualify_v1_selected_watch_readonly.py",
+                                  ["--attach-running", "--read-only-live"])
+
+    def test_canonical_handoff_no_ready_does_not_connect(self):
+        with (patch.object(q, "verify_local_bridge", return_value="synthetic-sha"),
+              patch("builtins.input", return_value="NO"),
+              patch.object(q, "watched_v1_rpc", side_effect=AssertionError("no RPC"))):
+            self.assertEqual(q.main(["--read-only-live", "--attach-running"]), 0)
 
     def test_stable_source_32_samples_pass_no_raw_data(self):
         result=q.summarize_qualification(private(),elapsed_s=2.5)
