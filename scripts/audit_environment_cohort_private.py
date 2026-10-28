@@ -27,7 +27,11 @@ def audit_local_directory(path: Path) -> dict:
     """No partial successes: malformed captures invalidate the whole cohort."""
     if path.is_symlink() or not path.is_dir() or path.resolve() != PRIVATE_DIR.resolve():
         raise ValueError("Capture directory must be the canonical private root")
-    files = sorted(p for p in path.iterdir() if RAW_NAME.fullmatch(p.name))
+    candidates = sorted(p for p in path.iterdir()
+                        if p.name.startswith("outcome-") and p.name.endswith("-RAW-PRIVATE.jsonl"))
+    if any(not RAW_NAME.fullmatch(p.name) for p in candidates):
+        raise ValueError("Invalid legacy outcome capture name; no silent file filtering")
+    files = candidates
     if not 2 <= len(files) <= MAX_FILES:
         raise ValueError("Need 2 to 64 prior private outcome captures")
     reports = []
