@@ -17,3 +17,21 @@
 **Known operational failure mode.** `_get` requires the original selected pin object's +0x4C selfref and Rev1 source-selected player/ball chain to be valid in *every* phase. If the wedge contact / transition phase fails, report ABSTAIN, not a fabricated zero or a direction of movement. Request next narrower owner-gated per-phase audit if needed.
 
 **Status at creation.** Synthetic tests only. No real seven-pair bytes available to remote agents. Dedicated CI Windows/Ubuntu and operator local read must be recorded separately. Do not claim source-vector velocity without two time-indexed physical positions.
+
+## Real operator read-only Windows result — 2026-10-28
+
+Operator ran exact code/test commit `9434b45f2748a526811822d90ccd86694ccf6c55` from a detached worktree against the 7-pair ignored private SHA-verified archive, without Dolphin. All 16/16 local synthetic tests passed and the real seven-pair source-selected audit ended `P0_SEVEN_CAPTURE_SOURCE_AUDIT=PASS`. The seven source-selected actor indices and holes were **slot 0, hole 1** (game-native integer index; do not infer physical hole name). Every matched pair retained source-selected slot+hole and same pin/start/FieldManager pointers.
+
+| Human-associated pair | Selected ball +0x30 changed 32-bit components | START | PIN | Cache +0xCC |
+| --- | ---: | ---: | ---: | ---: |
+| Driver 1→2 airborne→stationary | **3/3** | 0/3 | 0/3 | 3/3 |
+| 3→4 putter backswing A-off vs driver backswing A-on **confounded different club** | **0/3** | 0/3 | 0/3 | 0/3 |
+| Wedge 5→6 near apex→descending | **3/3** | 0/3 | 0/3 | 0/3 |
+| Wedge 6→7 descending→flag contact/on-green UI | **3/3** | 0/3 | 0/3 | 0/3 |
+| Wedge 5→7 | **3/3** | 0/3 | 0/3 | 0/3 |
+
+Within-snapshot selected current ball equals tee 3/3 on samples #1,#3,#4 and 0/3 on #2,#5,#6,#7. Current ball equals cache +0xCC 3/3 in #1,#2,#3,#4,#7, 0/3 in #5,#6. All five pairwise `pin_object_pointer_identical`, `start_object_pointer_identical`, `field_manager_pointer_identical` and `config_BC_identical` booleans were TRUE. **Windows tables truncated Config C0/C4, other cache columns and player-record +0x34/+0x38/+0x74 flags; no scientific claims about those unprinted values from this transcript.** Original JSON was not uploaded, and source archive remains private.
+
+**Independent S002 cross-check**: [PR #230 operator real W5→W6→W7](https://github.com/Nate27624/Wii-AI-Golf/pull/230#issuecomment-6462446159) independently confirms 3/3 *selected-only* changing ball+0x30; three inactive slots unchanged (0/3 each), stable tee/pin and Config BC/C0, and three candidate cache triplets unchanged 0/3 at every wedge pair. It also found selected ball+0x30 equals **unchanged** cache+0xCC at human flag/on-green W7, not at W5/W6; this supports a possible cached endpoint but **does not prove prediction/landing-target semantics**. Direction of three candidate components across both wedge intervals was +/−/− by #230; no axis interpretation, numeric coordinate, time intervals, velocity or physical trajectory magnitude verified.
+
+**Scientific disposition:** A strong, repeatable, stable-geometry and player-slot-specific **source-selected ball-motion correlate** has now been observed in the human-labeled wedge sequence and separately D1→D2 driver pair. This is **not yet independently verified rendered world XYZ, kinetic velocity, measured swing power, impact time or green outcome**, because source+screen association, guest-frame/time provenance and physical units remain open. Keep all training/automatic publication flags FALSE. Do not merge duplicate source analyzers: #230 owns primary trajectory/4 inactive controls; this PR owns exact preserved private manifest revalidation, record +0x34/+0x38/+0x74 and Config+0xC4 supplementary candidate checks. S000 #205 registry, S001 #215 watcher, S003 #125 model gate informed by GitHub issue comments 6462455139 .. 6462460449. No new shot or full RAM export needed for this review.
