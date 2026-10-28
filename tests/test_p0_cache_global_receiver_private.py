@@ -56,7 +56,9 @@ def source_fixture():
                 "ball_nested_plus_0x4c":cur,
                 "ball_cache_0x0cc":end,
                 "source_current_start":start,
-            }
+                "source_selected_pin":(15,16,17),
+            },
+            "_private_config_selectors":(4,0,0),
         }
     return out
 
@@ -145,6 +147,7 @@ class GlobalReceiverAuditTests(unittest.TestCase):
             codes[i]={
                 "global_load_type":"lwz_r3_disp_r13_then_lwz_r3_0x4c_r3",
                 "static_source_global_slot_supported":True,
+                "slot":target.SDA_BASE-100,
                 "runtime":{
                     "supported":True,
                     "source_global_is_source_selected_ball_object":False,
@@ -171,6 +174,55 @@ class GlobalReceiverAuditTests(unittest.TestCase):
             target.summarize(samples,{i:{"global_load_type":"x",
                                         "static_source_global_slot_supported":False,
                                         "runtime":{"supported":False}} for i in range(1,8)},[])
+
+
+    def test_changed_global_source_displacement_between_phases_refuses(self):
+        samples=source_fixture()
+        codes={}
+        for i in range(1,8):
+            codes[i]={
+                "global_load_type":"lwz_r3_disp_r13_then_lwz_r3_0x4c_r3",
+                "static_source_global_slot_supported":True,
+                "slot":target.SDA_BASE+(-104 if i==6 else -100),
+                "runtime":{"supported":False},
+            }
+        with self.assertRaises(ValueError):
+            target.summarize(samples,codes,[])
+
+    def test_pin_tee_and_config_drift_each_abstain(self):
+        for kind in ("pin", "tee", "config", "missing_config"):
+            with self.subTest(kind=kind):
+                samples=source_fixture()
+                if kind=="pin":
+                    samples[6]["triplets"]["source_selected_pin"]=(1,2,3)
+                elif kind=="tee":
+                    samples[6]["triplets"]["source_current_start"]=(8,8,8)
+                elif kind=="config":
+                    samples[6]["_private_config_selectors"]=(4,0,1)
+                else:
+                    samples[6].pop("_private_config_selectors")
+                codes={i:{"global_load_type":"unsupported",
+                          "static_source_global_slot_supported":False,
+                          "slot":None,"runtime":{"supported":False}}
+                       for i in range(1,8)}
+                with self.assertRaises(ValueError):
+                    target.summarize(samples,codes,[])
+
+    def test_second_phase_caller_mutation_fails_after_initial_success(self):
+        reference=target.verify_caller_snapshot(None,self.mem.__getitem__)
+        self.assertEqual(reference,target.verify_caller_snapshot(
+            reference,self.mem.__getitem__))
+        name,pc,_entry=target.CALLS[0]
+        self.mem[pc]=bl(pc,target.CACHE_WRITER_ENTRY+4)
+        with self.assertRaises(ValueError):
+            target.verify_caller_snapshot(reference,self.mem.__getitem__)
+
+    def test_second_phase_receiver_definition_drift_fails(self):
+        reference=target.verify_caller_snapshot(None,self.mem.__getitem__)
+        _name,pc,_entry=target.CALLS[1]
+        self.mem[pc-4]=mr(3,30)
+        with self.assertRaises(ValueError):
+            target.verify_caller_snapshot(reference,self.mem.__getitem__)
 
     def test_dform_signed_negative(self):
         self.assertEqual(target.dform(lwz(3,13,-100))["imm"],-100)
