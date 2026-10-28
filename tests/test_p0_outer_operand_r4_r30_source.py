@@ -108,6 +108,41 @@ class OperandPPC(unittest.TestCase):
             with self.assertRaises(ValueError):run(d)
         with self.assertRaises(ValueError):h.analyze(None)
 
+    def test_exact_r4_load_opcode_and_static_offset(self):
+        d=mock()
+        entry=h.SOURCES[0][1]
+        d[entry+0x14]=dform(32,4,3,0x88)
+        row=run(d)["outer_operand_source_rows"][0]
+        detail=row["nearest_pre_mr_integer_load_source_detail"]
+        self.assertEqual(detail["candidate_D_form_integer_load_mnemonic"],"lwz")
+        self.assertEqual(detail["candidate_base_register"],"r3")
+        self.assertEqual(detail["candidate_source_field_displacement"],"+0x088")
+        self.assertFalse(detail["base_register_runtime_object_class_proven"])
+        self.assertFalse(detail["candidate_load_reaches_receiver_on_all_paths_proven"])
+
+    def test_negative_static_displacement_and_nonload_are_distinct(self):
+        d=mock()
+        entry=h.SOURCES[0][1]
+        d[entry+0x14]=dform(34,4,10,-4)
+        detail=run(d)["outer_operand_source_rows"][0][
+            "nearest_pre_mr_integer_load_source_detail"]
+        self.assertEqual(detail["candidate_D_form_integer_load_mnemonic"],"lbz")
+        self.assertEqual(detail["candidate_base_register"],"r10")
+        self.assertEqual(detail["candidate_source_field_displacement"],"-0x004")
+        d[entry+0x14]=mr(4,3)
+        self.assertIsNone(run(d)["outer_operand_source_rows"][0][
+            "nearest_pre_mr_integer_load_source_detail"])
+
+    def test_source_load_does_not_guess_owner(self):
+        for op in (32,33,34,35,40,41,42,43):
+            with self.subTest(op=op):
+                detail=h._source_load_detail(dform(op,4,3,0x88),4)
+                self.assertIsNotNone(detail)
+                self.assertFalse(detail["base_register_runtime_object_class_proven"])
+                self.assertFalse(detail["candidate_load_reaches_receiver_on_all_paths_proven"])
+        self.assertIsNone(h._source_load_detail(dform(36,4,3,0x88),4))
+        self.assertIsNone(h._source_load_detail(dform(32,3,4,0x88),4))
+
     def test_report_contains_no_private_words_addresses(self):
         result=json.dumps(run(mock()),sort_keys=True)
         for secret in ("0x8029B43C","0x80299ACC","0x8029A204","0x80299C20",
