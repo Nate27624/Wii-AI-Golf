@@ -77,3 +77,19 @@ The owner fetched PR #197 revision `a8635ed03337df8acf55b9c87078daa7a0a267fa` an
 Source-linked RSPE01 Rev1 code unit boundaries from the public `doldecomp/ogws` linker split to prioritize: `RPGolFieldManager.cpp` 0x80290B44..0x80294184; `RPGolDrawManager.cpp` 0x80294184..0x8029528C; `RPGolMapObjBall.cpp` 0x80296FD8..0x8029B240. These are **search regions**, not known owners of the +0x078/+0x07C fields. Any candidate `stw/lwz/stfs/lfs` with immediate +0x78/+0x7C must have register receiver provenance traced into the effect-window allocation before a member type claim. Inspect writers of the *actual active object*, not all numeric displacement coincidences.
 
 Expected next source deliverable: a safe table of `(source compilation unit, PPC PC, opcode, base-register provenance, field offset)` for each effect pair, with source ownership verified/unverified and publication/training flags still FALSE. Retain original local private raw snapshots and the working 45-observed-frame V1 contact sequence unchanged. No new operator launch or capture is necessary.
+
+## Source-type breakthrough: the eight words fit four effect handles
+
+Primary decomp data independent of this RAM audit:
+
+- `doldecomp/ogws` `include/Pack/RPKernel/RPSysEffectBase.h` defines `RPSysEffect::mHandle` at wrapper offset +0x78.
+- Its `include/nw4r/ef/ef_handle.h` defines inherited `HandleBase` fields `u32 mObjectID` at relative +0 and `LinkedObject* mObject` at relative +4. Thus wrapper +0x78 is ID, wrapper +0x7C is object pointer.
+- `src/nw4r/ef/ef_handle.cpp` assigns/copies both ID and pointer, and IsValid() compares saved ID to the pointed-to object's ID.
+- `src/Pack/RPKernel/RPSysEffectBase.cpp` create(), fade(), forceKill(), reset() change or clear the effect's handle.
+- Public `kiwi515/ogws_info` FieldManager header types manager +0x94/98/9C as three `RPSysEffect*` minimap wrappers.
+
+**This precisely explains the observed four paired words in the original successful-shot 3 PRE / 2 POST / 3 SETTLED capture:** nonpointer-like +0x78 corresponds to an effect object ID; pointer-like +0x7C corresponds to a LinkedObject*. All four apparent entries show the same source-consistent arrangement. The measured +0x90 pointer spacing might come from allocator stride/padding; it has NOT proven sizeof(RPSysEffect)=0x90. No pointer-target ID/vtable identity check has been performed and the snapshots span multiple Dolphin frames, so this is a **strong source-layout concordance, not a runtime owner identity proof**.
+
+Updated `audit_existing_successful_shot_private.py` adds `source_RPSysEffect_HandleBase_pair_layout_concordant`, source expected member labels, and explicitly false `RPSysEffect_runtime_object_identity_verified`, `HandleBase_pointer_target_ID_verified` and `RPSysEffect_object_size_or_0x90_stride_source_verified`. Candidate rows gain only safe source labels when exact all-phase pointer spacing and pair offsets exist. New negative synthetic test ensures reversed ID/pointer patterns cannot be promoted to matching source layout.
+
+**Research consequence:** none of the eight candidates should be used as physics ball XYZ, velocity, display distance, or swing power. The changed handle pairs fit a minimap effect lifecycle reaction to the shot. The actual effect lifecycle cause (create/clear/replace) and runtime pointed-to identities remain unverified. Source P0: inspect Rev1 `RPSysEffectBase.cpp` CODE 0x80194158..0x801957C0, trace FieldManager r31 loop ownership, and the effect pointer constructors/callers. This task uses existing immutable B0 code only; no live shot.
