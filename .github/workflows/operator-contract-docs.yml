@@ -8,6 +8,7 @@ on:
       - '.github/pull_request_template.md'
       - 'README.md'
       - 'docs/operator-powershell-contract.md'
+      - 'docs/merging-requirements.md'
       - 'docs/repository-map.md'
       - 'docs/cli-only-workflow.md'
       - 'docs/cli.md'
@@ -25,6 +26,8 @@ jobs:
           python-version: '3.13'
       - name: Static operator instruction tests (no Dolphin)
         run: python -m unittest discover -s tests -p test_operator_contract_docs.py -v
+      - name: Existing sanitized research CLI regression tests (mock only)
+        run: python -m unittest discover -s tests -p test_research_cli.py -v
   windows:
     runs-on: windows-latest
     steps:
@@ -34,3 +37,5 @@ jobs:
           python-version: '3.13'
       - name: Static operator instruction tests (no Dolphin)
         run: python -m unittest discover -s tests -p test_operator_contract_docs.py -v
+      - name: Existing sanitized research CLI regression tests (mock only)
+        run: python -m unittest discover -s tests -p test_research_cli.py -v
