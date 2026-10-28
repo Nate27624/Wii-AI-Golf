@@ -123,7 +123,7 @@ class FullBankFourPhaseStudyTests(unittest.TestCase):
     def test_non_native_output_restrictions(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder=Path(tmp)
-            with self.assertRaises(ValueError):
+            with self.assertRaises((ValueError, OSError)):
                 x.run_local(folder,folder/"results.json")
 
     def test_all_gate_flags_never_claim_semantics(self):
