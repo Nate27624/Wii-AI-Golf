@@ -77,7 +77,7 @@ def _find_unique_emulator_tick_line(source: str) -> int:
         ticks = [(i, item) for i, item in enumerate(body) if call_is(item, "_wii_ai_tick")]
         polls = [i for i, item in enumerate(body) if call_is(item, "_poll_sockets")]
         if (len(advance) == len(increments) == len(ticks) == len(polls) == 1
-                and advance[0] < increments[0] < ticks[0]):
+                and advance[0] < increments[0] < ticks[0][0]):
             found.append(ticks[0][1])
     if len(found) != 1:
         raise V1BallWatchCompatibilityError("Unique verified frameadvance loop absent")
