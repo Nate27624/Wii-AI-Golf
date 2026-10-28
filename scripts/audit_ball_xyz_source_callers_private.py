@@ -55,6 +55,14 @@ FUNCTION_ENTRY_POINTS = {
     "field_target_or_pin_position": (0x80292294,),
     "field_start_position_getter": (0x802922EC,),
 }
+# Published ogws Rev1 function entries containing our first-hop BL callsites.
+# A second hop is still STATIC source reachability, never an executed frame.
+UPSTREAM_ENTRIES = (
+    ("player_manager_short_entry_caller", 0x802A28DC),
+    ("player_manager_main_writer_caller", 0x802A30F8),
+    ("ball_unit_cache_caller_a", 0x80299ACC),
+    ("ball_unit_cache_caller_b", 0x80299C20),
+)
 # Limit output to a few source offsets per unit. These are CODE offsets only.
 OUTPUT_CALLSITE_LIMIT = 16
 
@@ -105,10 +113,47 @@ def source_thunk_forwards_to_writer(data: bytes, start: int) -> bool | None:
     )
 
 
+def classify_short_writer_entry(data: bytes, start: int) -> str:
+    """Conservatively classify the 8-byte fn_802A0318 entry's transfer path.
+
+    A lack of a direct 'b fn_802A0320' does NOT imply there is no
+    straight-line fallthrough: 0x802A0320 is exactly its next address.
+    This inspects two native PPC words without returning instruction bytes.
+    """
+    entry, next_entry = 0x802A0318, 0x802A0320
+    if start > entry or start + len(data) < next_entry:
+        return "not_captured"
+    words = struct.unpack_from(">II", data, entry - start)
+    if 0 in words:
+        return "unclassified_zero_word"
+    for delta, word in zip((0, 4), words):
+        pc = entry + delta
+        op = word >> 26
+        if op == 18:
+            decoded = decode_ppc_branch(pc, word)
+            if decoded is None:
+                return "unclassified"
+            dest, link = decoded
+            if link:
+                # A BL can return to a following instruction; call effects
+                # may change control before any adjacent fallthrough.
+                return "linked_call_before_entry_end_unresolved"
+            return ("direct_branch_into_main_writer_entry" if
+                    dest == next_entry else "unconditional_branch_elsewhere")
+        if op == 16:
+            return "conditional_branch_or_fallthrough_unresolved"
+        if op == 19 and ((word >> 1) & 0x3FF) in (16, 50, 528):
+            return "return_exception_or_indirect_branch"
+        if op == 17:
+            return "system_call_unresolved"
+    return "straightline_fallthrough_to_adjacent_entry_candidate"
+
+
 def summarize_code(data: bytes, start: int, *, maximum: int = OUTPUT_CALLSITE_LIMIT) -> dict:
     ensure(start % 4 == 0 and len(data) % 4 == 0 and 0 <= maximum <= 32)
     # Full B0 windows are read as one continuous source-only .text range.
     edges = {name: [] for name, *_ in TARGETS}
+    upstream = {name: [] for name, _ in UPSTREAM_ENTRIES}
     for offset in range(0, len(data), 4):
         pc = start + offset
         unit = source_unit(pc)
@@ -118,6 +163,10 @@ def summarize_code(data: bytes, start: int, *, maximum: int = OUTPUT_CALLSITE_LI
         if decoded is None:
             continue
         dest, link = decoded
+        if link:
+            for source_name, entry in UPSTREAM_ENTRIES:
+                if dest == entry:
+                    upstream[source_name].append((unit[0], unit[1]))
         for name, low, high, _meaning in TARGETS:
             if low <= dest < high:
                 # Only static SOURCE relative code offsets and branch types.
@@ -168,6 +217,27 @@ def summarize_code(data: bytes, start: int, *, maximum: int = OUTPUT_CALLSITE_LI
             "source_units": unit_summaries,
             "no_direct_call_cannot_disprove_indirect_dispatch": True,
         })
+    upstream_results = []
+    for caller_name, _entry in UPSTREAM_ENTRIES:
+        hits = upstream[caller_name]
+        units = []
+        for unit_name, _a, _b in UNITS:
+            found = [off for name, off in hits if name == unit_name]
+            if found:
+                units.append({
+                    "source_unit": unit_name,
+                    "direct_bl_count": len(found),
+                    "source_relative_callsite_offsets": [
+                        f"+0x{off:04X}" for off in found[:maximum]
+                    ],
+                    "additional_callsites_omitted": max(0, len(found) - maximum),
+                })
+        upstream_results.append({
+            "callee": caller_name,
+            "direct_bl_at_exact_entry_count": len(hits),
+            "source_units": units,
+            "indirect_and_other_unit_callers_unresolved": True,
+        })
     return {
         "kind": "S002-REV1-BALL-XYZ-SOURCE-CALLER-AUDIT",
         "schema_version": 1,
@@ -178,6 +248,10 @@ def summarize_code(data: bytes, start: int, *, maximum: int = OUTPUT_CALLSITE_LI
         "source_function_boundaries": "public_ogws_RSPE01_01_symbols_txt",
         "short_player_writer_entry_thunk_branches_to_main_function":
             source_thunk_forwards_to_writer(data, start),
+        "short_writer_entry_control_flow_class":
+            classify_short_writer_entry(data, start),
+        "upstream_function_entry_calls": upstream_results,
+        "upstream_calls_do_not_prove_actual_game_update": True,
         "source_function_call_does_not_prove_conditional_stores_executed": True,
         "conditional_indirect_and_dynamic_calls_unresolved": True,
         "source_scan_word_count": sum((hi - lo) // 4 for _, lo, hi in UNITS),
