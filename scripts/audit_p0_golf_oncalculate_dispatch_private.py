@@ -132,6 +132,9 @@ def analyze(archive: Path) -> dict:
         main_source_words[0],
         thunk_target=report["candidate_target_public_code_pc"])
         if report["oncalculate_to_main_direct_thunk_supported"] else None)
+    if main_report is not None:
+        main_report["independent_prior_0x100_original_BL_prefix_matched"] = (
+            main_update.require_prior_prefix_match(main_report))
     seven._check_archive(archive)  # full hash again after readers close
     return {
         "kind": "P0-SANITIZED-REV1-GOLF-ONCALCULATE-THUNK-AUDIT",
