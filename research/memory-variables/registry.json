@@ -2240,6 +2240,371 @@
         "keep source per-player persisted mGolTrainingBests[3] +0x296 separate; no guess of dynamic save data pointer or units"
       ],
       "evidence_ledger_field_ids": []
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "public_header_or_prior_source_decoder_only_not_native_seven_snapshot_read",
+      "owner": "S002/S000",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Published member name/source read location only; exact local native receiver/units/frame/outcome not validated",
+        "allowed_when": "Only after S002/S000 exact Rev1 source+runtime identity, relevant independent game-state/visual controls and an approved versioned leakage-safe dataset contract"
+      },
+      "id": "golf.player.selected_record.stroke_count_source_candidate",
+      "name": "RPGolPlayer::mStrokeNum named source stroke word +0x78",
+      "priority": "P0",
+      "role": "stroke_count_source_candidate",
+      "status": "source_candidate",
+      "datatype": "be_u32_candidate",
+      "unit": "strokes_unverified_for_mode4",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_u32(source_selected_player_record + 0x78)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_selected_player_record",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x78"
+          },
+          {
+            "op": "read",
+            "type": "be_u32"
+          }
+        ],
+        "corroboration": "PUBLIC HEADER OR PRIOR REV1 DOL SOURCE LOOKUP CANDIDATE ONLY. Offset, active receiver, read value, mode/hole and dynamic behavior have NOT been independently source-gated in this registry update."
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPGolScene/RPGolPlayer.h",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
+        ],
+        "capture_groups": [
+          "No direct per-field verified native observation; prior original seven operator snapshots were first-hole only"
+        ],
+        "observed_behavior": "PUBLIC Kokeshi source header names RPGolPlayer::mStrokeNum at player record +0x78 within stride 0xCC, corroborated independently as an untested lead in Wii-AI-Golf issue #121. This header layout is NOT independently checked against exact compiled RSPE01 US Rev1 receiver/writer, nor against human-labeled hole-1 native snapshot transitions. Do not confuse stroke count with per-shot distance, immediate score, power or a result label. Rev0 cheat player stroke fields are NOT Rev1 addresses.",
+        "source_confidence": "source_header_or_prior_source_decoder_candidate_no_native_phase_semantics"
+      },
+      "limitations": [
+        "Published Kokeshi header member name and record offset not native Rev1 source/receiver verified",
+        "No positive/negative source-gated hole-1 change observation for this word",
+        "Stroke count may increment on stroke, hole transition or UI result rather than during flight; training variant applicability unknown"
+      ],
+      "required_controls": [
+        "Use exact #231 seven-bank source selected player record chain and source Rev1 owner before reading this field",
+        "Source-trace RPGolPlayer::mStrokeNum setter and mode4 selected player to distinguish it from GolfConfig and SequenceMgr score tables",
+        "Only after separate new human-approved result screen/frame control consider linking this to a scored stroke"
+      ],
+      "evidence_ledger_field_ids": []
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "public_header_or_prior_source_decoder_only_not_native_seven_snapshot_read",
+      "owner": "S002/S000",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Published member name/source read location only; exact local native receiver/units/frame/outcome not validated",
+        "allowed_when": "Only after S002/S000 exact Rev1 source+runtime identity, relevant independent game-state/visual controls and an approved versioned leakage-safe dataset contract"
+      },
+      "id": "golf.config.mode_selector_094_source_candidate",
+      "name": "RPGolConfig::mGameMode source field +0x94",
+      "priority": "P0",
+      "role": "game_mode_source_candidate",
+      "status": "source_candidate",
+      "datatype": "be_u32_candidate",
+      "unit": "enum_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_u32(source_golf_config + 0x94)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_golf_config",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x94"
+          },
+          {
+            "op": "read",
+            "type": "be_u32"
+          }
+        ],
+        "corroboration": "PUBLIC HEADER OR PRIOR REV1 DOL SOURCE LOOKUP CANDIDATE ONLY. Offset, active receiver, read value, mode/hole and dynamic behavior have NOT been independently source-gated in this registry update."
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPGolScene/RPGolConfig.h",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
+        ],
+        "capture_groups": [
+          "No direct per-field verified native observation; prior original seven operator snapshots were first-hole only"
+        ],
+        "observed_behavior": "PUBLIC Kokeshi header declares RPGolConfig::mGameMode at +0x94 and GAMEMODE_TR_NEARPIN enumerator 4; operator's existing study reports mode4 Hitting the Green, but the header displacement has NOT been independently Rev1 compiled-byte source-validated here. Game mode must be distinguished from Golf scene id=5 and SequenceMgr sport Golf flag; do not equate the three enums.",
+        "source_confidence": "source_header_or_prior_source_decoder_candidate_no_native_phase_semantics"
+      },
+      "limitations": [
+        "Public source field offset not source-gated against local Rev1 original banks by this entry",
+        "Mode enumerator 4 labels a training game selection, not an outcome or shot phase",
+        "Mode4 observed context in seven first-hole captures does not validate a score, power or result label"
+      ],
+      "required_controls": [
+        "Compare exact Rev1 compiled mode reads/writes with Config +0x94 under original source/scene gate",
+        "Confirm mode4 matches typed enum within at least original seven selected golf banks without publishing raw values",
+        "Do not merge scene id, sport code and game-mode semantics"
+      ],
+      "evidence_ledger_field_ids": []
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "public_header_or_prior_source_decoder_only_not_native_seven_snapshot_read",
+      "owner": "S002/S000",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Published member name/source read location only; exact local native receiver/units/frame/outcome not validated",
+        "allowed_when": "Only after S002/S000 exact Rev1 source+runtime identity, relevant independent game-state/visual controls and an approved versioned leakage-safe dataset contract"
+      },
+      "id": "golf.config.current_hole_index_098_source_candidate",
+      "name": "RPGolConfig::mCurrentHole source field +0x98",
+      "priority": "P0",
+      "role": "hole_index_source_candidate",
+      "status": "source_candidate",
+      "datatype": "be_u32_candidate",
+      "unit": "hole_index_zero_based_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_u32(source_golf_config + 0x98)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_golf_config",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x98"
+          },
+          {
+            "op": "read",
+            "type": "be_u32"
+          }
+        ],
+        "corroboration": "PUBLIC HEADER OR PRIOR REV1 DOL SOURCE LOOKUP CANDIDATE ONLY. Offset, active receiver, read value, mode/hole and dynamic behavior have NOT been independently source-gated in this registry update."
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPGolScene/RPGolConfig.h",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
+        ],
+        "capture_groups": [
+          "No direct per-field verified native observation; prior original seven operator snapshots were first-hole only"
+        ],
+        "observed_behavior": "Public Kokeshi header names RPGolConfig::mCurrentHole +0x98; separate PRIVATE Rev1 source-derived report (issue #121 comment 6457792264) identifies exact Rev1 GetWind lwz from Config +0x98 and hole-indexed two 9-word wind BSS arrays. This supports compiled source USE of offset in mode/geometry, but receiver identity, range 0..8, zero-based normalization and first-hole human label are not independently source-gated in this registry commit. All operator shots were FIRST visible hole only; no hole2 transition performed.",
+        "source_confidence": "source_header_or_prior_source_decoder_candidate_no_native_phase_semantics"
+      },
+      "limitations": [
+        "First-hole human label does not prove stored native 0- vs 1-based hole index or semantic round boundaries",
+        "Header offset and separate decoder note do not establish selected Config pointer source chain in all seven captures",
+        "Do not infer wind speed, displayed UI or score from hole index alone"
+      ],
+      "required_controls": [
+        "Source-gate +0x98 read in exact Rev1 GetWind against existing native original B0 or seven unchanged banks",
+        "Check selected source Config identity and bounded 0..8 index alongside first-hole and future human-approved hole2 control",
+        "Preserve hole1-only provenance and do not request hole2 game input until explicitly authorized"
+      ],
+      "evidence_ledger_field_ids": []
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "public_header_or_prior_source_decoder_only_not_native_seven_snapshot_read",
+      "owner": "S002/S000",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Published member name/source read location only; exact local native receiver/units/frame/outcome not validated",
+        "allowed_when": "Only after S002/S000 exact Rev1 source+runtime identity, relevant independent game-state/visual controls and an approved versioned leakage-safe dataset contract"
+      },
+      "id": "golf.wind.hole_direction_table_source_candidate",
+      "name": "GetWind hole-indexed direction raw integer array (9 entries)",
+      "priority": "P0",
+      "role": "wind_direction_source_candidate",
+      "status": "source_candidate",
+      "datatype": "be_u32_array_9_candidate",
+      "unit": "direction_units_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_u32x9(source_rev1_rpgolconfig_bss_wind_direction_table)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_rev1_rpgolconfig_bss_wind_direction_table",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x0"
+          },
+          {
+            "op": "read",
+            "type": "be_u32x9"
+          }
+        ],
+        "corroboration": "PUBLIC HEADER OR PRIOR REV1 DOL SOURCE LOOKUP CANDIDATE ONLY. Offset, active receiver, read value, mode/hole and dynamic behavior have NOT been independently source-gated in this registry update."
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121#issuecomment-6457792264",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
+        ],
+        "capture_groups": [
+          "No direct per-field verified native observation; prior original seven operator snapshots were first-hole only"
+        ],
+        "observed_behavior": "Independent S002 original RSPE01 US Rev1 offline DOL source decoder reports RPGolConfig::GetWind reads index lwz Config+0x98, multiplies by 4 and reads nine big-endian 32-bit integers from a MEM1 BSS source table anchored by published source PC at 0x804A8B54, stores selected output through method's first out-parameter as direction. This is *producer/source lookup provenance only*, no actual original seven-snapshot BSS wind words, compass convention or game UI measurement verified.",
+        "source_confidence": "source_header_or_prior_source_decoder_candidate_no_native_phase_semantics"
+      },
+      "limitations": [
+        "BSS wind table is runtime memory not DOL initialized literals; do not use executable .text as measurement",
+        "Nine values and direction convention unobserved; 'direction' is getter output name not proven displayed cardinal direction",
+        "Hole index field and source named method do not establish exact ball aerodynamic effect or training feature eligibility"
+      ],
+      "required_controls": [
+        "Preserve local full native bank SHA, Rev1 source and Config+0x98 bounds prior to wind array read",
+        "Check exactly 9 words in source BSS and guard no output of raw values/addresses/hashes",
+        "Compare to independently observed wind UI and shot control only after source/mode/units validation"
+      ],
+      "evidence_ledger_field_ids": []
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "public_header_or_prior_source_decoder_only_not_native_seven_snapshot_read",
+      "owner": "S002/S000",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Published member name/source read location only; exact local native receiver/units/frame/outcome not validated",
+        "allowed_when": "Only after S002/S000 exact Rev1 source+runtime identity, relevant independent game-state/visual controls and an approved versioned leakage-safe dataset contract"
+      },
+      "id": "golf.wind.hole_speed_table_source_candidate",
+      "name": "GetWind hole-indexed speed raw integer array (9 entries)",
+      "priority": "P0",
+      "role": "wind_speed_source_candidate",
+      "status": "source_candidate",
+      "datatype": "be_u32_array_9_candidate",
+      "unit": "speed_units_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_u32x9(source_rev1_rpgolconfig_bss_wind_speed_table)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_rev1_rpgolconfig_bss_wind_speed_table",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x0"
+          },
+          {
+            "op": "read",
+            "type": "be_u32x9"
+          }
+        ],
+        "corroboration": "PUBLIC HEADER OR PRIOR REV1 DOL SOURCE LOOKUP CANDIDATE ONLY. Offset, active receiver, read value, mode/hole and dynamic behavior have NOT been independently source-gated in this registry update."
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121#issuecomment-6457792264",
+          "https://github.com/Nate27624/Wii-AI-Golf/issues/121"
+        ],
+        "capture_groups": [
+          "No direct per-field verified native observation; prior original seven operator snapshots were first-hole only"
+        ],
+        "observed_behavior": "Independent S002 original RSPE01 US Rev1 DOL source decoder in issue #121 reports RPGolConfig::GetWind selects nine big-endian 32-bit integers from a separate MEM1 BSS source table at published Rev1 source PC 0x804A8B78 indexed by 4*Config+0x98 hole index, stores selected output as getter's speed out-parameter. This is only a source lookup; neither measured live wind nor a physical velocity parameter calibrated for flight. Do NOT confuse with source-global ball velocity or shot power.",
+        "source_confidence": "source_header_or_prior_source_decoder_candidate_no_native_phase_semantics"
+      },
+      "limitations": [
+        "Source BSS table runtime contents remain unknown, including physical units and whether training mode uses it",
+        "Wind speed getter units not calibrated to UI readings, elapsed game frames or ball dynamics",
+        "No current first-hole source-gated BSS value read; no cross-hole validation"
+      ],
+      "required_controls": [
+        "Confirm typed GetWind load and return register for second out-parameter under original Rev1 source gate",
+        "Compare two 9-word BSS arrays and Config hole source only through strict local privacy sanitization",
+        "Do not train on this or apply physical interpretation until measured UI and gameplay/control evidence support the unit conversion"
+      ],
+      "evidence_ledger_field_ids": []
     }
   ],
   "related_evidence_ledger": {
