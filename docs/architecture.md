@@ -53,6 +53,41 @@ Each real trial has controller sample hash/timing, scene/profile/slot, emulator 
 
 Private data lives under sibling `Wii-AI-Golf-Data`. Code, plans, sanitized reports and schemas are in Git. Never commit ROMs, savestates, emulator binaries, credentials or private Dolphin user settings.
 
+## Planned training architecture — Dolphin ground truth + learned surrogate
+
+**Decision (2026-10-27; proposed, not implemented):** Prefer a **hybrid model-based workflow** over either training exclusively inside Dolphin or hand-coding a separate imitation of Wii Sports physics. **Dolphin is the authoritative game environment** for real shot collection, independent outcome verification, and final evaluation. Train prediction models and search for candidate swings **outside the emulator**, preferably on the operator's local GPU, then return selected candidates to Dolphin to verify what actually happens. A learned surrogate is an approximation, not a second source of truth.
+
+Conceptual architecture (names below are *future adapter proposals*, not importable implementations):
+
+~~~text
+Canonical S001 Dolphin startup/control + S002 verified shot result
+          |  same-shot ID, scene, actual trace, measurement + provenance
+          v
+   Private, versioned real-shot dataset (no raw RAM in Git)
+          |
+          v
+  S003 learned outcome/surrogate model + uncertainty
+          |  predict contact, final location/distance, failure probability
+          v
+    S004 offline candidate-swing optimizer
+          |  select promising AND informative swings
+          v
+   Real Dolphin validation -> add audited examples -> retrain
+          |
+          v
+     S005 frozen held-out real-game evaluation
+~~~
+
+### Execution boundaries and staging
+
+1. **First, earn reliable labels.** S001 must reproduce contact/reset and link frame-anchored input traces to the *same* shot as S002's pre/post state and audited result. Require known scene and target geometry (or validated target distance/bearing), actual controller action, contact/failure disposition, and independently verified settled ball location **or** non-censored final distance with units. Candidate RAM offsets, RPC ACK, human gauge fill and displayed off-green penalty are not verified physical labels. See [joint swing-memory evidence gates](https://github.com/Nate27624/Wii-AI-Golf/issues/121) and [research program](../research/README.md).
+2. **Baseline on real Dolphin data.** Begin with a small interpretable action-to-outcome regressor or ensemble (and uncertainty), not full per-frame ball physics. Keep the existing `toy_env` explicitly synthetic. Start with repeated, one-factor traces and a preregistered budget; include misses, invalid results, confidence and censored outcomes rather than silently dropping them.
+3. **Explore offline, verify online.** S004 searches many hypothetical aim/swing settings against the learned model without launching Dolphin per prediction. Only promising or high-uncertainty candidates are tested in explicitly authorized real emulator trials. Never let the model score its own training success: **verified Dolphin outcomes are the reward/evaluation authority**.
+4. **Retrain and guard against model exploitation.** Measure held-out prediction error and calibration, flag out-of-distribution swings, compare predicted vs actual contact/landing/remaining distance, and feed back audited failures. A surrogate can be confidently wrong; the optimizer must not exploit its errors unchecked.
+5. **Prove transfer.** Compare direct Dolphin search, random/simple heuristics and surrogate-assisted search using matched **total real-emulator shot budgets**, including data collection and failures. S005 freezes policy and tests on untouched shot/pin/scene groups. Report wall-clock/runtime costs separately from prediction throughput.
+
+**Implementation boundary:** Reuse existing canonical CLI, one-shot guarded Dolphin execution and S002 outcome provenance rather than adding a second emulator controller or altering a shared schema without owner review. Potential `DolphinGolfEnv` / `LearnedGolfEnv` names are descriptive architecture sketches, **not present APIs**. The existing normalized `ShotAction(aim,power)` remains a placeholder until S003 maps it to actual Wii Remote controls. Do not start unattended live training or call this pipeline functional before the measurement and approval gates pass.
+
 ## Experiment and acceptance gates
 
 1. **S001:** user-confirmed swing now exists; confirm repeatability on identical full fresh boots.
