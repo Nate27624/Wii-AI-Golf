@@ -49,29 +49,30 @@ def r3_event(word:int)->dict|None:
     if op in (32,34,40,42) and rs==3:
         return {"class":"gpr_memory_load","source":f"r{ra}",
                 "definite_r3_write":True}
-    if op in RA_WRITE and ra==3:
-        return {"class":"logical_or_rotate_to_r3","source":f"r{rs}",
-                "definite_r3_write":True}
+    if op in RA_WRITE:
+        return ({"class":"logical_or_rotate_to_r3","source":f"r{rs}",
+                 "definite_r3_write":True} if ra==3 else None)
     if op==31:
-        if xo==444 and ra==3 and rs==rb:
-            return {"class":"mr_register_copy","source":f"r{rs}",
-                    "definite_r3_write":True}
-        if xo==444 and ra==3:
-            return {"class":"logical_or_two_sources","source":"multiple",
-                    "definite_r3_write":True}
+        if xo==444:
+            if ra==3 and rs==rb:
+                return {"class":"mr_register_copy","source":f"r{rs}",
+                        "definite_r3_write":True}
+            return ({"class":"logical_or_two_sources","source":"multiple",
+                     "definite_r3_write":True} if ra==3 else None)
         if rs==3 or ra==3:
             return {"class":"extended_gpr_touch_uncertain",
                     "source":"unknown","definite_r3_write":False}
         return None
-    if op==46 and rs<=3:
-        return {"class":"lmw_overwrites_r3","source":"memory",
-                "definite_r3_write":True}
-    if op in UPDATE and (rs==3 or ra==3):
-        return {"class":"update_form_r3_effect","source":"unknown",
-                "definite_r3_write":False}
-    if op in RT_WRITE and rs==3:
-        return {"class":"integer_destination_r3","source":"unknown",
-                "definite_r3_write":True}
+    if op==46:
+        return ({"class":"lmw_overwrites_r3","source":"memory",
+                 "definite_r3_write":True} if rs<=3 else None)
+    if op in UPDATE:
+        writes=(rs==3 or ra==3) if op in (33,35,41,43) else ra==3
+        return ({"class":"update_form_r3_destination","source":"unknown",
+                 "definite_r3_write":True} if writes else None)
+    if op in RT_WRITE:
+        return ({"class":"integer_destination_r3","source":"unknown",
+                 "definite_r3_write":True} if rs==3 else None)
     if op in KNOWN_NO_GPR_WRITE:
         return None
     if rs==3 or ra==3:
