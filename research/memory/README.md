@@ -2,7 +2,7 @@
 
 **Owner:** S000 schema/claims gate. S002 owns source and capture facts; S001 owns controller/frame-callback timing; S003 reviews identifiability before any training. **Status:** proposal, not merged, no new live capture.
 
-The machine-readable [field-evidence-ledger.json](field-evidence-ledger.json) contains **27 entries**: seventeen source/runtime structural, base-class or negative-control candidates (including eight source-named environment references, one constructor-backed Base member, and two unverified selected-object hypotheses), plus ten deliberately **unlocated** gameplay variables. Nothing is labelled verified game power, ball velocity or club pose. Synthetic tests reject guessed offsets, untrusted URLs, raw runtime pointers, unsupported private fields, and unsupported training promotion.
+The machine-readable [field-evidence-ledger.json](field-evidence-ledger.json) contains **30 entries**: twenty source/runtime structural, base-class, source-writer or negative-control candidates (including eight named environment references, one constructor-backed Base member, two unverified selected-object hypotheses and three PPC writer/roster leads), plus ten deliberately **unlocated** gameplay variables. Nothing is labelled verified game power, ball velocity or club pose. Synthetic tests reject guessed offsets, untrusted URLs, raw runtime pointers, unsupported private fields, and unsupported training promotion.
 
 ## Exactly what a field claim must establish
 
@@ -113,6 +113,54 @@ inheritance, game coordinate units, or live ball identity. If they fail,
 the selected object may use a different base location or layout; do
 not search blindly or rename fields as XYZ. No fresh Dolphin session,
 RAM dump or model training is needed for this experiment.
+
+## New selected-object constructor invariants and ball-related writer lead
+
+A second operator execution of S002 PR #159 on the **existing single saved
+pair** found BOTH selected pin and start pointers match the DOL-derived Base
+constructor self-reference invariants: object `+0x48==obj+0x0C` and
+`+0x4C==obj+0x30`. Each also has a finite/nonzero candidate three-float
+translation. Crucially, X and Z match the **hypothesized** backing map entry
+for BOTH, while the Y candidate matches the pin and **disagrees for the
+start marker**. This rejects any universal raw equality between the two
+representations, not the Base self-pointer layout itself. A vertical
+position offset, base-vs-map semantics and terrain height are *competing
+hypotheses*, with none demonstrated. The selected object first word
+does not fall within the very narrow checked Base/FieldManager data
+region, which is not a complete derived-class vtable test.
+
+Separately, S002 source investigators report a stronger **static** DOL
+dataflow from four source-defined inline player-manager records at
+204 bytes each to 428-byte simulation records. Player code writes an
+indexed simulation pointer at the **record-relative +0x88** and obtains
+a candidate three-float write destination through the simulation
+record's `+0x4C` pointer. Source code executes three `stfs` to
+the destination and that pointer is consistent with the separately
+verified Base constructor `+0x4C -> +0x30` self-reference. This
+supports a ball-related **translation writer path**, not the actual
+active physics ball coordinate, animation semantics, scene selection,
+same-frame sensor or calibrated power. S002 #160 holds bounded runtime
+roster evidence and no true gameplay XYZ claim.
+
+The three NEW ledger entries here are `golfer.player_record_sim_object_ref`,
+`golfer.ball_related_translation_write_path`, and
+`golfer.player_manager_inline_roster`. Each has
+`writer_instruction_verified=true` for its *specific static code
+operation* but `source_typed_member_verified=false` for the
+proposed full object identity, `gameplay_value_verified=false` and
+`training_eligible=false`. Do not infer that the four allocated records
+mean four active golfers or independent observations.
+
+**Next specific study:** S002 map owner #159 should trace
+`RPUtlMapData.cpp` and `RPGolFieldManager.cpp` reads/writes of the start
+marker through their proven receiver/base-register flows and explain
+why candidate vertical Y differs while X/Z match. S002 roster owner #160
+should resolve source-selected-record pointer and read-only
+same-B0 static cross-check between the source-linked simulation object's
+self-pointer and player-record float triplet, emitting counts only.
+Only when independent frame observations across controlled conditions
+show the correct moving ball may S003 discuss physics labels. Neither
+study needs more Dolphin input now.
 
 ## Full-MEM1 checkpoints are discovery data, NOT instant semantic labels
 
