@@ -35,6 +35,9 @@ def _unit(dest: int) -> str:
 def _loc(pc: int) -> str:
     return "+0x%04X" % (pc-MAIN_UNIT[0])
 
+def _func_loc(pc: int) -> str:
+    return "+0x%04X" % (pc-MAIN_ENTRY)
+
 def classify_source_words(words, *, thunk_target: str) -> dict:
     if thunk_target!="0x8028E158":
         raise ValueError("original source-gated thunk target did not match exact function entry")
@@ -59,6 +62,7 @@ def classify_source_words(words, *, thunk_target: str) -> dict:
             if w&1:
                 direct.append({
                     "source_main_unit_relative_pc":_loc(pc),
+                    "source_main_function_relative_pc":_func_loc(pc),
                     "target_public_code_pc":f"0x{dest:08X}",
                     "target_source_code_unit_class":_unit(dest),
                     "actual_execution_or_receiver_type_verified":False,
@@ -105,3 +109,38 @@ def classify_source_words(words, *, thunk_target: str) -> dict:
         "training_approved":False,
         "allowed_to_publish":False,
     }
+
+def require_prior_prefix_match(report: dict) -> bool:
+    """Compare first 0x100 bytes against independently SHA-gated #279 report.
+
+    The earlier original 7-bank prefix found 10 linked direct BL instructions
+    and exactly two SimulateManager entry-point targets. This check prevents
+    offset coordinate and native-source mismatch, NOT call-order proof.
+    """
+    if not isinstance(report,dict) or report.get("kind") != (
+            "P0-REV1-GOLF-MAIN-UPDATE-DIRECT-BL-BOUNDED-CENSUS"):
+        raise ValueError("incorrect source report kind")
+    calls=report.get("source_direct_linked_calls")
+    if not isinstance(calls,list):
+        raise ValueError("missing source linked calls")
+    prefix=[]
+    for row in calls:
+        offset=row.get("source_main_function_relative_pc")
+        if type(offset) is not str or not offset.startswith("+0x"):
+            raise ValueError("unqualified source function-relative offset")
+        n=int(offset[3:],16)
+        if n < 0x100:
+            if row.get("source_main_unit_relative_pc") != "+0x%04X" % (
+                    n+MAIN_ENTRY-MAIN_UNIT[0]):
+                raise ValueError("function/unit offset crosswalk mismatch")
+            prefix.append(row)
+    actual={(r["source_main_function_relative_pc"],r["target_public_code_pc"])
+            for r in prefix
+            if r.get("target_source_code_unit_class") ==
+                "published_RPGolSimulateManager_text_only"}
+    required={("+0x007C","0x8029B554"),("+0x0090","0x8029B43C")}
+    if len(prefix) != 10 or actual != required:
+        raise ValueError("original 0x100 prefix direct call witness mismatch")
+    # These exact synthetic source-control counts are from the independent
+    # original #279 source prefix; this helper doesn't verify 5 BC positions.
+    return True
