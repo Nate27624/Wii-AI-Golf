@@ -105,7 +105,8 @@ def preserve_pair(*, mem1_source, mem2_source, private_root,
     prior = _read_manifest(manifest_path)
     keys = tuple(prior["checkpoints"].keys()) if prior else ()
     ordered = tuple(PHASES.keys())
-    if keys != ordered[:len(keys)] or checkpoint != ordered[len(keys)]:
+    if (len(keys) >= len(ordered) or keys != ordered[:len(keys)]
+            or checkpoint != ordered[len(keys)]):
         raise ValueError("Only sequential new B0 -> B1 -> B2 -> B3 -> B4 captures")
     if prior:
         last = prior["checkpoints"][keys[-1]]
@@ -137,6 +138,14 @@ def preserve_pair(*, mem1_source, mem2_source, private_root,
             with mmap.mmap(f1.fileno(),0,access=mmap.ACCESS_READ) as mem1:
                 with mmap.mmap(f2.fileno(),0,access=mmap.ACCESS_READ) as mem2:
                     checked = audit_pair(mem1,mem2)
+        hashes = {
+            "MEM1": _digest(destinations[0]),
+            "MEM2": _digest(destinations[1]),
+        }
+        if prior and all(
+                hashes[bank] == last["sha256"][bank]
+                for bank in ("MEM1", "MEM2")):
+            raise ValueError("Two banks identical to previous checkpoint; no independent new state")
         info = {
             "phase_operator_label": PHASES[checkpoint],
             "operator_reports_gui_paused": True,
@@ -148,10 +157,7 @@ def preserve_pair(*, mem1_source, mem2_source, private_root,
                 "MEM1": srcstats[0].st_mtime_ns,
                 "MEM2": srcstats[1].st_mtime_ns,
             },
-            "sha256": {
-                "MEM1": _digest(destinations[0]),
-                "MEM2": _digest(destinations[1]),
-            },
+            "sha256": hashes,
             "native_sizes_valid": True,
             "same_emulator_frame_proven": False,
             "same_boot_proven": False,
