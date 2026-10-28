@@ -89,6 +89,44 @@ class CalleeFootprint(unittest.TestCase):
         self.assertEqual(row["target_main_function_relative_pc"],"+0x0098")
         self.assertFalse(x["either_sim_callee_executes_once_per_scene_callback_verified"])
 
+    def test_original_shape_bc_backedge_can_reenter_first_sim_call(self):
+        # Reproduce previously SHA-verified Rev1 relative +0x88 -> +0x6C;
+        # +0x7C direct BL is inside the possible backward cycle.
+        pc=m.ENTRY+0x88
+        x=run(modmain={0x88:bc(pc,m.ENTRY+0x6C)})
+        self.assertTrue(x["first_sim_call_source_site_has_backward_reentry_candidate"])
+        self.assertEqual(x["first_sim_call_source_backward_reentry_edges"], [{
+            "branch_function_relative_site": "+0x0088",
+            "branch_target_function_relative_site": "+0x006C",
+            "crosses_first_sim_source_BL": True,
+            "branch_executed_or_call_repeated_at_runtime_verified": False,
+        }])
+        self.assertFalse(x["first_sim_call_once_per_scene_callback_verified"])
+        self.assertFalse(x["loop_branch_actually_taken_or_multiple_calls_runtime_verified"])
+        self.assertFalse(x["guest_physics_step_clock_verified"])
+        self.assertFalse(x["after_integrator_guest_step_completion_site_verified"])
+
+    def test_backedge_after_first_call_does_not_reenter_first_call(self):
+        pc=m.ENTRY+0x88
+        x=run(modmain={0x88:bc(pc,m.ENTRY+0x80)})
+        self.assertFalse(x["first_sim_call_source_site_has_backward_reentry_candidate"])
+        self.assertEqual(x["first_sim_call_source_backward_reentry_edges"], [])
+        self.assertFalse(x["first_sim_call_once_per_scene_callback_verified"])
+
+    def test_forward_bc_cannot_reenter_first_call(self):
+        pc=m.ENTRY+0x88
+        x=run(modmain={0x88:bc(pc,m.ENTRY+0x98)})
+        self.assertFalse(x["first_sim_call_source_site_has_backward_reentry_candidate"])
+        self.assertFalse(x["after_integrator_guest_step_completion_site_verified"])
+
+    def test_nonlinked_direct_b_backedge_is_also_reentry_candidate(self):
+        pc=m.ENTRY+0x88
+        x=run(modmain={0x88:bl(pc,m.ENTRY+0x6C,linked=False)})
+        self.assertTrue(x["first_sim_call_source_site_has_backward_reentry_candidate"])
+        self.assertFalse(x["loop_branch_actually_taken_or_multiple_calls_runtime_verified"])
+        self.assertFalse(x["training_approved"])
+        self.assertFalse(x["allowed_to_publish"])
+
     def test_compare_r3_with_zero_is_only_source_syntax(self):
         row=run(modmain={0x80:d(11,0,3,0)})[
             "gap_after_first_before_second_call"][0]
