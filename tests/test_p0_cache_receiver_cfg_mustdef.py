@@ -157,6 +157,30 @@ class CfgReceiverMustDefTests(unittest.TestCase):
         self.assertEqual(out["status"],"ABSTAIN_SOURCE_UNRESOLVED")
         self.assertFalse(out["all_reaching_paths_pass_entry_r3_through_r31_to_call_r3"])
 
+    def test_lmw_start_r2_clobbers_both_r3_and_r31(self):
+        s=fixture()
+        # PPC lmw loads r2,r3,...r31. rT need NOT equal 3.
+        s[E+20]=dform(46,2,1,0)
+        self.assertEqual(check(s)["status"],"NOT_PROVEN_FOR_ALL_REACHING_PATHS")
+
+    def test_stmw_r3_does_not_write_source_register(self):
+        s=fixture()
+        # PPC stmw r3 stores source GPRs; must not kill r3 itself.
+        s[E+20]=dform(47,3,1,0)
+        self.assertEqual(check(s)["status"],"STATIC_ENTRY_R3_MUST_FLOW")
+
+    def test_stwu_base_update_clobbers_r3_even_if_rs_is_r0(self):
+        s=fixture()
+        # PPC stwu r0,8(r3) updates address register r3.
+        s[E+20]=dform(37,0,3,8)
+        self.assertEqual(check(s)["status"],"NOT_PROVEN_FOR_ALL_REACHING_PATHS")
+
+    def test_ori_ra_r3_overwrites_even_when_rs_not_r3(self):
+        s=fixture()
+        # PPC ori r3,r5,0 destination is rA, source is rS.
+        s[E+20]=dform(24,5,3,0)
+        self.assertEqual(check(s)["status"],"NOT_PROVEN_FOR_ALL_REACHING_PATHS")
+
     def test_native_free_cli(self):
         p=subprocess.run([sys.executable,str(SCRIPT)],capture_output=True,text=True,timeout=10)
         self.assertEqual(p.returncode,0,p.stderr)
