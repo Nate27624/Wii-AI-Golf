@@ -1,0 +1,32 @@
+name: S000 P0 PowerShell documentation (synthetic only)
+
+on:
+  push:
+    branches:
+      - agent/coordinator/p0-powershell-doc-report-20261028
+  pull_request:
+    paths:
+      - scripts/Export-P0MemoryDocs.ps1
+      - tests/Test-P0MemoryDocs.ps1
+      - .github/workflows/s000-p0-powershell-docs.yml
+
+permissions:
+  contents: read
+
+jobs:
+  p0-documentation:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate canonical registry before documentation
+        run: python scripts/validate_memory_registry.py
+      - name: Test PowerShell exporter using public registry only
+        shell: pwsh
+        run: ./tests/Test-P0MemoryDocs.ps1
