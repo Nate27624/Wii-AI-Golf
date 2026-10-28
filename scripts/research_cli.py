@@ -68,12 +68,16 @@ def v1_clean_boot_args(root: Path) -> list[str]:
     """
     clean = root.parent / "tools" / "FelkDolphin-Clean"
     executable = clean / "Dolphin.exe"
+    # Felk Preview4 Windows chooses EXE-adjacent User only in portable mode.
+    # A spare User/ directory alone does not prove the runtime profile root.
+    portable_marker = clean / "portable.txt"
     user = clean / "User"
     config = root / "research" / "launch.local.json"
     catalog = root / "research" / "savestates.local.json"
     missing = []
     for label, present in (
         ("isolated clean Dolphin executable", executable.is_file()),
+        ("clean Dolphin portable.txt marker", portable_marker.is_file()),
         ("isolated clean Dolphin User directory", user.is_dir()),
         ("local launcher configuration", config.is_file()),
         ("local named-savestate catalog", catalog.is_file()),
