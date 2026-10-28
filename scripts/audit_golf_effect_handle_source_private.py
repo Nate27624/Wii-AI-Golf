@@ -33,6 +33,33 @@ FIELD_END=0x80290E4C
 TARGETS=(0x78,0x7C)
 MAX_SOURCE_HITS=130
 MAX_CONTEXTS=18
+# These source-code PCs were independently observed in the operator's actual
+# RSPE01 Rev1 saved B0 image, not inferred from guessed structures.
+R31_FROM_R3_PC=0x80290DD0
+R31_FROM_R3_WORD=0x7C7F1B78
+R29_FROM_R31_PC=0x80290E4C
+R29_FROM_R31_WORD=0x7FFDFB78
+FIELD_METHOD_SHAPED_PROLOGUE=0x80290DB0
+LOOP_LOAD_CHILD_PC=0x80290E78
+LOOP_LOAD_CHILD_WORD=0x807D0004
+LOOP_ADVANCE_PC=0x80290EB8
+LOOP_ADVANCE_WORD=0x3BBD0004
+
+
+def _method_shaped_prologue(word:int)->bool:
+    """Likely PPC stack frame stwu r1,-N(r1), not independently a CFG entry."""
+    return (type(word) is int and (word>>26)==37
+            and (word>>21)&31==1 and (word>>16)&31==1
+            and bool(word&0x8000))
+
+
+def _compatible_with_handle_word(hit:dict)->bool:
+    """Opcode filter only, NOT a base-pointer or handle ownership assertion."""
+    if hit["access"]=="write":
+        return hit["mnemonic"] in ("stw","stwu")
+    if hit["access"]=="read":
+        return hit["mnemonic"] in ("lwz","lwzu")
+    return False
 
 
 def r31_assignment_candidate(word:int,pc:int):
@@ -87,6 +114,20 @@ def analyze(get_word):
         for c in r31_candidates[-8:]
     ]
 
+    r31_from_r3_source_seen=(get_word(R31_FROM_R3_PC)==R31_FROM_R3_WORD)
+    r31_changed_after_source=any(
+        int(x["pc"],16)>R31_FROM_R3_PC for x in r31_candidates)
+    r29_chain_source_seen=(
+        r31_from_r3_source_seen
+        and get_word(R29_FROM_R31_PC)==R29_FROM_R31_WORD
+        and get_word(LOOP_LOAD_CHILD_PC)==LOOP_LOAD_CHILD_WORD
+        and get_word(LOOP_ADVANCE_PC)==LOOP_ADVANCE_WORD
+        and _method_shaped_prologue(get_word(FIELD_METHOD_SHAPED_PROLOGUE))
+    )
+    # The scanner only knows select dest opcode families, not full CFG. This
+    # proves an exact static idiom and no RECOGNIZED intervening r31 writes.
+    field_static_chain=(r29_chain_source_seen and not r31_changed_after_source)
+
     hits=[]
     for pc in range(EFFECT_TEXT_START,EFFECT_TEXT_END,4):
         hit=dform.decode_dform(get_word(pc),pc,targets=TARGETS)
@@ -101,6 +142,12 @@ def analyze(get_word):
             "value_register":hit["source_or_destination_reg"],
             "receiver_verified_as_RPSysEffect_this":False,
         })
+        hits[-1]["opcode_compatible_with_direct_HandleBase_word"] = (
+            _compatible_with_handle_word(hits[-1]))
+        hits[-1]["float_store_incompatible_with_direct_pointer_write"] = (
+            hits[-1]["access"] == "write"
+            and hits[-1]["mnemonic"] in ("stfs","stfsu")
+            and hits[-1]["offset"] == "+0x07C")
         if len(hits)>MAX_SOURCE_HITS:
             raise ValueError("Unexpected effect-source offset hit count")
     # Put adjacent paired stores first, then reads. Still source-only.
@@ -126,6 +173,14 @@ def analyze(get_word):
         "field_manager_r31_to_r29_pc":"0x80290E4C",
         "field_manager_r31_candidate_defs":r31_candidates,
         "field_manager_r31_candidate_contexts":field_contexts,
+        "field_manager_r31_from_incoming_r3_source_pattern_verified":
+            field_static_chain,
+        "field_manager_r31_source_pattern_pc":f"0x{R31_FROM_R3_PC:08X}",
+        "field_manager_r31_no_recognized_intervening_redefinition":
+            r31_from_r3_source_seen and not r31_changed_after_source,
+        "field_manager_r31_to_r29_child_pointer_cursor_static_verified":
+            field_static_chain,
+        "field_manager_method_boundary_cfg_verified":False,
         "field_manager_r31_origin_proven":False,
         "field_manager_r31_def_scanner_exhaustive":False,
         "RPSysEffectBase_text_range":[
@@ -135,6 +190,14 @@ def analyze(get_word):
             x["access"]=="write" for x in hits),
         "RPSysEffectBase_read_count":sum(
             x["access"]=="read" for x in hits),
+        "RPSysEffectBase_opcode_compatible_handle_store_candidates":sum(
+            x["access"]=="write"
+            and x["opcode_compatible_with_direct_HandleBase_word"]
+            for x in hits),
+        "RPSysEffectBase_float_store_offset_07c_collision_count":sum(
+            x["float_store_incompatible_with_direct_pointer_write"]
+            for x in hits),
+        "RPSysEffectBase_literal_offset_search_exhausts_handle_mutations":False,
         "RPSysEffectBase_contexts":contexts,
         "RPSysEffect_base_receiver_proven":False,
         "actual_four_minimap_effect_object_identity_verified":False,
