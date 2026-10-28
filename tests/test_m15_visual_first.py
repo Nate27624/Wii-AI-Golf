@@ -154,6 +154,9 @@ class VisualFirstJoinTests(unittest.TestCase):
         self.assertTrue(result["shot_dispatch_verified_by_collector"])
         self.assertFalse(result["physical_distance_verified"])
         self.assertFalse(result["verified_game_score"])
+        self.assertTrue(result["outcome_is_censored_penalty"])
+        self.assertFalse(result["numeric_distance_target_eligible"])
+        self.assertFalse(result["train_approved"])
         self.assertEqual(result["human"]["displayed_distance_source"],
                          "offgreen_100ft_penalty")
         self.assertEqual(result["controller"]["trace_sha256"],
@@ -291,6 +294,7 @@ class VisualFirstJoinTests(unittest.TestCase):
         joined = self._check(data)
         self.assertIsNone(joined["human"]["displayed_distance_human"])
         self.assertFalse(joined["human"]["terminal_screen_seen_before_transition_human"])
+        self.assertFalse(joined["outcome_is_censored_penalty"])
         self.assertFalse(joined["informative_action_outcome_trial"])
 
     def test_unregistered_visual_first_settings_refused_before_launch(self):
