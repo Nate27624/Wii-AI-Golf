@@ -55,12 +55,15 @@ class TwoWordRoleTests(unittest.TestCase):
         self.assertTrue(one["same_direction_as_ball_f32_component_across_both_wedge_edges"][0])
         self.assertFalse(one["physical_interpretation_verified"])
 
-    def test_pointer_shaped_word_rejects_bounded_float_claim(self):
+    def test_pointer_shaped_bits_can_also_look_like_bounded_float(self):
         r=m.report(fixture())
         second=r["fields"][1]
         self.assertTrue(all(second["native_mem1_or_mem2_pointer_shaped_in_phase_order_D1_D2_W5_W6_W7"]))
-        self.assertEqual(second["bounded_f32_candidate_in_wedge_5_6_7"],[False]*3)
-        self.assertEqual(second["wedge_f32_direction_steps"],["unclassified"]*2)
+        # Shape overlap: a native address's bits can encode a finite tiny f32.
+        # The analyzer must not infer either semantic type from this pattern.
+        self.assertEqual(second["bounded_f32_candidate_in_wedge_5_6_7"],[True]*3)
+        self.assertFalse(m.report(fixture())["pointer_shape_proves_live_pointer"])
+        self.assertFalse(m.report(fixture())["float_shape_or_direction_proves_numeric_semantics"])
         self.assertFalse(second["same_one_ball_component_alias_all_three_wedge_phases"][0])
 
     def test_equal_current_word_does_not_claim_physics(self):
