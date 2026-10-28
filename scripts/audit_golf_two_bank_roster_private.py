@@ -200,10 +200,13 @@ def _start_ball_vec3_code_evidence(read_u32) -> dict:
         _bl_matches(read_u32, 0x8029F248, 0x802922EC),
     ))
     start_to_record = all(
-        _dform_matches(read_u32, 0x8029F24C + j * 0x0C, 48, 0, 3, j * 4)
-        and _dform_matches(read_u32, 0x8029F254 + j * 0x0C, 52, 0, 29,
-                           0x60 + j * 4)
-        for j in range(3)
+        _dform_matches(read_u32, load_pc, 48, 0, 3, j * 4)
+        and _dform_matches(read_u32, store_pc, 52, 0, 29, 0x60 + j * 4)
+        for j, (load_pc, store_pc) in enumerate((
+            (0x8029F24C, 0x8029F254),
+            (0x8029F258, 0x8029F25C),
+            (0x8029F260, 0x8029F264),
+        ))
     )
     ball_to_record = all((
         _dform_matches(read_u32, 0x8029F300, 32, 3, 29, 0x88),
