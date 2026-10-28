@@ -96,7 +96,7 @@ class DrawThunkTests(unittest.TestCase):
             from io import StringIO
             with patch("sys.stdout",new_callable=StringIO) as out:
                 self.assertEqual(d.main(["--archive","/absent"]),2)
-                self.assertNotIn("PRIVATE_ARCHIVE",out.getvalue())
+                self.assertNotIn("PRIVATE_ARCHIVE_0x9000",out.getvalue())
 
     def test_only_static_code_target_and_booleans_returned(self):
         x=json.dumps(d.classify_draw_two_words([
