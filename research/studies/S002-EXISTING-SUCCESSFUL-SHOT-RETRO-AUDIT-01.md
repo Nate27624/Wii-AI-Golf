@@ -34,3 +34,28 @@ Do not paste either RAW-PRIVATE or the old -candidates.json wholesale in chat or
 - S002 #188: plan negative controls only AFTER examining existing eight candidates; avoid more idle aim scans.
 - S000 #154: privacy gate and typed evidence; only relative offsets are safe; model/training zero.
 - S003 #125: labels are human contact and UI, not validated physical input-target pairs.
+
+## Operator-run REAL eight-word result and aliased-effect discovery
+
+The operator ran the original private existing-shot script and all 7 synthetic tests passed; real data confirmed **8/8** stable PRE-to-SETTLED word changes. The run used **3 PRE / 2 POST / 3 SETTLED** snapshots, complete 89-frame controller dispatch, and the preserved 45-frame observed A lead. Human labels contact=yes, off-green=yes, displayed 100.0ft, displayed power=75%; neither distance nor power matched any candidate as a literal numeric reading. The samples are multi-frame/non-atomic, and all eight candidates were already different from PRE in **both** POST snapshots.
+
+**All eight are solely in MINIMAP EFFECT windows**; not in the retained golf_config/golf_field/sports_sequence object windows. Exactly four candidates are pointer-shaped u32 words in Wii MEM1/MEM2 ranges, at the second +4-byte position of each repeating pair. A pointer-like value remains only a bit-pattern heuristic, not a proved pointer, geometry, game score or physics.
+
+Observed source-relative de-aliasing for the three overlapping effect windows:
+
+| Pair | Stable source-relative owner(s) | Immediately POST? | Pointer-like second word? |
+| --- | --- | --- | --- |
+| 0 | minimap_player_effect +0x078/+0x07C | both POST | yes |
+| 1 | minimap_player_effect +0x108/+0x10C = minimap_shot_line_effect +0x078/+0x07C | both POST | yes |
+| 2 | minimap_player_effect +0x198/+0x19C = minimap_shot_line_effect +0x108/+0x10C = minimap_ball_effect +0x078/+0x07C | both POST | yes |
+| 3 | minimap_shot_line_effect +0x198/+0x19C = minimap_ball_effect +0x108/+0x10C | both POST | yes |
+
+These aliases imply **minimap_shot_line_effect base = minimap_player_effect base +0x90** and **minimap_ball_effect base = minimap_player_effect base +0x120**, assuming the overlapping offsets reference the same absolute words (the source de-duplicator uses whole-word addresses). Thus the eight candidates plausibly form four repeated **two-word pairs** separated by 0x90 bytes. This does NOT by itself prove four class instances, a 0x90 byte C++ struct size, component names or effect semantics. The 0x200-byte watch windows overlap substantially; it is vital to de-duplicate by actual source absolute address internally but never publish those addresses.
+
+The script was subsequently upgraded with `_effect_stride_layout` to test this exact +0x90/+0x90 three-window base relationship in **all eight real snapshot records** (rather than infer it only from displayed offsets), and `_effect_slot` to assign each of eight candidate words to a hypothetical slot 0–3 and within-slot fields +0x078 / +0x07C only when verified. The new booleans are `effect_pointer_bases_spaced_0x90_in_all_phases` and `repeating_two_word_effect_pairs_observed`; the script leaves them **false** and slot indices **null** if any phase violates the spacing or field pattern. No original game memory is uploaded or modified. Two new alias/invalid-spacing synthetic tests augment the original seven.
+
+### Next source-level priority
+
+1. Have source/decomp agents trace effect pointer ownership through `RPGolField` offsets +0x94, +0x98, +0x9C, and identify whether the +0x90 index stride represents entries in a shared effect pool, cloned/linked render structures or other aliasing. Do not assume the labels ball/player/shot_line mean actual motion vectors.
+2. Check `+0x78 / +0x7C` writes and downstream readers in the owned object type, using the already-preserved code/source snapshots or public RSPE01 Rev1 decomp; classify storage type using PPC instruction, not float guesswork.
+3. Since all eight are render/effect candidates, **exclude them from ball-physics and power training claims** until a causally controlled, temporally precise paired shot/no-shot sample and source type attribution. Do not require another live trial just to complete this existing-shot analysis.
