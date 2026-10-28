@@ -107,7 +107,7 @@ class SevenManualDumpTests(unittest.TestCase):
             f.truncate(MEM1)
         result = self.run_ps()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("wrong sizes: 0", result.stdout) if False else None
+        self.assertIn('MEM2_64MiB', result.stdout)
         self.assertIn("NO WITHIN-SHOT NATIVE PAIRS READY", result.stderr)
         self.assertNotIn("PRIVATE REPORT WRITTEN", result.stdout)
 
