@@ -17,6 +17,13 @@ import mmap
 from pathlib import Path
 import sys
 
+# Support PowerShell's py -I invocation: this script imports its audited
+# sibling repository modules rather than any user-site Python packages.
+_SCRIPTS_DIR = str(Path(__file__).resolve().parent)
+if _SCRIPTS_DIR in sys.path:
+    sys.path.remove(_SCRIPTS_DIR)
+sys.path.insert(0, _SCRIPTS_DIR)
+
 import audit_golf_two_bank_roster_private as roster
 import audit_selected_ball_start_link_private as selected
 import audit_selected_ball_four_phase_private as four
