@@ -1,0 +1,30 @@
+name: S002 PRE POST shot manifest / offline contrast (synthetic)
+on:
+  push:
+    branches:
+      - agent/research/private-shot-prepost-cohort-20261027
+  pull_request:
+    paths:
+      - scripts/audit_selected_ball_prepost_shot_private.py
+      - tests/test_selected_ball_prepost_shot_private.py
+      - .github/workflows/s002-shot-prepost-synthetic.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic:
+    name: Private no-game shot contrast / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Source syntax
+        run: python -m py_compile scripts/audit_selected_ball_prepost_shot_private.py tests/test_selected_ball_prepost_shot_private.py
+      - name: Synthetic source-provenance/privacy tests ONLY
+        run: python -m unittest discover -s tests -p 'test_selected_ball_prepost_shot_private.py' -v
