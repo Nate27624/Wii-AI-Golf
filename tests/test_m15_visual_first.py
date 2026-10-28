@@ -15,7 +15,8 @@ for part in (str(ROOT), str(ROOT / "src"), str(ROOT / "scripts")):
     if part not in sys.path:
         sys.path.insert(0, part)
 
-from scripts.collect_outcome_transition import _visual_first_label, run_session
+from scripts.collect_outcome_transition import (
+    _build_v1_trace_and_digest, _visual_first_label, run_session)
 import research_cli
 
 TOKEN = "20261028T220000Z-0123456789"
@@ -24,14 +25,16 @@ TOKEN = "20261028T220000Z-0123456789"
 def child_summary():
     return {
         "run_token": TOKEN,
-        "source": "live-emulator-read-only-US-Rev1+human-result-label",
+        "source": "human-terminal-result-no-ram-game-context-unverified",
         "outcome_collection_mode": "human_terminal_first_no_ram",
         "raw_data_created": False,
         "candidate_ranking": None,
         "swing_dispatch": {"state": "complete", "applied_frames": 89},
         "known_good_swing_request": {
             "preset": "forward", "generated_trace_frames": 89,
-            "trace_sha256": "a" * 64, "motion_scale": 1.0,
+            "trace_sha256": _build_v1_trace_and_digest(
+                motion_scale=1.0, speed_scale=1.0, backswing_scale=1.0)[1],
+            "motion_scale": 1.0,
             "speed_scale": 1.0, "backswing_scale": 1.0,
             "a_lead_requested_frames": 45,
             "a_lead_observed_frame_delta": 45,
@@ -49,6 +52,8 @@ def child_summary():
             "shot_start_frame_before_controller_trace": 120,
             "displayed_power_percent_human": 75.0,
             "displayed_power_verified_by_memory": False,
+            "hitting_green_first_ball_context_human_confirmed": True,
+            "game_context_verified_by_memory": False,
             "private_sensitive_ram": "MUST_NOT_PUBLISH",
         },
         "settled_screen_observation": "human_terminal_before_transition",
@@ -85,6 +90,10 @@ class VisualFirstCollectorTests(unittest.TestCase):
         self.assertFalse(report["raw_data_created"])
         self.assertIsNone(report["candidate_ranking"])
         self.assertFalse(human["game_distance_verified_by_memory"])
+        self.assertTrue(human["hitting_green_first_ball_context_human_confirmed"])
+        self.assertFalse(human["game_context_verified_by_memory"])
+        self.assertEqual(report["source"],
+                         "human-terminal-result-no-ram-game-context-unverified")
 
     def test_fixed_offgreen_display_is_censored_not_physical_distance(self):
         response = _visual_first_label(lambda _: "M:100ft")
@@ -125,7 +134,7 @@ class VisualFirstCollectorTests(unittest.TestCase):
 
 
 class VisualFirstJoinTests(unittest.TestCase):
-    def _check(self, data, *, expect_ok=True, use_token=TOKEN):
+    def _check(self, data, *, expect_ok=True, use_token=TOKEN, backswing=1.0):
         with tempfile.TemporaryDirectory() as directory:
             caps = Path(directory)
             target = caps / f"outcome-{TOKEN}-candidates.json"
@@ -133,7 +142,7 @@ class VisualFirstJoinTests(unittest.TestCase):
             with patch.object(research_cli, "CAPTURES", caps):
                 joined = research_cli._joined_visual_first(
                     use_token, datetime.now(timezone.utc) - timedelta(seconds=3),
-                    a_lead=45, speed=1.0, backswing=1.0)
+                    a_lead=45, speed=1.0, backswing=backswing)
         self.assertEqual(joined["capture_status"] == "visual_first_joined", expect_ok)
         return joined
 
@@ -147,7 +156,10 @@ class VisualFirstJoinTests(unittest.TestCase):
         self.assertFalse(result["verified_game_score"])
         self.assertEqual(result["human"]["displayed_distance_source"],
                          "offgreen_100ft_penalty")
-        self.assertEqual(result["controller"]["trace_sha256"], "a" * 64)
+        self.assertEqual(result["controller"]["trace_sha256"],
+                         child_summary()["known_good_swing_request"]["trace_sha256"])
+        self.assertTrue(result["informative_action_outcome_trial"])
+        self.assertFalse(result["game_id_revision_mode_machine_verified"])
         self.assertEqual(result["human"]["initial_club_pose_human"], "back")
         self.assertEqual(result["human"]["displayed_power_percent_human"], 75.0)
         self.assertEqual(result["human"]["shot_start_bridge_tick_before_trace"], 120)
@@ -167,6 +179,7 @@ class VisualFirstJoinTests(unittest.TestCase):
             ("a_lead_observed_frame_delta", 44),
             ("generated_trace_frames", 88),
             ("trace_sha256", "not-a-hash"),
+            ("trace_sha256", "b" * 64),
         ):
             with self.subTest(key=key):
                 data = child_summary()
@@ -204,6 +217,66 @@ class VisualFirstJoinTests(unittest.TestCase):
                 mutate(data)
                 self._check(data, expect_ok=False)
 
+    def test_deterministic_waveform_identity_baseline_and_1p2(self):
+        baseline = child_summary()
+        self.assertTrue(self._check(baseline)["informative_action_outcome_trial"])
+        changed = child_summary()
+        changed["known_good_swing_request"]["backswing_scale"] = 1.2
+        changed["known_good_swing_request"]["trace_sha256"] = (
+            _build_v1_trace_and_digest(motion_scale=1.0, speed_scale=1.0,
+                                      backswing_scale=1.2)[1])
+        self.assertNotEqual(baseline["known_good_swing_request"]["trace_sha256"],
+                            changed["known_good_swing_request"]["trace_sha256"])
+        self._check(changed, backswing=1.2)
+        wrong = deepcopy(changed)
+        wrong["known_good_swing_request"]["trace_sha256"] = (
+            baseline["known_good_swing_request"]["trace_sha256"])
+        self._check(wrong, backswing=1.2, expect_ok=False)
+
+    def test_human_source_and_category_pair_fails_closed(self):
+        for key, bad in (
+            ("source", "live-emulator-read-only-US-Rev1+human-result-label"),
+            ("source", "machine-verified-game-context"),
+        ):
+            data = child_summary()
+            data[key] = bad
+            self._check(data, expect_ok=False)
+        for field, bad in (
+            ("hitting_green_first_ball_context_human_confirmed", False),
+            ("game_context_verified_by_memory", True),
+        ):
+            data = child_summary()
+            data["human_observation"][field] = bad
+            self._check(data, expect_ok=False)
+        for kind, green, source, value in (
+            ("green", "yes", "offgreen_display_unverified", 3.2),
+            ("offgreen", "no", "ongreen_display_human", 100.0),
+            ("uncertain", "unknown", "offgreen_display_unverified", None),
+        ):
+            data = child_summary()
+            data["human_observation"].update({
+                "visible_result_class_human": kind,
+                "finished_on_green_human": green,
+                "displayed_distance_source": source,
+                "displayed_distance_human": value,
+            })
+            if kind == "uncertain":
+                data["human_observation"].update({
+                    "terminal_screen_seen_before_transition_human": None,
+                    "displayed_unit_human": "not-visible",
+                })
+                data["settled_screen_observation"] = "human_terminal_unseen_or_unknown"
+            self._check(data, expect_ok=False)
+
+    def test_no_or_unknown_contact_is_ineligible_for_outcome_comparison(self):
+        for contact in ("no", "unknown"):
+            with self.subTest(contact=contact):
+                data = child_summary()
+                data["human_observation"]["contact_human"] = contact
+                result = self._check(data)
+                self.assertFalse(result["informative_action_outcome_trial"])
+                self.assertFalse(result["verified_game_score"])
+
     def test_not_seen_before_transition_remains_unknown(self):
         data = child_summary()
         data["human_observation"].update({
@@ -218,6 +291,7 @@ class VisualFirstJoinTests(unittest.TestCase):
         joined = self._check(data)
         self.assertIsNone(joined["human"]["displayed_distance_human"])
         self.assertFalse(joined["human"]["terminal_screen_seen_before_transition_human"])
+        self.assertFalse(joined["informative_action_outcome_trial"])
 
     def test_unregistered_visual_first_settings_refused_before_launch(self):
         # Fabricated only: reject a run that the B1/B2/X1 protocol cannot compare.
@@ -286,6 +360,30 @@ class VisualFirstJoinTests(unittest.TestCase):
                 status = json.loads(records[0].read_text())
                 self.assertEqual(status["capture_status"], "failed_or_cancelled_action")
                 self.assertFalse(status["shot_dispatch_verified_by_collector"])
+
+    def test_uninformative_valid_attempt_stays_local_and_unpublished(self):
+        from wii_ai_golf.lab.github_sync import SyncReport
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(research_cli, "sync_merged_main",
+                              return_value=SyncReport("up_to_date")), \\
+                 patch.object(research_cli, "DATA", Path(directory)), \\
+                 patch.object(research_cli, "_run", return_value=0), \\
+                 patch.object(research_cli, "_joined_visual_first",
+                              return_value={"capture_status": "visual_first_joined",
+                                            "informative_action_outcome_trial": False,
+                                            "human": {"contact_human": "unknown"}}), \\
+                 patch.object(research_cli, "publish_summary") as publish, \\
+                 patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
+                       return_value={"revision": "V1-neutral-swing-calls",
+                                     "safe_for_isolated_legacy_copy": True}):
+                code = research_cli.main(["v1", "--live", "--a-lead", "45",
+                                          "--visual-first"])
+                self.assertEqual(code, 2)
+                publish.assert_not_called()
+                records = list((Path(directory) / "research-cli").glob("*.json"))
+                self.assertEqual(len(records), 1)
+                saved = json.loads(records[0].read_text())
+                self.assertFalse(saved["informative_action_outcome_trial"])
 
     def test_malicious_legacy_nested_screen_label_not_published(self):
         with tempfile.TemporaryDirectory() as directory:
