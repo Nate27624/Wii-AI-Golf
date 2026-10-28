@@ -79,3 +79,40 @@ At the precise reviewed source code SHA `1fdf80ff5d04caab8b5a9deb6c989ac7ee37394
 To discriminate, this PR pins the full **832 nonoverlapping PUBLIC .text object-file intervals** from `doldecomp/ogws/config/RSPE01_01/splits.txt` into `research/source_maps/RSPE01_01_public_text_units.json`, anchored by upstream Git blob `df4085de5285b0d188fdfec8c097b301382263d3`. These intervals are **public code provenance only**: not native ROM instructions, heap pointers, RAM banks, or Wii player data. Exact source-label metadata and interval coverage are fail-closed and tested with corrupted index and adversarial branch cases. The new read-only output key `short_writer_entry_public_source_destination` resolves the B0 native PPC branch against *all published units*, but prints only the public file label and **source-unit-relative offset**; if absent, explicitly reports `outside_all_832_published_rev1_text_units` rather than inventing a function. It does not fetch remote data on the operator's PC or ask for any new emulator action.
 
 **Scientific limits:** public source-unit ownership does not identify selected ball object receiver, whether the branch executes during a hit, real XYZ, physics timing, frame link or units. Once the operator produces a named public unit + offset, the agent can resolve the exact PUBLIC ogws function boundary, and assess this control transfer against the independent `fn_802A0320` writer path and `fn_80299C70` cache updater. No unconditional runtime promotion, training or auto-Git upload.
+
+
+## Independent typed source annotation: `RPGolMain::NextShot()` entry
+
+**New primary-source cross-reference, not another native PPC scan.** Public
+[PackProject/Kokeshi Wii Sports Rev1 symbol list](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/base/symbols_sports.txt),
+pinned repository commit `dfbdda61aadad423911d5345f67f8793aa92cd5f`
+and exact symbol-file Git blob `2b5da20929e51a991622e8793041163dcc5d9f6d`,
+contains **`NextShot__9RPGolMainFv=0x8028e2ec`**. Independent
+[Kokeshi `RPGolMain.h`](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPGolScene/RPGolMain.h)
+declares `class RPGolMain { ... void NextShot(); }`.
+The preexisting **operator B0 SHA-verified** #219 source-call findings identified
+`fn_8028E2EC` as the GolfMain callsite into PlayerManager
+`fn_802A30F8`, in turn linking to the longer
+`fn_802A0320` containing three candidate Player-to-Ball position stores.
+This public name is an **independent typed method-entry hypothesis** for
+the previously anonymous GolfMain entry, and gives a concrete reason
+not to confuse those position writes with a periodically executed
+Golf physics integrator.
+
+**Research prioritization:** distinguish `NextShot` (a named shot-transition
+routine) from source `fn_8028E158` OnCalculate target (scene-update
+candidate). First establish whether the target stores occur only during
+a shot transition or each simulated ball step; *no callgraph-only scan
+establishes actual execution frequency*. S001 #272 should not place
+an `executed_site_id` hook or nominate `guest_ball_physics_step_id`
+from `NextShot` or its descendant writes without dynamic execution and
+post-update proof. #240 may investigate whether the actual rendered ball
+actor is source-global versus selected, only with a future visual join.
+
+**Limits:** Kokeshi is a published handwritten symbol/header annotation
+targeting NTSC-U Rev1. It strongly identifies a *public source name*
+but does not prove all runtime receiver aliases, that `NextShot`
+actually executes during the user's shots, the selected player's
+world position, source flight physics step, timestamps, contact,
+velocity, power or training. No original bank reread, Dolphin action,
+game input, hook, additional PowerShell or private data was needed.
