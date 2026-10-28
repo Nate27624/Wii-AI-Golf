@@ -95,6 +95,58 @@ class TwoWordRoleTests(unittest.TestCase):
         x[6]["whole_record"]=tuple(v)
         self.assertFalse(m.report(x)["fields"][0]["same_one_ball_component_alias_all_three_wedge_phases"][0])
 
+    def test_three_point_record_scalar_affine_relation_is_only_candidate(self):
+        x=fixture()
+        for phase,val in ((5,1),(6,2),(7,3)):
+            words=list(x[phase]["whole_record"])
+            words[0x90//4]=fword(2*val+5)
+            x[phase]["whole_record"]=tuple(words)
+        rel=m.report(x)["relationship"]
+        self.assertEqual(rel["wedge_player_030_equals_player_090_word_by_phase_W5_W6_W7"],
+                         [False,False,False])
+        self.assertTrue(rel["wedge_player_090_affine_to_player_030_three_points_candidate"])
+        self.assertTrue(rel["wedge_player_030_affine_to_ball_component_0_three_points_candidate"])
+        self.assertTrue(rel["wedge_player_090_affine_to_ball_component_0_three_points_candidate"])
+        self.assertFalse(rel["wedge_player_030_minus_090_is_numeric_constant"])
+        self.assertFalse(rel["three_point_affinity_proves_physical_mapping"])
+
+    def test_constant_scalar_difference_candidate(self):
+        x=fixture()
+        for phase,val in ((5,1),(6,2),(7,3)):
+            words=list(x[phase]["whole_record"])
+            words[0x90//4]=fword(val+5)
+            x[phase]["whole_record"]=tuple(words)
+        rel=m.report(x)["relationship"]
+        self.assertTrue(rel["wedge_player_030_minus_090_is_numeric_constant"])
+        self.assertTrue(rel["wedge_player_090_affine_to_player_030_three_points_candidate"])
+
+    def test_non_affine_three_point_relationship_rejected(self):
+        x=fixture()
+        for phase,val in ((5,10),(6,25),(7,11)):
+            words=list(x[phase]["whole_record"])
+            words[0x90//4]=fword(val)
+            x[phase]["whole_record"]=tuple(words)
+        rel=m.report(x)["relationship"]
+        self.assertFalse(rel["wedge_player_090_affine_to_player_030_three_points_candidate"])
+        self.assertFalse(rel["wedge_player_030_minus_090_is_numeric_constant"])
+
+    def test_pointer_tiny_float_shape_does_not_force_affine_mapping(self):
+        rel=m.report(fixture())["relationship"]
+        self.assertIsNone(rel["wedge_player_090_affine_to_player_030_three_points_candidate"])
+        self.assertIsNone(rel["wedge_player_090_affine_to_ball_component_0_three_points_candidate"])
+        self.assertFalse(rel["three_point_affinity_proves_physical_mapping"])
+
+    def test_nonfinite_scalar_gives_unknown_relation_not_false(self):
+        x=fixture()
+        words=list(x[6]["whole_record"])
+        words[0x90//4]=0x7fc00000
+        x[6]["whole_record"]=tuple(words)
+        rel=m.report(x)["relationship"]
+        self.assertIsNone(rel["wedge_player_090_affine_to_player_030_three_points_candidate"])
+        self.assertIsNone(rel["wedge_player_030_minus_090_is_numeric_constant"])
+        self.assertEqual(rel["wedge_player_030_vs_090_float_order_by_phase_W5_W6_W7"][1],
+                         "unclassified")
+
     def test_source_owner_hole_config_mismatch_abstain(self):
         for key,value in (("selected_index",2),("hole",4),("cfg_c4",9)):
             x=fixture();x[6][key]=value
