@@ -27,6 +27,37 @@ def run(code):
     return probe.census(reader)
 
 class DrawMainTests(unittest.TestCase):
+    def test_real_source_PC_targets_have_only_unit_qualification(self):
+        # Exact static public PCs from original human seven-pair 14-bank run.
+        a=probe.ENTRY+0x18
+        b=probe.ENTRY+0x20
+        r=run({a:bl(a,0x802BAC0C),b:bl(b,0x802946DC)})
+        self.assertEqual(r["source_direct_BL_count"],2)
+        self.assertEqual(r["source_direct_BL_sites"][0]["target_public_code_pc"],
+                         "0x802BAC0C")
+        self.assertEqual(r["source_direct_BL_sites"][0]["target_public_golf_unit_hint"],
+                         "RPGolScene_unsplit_source_unit_ONLY")
+        self.assertEqual(r["source_direct_BL_sites"][1]["target_public_code_pc"],
+                         "0x802946DC")
+        self.assertEqual(r["source_direct_BL_sites"][1]["target_public_golf_unit_hint"],
+                         "RPGolDrawManager_source_unit_ONLY")
+        self.assertFalse(r["render_object_submit_function_typed_and_verified"])
+        self.assertFalse(r["actual_guest_render_execution_verified"])
+        self.assertFalse(r["visual_frame_and_guest_physics_step_join_verified"])
+
+    def test_half_open_source_unit_boundaries(self):
+        for lo,hi,label in (
+            (probe.GOLF_DRAW_MANAGER_LO,probe.GOLF_DRAW_MANAGER_HI,
+             "RPGolDrawManager_source_unit_ONLY"),
+            (probe.GOLF_UNSPLIT_LO,probe.GOLF_UNSPLIT_HI,
+             "RPGolScene_unsplit_source_unit_ONLY"),
+        ):
+            self.assertEqual(probe._public_unit(lo),label)
+            self.assertEqual(probe._public_unit(hi-4),label)
+            self.assertNotEqual(probe._public_unit(hi),label)
+        self.assertEqual(probe._public_unit(0x80004000),
+                         "OTHER_OR_UNKNOWN_PUBLIC_TEXT")
+
     def test_source_is_exactly_thirteen_words(self):
         self.assertEqual(probe.SIZE,0x34)
         self.assertEqual(probe.WORD_COUNT,13)
