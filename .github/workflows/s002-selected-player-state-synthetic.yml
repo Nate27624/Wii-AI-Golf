@@ -3,6 +3,11 @@ on:
   push:
     branches:
       - agent/research/selected-player-state-b0b3-20261027
+  pull_request:
+    paths:
+      - scripts/audit_selected_player_state_four_phase_private.py
+      - tests/test_selected_player_state_four_phase_private.py
+      - .github/workflows/s002-selected-player-state-synthetic.yml
   workflow_dispatch:
 permissions:
   contents: read
