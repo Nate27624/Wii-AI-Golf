@@ -68,6 +68,17 @@ class Source101Tests(unittest.TestCase):
         self.assertEqual(r["source_indirect_linked_branch_count"],1)
         self.assertEqual(r["source_conditional_link_or_unclassified_branch_count"],1)
 
+    def test_plain_bctr_and_blr_are_not_direct_update_calls(self):
+        # Exactly scoped indirect non-linking branch forms: no direct BL.
+        r=classify({
+            4:(19<<26)|(528<<1),   # bctr
+            8:(19<<26)|(16<<1),    # blr
+        })
+        self.assertEqual(r["source_direct_linked_call_count"],0)
+        self.assertEqual(r["source_indirect_branch_instruction_count"],2)
+        self.assertEqual(r["source_indirect_linked_branch_count"],0)
+        self.assertFalse(r["guest_physics_step_clock_verified"])
+
     def test_negative_signed_relative_BL(self):
         pc=m.MAIN_ENTRY+0x60
         r=classify({0x60:direct_b(pc,0x8028E158)})
