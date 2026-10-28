@@ -120,7 +120,8 @@ class DrawThunkTests(unittest.TestCase):
                     0x90002054:2,
                     0x9000209C:0x90002200,
                     d.DRAW_PC:lwz_main(),
-                    d.DRAW_PC+4:branch(d.DRAW_PC+4,d.prior.MAIN_UNIT_LO),
+                    d.DRAW_PC+4:branch(d.DRAW_PC+4,0x8028E0B0),
+                    0x8028E0B0:0x60000000,
                     d.prior.CALCULATE_PC:lwz_main(),
                     d.prior.CALCULATE_PC+4:branch(
                         d.prior.CALCULATE_PC+4,d.prior.MAIN_UNIT_LO+0x120),
@@ -141,6 +142,9 @@ class DrawThunkTests(unittest.TestCase):
                 self.assertEqual(check.call_count,2)
                 self.assertTrue(result["original_14_native_bank_SHA_pre_and_post_verified"])
                 self.assertTrue(result["source_draw_main_tailcall_candidate"])
+                self.assertEqual(result["source_draw_main_13_word_census"]["published_function_size_PPC_words"],13)
+                self.assertEqual(result["source_draw_main_13_word_census"]["source_direct_BL_count"],0)
+                self.assertFalse(result["source_draw_main_13_word_census"]["render_object_submit_function_typed_and_verified"])
                 self.assertFalse(result["actual_ball_render_submission_verified"])
                 self.assertFalse(result["guest_game_physics_frame_clock_verified"])
 
