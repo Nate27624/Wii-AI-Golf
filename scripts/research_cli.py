@@ -138,6 +138,14 @@ def _fresh_human_labels(start_time: datetime, *, run_token: str | None = None,
     if timing not in ("operator_confirmed_before_transition",
                       "screen_had_already_transitioned_before_settled_samples"):
         return {"capture_status": "unqualified_terminal_timing"}
+    category = content.get("terminal_human_category")
+    if (content.get("terminal_capture_mode") != "result_first_human_prompt"
+            or category not in ("on_green", "off_green", "visible_unknown", "transitioned")
+            or (category == "on_green" and human["finished_on_green_human"] != "yes")
+            or (category == "off_green" and human["finished_on_green_human"] != "no")
+            or (category in ("visible_unknown", "transitioned")
+                and human["finished_on_green_human"] != "unknown")):
+        return {"capture_status": "unqualified_terminal_category_or_mode"}
     safe_human = {k: human[k] for k in SAFE_LABELS if k in human
                   and (human[k] is None or type(human[k]) in (str, int, float, bool))}
     safe_trace = {k: swing[k] for k in SAFE_TRACE if k in swing
@@ -150,6 +158,8 @@ def _fresh_human_labels(start_time: datetime, *, run_token: str | None = None,
         "shot_dispatch_status": "bridge_trace_completed_not_game_contact_verified",
         "human": safe_human, "controller": safe_trace,
         "settled_screen_observation": timing,
+        "terminal_capture_mode": "result_first_human_prompt",
+        "terminal_human_category": category,
         "distance_interpretation": (
             "censored_offgreen_100ft_penalty" if penalty
             else "human_label_not_physical_distance_verified"),
@@ -325,7 +335,8 @@ def main(argv: list[str] | None = None) -> int:
                               "--observe-start-pose", "--motion-scale", str(args.motion_scale),
                               "--speed-scale", str(args.speed_scale),
                               "--backswing-scale", str(args.backswing_scale),
-                              "--ask-power", "--run-token", run_token])
+                              "--ask-power", "--result-first",
+                              "--run-token", run_token])
         summary = {"schema": 1,
                    "id": begin.strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:10],
                    "kind": args.command, "started_utc": begin.isoformat(),
@@ -364,11 +375,14 @@ def main(argv: list[str] | None = None) -> int:
                     else "missing_or_unqualified_child_summary")
                 summary["shot_dispatched"] = "unknown"
                 summary["trial_valid_for_action_outcome"] = False
-            elif summary.get("settled_screen_observation") != (
-                    "operator_confirmed_before_transition"):
-                # A completed trace does not certify the terminal screen.
+            elif (summary.get("settled_screen_observation") !=
+                    "operator_confirmed_before_transition"
+                  or summary.get("terminal_capture_mode") != "result_first_human_prompt"
+                  or summary.get("terminal_human_category") not in ("on_green", "off_green")):
+                # Only a human-labeled terminal category observed before any
+                # post-shot RAM can be a categorical action/outcome example.
                 summary["kind"] = "v1_attempt"
-                summary["attempt_status"] = "terminal_result_not_seen_before_transition"
+                summary["attempt_status"] = "terminal_result_missing_or_unqualified"
                 summary["trial_valid_for_action_outcome"] = False
             else:
                 summary["trial_valid_for_action_outcome"] = True
