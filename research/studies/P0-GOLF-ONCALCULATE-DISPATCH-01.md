@@ -25,3 +25,14 @@ Public [kiwi515 ogws_info `RPGolScene.h`](https://github.com/kiwi515/ogws_info/b
 ## Optional local operator validation after source/CI review
 
 Use an exact Git commit pinned detached worktree from PR (no moving head trust): `py -m unittest discover -s tests -p test_p0_golf_oncalculate_dispatch_private.py -v`, then `py -I scripts/audit_p0_golf_oncalculate_dispatch_private.py --archive <unique-original-p0-new-cohort-PRIVATE>`. All 14 original banks are checked twice and all seven source contexts verified. No game/ROM write, capture, controller, network/private upload, training or publication.
+
+
+## Evidence-driven next source prefix (after the operator's actual positive result)
+
+The operator ran exact #279 head `367aa1e` on the original private seven capture archive, **13/13 local tests PASS**, source and 14 native bank hashes verified before/after, and the OnCalculate two-word dispatch pattern **TRUE across all seven**. The direct target is *public static code PC* `0x8028E158`; scene +0x9C pointer class MEM2 7/7. This does NOT establish runtime execution, a confirmed vtable or ball physics step.
+
+Follow-up in this SAME draft, rather than creating another micro-PR, reads just **0x100 bytes** of static executable words beginning at the operator-confirmed target in those original seven banks. The bounded `classify_main_prefix` function counts **syntactic direct BL calls**, their **known public Golf source-unit buckets** (including SimulateManager), conditional/unconditional branches, indirect bclr/bcctr and plain blr markers. It fails closed if the original two-word target is no longer exactly `0x8028E158` or 0x100 source bytes differ across captures. No printed instruction bytes, guessed heap objects, score values, vectors, hash, path or raw frames.
+
+**This is only a lexical prefix scan, NOT a function-range, control-flow graph or invocation trace.** A direct BL in the window is not evidence it executes in any shown frame; no direct BL to SimulateManager would not exclude nested or indirect calls or a call outside the first 0x100 bytes. A plain blr within this prefix may be part of a branch path, not an authoritative end of function. The only next step supported by a positive source-call result is an independently reviewed source/CFG and emulator guest-update feasibility investigation, NOT a hook or live shot.
+
+The committed version contains independent synthetic tests for a hypothetical direct SimulateManager BL and an indirect-only negative. Local **real operator prefix run still pending**; Windows+Ubuntu CI must pass on the updated head before operator invocation. All training and physics labels remain false.
