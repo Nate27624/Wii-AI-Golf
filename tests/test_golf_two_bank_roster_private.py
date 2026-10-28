@@ -97,6 +97,18 @@ def source_flow_fixture(mapping):
         0x802A0D94: dform(36, 31, 30, 0xC4),
     }
     mapping.update(patterns)
+    manager_ptr = mapping[x.PLAYER_MANAGER_STATIC_CANDIDATE]
+    for idx in range(x.ROSTER_SLOTS):
+        record = manager_ptr + 4 + idx * x.ROSTER_STRIDE
+        ball = mapping[record + 0x88]
+        nested = 0x91030000 + idx * 0x100
+        mapping[ball + 0x4C] = nested
+        for component in range(3):
+            word = 0x3F800000 + idx * 16 + component
+            mapping[nested + component * 4] = word
+            mapping[record + 0x54 + component * 4] = (
+                word if idx == 0 else 0
+            )
     return patterns
 
 
@@ -240,6 +252,9 @@ class PlayerBallRosterTests(unittest.TestCase):
         self.assertTrue(flow["record_plus_0xc4_allocated_subobject_source_supported"])
         self.assertEqual(report["exact_constructor_firstword_matches_for_plus_0xc4_subobjects"], 4)
         self.assertTrue(report["source_supported_record_layout_not_gameplay_semantics"])
+        self.assertEqual(report["ball_related_child_plus_0x4c_mapped_triplet_count"], 4)
+        self.assertEqual(report["nested_triplets_equal_record_triplet_count"], 1)
+        self.assertFalse(report["nested_three_word_destination_is_world_ball_xyz_verified"])
         self.assertFalse(flow["world_space_ball_xyz_or_units_verified"])
 
     def test_source_flow_rejects_corrupted_four_slot_indexing(self):
@@ -275,6 +290,16 @@ class PlayerBallRosterTests(unittest.TestCase):
         self.assertFalse(result["bounded_source_register_flow_evidence"]
                          ["record_plus_0xc4_allocated_subobject_source_supported"])
         self.assertEqual(result["exact_constructor_firstword_matches_for_plus_0xc4_subobjects"], 0)
+
+    def test_source_validated_nested_pointer_missing_is_not_inferred(self):
+        words, refs = synthetic()
+        source_flow_fixture(words)
+        ball = words[refs["pm"] + x.BALL_CANDIDATE_MEMBER]
+        words[ball + 0x4C] = 0
+        result = self.analyze(words)
+        self.assertEqual(result["ball_related_child_plus_0x4c_mapped_triplet_count"], 3)
+        self.assertEqual(result["nested_triplets_equal_record_triplet_count"], 0)
+        self.assertFalse(result["nested_three_word_destination_is_world_ball_xyz_verified"])
 
 if __name__ == "__main__":
     unittest.main()
