@@ -65,7 +65,7 @@ class EnvironmentCohortTests(unittest.TestCase):
                     check_public_shape(nested)
         check_public_shape(r)
         output = json.dumps(r)
-        self.assertNotRegex(output, r"0x[0-9a-fA-F]{8}\\b")
+        self.assertNotRegex(output, r"0x[0-9a-fA-F]{8}\b")
         self.assertNotIn("bytes_hex", output)
 
     def test_same_hole_does_not_imply_independent_replication(self):
