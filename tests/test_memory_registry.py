@@ -63,6 +63,30 @@ class MemoryRegistryTests(unittest.TestCase):
                             for v in self.payload["variables"]))
         self.assertIn("pull/154", self.payload["related_evidence_ledger"]["url"])
 
+    def test_real_airborne_evidence_preserves_changed_pin_confound(self):
+        observations = [e for e in self.payload["operator_evidence_history"]
+                        if e.get("kind") == "human_observed_airborne_fullbank_vs_idle_b0"]
+        self.assertEqual(len(observations), 1)
+        evidence = observations[0]
+        changes = evidence["changed_u32_components_of_three"]
+        self.assertEqual(changes["golf.ball_object.current_translation_candidate"], 3)
+        self.assertEqual(changes["golf.ball_object.conditional_cache_f0"], 3)
+        self.assertEqual(changes["golf.tee_start.map_translation_xyz"], 0)
+        self.assertEqual(changes["golf.pin.map_translation_xyz"], 3)
+        self.assertFalse(evidence["training_allowed"])
+        self.assertTrue(evidence["limitations"])
+
+    def test_disputed_outcome_label_is_not_overwritten_by_airborne_evidence(self):
+        history = self.payload["operator_evidence_history"]
+        disputed = next(e for e in history
+                        if e.get("kind") == "disputed_green_outcome_label")
+        self.assertEqual(disputed["adjudication"]["recorded_green_yes_status"],
+                         "disputed_by_operator")
+        self.assertFalse(disputed["training_allowed"])
+        self.assertFalse(self.payload["last_operator_evidence"]["training_allowed"])
+        self.assertTrue(all(not v["training"]["approved"]
+                            for v in self.payload["variables"]))
+
     def test_duplicate_id_is_rejected(self):
         self.payload["variables"].append(copy.deepcopy(self.variable))
         self.assertTrue(any("duplicate id" in s for s in validator.validate_registry(self.payload)))
