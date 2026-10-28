@@ -4,6 +4,8 @@ on:
     paths:
       - scripts/review_p0_golf_main_update_direct_calls.py
       - scripts/review_p0_three_sim_callee_footprints.py
+      - scripts/review_p0_main_postcall_cfg.py
+      - tests/test_p0_main_postcall_cfg.py
       - tests/test_p0_three_sim_callee_footprints.py
       - scripts/audit_p0_golf_oncalculate_dispatch_private.py
       - tests/test_p0_golf_main_update_direct_calls.py
@@ -12,6 +14,8 @@ on:
     paths:
       - scripts/review_p0_golf_main_update_direct_calls.py
       - scripts/review_p0_three_sim_callee_footprints.py
+      - scripts/review_p0_main_postcall_cfg.py
+      - tests/test_p0_main_postcall_cfg.py
       - tests/test_p0_three_sim_callee_footprints.py
       - scripts/audit_p0_golf_oncalculate_dispatch_private.py
       - tests/test_p0_golf_main_update_direct_calls.py
@@ -35,5 +39,7 @@ jobs:
         run: python -I -B -m unittest discover -s tests -p test_p0_golf_main_update_direct_calls.py -v
       - name: Three exact SimulateManager callee footprints and call-gap synthetics
         run: python -I -B -m unittest discover -s tests -p test_p0_three_sim_callee_footprints.py -v
+      - name: New post-call may-CFG and loop cardinality negative controls
+        run: python -I -B -m unittest discover -s tests -p test_p0_main_postcall_cfg.py -v
       - name: Inherited Rev1 OnCalculate 2-word source and privacy tests
         run: python -I -B -m unittest discover -s tests -p test_p0_golf_oncalculate_dispatch_private.py -v
