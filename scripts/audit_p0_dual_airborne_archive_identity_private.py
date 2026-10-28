@@ -95,10 +95,12 @@ def compare_archives(
     left: Path,
     right: Path,
     *,
-    banks=BANKS,
+    banks=None,
     left_manifest_name=LEFT_MANIFEST,
     right_manifest_name=RIGHT_PROVENANCE,
 ) -> dict:
+    if banks is None:
+        banks = BANKS
     # No search beyond a single known ignored captures folder.
     gate(len(banks) == 2 and banks[0][0] == "MEM1"
          and banks[1][0] == "MEM2")
