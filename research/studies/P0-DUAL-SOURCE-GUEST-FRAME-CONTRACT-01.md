@@ -77,3 +77,11 @@ visual, XYZ, velocity, power, score and training flags remain unchanged.
 No Dolphin process, game action, private capture or pointer value
 has been read to implement this fix. Owner #248, S001 #215 and
 S000 #205 must review before integration.
+
+## Independent source-span review: native bank containment for ball-object +0x4C field
+
+Review of the canonical address-range guard in [#290](https://github.com/Nate27624/Wii-AI-Golf/pull/290) found a more specific acceptance bug: a valid aligned pointer to the **last word** of MEM1 or MEM2 (`0x817FFFFC` or `0x93FFFFFC`) passed the five-pointer gate even as a **selected or source-global RPGolMapObjBall**. However earlier source-qualified S002 [#240](https://github.com/Nate27624/Wii-AI-Golf/pull/240) found these ball objects are dereferenced at offset **+0x4C** to acquire a translation pointer. A ball-object base that cannot contain the four-byte member at +0x4C cannot support even this necessary outer chain. This is not evidence the +0x4C target is a valid live translation vector; that remains externally asserted by source owners.
+
+The child review requires each selected/global ball **base** to be 4-byte aligned inside one native guest RAM bank with **0x50 bytes** available (offset +0x4C plus 4-byte field), preventing a bank-end chain from being marked `accepted_for_offline_relationship_review=true`. No general object-size inference: pin, start and field-manager pointers retain the existing one-word range rule because their minimum member spans are not independently established in this contract. The tests include MEM1/MEM2 last-word and off-by-four negatives, exact last-full-member positive boundary, non-ball type guard preservation, and wrong minimum-length inputs.
+
+**Scope:** This is a *necessary syntactic containment* check, not an object type, nested pointer validity, actual guest execution, renderer association, pixel/guest-frame join, world XYZ, velocity, contact, score, impact, power, training or publication. It cannot independently authenticate row booleans. All runtime/physics claims remain FALSE. No Dolphin, game input, new dump, private memory, raw addresses or model training. Tests use fabricated public bank boundaries only; owner #248/#290 review before merging.
