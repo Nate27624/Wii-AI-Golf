@@ -125,6 +125,69 @@ class SelectedPlayerSwingPrivateTests(unittest.TestCase):
         self.assertIn("forward_swing", result["missing_motion_phases"])
         self.assertEqual(result["motion_specific_candidate_count_not_verified"], 0)
 
+    def test_trace_neutral_change_is_not_motion_specific(self):
+        report = make_report()
+        # A held, no backswing yet: a baseline change here must NOT be
+        # labeled a specific swing-motion onset.
+        report["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"][3][
+            "selected_player_record_words_PRIVATE"][0x24 // 4] = 11
+        result = analyzer.analyze(report)
+        item = next(x for x in result["source_relative_candidate_offsets"]
+                    if x["source_relative_offset"] == "+0x024")
+        self.assertFalse(item["trace_neutral_stable_and_equal_to_idle"])
+        self.assertFalse(item["motion_specific_candidate_not_verified"])
+        self.assertEqual(result["motion_specific_candidate_count_not_verified"], 0)
+
+    def test_missing_neutral_control_abstains_from_specificity(self):
+        report = make_report()
+        # Two valid distinct backswing indices, but no sampled trace
+        # neutral row: cannot distinguish a boundary/A response from motion.
+        rows = report["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"]
+        rows[3]["trace_sample_index_if_active"] = 12
+        rows[4]["trace_sample_index_if_active"] = 13
+        result = analyzer.analyze(report)
+        self.assertFalse(result["trace_neutral_control_observed"])
+        self.assertEqual(result["motion_specific_candidate_count_not_verified"], 0)
+
+    def test_out_of_order_stages_rejected_even_with_sorted_ticks(self):
+        report = make_report()
+        rows = report["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"]
+        rows[5], rows[8] = rows[8], rows[5]  # posttrace then active trace
+        for i, row in enumerate(rows):
+            row["frame_tick_index"] = 2*i
+        with self.assertRaisesRegex(ValueError, "phase/trace"):
+            analyzer.analyze(report)
+
+    def test_decreasing_trace_indices_rejected(self):
+        report = make_report()
+        rows = report["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"]
+        rows[4]["trace_sample_index_if_active"] = 27
+        rows[5]["trace_sample_index_if_active"] = 12
+        with self.assertRaisesRegex(ValueError, "phase/trace"):
+            analyzer.analyze(report)
+
+    def test_duplicate_trace_indices_rejected(self):
+        report = make_report()
+        rows = report["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"]
+        rows[5]["trace_sample_index_if_active"] = 12
+        with self.assertRaisesRegex(ValueError, "phase/trace"):
+            analyzer.analyze(report)
+
+    def test_nontrace_control_must_not_claim_active_trace_id(self):
+        report = make_report()
+        report["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"][2][
+            "trace_id_if_active"] = 22
+        with self.assertRaisesRegex(ValueError, "Nontrace control"):
+            analyzer.analyze(report)
+
+    def test_non_integer_trace_id_rejected(self):
+        report = make_report()
+        for row in report["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"]:
+            if row["trace_sample_index_if_active"] is not None:
+                row["trace_id_if_active"] = "fake22"
+        with self.assertRaisesRegex(ValueError, "phase/trace"):
+            analyzer.analyze(report)
+
     def test_result_never_contains_raw_u32(self):
         report = make_report()
         report["PRIVATE_UNVERIFIED_NUMERIC_VECTORS"][4]["selected_player_record_words_PRIVATE"][0x24//4] = 0xDEADBEEF
