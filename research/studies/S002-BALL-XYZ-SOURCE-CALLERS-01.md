@@ -99,6 +99,8 @@ the previously anonymous GolfMain entry, and gives a concrete reason
 not to confuse those position writes with a periodically executed
 Golf physics integrator.
 
+Independent [ogws_info original Rev1 function map](https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RSPE_r1.dmap) (Git blob `544fc84752b66475c49641ddb5c2b415022e0970`) explicitly bounds `FUN_8028e2ec` at **0xB0 bytes** (entry 0x8028E2EC, end-exclusive 0x8028E39C); the neighboring `FUN_8028e158` has **0x194 bytes** and ends exactly at 0x8028E2EC. This independently demonstrates two **distinct, contiguous PPC function windows**, not one long main update loop. It does not prove either is executed at any given moment.
+
 **Research prioritization:** distinguish `NextShot` (a named shot-transition
 routine) from source `fn_8028E158` OnCalculate target (scene-update
 candidate). First establish whether the target stores occur only during
