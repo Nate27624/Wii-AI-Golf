@@ -180,7 +180,8 @@ def capture_one(
                 or hold["observed_frame_delta"] < LEAD_FRAMES
                 or hold.get("a_button_only_requests") != expected_requests
                 or hold.get("game_a_recognition_verified") is not False):
-            raise RuntimeError("fixed 45-tick pretrace control was not observed")
+            raise RuntimeError("real 45-frame A lead was not observed" if pretrace_mode == "hold-a-45"
+                               else "fixed 45-tick neutral pretrace control was not observed")
         rpc.call("golf.ball_watch.stage", ["trace"])
         trace = run_trace(rpc, samples)
         if (not isinstance(trace, dict) or trace.get("state") != "complete"
