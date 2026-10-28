@@ -15,3 +15,14 @@ Synthetic `addi r3,r0,1` followed by `ori r3,r4,0` could previously be reported 
 Explicitly distinguish rA destination for precisely these nine primary opcodes and return conservative `ra_form_r3_assignment_unknown` if rA==3; return no write if rA!=3, even if source rS==3. Do NOT claim a computed constant or runtime pointer. Four adversarial tests cover logical/rotate destinations, source-only uses and conditional branch bypass. Existing local-window CFG, public source offsets, output privacy and all flags for whole-function proof, active execution, real ball, physics and model training remain FALSE.
 
 This is syntactic code-review hardening, **not new native evidence**, not a fifth-object creation proof and not a replacement for #240 / #254 / #255's separate provenance work.
+
+## Extended register-effect qualification
+
+Additional instruction hazards reviewed without changing the owner's CFG structure:
+
+- PPC lmw (opcode 46) writes the entire GPR range rT..r31; any first rT <= 3 overwrites r3. PPC stmw (opcode 47) reads source registers and stores memory, never writes r3.
+- Immediate integer load-update opcodes 33/35/41/43 write both rT and effective-address base rA. If rA is r3, this overwrites r3 even if rT is not r3.
+- Store-update and floating-point memory update opcodes 37/39/45/49/51/53/55 write base rA. Ordinary stores and non-updating FPR memory loads/stores do not write a GPR merely because their operand bits name f3 or r3.
+- Adversarial fabricated cases cover real r3 overwrites, source-only false positives, and alternate register ranges. Unrecognized PPC still cannot establish an all-path reaching definition. This patch makes source candidates more conservative, not physical semantics or executable provenance.
+
+The review branch adds eight tests total to the owner's 13 original micro-CFG cases (21 total); original global writer-value tests remain unchanged. No runtime source data or new user action is required.
