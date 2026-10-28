@@ -154,6 +154,20 @@ class NativeStandalonePowerShellTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('human-observed displacement', result.stderr)
 
+    def test_downloaded_single_script_with_explicit_workspace(self):
+        # No Python modules or other files need to accompany a standalone .ps1.
+        elsewhere = self.repo.parent / 'Downloads'
+        elsewhere.mkdir()
+        downloaded = elsewhere / SCRIPT.name
+        shutil.copy2(SCRIPT, downloaded)
+        cmd = [SHELL, '-NoProfile', '-NonInteractive', '-File',
+               str(downloaded), '-Action', 'Status',
+               '-Workspace', str(self.repo.parent),
+               '-Session', str(self.session)]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('AWAITING_PRE', result.stdout)
+
     def test_legacy_unindexed_bank_is_not_a_valid_capture(self):
         (self.session / 'PRE-MEM1.bin').write_bytes(b'not even a dump')
         result = self.run_ps('-Action', 'Status', '-Session', self.session)
