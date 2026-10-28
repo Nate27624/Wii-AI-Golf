@@ -57,14 +57,32 @@ def _r3_written(word):
     # Classify conservatively without inferring the resulting r3 value.
     if op in (20,21,23,24,25,26,27,28,29):
         return "ra_form_r3_assignment_unknown" if ra==3 else None
-    if op in (14,15,32,33,34,35,40,41,42,43,46,47):
-        if rt!=3:
-            return None
-        if op==14:
-            if ra==0:
-                return "addi_literal_zero" if imm==0 else "addi_literal_nonzero"
-            return "addi_from_r3" if ra==3 else "addi_from_other_register"
-        return "other_r3_value_assignment"
+    # lmw rT,d(rA) loads *every* GPR numbered rT..r31; r3 is changed
+    # for rT in 0..3, even when the instruction does not name r3 as rT.
+    # stmw is the opposite (memory STORE), and cannot redefine r3.
+    if op==46:
+        return "lmw_range_overwrites_r3" if rt<=3 else None
+    # Ordinary integer GPR loads/arithmetic write rT; update forms also
+    # write their address base rA. A load into r0 with rA=r3 is therefore
+    # an r3 write despite rT!=3.
+    if op in (12,13,14,15,32,33,34,35,40,41,42,43):
+        if rt==3:
+            if op==14:
+                if ra==0:
+                    return "addi_literal_zero" if imm==0 else "addi_literal_nonzero"
+                return "addi_from_r3" if ra==3 else "addi_from_other_register"
+            return "other_r3_value_assignment"
+        if op in (33,35,41,43) and ra==3:
+            return "integer_load_update_base_r3"
+        return None
+    # Store-update writes the effective address back into rA. The
+    # immediate here is not a new value for source register rS.
+    # Floating loads/stores use FPR rT/fS, NOT GPR r3; only their
+    # update forms can change a tracked GPR base.
+    if op in (37,39,45,49,51,53,55):
+        return "memory_update_base_r3" if ra==3 else None
+    if op in (36,38,44,47,48,50,52,54):
+        return None
     if op==31:
         xo=(word>>1)&1023
         rs=(word>>21)&31
