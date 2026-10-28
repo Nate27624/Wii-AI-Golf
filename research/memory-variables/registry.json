@@ -1707,6 +1707,437 @@
       },
       "last_evidence_date": "2026-10-28",
       "evidence_ledger_field_ids": []
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "human_labeled_native_bank_archive_not_machine_guest_frame_aligned",
+      "owner": "S002",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Source/phase semantic meaning, machine guest-frame timing, physical units and S002 verification incomplete",
+        "allowed_when": "Only after independent runtime source/semantic verification and S002 approved leakage-safe versioned dataset contract"
+      },
+      "id": "golf.ball.source_global_translation_candidate",
+      "name": "PPC r13-sourced global ball-object translation candidate",
+      "priority": "P0",
+      "role": "source_global_ball_candidate",
+      "status": "source_candidate",
+      "datatype": "float32_be_triplet_candidate",
+      "unit": "game_units_unverified",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_f32x3(read_ptr(source_r13_global_ball_object + 0x4C))",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_r13_global_ball_object",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x4C"
+          },
+          {
+            "op": "read_ptr",
+            "type": "be_u32"
+          },
+          {
+            "op": "read",
+            "type": "be_f32x3"
+          }
+        ],
+        "corroboration": "Source-defined field offset relative to guarded upstream owner; no process-specific guest heap pointer or boot-persistent global base baked in."
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/240"
+        ],
+        "capture_groups": [
+          "Original seven human-labeled native MEM1/MEM2 pairs; operator phase mapping not machine verified"
+        ],
+        "observed_behavior": "Real local operator source-gated seven native snapshots: r13-derived source-global ball object pointer differs from selected-player-linked ball pointer 7/7; global triplet matches selected ball cache +0xCC 3/3 W5,W6,W7, and selected current +0x30 only at W7 among wedge samples. W5,W6,W7 source-global object pointer value stable. Public PPC source verifies source-global load and local copy to a receiver candidate, but reviewed #240 code has still-open archive provenance/source-slot/caller-drift/geometry qualification concerns; runtime executed receiver and actor semantics NOT established. No machine guest frame, physical XYZ, velocity, power, score or training.",
+        "source_confidence": "PPC_source_syntax_or_snapshot_correlation_not_physical"
+      },
+      "limitations": [
+        "Source-global pointer distinct from selected player ball does not identify which is physical or visual projectile",
+        "Real operator report is same original seven capture cohort; no independent shot replication",
+        "Review #240 source drift/provenance blockers before treating negative identity as authoritative"
+      ],
+      "required_controls": [
+        "repair #240 source-global slot and exact BL/source code drift gates before physics interpretation",
+        "prove global object class / resolver across fresh boots, exclude four roster objects",
+        "correlate global actor with independent visually observed projectile and frame-timed source writer"
+      ],
+      "evidence_ledger_field_ids": []
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "human_labeled_native_bank_archive_not_machine_guest_frame_aligned",
+      "owner": "S002",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Source/phase semantic meaning, machine guest-frame timing, physical units and S002 verification incomplete",
+        "allowed_when": "Only after independent runtime source/semantic verification and S002 approved leakage-safe versioned dataset contract"
+      },
+      "id": "golf.ball_object.cache_f0_update_tag_118",
+      "name": "Selected ball object's F0-associated metadata word +0x118",
+      "priority": "P0",
+      "role": "cache_update_tag_candidate",
+      "status": "source_candidate",
+      "datatype": "be_u32_untyped",
+      "unit": "unknown",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_u32(source_selected_ball_object + 0x118)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_selected_ball_object",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x118"
+          },
+          {
+            "op": "read",
+            "type": "be_u32"
+          }
+        ],
+        "corroboration": "Source-defined field offset relative to guarded upstream owner; no process-specific guest heap pointer or boot-persistent global base baked in."
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/242"
+        ],
+        "capture_groups": [
+          "future private seven-pair operator study not yet run"
+        ],
+        "observed_behavior": "Rev1 source #183 documents a conditional cache update metadata store at selected MapObjBall +0x118 alongside F0 vector copy. Seven-phase source/SHA-gated comparison implemented in #242, synthetic tests pass Windows and Ubuntu; REAL private tag values/change behavior NOT YET OBSERVED in this registry update. Do not treat tag as clock, hit flag, or physical simulation metadata.",
+        "source_confidence": "PPC_source_syntax_or_snapshot_correlation_not_physical"
+      },
+      "limitations": [
+        "Unknown value and units; tag may change without cache or vice versa",
+        "Source store site does not prove actual branch executed in these seven captures"
+      ],
+      "required_controls": [
+        "run reviewed #242 per selected+inactive slot over immutable 14 original banks",
+        "contrast tag changes with associated F0 triplet changes on driver and wedge same-shot edges",
+        "trace typed PPC writer value and receiver aliases before classifying semantic type"
+      ],
+      "evidence_ledger_field_ids": []
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "human_labeled_native_bank_archive_not_machine_guest_frame_aligned",
+      "owner": "S002",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Source/phase semantic meaning, machine guest-frame timing, physical units and S002 verification incomplete",
+        "allowed_when": "Only after independent runtime source/semantic verification and S002 approved leakage-safe versioned dataset contract"
+      },
+      "id": "golf.ball_object.cache_fc_update_tag_11c",
+      "name": "Selected ball object's FC-associated metadata word +0x11C",
+      "priority": "P0",
+      "role": "cache_update_tag_candidate",
+      "status": "source_candidate",
+      "datatype": "be_u32_untyped",
+      "unit": "unknown",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_u32(source_selected_ball_object + 0x11C)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_selected_ball_object",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x11C"
+          },
+          {
+            "op": "read",
+            "type": "be_u32"
+          }
+        ],
+        "corroboration": "Source-defined field offset relative to guarded upstream owner; no process-specific guest heap pointer or boot-persistent global base baked in."
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/242"
+        ],
+        "capture_groups": [
+          "future private seven-pair operator study not yet run"
+        ],
+        "observed_behavior": "Rev1 source #183 documents a conditional cache update metadata store at selected MapObjBall +0x11C alongside FC vector copy. Seven-phase source/SHA-gated comparison implemented in #242, synthetic tests pass Windows and Ubuntu; REAL private tag values/change behavior NOT YET OBSERVED in this registry update. Do not treat tag as time, collision flag or physically calibrated height.",
+        "source_confidence": "PPC_source_syntax_or_snapshot_correlation_not_physical"
+      },
+      "limitations": [
+        "Unknown value and units; tag/cached triplet may update independently",
+        "Source store site does not prove actual branch executed or F0/FC are bounds"
+      ],
+      "required_controls": [
+        "run reviewed #242 per selected+inactive slot on canonical 14-bank archive",
+        "contrast 0x11C with FC triplet changes and selected-ball current movement under source pin/tee/Config controls",
+        "trace writer value and executed receiver/conditional branch before semantic label"
+      ],
+      "evidence_ledger_field_ids": []
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "human_labeled_native_bank_archive_not_machine_guest_frame_aligned",
+      "owner": "S002",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Source/phase semantic meaning, machine guest-frame timing, physical units and S002 verification incomplete",
+        "allowed_when": "Only after independent runtime source/semantic verification and S002 approved leakage-safe versioned dataset contract"
+      },
+      "id": "golf.config.standard_scores_table_4x9",
+      "name": "Standard RPGolConfig per-player nine-hole score-table words +0x04",
+      "priority": "P0",
+      "role": "score_table_source_candidate",
+      "status": "snapshot_correlated",
+      "datatype": "be_u32_matrix_4x9",
+      "unit": "unknown",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_u32x36(source_golf_config + 0x04)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_golf_config",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x04"
+          },
+          {
+            "op": "read",
+            "type": "be_u32x36"
+          }
+        ],
+        "corroboration": "Source-defined field offset relative to guarded upstream owner; no process-specific guest heap pointer or boot-persistent global base baked in."
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/239"
+        ],
+        "capture_groups": [
+          "Original seven human-labeled native MEM1/MEM2 pairs; operator phase mapping not machine verified"
+        ],
+        "observed_behavior": "REAL local operator #239 SHA/source-gated all seven original pairs, standard GolfConfig::mPlayerScores[4][9] at +0x04: ZERO of 36 words changed in D1->D2, W5->W6, W6->W7, W5->W7; selected+hole candidate cell unchanged and all four player row change counts zero while selected ball+0x30 changes 3/3. This is a negative for an IMMEDIATE result delta in these sampled mode4 transitions ONLY. It does not disprove score updates at later frames or alternative result backing stores. Distinct SequenceMgr mGolfScores[9][4] +0x14 remains separate untested source field.",
+        "source_confidence": "source_selected_real_snapshot_correlation_not_physical"
+      },
+      "limitations": [
+        "Source-defined standard scores may be unused in Hitting the Green mode4",
+        "No verified score, feet/meter conversion, hit or reward semantics"
+      ],
+      "required_controls": [
+        "independently source trace Hitting-the-Green mode4 score/result UI producer",
+        "test separate source SequenceMgr 9x4 table with its own source owner and selected sport/loop rules",
+        "confirm human 15.2ft readout against screen and per-shot time-linked result state"
+      ],
+      "evidence_ledger_field_ids": []
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "human_labeled_native_bank_archive_not_machine_guest_frame_aligned",
+      "owner": "S002",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Source/phase semantic meaning, machine guest-frame timing, physical units and S002 verification incomplete",
+        "allowed_when": "Only after independent runtime source/semantic verification and S002 approved leakage-safe versioned dataset contract"
+      },
+      "id": "golf.player.selected_record.scalar_030",
+      "name": "Selected RPGolPlayer record changing scalar candidate +0x030",
+      "priority": "P0",
+      "role": "shot_phase_scalar_candidate",
+      "status": "snapshot_correlated",
+      "datatype": "be_f32_candidate",
+      "unit": "unknown",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_f32(source_selected_player_record + 0x030)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_selected_player_record",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x030"
+          },
+          {
+            "op": "read",
+            "type": "be_f32"
+          }
+        ],
+        "corroboration": "Source-defined field offset relative to guarded upstream owner; no process-specific guest heap pointer or boot-persistent global base baked in."
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/235"
+        ],
+        "capture_groups": [
+          "Original seven human-labeled native MEM1/MEM2 pairs; operator phase mapping not machine verified"
+        ],
+        "observed_behavior": "REAL seven-pair source/owner-gated operator D1->D2 and W5->W6->W7: selected RPGolPlayer record+0x030 changes on driver and both wedge edges. Wedge has three distinct BE-f32 finite bounded nonpointer values, numerically increases twice, trends same direction as selected ball object source component0 (NOT the same owner), 0/9 exact word matches against selected ball current/cacheCC/tee/pin triplets. #235 new three-point affine relation check pending real audit; two sign coincidences insufficient for causal/velocity/power interpretation.",
+        "source_confidence": "source_selected_real_snapshot_correlation_not_physical"
+      },
+      "limitations": [
+        "Selected player record+0x030 is NOT the nested selected ball object+0x030",
+        "Finite f32 shape and direction correlation are not verified physical position/speed/power"
+      ],
+      "required_controls": [
+        "run #235 exact source-gated relation test +0x030 vs +0x090 and ball component0 privately",
+        "trace typed PPC writer/reader for selected record+0x030",
+        "repeat same-club controlled motion and idle/aim negative with verified game frame timing"
+      ],
+      "evidence_ledger_field_ids": []
+    },
+    {
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "human_labeled_native_bank_archive_not_machine_guest_frame_aligned",
+      "owner": "S002",
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "Source/phase semantic meaning, machine guest-frame timing, physical units and S002 verification incomplete",
+        "allowed_when": "Only after independent runtime source/semantic verification and S002 approved leakage-safe versioned dataset contract"
+      },
+      "id": "golf.player.selected_record.scalar_090",
+      "name": "Selected RPGolPlayer record changing scalar candidate +0x090",
+      "priority": "P0",
+      "role": "shot_phase_scalar_candidate",
+      "status": "snapshot_correlated",
+      "datatype": "be_f32_candidate",
+      "unit": "unknown",
+      "memory_locator": {
+        "kind": "pointer_chain_hypothesis",
+        "root_static_address": null,
+        "expression": "BE_f32(source_selected_player_record + 0x090)",
+        "steps": [
+          {
+            "op": "resolve_upstream",
+            "name": "source_selected_player_record",
+            "verified_same_boot": false
+          },
+          {
+            "op": "add",
+            "offset": "0x090"
+          },
+          {
+            "op": "read",
+            "type": "be_f32"
+          }
+        ],
+        "corroboration": "Source-defined field offset relative to guarded upstream owner; no process-specific guest heap pointer or boot-persistent global base baked in."
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/235"
+        ],
+        "capture_groups": [
+          "Original seven human-labeled native MEM1/MEM2 pairs; operator phase mapping not machine verified"
+        ],
+        "observed_behavior": "REAL source-gated seven-pair selected RPGolPlayer record+0x090 changes D1->D2 and both W5->W6/W6->W7; 3 distinct wedge values, finite bounded BE-f32 shape and nonpointer 5/5, numerically increases twice same direction as selected ball component0. No exact word equality to current ball/cacheCC/tee/pin across W5,W6,W7 (0/9). #235 three-point affine relation pending; no typed physical/velocity/power association.",
+        "source_confidence": "source_selected_real_snapshot_correlation_not_physical"
+      },
+      "limitations": [
+        "Unknown role, float-shaped bitpattern not a verified float-typed source member",
+        "Two monotonic wedge intervals cannot establish physical velocity or power"
+      ],
+      "required_controls": [
+        "run #235 three-point relation checks to +0x030 and ball component0",
+        "locate independent source writer/readers and distinguish animation/render/physics",
+        "test idle/aim/clock confounds and independently frame-time same-shot reproduction"
+      ],
+      "evidence_ledger_field_ids": []
     }
   ],
   "related_evidence_ledger": {
