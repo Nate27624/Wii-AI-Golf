@@ -8,6 +8,7 @@
 
 Before merging, the PR author must post a **MERGE READY** comment containing all the following:
 
+- [ ] **New agent read-attestation / current baseline:** Agent READ the current AGENTS.md/README ACTIVE headers, docs/agent-session-protocol.md, PowerShell contract, repository map, research coordination and actual owner issue/PR/source/tests; cited actual checked HEAD/status, last operator observation and verified-vs-candidate evidence. Each substantive response refreshed the relevant baseline; no other-context chat state, stale unmerged code or unverified claim treated as current. Handoff to owning GitHub issue/PR with exact commit/tests/next owner completed.
 - [ ] **Scope/owner:** I own the changed implementation, or the responsible canonical owner reviewed and acknowledged the cross-domain change.
 - [ ] **Source:** My branch is based on the latest `origin/main`; I checked the current PR queue for overlapping files, pending dependencies, and superseding PRs. No unreviewed sibling-worktree code or duplicated launcher/score schema.
 - [ ] **Tests:** I ran `py -m unittest discover -s tests -v` (or `python -m unittest discover -s tests -v`), plus targeted tests for the change, with exact command, environment and pass/fail results. If unavailable or failing, do **not** self-merge; report the blocker. A GitHub green badge or synthetic trial alone is not proof of a Windows/Dolphin live test.
