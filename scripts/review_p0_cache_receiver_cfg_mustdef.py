@@ -16,9 +16,11 @@ import json
 from typing import Callable
 
 CACHE_TARGET = 0x80299C70
-# Public Rev1 function entries, bounded callsites from #219/#240.
+# Source-review inputs from #240, NOT two certified containing-function bounds.
+# The first entry is AFTER its alleged callsite: deliberately ABSTAIN until
+# source owners correct that impossible entry/callsite pair using Rev1 symbols.
 CALLERS = (
-    ("fn_80299ACC", 0x80299ACC, 0x80299B64),
+    ("UNVERIFIED_CONTAINING_FN_FOR_80299B64", 0x80299ACC, 0x80299B64),
     ("fn_80299C20", 0x80299C20, 0x80299C58),
 )
 MAX_WORDS = 128
