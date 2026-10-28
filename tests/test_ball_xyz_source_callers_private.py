@@ -246,5 +246,66 @@ class PPCStaticTests(unittest.TestCase):
         self.assertEqual(writer["direct_bl_at_known_function_entry_count"], 0)
         self.assertEqual(writer["direct_bl_to_function_interior_count"], 1)
 
+
+    def test_tiny_writer_entry_can_fallthrough_without_direct_b(self):
+        entry = 0x802A0318
+        # Two valid noncontrol PPC operations (nop) continue to adjacent PC.
+        data = struct.pack(">II", 0x60000000, 0x60000000)
+        self.assertFalse(m.source_thunk_forwards_to_writer(data, entry))
+        self.assertEqual(m.classify_short_writer_entry(data, entry),
+                         "straightline_fallthrough_to_adjacent_entry_candidate")
+
+    def test_short_writer_entry_return_branch_conditional_and_call(self):
+        pc = 0x802A0318
+        forms = [
+            ((0x60000000, 0x4E800020), "return_exception_or_indirect_branch"),
+            ((0x60000000, 0x4E800420), "return_exception_or_indirect_branch"),
+            ((0x60000000, 16 << 26), "conditional_branch_or_fallthrough_unresolved"),
+            ((0x60000000, branch(pc + 4, 0x802A0320, link=False)),
+             "direct_branch_into_main_writer_entry"),
+            ((0x60000000, branch(pc + 4, pc + 0x100, link=False)),
+             "unconditional_branch_elsewhere"),
+            ((0x60000000, branch(pc + 4, pc + 0x100, link=True)),
+             "linked_call_before_entry_end_unresolved"),
+        ]
+        for words, expected in forms:
+            with self.subTest(expected=expected):
+                self.assertEqual(
+                    m.classify_short_writer_entry(struct.pack(">II", *words), pc),
+                    expected)
+
+    def test_upstream_entry_call_edges_grouped_with_source_unit(self):
+        # Simulated two-hop code, no native bytes. The public caller starts
+        # already have exact known function names and signatures.
+        pc = m.UNITS[4][1] + 0x0180
+        code = struct.pack(">III",
+            branch(pc, 0x802A28DC),
+            branch(pc + 4, 0x80299ACC),
+            branch(pc + 8, 0x80299C20))
+        report = m.summarize_code(code, pc)
+        names = {row["callee"]: row for row in report["upstream_function_entry_calls"]}
+        self.assertEqual(names["player_manager_short_entry_caller"][
+            "direct_bl_at_exact_entry_count"], 1)
+        self.assertEqual(names["ball_unit_cache_caller_a"][
+            "direct_bl_at_exact_entry_count"], 1)
+        self.assertEqual(names["ball_unit_cache_caller_b"][
+            "source_units"][0]["source_unit"], "RPGolPlayer")
+        self.assertTrue(report["upstream_calls_do_not_prove_actual_game_update"])
+        self.assertFalse(report["real_inflight_ball_world_xyz_verified"])
+
+    def test_no_assumed_upstream_entry_or_fallthrough_from_zero_fixture(self):
+        entry = 0x802A0318
+        self.assertEqual(
+            m.classify_short_writer_entry(b"\x00" * 8, entry),
+            "unclassified_zero_word")
+        self.assertEqual(
+            m.classify_short_writer_entry(b"", entry),
+            "not_captured")
+        report = m.summarize_code(b"\x00" * 8, entry)
+        self.assertEqual(
+            sum(row["direct_bl_at_exact_entry_count"]
+                for row in report["upstream_function_entry_calls"]), 0)
+        self.assertFalse(report["approved_for_model_training"])
+
 if __name__ == "__main__":
     unittest.main()
