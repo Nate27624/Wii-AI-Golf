@@ -26,6 +26,7 @@ import review_p0_global_slot_store_cfg as writer_cfg
 import review_p0_global_slot_post_return_paths as post_return
 import review_p0_global_slot_symbol_nullguard as public_symbol_guard
 import review_p0_ball_constructor_return as constructor_return
+import review_p0_ball_ctor_return_register_risks as ctor_risks
 
 seven=owner.seven
 roster=owner.roster
@@ -207,6 +208,7 @@ def validate_and_read_three(directory:Path) -> dict:
                 code_ref["single_direct_slot_store_post_return_paths"]=post_return.analyze(rd.u32,disp)
                 code_ref["single_direct_slot_store_public_symbols_and_BO"]=public_symbol_guard.analyze(rd.u32,disp)
                 code_ref["separate_global_ball_constructor_return_candidates"]=constructor_return.analyze(rd.u32)
+                code_ref["separate_global_ball_ctor_register_return_risks"]=ctor_risks.audit(rd.u32)
             elif digest!=source_digest:
                 raise ValueError("Rev1 golf source code differs across wedge phases")
             observations.append({
