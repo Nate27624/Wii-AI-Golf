@@ -1685,7 +1685,9 @@
     "study": "Source-gated B0 vs operator-airborne dual-bank pair; strong selected ball+cache change but pin control 3/3 changed",
     "source": "https://github.com/Nate27624/Wii-AI-Golf/pull/223",
     "summary": "Selected ball and three cache vectors all differ 3/3, player record +0x54/+0x60 and start 0/3, PIN 3/3; source/hole/slot gates pass, full-bank hash preservation; world XYZ/velocity/frame/units/training unverified.",
-    "training_allowed": false
+    "training_allowed": false,
+    "archive_identity_verified_both_banks": true,
+    "archive_identity_scope": "two private copied bank pairs only; NOT a same-game-frame or same-boot proof"
   },
   "research_source_links": {
     "historical_rev0_anchor_negative": "https://github.com/Nate27624/Wii-AI-Golf/pull/217",
@@ -1744,7 +1746,22 @@
         "pin movement could be source object relocation, dynamic pin state or different reference, not diagnosed",
         "no world coordinate units, velocity, verified power, or model training permission"
       ],
-      "training_allowed": false
+      "training_allowed": false,
+      "archive_identity_check": {
+        "date": "2026-10-28",
+        "operator_procedure": "Read-only SHA256 equality of separately preserved 24MiB MEM1 and 64MiB MEM2 copies; exact native sizes and non-symlink files checked locally",
+        "reference_archive_label": "in-flight-human-20261028-054537477",
+        "independent_archive_glob": "p0-airborne-*-PRIVATE",
+        "number_of_independent_archives_checked": 1,
+        "mem1_bytes_identical": true,
+        "mem2_bytes_identical": true,
+        "both_banks_identical": true,
+        "conclusion": "The two preserved archive pairs contain identical bytes. This resolves duplicate-copy versus independent snapshot ambiguity for the checked pair, not original capture clock/provenance or guest-frame synchrony.",
+        "guest_frame_atomicity_verified": false,
+        "same_boot_verified": false,
+        "training_approved": false,
+        "private_raw_hashes_shared": false
+      }
     }
   ],
   "current_p0_hypothesis": "Selected ball+0x4C→+0x30 has phase-associated, source-owned differential evidence when human observes airborne ball. The target pin 3/3 change and unsynchronized/maybe different-boot banks prevent physical world XYZ claim; owner S002 PR #223 must add pin/identity gate and compare cache-vs-current within each phase."
