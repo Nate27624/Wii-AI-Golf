@@ -1,0 +1,30 @@
+name: P0 wedge component anchor synthetic (offline)
+
+on:
+  push:
+    branches:
+      - 'agent/research/p0-seven-axis-anchor-hypothesis-20261028'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_seven_axis_anchor_private.py'
+      - 'tests/test_p0_seven_axis_anchor_private.py'
+      - '.github/workflows/p0-seven-axis-anchor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  p0-axis-anchor:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Synthetic tests ONLY; no native RAM or emulator
+        run: python -m unittest discover -s tests -p "test_p0_seven_axis_anchor_private.py" -v
