@@ -49,6 +49,25 @@ def _trip(sample,name):
 def _equality_mask(word,values):
     return [word==v for v in values]
 
+def _approx_equal(a,b):
+    return math.isclose(a,b,rel_tol=1e-5,abs_tol=1e-6)
+
+def _three_point_affine(x,y):
+    """Boolean only; three-point co-linearity is NOT a physical model."""
+    if len(x)!=3 or len(y)!=3:
+        raise ValueError("exact three phase vectors required")
+    if any(v is None or not math.isfinite(v) for v in (*x,*y)):
+        return None
+    dx1=x[1]-x[0]
+    dx2=x[2]-x[1]
+    if abs(dx1)<=1e-8 or abs(dx2)<=1e-8:
+        return None
+    slope1=(y[1]-y[0])/dx1
+    slope2=(y[2]-y[1])/dx2
+    if not (math.isfinite(slope1) and math.isfinite(slope2)):
+        return None
+    return _approx_equal(slope1,slope2)
+
 def report(samples):
     # A strict owner+pin/tee+config+source-check must pass before any
     # candidate data are inspected as potential float or pointer.
@@ -107,6 +126,38 @@ def report(samples):
                 all(mask[i] for mask in wedge_equal_ball) for i in range(3)],
             "physical_interpretation_verified":False,
         })
+    # Relationship between the two *selected-player* scalar candidates.
+    # This does not read any new RAM beyond the already-qualified source
+    # snapshots. No float, ratio or absolute coordinate escapes the process.
+    left_words=[_word(samples[n],KEYS[0]) for n in WEDGE]
+    right_words=[_word(samples[n],KEYS[1]) for n in WEDGE]
+    left=[finite_float(w) for w in left_words]
+    right=[finite_float(w) for w in right_words]
+    ball0=[finite_float(_trip(samples[n],"ball_object_0x030")[0])
+           for n in WEDGE]
+    float_pair_qualified=all(x is not None for x in (*left,*right))
+    diff_constant=(all(_approx_equal(left[i]-right[i],
+                                     left[0]-right[0]) for i in (1,2))
+                   if float_pair_qualified else None)
+    rel={
+        "wedge_player_030_equals_player_090_word_by_phase_W5_W6_W7":[
+            a==b for a,b in zip(left_words,right_words)],
+        "wedge_player_030_vs_090_float_order_by_phase_W5_W6_W7":[
+            ("unclassified" if a is None or b is None else
+             "equal_within_numeric_tolerance" if _approx_equal(a,b) else
+             "record_030_less_than_090" if a<b else
+             "record_030_greater_than_090")
+            for a,b in zip(left,right)],
+        "wedge_player_030_minus_090_is_numeric_constant":diff_constant,
+        "wedge_player_090_affine_to_player_030_three_points_candidate":
+            _three_point_affine(left,right),
+        "wedge_player_030_affine_to_ball_component_0_three_points_candidate":
+            _three_point_affine(ball0,left),
+        "wedge_player_090_affine_to_ball_component_0_three_points_candidate":
+            _three_point_affine(ball0,right),
+        "three_point_affinity_proves_physical_mapping":False,
+        "relation_uses_only_three_human_labeled_wedge_phases":True,
+    }
     return {
         "kind":"P0-SELECTED-RECORD-TWO-WORD-SOURCE-ROLE-CROSSWALK",
         "schema_version":1,
@@ -114,6 +165,7 @@ def report(samples):
         "all_selected_source_and_within_shot_geometry_gates_passed":True,
         "distinct_fields_compared":len(KEYS),
         "fields":summaries,
+        "relationship":rel,
         "record_plus_030_is_distinct_from_ball_object_plus_030":True,
         "float_shape_or_direction_proves_numeric_semantics":False,
         "pointer_shape_proves_live_pointer":False,
