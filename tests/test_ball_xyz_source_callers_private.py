@@ -197,5 +197,54 @@ class PPCStaticTests(unittest.TestCase):
                 m.audit(session, data)
 
 
+
+    def test_public_rev1_entry_symbols_and_caller_crosswalk(self):
+        # Mimics the OPERATOR'S source-unit-relative reported callsites.
+        # Labels only: no operator ROM/RAM bytes or runtime addresses.
+        lo = min(item[1] for item in m.UNITS)
+        hi = max(item[2] for item in m.UNITS)
+        code = bytearray(hi - lo)
+        callsites = [
+            (m.UNITS[5][1] + 0x09F4, 0x802A0318),
+            (m.UNITS[5][1] + 0x0F2C, 0x802A0320),
+            (m.UNITS[2][1] + 0x2B8C, 0x80299C70),
+            (m.UNITS[2][1] + 0x2C80, 0x80299C70),
+        ]
+        for pc, dst in callsites:
+            struct.pack_into(">I", code, pc - lo, branch(pc, dst))
+        # Exact 8-byte fn_802A0318 trampoline must actually forward.
+        struct.pack_into(">I", code, 0x802A0318 - lo, 0x60000000)
+        struct.pack_into(">I", code, 0x802A031C - lo,
+                         branch(0x802A031C, 0x802A0320, link=False))
+        result = m.summarize_code(code, lo)
+        names = {v["target"]: v for v in result["targets"]}
+        for name in ("player_to_ball_translation_write",
+                     "ball_unit_goal_cache_update"):
+            self.assertEqual(names[name]["direct_bl_at_known_function_entry_count"], 2)
+            self.assertEqual(names[name]["direct_bl_to_function_interior_count"], 0)
+        self.assertTrue(
+            result["short_player_writer_entry_thunk_branches_to_main_function"])
+        self.assertTrue(
+            result["source_function_call_does_not_prove_conditional_stores_executed"])
+        self.assertFalse(result["real_inflight_ball_world_xyz_verified"])
+
+    def test_thunk_forwarding_is_not_inferred_from_symbol_names(self):
+        lo = 0x802A0318
+        self.assertIsNone(m.source_thunk_forwards_to_writer(b"", lo))
+        false_thunk = struct.pack(">II", 0x60000000, 0x60000000)
+        self.assertFalse(m.source_thunk_forwards_to_writer(false_thunk, lo))
+        true_thunk = struct.pack(">II", 0x60000000,
+                                 branch(lo + 4, 0x802A0320, link=False))
+        self.assertTrue(m.source_thunk_forwards_to_writer(true_thunk, lo))
+
+    def test_interior_caller_does_not_get_entry_proof(self):
+        pc = m.UNITS[5][1] + 0x0100
+        code = struct.pack(">I", branch(pc, 0x802A0388))
+        data = m.summarize_code(code, pc)
+        writer = data["targets"][0]
+        self.assertEqual(writer["direct_bl_into_window_count"], 1)
+        self.assertEqual(writer["direct_bl_at_known_function_entry_count"], 0)
+        self.assertEqual(writer["direct_bl_to_function_interior_count"], 1)
+
 if __name__ == "__main__":
     unittest.main()
