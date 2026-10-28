@@ -308,7 +308,25 @@ def main(argv: list[str] | None = None) -> int:
         print("Raw RAM and private hashes are NOT uploaded to GitHub")
         return 0
     except (OSError, RuntimeError, ValueError, FileExistsError, TimeoutError) as exc:
-        print(f"Full-RAM capture FAILED: {type(exc).__name__}; inspect the private session locally.", file=sys.stderr)
+        # Stable safe error codes instead of dumping bridge/private exception text.
+        reason = str(exc).lower()
+        if "paused" in reason or "not advancing" in reason or "frame counter" in reason:
+            code = "DOLPHIN_PAUSED_OR_STALLED"
+        elif "mode 4" in reason or "hitting the green" in reason:
+            code = "NOT_IN_HITTING_GREEN"
+        elif "rspe01" in reason or "revision" in reason:
+            code = "WRONG_GAME_OR_REVISION"
+        elif "byte read" in reason or "hexadecimal" in reason or "byte count" in reason:
+            code = "BRIDGE_RAM_REPLY_INVALID"
+        elif "already exist" in reason or "phase already" in reason or "busy" in reason:
+            code = "DUPLICATE_OR_BUSY_SESSION"
+        elif "not found" in reason or "refused" in reason or "timed out" in reason:
+            code = "BRIDGE_OR_FILE_UNAVAILABLE"
+        elif "confirm" in reason or "displacement" in reason:
+            code = "PHASE_CONFIRMATION_REQUIRED"
+        else:
+            code = type(exc).__name__.upper()
+        print(f"Full-RAM capture FAILED [{code}]. No finished native pair was claimed.", file=sys.stderr)
         return 1
 
 
