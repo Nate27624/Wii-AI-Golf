@@ -106,3 +106,39 @@ exact caller/input and format string provenance study is required after
 the sanitized per-site metadata is examined. Source/owner review and
 independently attested guest frame+visual output event are still required.
 No new Dolphin, capture, controller action, raw private files or upload.
+
+## Real 14-sprintf argument study, operator 2026-10-28
+
+The user ran the exact source `a3f93ad882a56a637659adb773da772463a0ef6c`
+with 12/12 local synthetic tests and original B0 source SHA passed.
+All fourteen sites were within `RPGolScene_unsplit.o`, clustered:
+`+0x07B98,+0x07BBC`;
+`+0x1779C,+0x177C0,+0x177E4,+0x17808,+0x1782C,+0x17850`;
+`+0x18EC0,+0x18EF0,+0x18F20`;
+`+0x19A50,+0x19B50,+0x19B74`.
+Each output-buffer r3 came from `addi r3,r1,...` syntax (stack).
+Each format pointer r4 came from `addi r4,r31,...` syntax.
+No FPR load/op was seen in the **post-barrier bounded window** at any
+of the fourteen direct BL sites. This does NOT rule out values computed
+earlier or integers/GPR/floats prepared outside the bounded window.
+No format literals, types, UI linkage, runtime execution, backing memory
+or result values were identified.
+
+### Next disjoint code-only slice, without a new memory scan
+`scripts/audit_p0_golf_sprintf_r31_variadics_private.py` scans a
+bounded **0xC00-byte syntactic predecessor** for a recognized r31 register
+definition and tentative `lis r31,...; addi r31,r31,...` construction,
+plus within the last 0x80 bytes following the nearest branch/call, last
+recognized r5/r6/r7 assignment classes (integer varargs candidates).
+The scan may cross unknown function entries and report unexecuted
+branches: **no CFG reaching-definition, pointer, format literal or true
+UI distance value can be inferred even when syntax matches**. An absent
+r31 definition is an unresolved source region, not proof no string.
+Keep all format bytes and native values private. The code explicitly
+refuses any direct sprintf call count other than the original 14 and
+revalidates original B0 SHA after reading.
+
+Use this to decide whether the best *next source trace* is value-side
+integer arguments to a specific formatting call, a typed static format
+string origin, or else the indirect NW4R/RPSys layout/message dispatch
+path. Separate S001/#248 guest-frame and visual result link remains P0.
