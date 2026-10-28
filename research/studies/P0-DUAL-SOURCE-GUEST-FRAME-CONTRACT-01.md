@@ -101,3 +101,33 @@ The earlier review #290 accepted aligned MEM1 or MEM2 pointers with one u32 of r
 The source-global **pointer slot** was found near `r13` in MEM1; this is not the **source-global ball object** it points to, which original readers require in MEM2. Each `_checked_row` now needs `MEM2_START <= pointer`, 4-byte alignment, and `pointer + min_span <= MEM2_END` for the above field-specific minimum. Unit tests verify all five MEM1 false positives, near-bank-end insufficient spans, exact-boundary positives, selected-cache+0xFC and malformed numeric inputs. The general helper `_canonical_native_guest_pointer` is retained for other plain address contexts, but the five **source-object** fields use `_qualified_mem2_object_span` exclusively.
 
 **Limit:** These are only outer-object source/size consistency predicates. They do not validate nested vector pointers, actual observed RAM values, object type, same guest physics step, visual identity, frame coherency, ball world XYZ/velocity, power/impact, game scoring or training. The caller's physics-frame attestations remain externally asserted and are not independent evidence of one Golf update. Source review and #248 owner adoption are required before any merge; no Dolphin, private data read, hooks, new shots or training in this patch.
+
+
+## P0 2026-10-28 source-object interval collision guard
+
+The existing independent S002 original-revision seven-phase study distinguishes
+`RPGolMapObjBall` source-global and selected player-ball **object identities**.
+The prior #248 reviewer rejected exactly identical pointers and enforced full
+MEM2 extents, but two **different** aligned pointers could still give
+overlapping object intervals, e.g. selected `[base,base+0x108)` and
+source-global `[base+0x104,base+0x154)`. A fabricated overlapping alias
+could incorrectly pass as a two-object witness, even though the selected
+object's source-qualified CC/FC memory would be occupied by the global object.
+
+The reviewer now rejects any overlap using the ORIGINAL reader-qualified
+outer MEM2 footprints: selected `[p,p+0x108)` and global `[q,q+0x50)`.
+It permits exact adjacency (half-open ends), preserves the original single
+pointer equality and stable-identity checks, and exports only a private-data-
+free categorical `selected_global_object_spans_disjoint=true`.
+Four new fabricated regression tests cover both overlap directions,
+interior selected offsets, and both exact adjacency directions, plus
+truthfulness of unchanged runtime/visual/training `false` flags.
+
+This applies **only** to two source-qualified separate ball object ranges.
+No global requirement is asserted for overlap among unrelated field/pin/start
+objects without independently reviewed source-layout evidence. Numeric
+range separation is a necessary relation, not actual runtime object, type,
+actor rendering, guest physics frame, real ball XYZ/velocity/impact/power/score
+or model training proof. No Dolphin, native archive, shot, hook or operator
+PowerShell is required. Owner S001/S002/S000 review and repository checks
+still gate any merge.
