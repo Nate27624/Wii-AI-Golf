@@ -144,15 +144,15 @@ class CfgReceiverMustDefTests(unittest.TestCase):
         self.assertNotIn("0x80299",str(r))
         self.assertNotIn("0x9000",str(r))
 
-    def test_reported_first_caller_entry_after_callsite_abstains(self):
-        # #240's first tuple claims the entry fn_80299ACC while its bl
-        # instruction is at 0x80299B64 (0x168 bytes EARLIER).
-        # This must never be promoted to static r31 provenance.
+    def test_first_real_caller_window_order_and_wrong_order_negative(self):
+        # Regression: 0x80299ACC < 0x80299B64. First #240 caller interval
+        # is arithmetic-valid, but still lacks independently verified CFG.
         name, entry, pc = mod.CALLERS[0]
-        self.assertGreater(entry, pc)
+        self.assertLess(entry, pc)
+        self.assertEqual(pc-entry, 0x98)
         out = mod.prove_caller(
             lambda _: (_ for _ in ()).throw(AssertionError("no source read")),
-            entry=entry, callsite=pc
+            entry=pc+4, callsite=pc
         )
         self.assertEqual(out["status"],"ABSTAIN_SOURCE_UNRESOLVED")
         self.assertFalse(out["all_reaching_paths_pass_entry_r3_through_r31_to_call_r3"])
