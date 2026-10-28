@@ -122,3 +122,32 @@ Public `kiwi515/ogws_info` original reverse-engineered Rev1 header (https://gith
 Additional script `scripts/audit_golf_effect_vector_receiver_private.py` (with `tests/test_golf_effect_vector_receiver_private.py`) checks exact PPC instruction signatures for the two observed vector-store chains, searches only up to 0x240 preceding bytes in the same linked source unit for plausible `stwu r1,-N(r1)` and `mr r29,r3` instructions, and returns only up to 0xBC narrow code context around each writer. It intentionally does not claim function boundaries, dynamic control-flow or true RPSysEffect ownership from prologue proximity. It reuses existing private B0 SHA and selected-source gates and never launches Dolphin.
 
 Run against the same original saved private B0 session; no new screenshots or game captures are necessary. Review the printed candidate function prologue PCs and exact code disassembly before any pointer-to-effect entry attribution. Training, physical ball XYZ, velocity, meter power and game score remain unverified.
+
+## Operator-run receiver context resolved (2026-10-28)
+
+The user ran the B0 code receiver scanner against its preserved SHA-gated memory image. Four synthetic tests passed, and **exact** snippets established these new source facts:
+
+### FieldManager candidate is an indirect, iterated child pointer — NOT direct FieldManager member writes
+
+- The scanner found possible stack setup sequences at `0x80290CFC`, `0x80290D50`, `0x80290DB0`; these are merely *possible* prologues. It did **NOT** find `mr r29,r3` in the checked bounded span.
+- `0x80290E4C 0x7FFDFB78 mr r29,r31` establishes r29 from r31 (not from the manager this argument in this span).
+- `0x80290E78 0x807D0004 lwz r3,+0x4(r29)` dereferences a pointer entry; `0x80290E80/88/90` writes stack +0x10/+0x14/+0x18 floating-point values into this child receiver's `+0x78/+0x7C/+0x80`.
+- Alternate path `0x80290E98 lwz r3,+0x4(r29)` similarly writes stack +0x1C/+0x20/+0x24 to receiver +0x78/+0x7C/+0x80 at `0x80290EA0/EA8/EB0`.
+- After either branch, `0x80290EB4 addi r28,r28,1` increments an index and `0x80290EB8 addi r29,r29,4` advances the source pointer cursor **four bytes**. This supports a loop over pointer-sized entries (hypothesis, not an independently typed array). Source r31 ownership, actual child class, CFG and correspondence to effect windows are not verified.
+
+### MapObjBall candidate writes to the incoming object, not a proved minimap effect
+
+- Prior code returns at `0x802977C4 blr`; an independent method-shaped prologue appears at `0x802977C8 stwu r1,-0x10(r1)`.
+- `0x802977D8 0x7C7F1B78 mr r31,r3` saves the **incoming r3 receiver**. The contiguous observed local instructions through the stores do not overwrite r3; conditional branches at `0x802977EC` and `0x802977F8` gate execution.
+- `0x80297804 lfs f0,-0x39F0(r2)` obtains a float constant from SDA2 (numeric value not established), and `0x80297810/14/18` stores that same float into `r3+0x78/+0x7C/+0x80`; `0x8029781C/20/24` stores it into a second triplet at `r3+0x1A0/+0x1A4/+0x1A8`.
+- This is source-level **conditional float triplet reset-like behavior on the method's incoming receiver**, much stronger than an offset coincidence, but still **NOT** a memory-backed moving-ball/velocity identification nor an effect-object writer. There is no evidence this function executed in the successful-shot PRE/POST snapshots.
+
+The typed reference from `kiwi515/ogws_info` supplies `RPGolFieldManager` effect-pointer **manager offsets** `+0x94/98/9C`; these must never be conflated with the **pointed-to** object's `+0x78/+0x7C` or the independent `RPGolMapObjBall` object. In the actual successful-shot snapshots those latter effect-field `+0x7C` words were pointer-like; in the two PPC candidate routines `+0x7C` is written via **stfs**. This is another reason not to equate the code PC with the observed effect-field change without runtime receiver equality.
+
+### Implemented provenance regression
+
+`scripts/audit_golf_effect_vector_receiver_private.py` now fail-closed validates these exact Rev1 PPC instructions: FieldManager `r29 <- r31`, both `lwz r3,+4(r29)` and both float-store triplets, plus four-byte r29 advance; MapObjBall method-shaped prologue, `r31 <- entry r3`, contiguous read/branch/constant-load instructions and six float stores. It emits **static** named flags for these source-only chains and retains negative `field_r31_origin_proven`, `field_effect_object_pointer_proven`, `ball_source_selected_runtime_instance_verified`, `RPSysEffect_field_078_07C_type_proven`, ball physical coordinates and training. Added tampered PPC signature tests to `tests/test_golf_effect_vector_receiver_private.py`, and the CI workflow runs on Windows + Ubuntu. Reuse the already preserved B0 image; no new game launch, capture or full-bank scan.
+
+### Next priority for source agents
+
+Investigate *actual* RPSysEffect layout and any methods that write `effect_ptr+0x78/+0x7C`, or source-register origin of FieldManager r31, using existing code/decomp metadata. The only useful runtime evidence upgrade would be a source-gated equality between the code's actual receiver object and the distinct four effect entries, not yet collected. Do not request a new live swing merely to reproduce the existing shot.
