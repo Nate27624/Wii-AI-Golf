@@ -55,6 +55,30 @@ class DualObjectTests(unittest.TestCase):
         self.assertEqual(r["source_global_equals_selected_cc_components_per_sample"],[3,3,3,3])
         self.assertFalse(r["actual_ball_world_xyz_verified"])
 
+    def test_reject_persistently_aliased_global_and_selected_ball(self):
+        rows = self.cohort()
+        for row in rows:
+            row["source_global_ball_object_pointer"] = (
+                row["selected_ball_object_pointer"])
+        # The former validator accepted a stable SAME-object relationship
+        # while reporting accepted_for_offline_relationship_review=true.
+        with self.assertRaisesRegex(ValueError, "must be distinct"):
+            mod.summarize_private_samples(rows)
+
+    def test_reject_even_single_aliased_frame(self):
+        rows = self.cohort()
+        rows[2]["source_global_ball_object_pointer"] = (
+            rows[2]["selected_ball_object_pointer"])
+        with self.assertRaises(ValueError):
+            mod.summarize_private_samples(rows)
+
+    def test_distinct_but_stable_ids_still_accepted(self):
+        rows = self.cohort()
+        result = mod.summarize_private_samples(rows)
+        self.assertTrue(result["selected_global_object_pointers_distinct"])
+        self.assertTrue(result["accepted_for_offline_relationship_review"])
+        self.assertFalse(result["rendered_ball_object_identity_verified"])
+
     def test_no_real_frame_claim_from_attestation(self):
         r=mod.summarize_private_samples(self.cohort())
         self.assertFalse(r["actual_guest_physics_time_verified_by_analyzer"])
