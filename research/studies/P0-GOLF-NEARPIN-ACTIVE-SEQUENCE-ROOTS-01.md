@@ -74,3 +74,49 @@ already-preserved seven pairs is warranted.
 This does not duplicate prior #245 generic score table, #256 concluded
 unproductive UI text xrefs, #240 global-ball or #263 receiver analyses.
 No user commands or Dolphin shots requested merely to review this PR.
+
+
+## Stronger typed outcome edge: `RPGolPhase::CommitResult`
+
+Independent public [Kokeshi NTSC-U Rev1 `RPGolPhase.h`](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPGolScene/RPGolPhase.h)
+declares the instance method:
+
+```cpp
+void CommitResult(u32 ftScore, u32 trScore, u32 trSubScore);
+```
+
+The same header declares `Calculate()`, `Finish()`,
+`Check()`, `WaitFrame()`, and `Enter()` on `RPGolPhase`.
+`RPGolSequenceManager::mpPhase` is typed as `RPGolPhase*` in
+that separately published header. This is a **named C++ interface
+linking active Golf phases to a result commit**, a better lead than
+generic formatted-text sinks or whole score-table scans.
+
+**Crucial limits:** The upstream pinned source provides the
+**declaration only**. Independent searches of current public
+`doldecomp/ogws`, `kiwi515/ogws_info` and this repo did not
+locate the function's body or its exact Rev1 machine-code entry.
+The names `ftScore`, `trScore` and `trSubScore` are argument
+identifiers, **not evidence of Near Pin distance, feet, meters,
+single-hit proximity, the 100-ft miss penalty, persistent storage,
+game-frame event or UI text.** Neither does the declaration prove
+that training mode 4 executes this method.
+
+**Pre-registered source-only decision:**
+1. Source owner #219/#231 should verify the Golf-specific singleton
+   and phase-pointer instruction accesses in original Rev1 code,
+   then locate the exact `CommitResult` method body/callsite
+   **without making up an address from adjacent named functions**.
+2. A positive source chain must show a mode4 training phase
+   invoking `CommitResult`, followed by the exact result
+   receiver/write path. Identify which of the three arguments
+   is used for the displayed outcome, if any; all three are
+   untrusted until proven.
+3. If no exact Rev1 entry/caller can be identified in ONE
+   bounded review, report ABSTAIN, leave the result variable
+   unverified and preserve the source-only STOP gate. Do not
+   turn this into generic GPR/printf/score-table scan families.
+
+This finding raises the expected value of **typed outcome tracing**
+over running the current unconfirmed +0x0C..+0x18 pointer reader.
+No new native run, Dolphin, shot, frame or training data is authorized.
