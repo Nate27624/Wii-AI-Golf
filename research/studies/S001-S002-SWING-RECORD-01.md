@@ -103,3 +103,26 @@ The new change ranker deliberately does NOT treat one apparent swing-specific wo
 4. 51 candidate source-aligned fields ranked against idle and A-held; changes are strictly hypotheses. S003 model remains blocked until impact/strength and outcome labels are independently verified.
 
 **No new live game/shot/capture was executed by the author of this draft.** This is a proposed on-branch S001 enhancement, not a sanctioned user-facing production collector yet.
+
+## 2026-10-27 pivot: finished aiming pointer attribution → swing-specific data
+
+Actual owner-run #178 B0 source scan established a valid static source manager entry `r29←r3` and both selected-pointer `manager+0x334` direct-call paths into angle-matrix recomputation. Selected golfer B0–B3 no-shot +0x3C rotation change was −25.127°. **That hypothesis is sufficiently source-backed for this phase; do not repeat aim-only atlas scans.**
+
+The next S001-governed experiment is ONE causal golf swing with separate idle/no-A and button-only A controls, trace neutral, commanded backswing, forward, followthrough, A-release and after-trace observation. Real in-game visible contact/miss is indispensable; a changed `0xCC` player record word alone is NOT physical velocity or power. Existing #189 51-word sampler + S001 #166 ball/source-start vector sampler remain the ONLY prepared live watch; do not introduce another bridge or memory polling owner.
+
+### New synthetic noninterference test, cross-agent support
+
+An additive reviewer-only file `tests/test_s001_selected_record_full_trace_parity.py` executes the **actual generated** frozen Swing V2 bridge callback with the 51-word selected record watch and no-watch control over the same 89-sample trace. It validates exact controller call ordering/arguments and 89-frame ACK, 64 bounded watched callback observations with all 51 words, no returned internal owner pointer, injected native-memory-reader failure, and **forced >5ms read-time auto-disarm** while demonstrating the fake low-level motion-dispatch remains unchanged. The latter intentionally continues a fake controller callback after watch disarm for parity; actual operator orchestration aborts when a later phase RPC fails, and this synthetic test does NOT authorize a real watched swing. Added to existing Windows/Ubuntu targeted workflow. Independent #171 reviewed the older 3-vector watch; this adds a unique regression for #189's 51-word expansion.
+
+Independent review **draft #191** fixes a different serious *offline ranker* issue: record fields already differing in trace-neutral A-held samples must not be called swing-motion-specific, and invalid stage/index sequence must fail closed. Require S001/S002 owner review/cherry-pick of #191 before interpreting swing-specific candidate ranks. Do not bypass #191 for convenience.
+
+### Order of operations and blocking criteria
+
+1. **Read-only local infrastructure:** preserve the functioning clean portable FelkDolphin-Clean and original unmodified bridge; user previously validated canonical registered green-pre-start slot2, main ignored launch/savestate config, watched bridge as a *separate* new file and no-game dispatcher dry-run. Avoid repeating these already completed steps without a changed artifact.
+2. **Restore an UNWATCHED contact baseline first:** independent clean V1 diagnostic via main universal CLI `py scripts/golf.py lab plan integration.v1-diagnostic --a-lead 0` (planning only), after review/consent one witnessed hit or miss with the original known-good route. An earlier weak V2 watched pilot had no visible movement and incomplete samples; zero trusted positive contact/flight examples exist. V1 vs V2 difference and clean savestate file availability still matter. This is the main live blocker. Do not run V1 through V2-only `scripts/launch_golf.py --swing`.
+3. **S001 contact + instrumentation approval:** #166 owner must review callback parity and production boot/controller compatibility; test actual 51-word per-sample latency against 5ms limit on clean Felk, WITHOUT changing waveform or skipping safety gates. Synthetic clock timing is not native timing.
+4. **S000 privacy and S002 source review:** keep all 51 u32 words (some runtime pointers) and raw triplets only in ignored local PRIVATE report; only relative offset boolean/count summaries may go to public PR. S003 never trains on this first unverified trace.
+5. **One deliberate gated monitored attempt:** only after owner-reviewed witnessed unwatched contact and clean fresh boot. Independent observer labels hit/no hit. If visibly no hit, report MISS and preserve as negative, not a false physical shot.
+6. **Displaced POST and result:** if and ONLY if visible ball moved and can be paused before reset, reuse #180 PRE/POST paired memory capture and #184/#185 optional landed SETTLED/RESULT distance tooling. The game's result screen can reset player/ball; a RESULT snapshot cannot substitute for visibly displaced POST. No new scanner needed.
+
+**Next safe operator command:** from the MAIN checkout, `py scripts/golf.py lab plan integration.v1-diagnostic --a-lead 0` is a planning-only preview, not `lab run --live`. No live actions should be automated from this PR until source/S001/S000 review and user confirmation.
