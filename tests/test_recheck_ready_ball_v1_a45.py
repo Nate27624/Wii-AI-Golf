@@ -25,6 +25,39 @@ class Recheck(unittest.TestCase):
             self.assertNotIn("--profile", cmd)
             self.assertNotIn("--reset-profile", cmd)
 
+    def test_90_lead_changes_only_prehold_not_waveform_or_startup(self):
+        with tempfile.TemporaryDirectory() as t:
+            root = Path(t)
+            (root / "scripts").mkdir()
+            (root / "scripts" / "collect_outcome_transition.py").touch()
+            default = mod.build_collector_command(root=root)
+            longer = mod.build_collector_command(root=root, a_lead_frames=90)
+            self.assertEqual(default[:default.index("--a-lead-frames")], longer[:longer.index("--a-lead-frames")])
+            self.assertEqual(longer[longer.index("--a-lead-frames") + 1], "90")
+            self.assertEqual([x for x in default if x != "45"], [x for x in longer if x != "90"])
+            self.assertEqual(len(default), len(longer))
+            self.assertNotIn("--follow-through-frames", longer)
+            self.assertNotIn("launch_golf.py", " ".join(longer))
+
+    def test_only_45_and_90_leads_are_approved(self):
+        with tempfile.TemporaryDirectory() as t:
+            root = Path(t)
+            (root / "scripts").mkdir()
+            (root / "scripts" / "collect_outcome_transition.py").touch()
+            for lead in (0, 12, 30, 60, 91, True, 90.0):
+                with self.subTest(lead=lead):
+                    with self.assertRaises(ValueError):
+                        mod.build_collector_command(root=root, a_lead_frames=lead)
+
+    def test_selected_90_lead_forwarded_by_wrapper_without_boot(self):
+        with patch.object(mod, "check_local_v1_source"), patch.object(mod, "ensure_running_bridge"), patch.object(mod.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            self.assertEqual(mod.main(["--send-live-swing", "--a-lead-frames", "90"]), 0)
+            cmd = run.call_args.args[0]
+            self.assertEqual(cmd[cmd.index("--a-lead-frames") + 1], "90")
+            self.assertNotIn("--profile", cmd)
+            self.assertNotIn("--swing", cmd)
+
     def test_missing_collector_fails_closed(self):
         with tempfile.TemporaryDirectory() as t:
             with self.assertRaisesRegex(ValueError, "collector missing"):
