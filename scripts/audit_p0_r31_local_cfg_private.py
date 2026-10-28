@@ -35,7 +35,10 @@ def _branch(pc: int, word: int):
         disp = word & 0xFFFC
         if disp & 0x8000:
             disp -= 0x10000
-        return ("linked_conditional_call" if lk else "conditional_branch",
+        bo = (word >> 21) & 31
+        branch_always = (bo & 0x14) == 0x14
+        return (("linked_call" if lk else "unconditional_branch") if branch_always
+                else ("linked_conditional_call" if lk else "conditional_branch"),
                 (disp if aa else pc + disp) & 0xFFFFFFFF)
     if op == 19 and ((word >> 1) & 0x3FF) in (16, 528, 50):
         return ("indirect_or_return", None)
