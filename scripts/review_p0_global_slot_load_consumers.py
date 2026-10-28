@@ -103,6 +103,27 @@ def first_consumer(read, pc: int, disp: int) -> dict:
             off = _loc(here)
             rel_field = immediate if -512 <= immediate <= 512 else None
             break
+        # A source-global pointer may be copied into ABI argument register r3
+        # before its first dereference. Treat a following D-form access through
+        # r3 as a separate *syntactic* use, not a proven object/renderer. This
+        # must occur before the generic GPR clobber rule and only after the
+        # exact mr r3,r<source> above; the first branch/call still stops us.
+        # rA=3 is a real PPC base register (unlike rA=0 literal zero).
+        if forwarded_r3 and reg != 3 and base == 3:
+            if typ in (10, 11) and immediate == 0:
+                event = "zero_compare_on_forwarded_r3_pointer"
+                off = _loc(here)
+                break
+            if typ in (32, 34, 40, 42, 48, 50):
+                event = "field_load_through_forwarded_r3_pointer"
+                off = _loc(here)
+                rel_field = immediate if -512 <= immediate <= 512 else None
+                break
+            if typ in (36, 38, 44, 52, 54):
+                event = "field_store_through_forwarded_r3_pointer"
+                off = _loc(here)
+                rel_field = immediate if -512 <= immediate <= 512 else None
+                break
         if typ in (36, 38, 44) and rs == reg:
             event = "source_global_pointer_value_stored"
             off = _loc(here)
