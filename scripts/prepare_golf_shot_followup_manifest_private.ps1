@@ -111,7 +111,7 @@ try {
             -not $checkpoints.Contains('RESULT')) {
             Stop-Private 'human distance requires actual RESULT and explicit unit'
         }
-        $n = $DisplayedDistance.Value
+        $n = [double]$DisplayedDistance
         if ([double]::IsNaN($n) -or [double]::IsInfinity($n) -or
             $n -lt 0 -or $n -gt 10000) {
             Stop-Private 'human displayed distance out of bounds'
