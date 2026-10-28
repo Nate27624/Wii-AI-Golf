@@ -92,7 +92,8 @@ class ResearchCliTests(unittest.TestCase):
                           return_value={"capture_status": "sanitized_human_annotation_only",
                                         "settled_screen_observation": "operator_confirmed_before_transition",
                                         "terminal_capture_mode": "result_first_human_prompt",
-                                        "terminal_human_category": "on_green"}), \
+                                        "terminal_human_category": "on_green",
+                                        "human": {"contact_human": "yes"}}), \
              patch.object(research_cli, "_fallback_human_observation",
                           return_value={"human": {"contact_human": "unknown"}}):
             self.assertEqual(research_cli.main(
@@ -131,7 +132,8 @@ class ResearchCliTests(unittest.TestCase):
                           return_value={"capture_status": "sanitized_human_annotation_only",
                                         "settled_screen_observation": "operator_confirmed_before_transition",
                                         "terminal_capture_mode": "result_first_human_prompt",
-                                        "terminal_human_category": "on_green"}):
+                                        "terminal_human_category": "on_green",
+                                        "human": {"contact_human": "yes"}}):
             self.assertEqual(research_cli.main(["v1", "--live", "--a-lead", "45",
                                                "--backswing-scale", "0.8"]), 0)
             command = runner.call_args.args[0]
@@ -276,6 +278,54 @@ class ResearchCliTests(unittest.TestCase):
                 self.assertEqual(row["kind"], "v1_attempt")
                 self.assertEqual(row["shot_dispatched"], "unknown")
                 self.assertFalse(row["trial_valid_for_action_outcome"])
+
+    def test_no_or_unknown_contact_never_publishes_as_action_outcome(self):
+        # Fabricated only: completed scheduler + visible terminal result
+        # is insufficient without affirmative HUMAN observation of contact.
+        from contextlib import ExitStack
+        from wii_ai_golf.lab.github_sync import SyncReport
+        for contact in ("no", "unknown", None, "yes"):
+            with self.subTest(contact=contact), tempfile.TemporaryDirectory() as folder:
+                with ExitStack() as stack:
+                    stack.enter_context(patch.object(
+                        research_cli, "sync_merged_main",
+                        return_value=SyncReport("up_to_date")))
+                    stack.enter_context(patch.object(
+                        research_cli, "_run", return_value=0))
+                    stack.enter_context(patch.object(
+                        research_cli, "v1_clean_boot_args", return_value=[]))
+                    stack.enter_context(patch.object(
+                        research_cli, "DATA", Path(folder)))
+                    stack.enter_context(patch.object(
+                        research_cli, "_fresh_human_labels", return_value={
+                            "capture_status": "sanitized_human_annotation_only",
+                            "settled_screen_observation": "operator_confirmed_before_transition",
+                            "terminal_capture_mode": "result_first_human_prompt",
+                            "terminal_human_category": "off_green",
+                            "human": {"contact_human": contact}}))
+                    publish = stack.enter_context(patch.object(
+                        research_cli, "publish_summary"))
+                    fallback = stack.enter_context(patch.object(
+                        research_cli, "_fallback_human_observation"))
+                    stack.enter_context(patch(
+                        "wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
+                        return_value={"revision": "V1-neutral-swing-calls",
+                                      "safe_for_isolated_legacy_copy": True}))
+                    code = research_cli.main(["v1", "--live"])
+                    if contact == "yes":
+                        self.assertEqual(code, 0)
+                        publish.assert_called_once()
+                    else:
+                        self.assertEqual(code, 2)
+                        publish.assert_not_called()
+                    fallback.assert_not_called()
+                    (saved,) = (Path(folder) / "research-cli").glob("*.json")
+                    row = json.loads(saved.read_text(encoding="utf-8"))
+                    self.assertEqual(row["trial_valid_for_action_outcome"], contact == "yes")
+                    self.assertEqual(row["kind"], "v1" if contact == "yes" else "v1_attempt")
+                    if contact != "yes":
+                        self.assertEqual(row["attempt_status"],
+                                         "positive_ball_contact_not_observed")
 
     def test_foreign_run_and_invalid_controls_fail_closed(self):
         with tempfile.TemporaryDirectory() as folder:
