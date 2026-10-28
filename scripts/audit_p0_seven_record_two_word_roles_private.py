@@ -60,10 +60,15 @@ def _three_point_affine(x,y):
         return None
     dx1=x[1]-x[0]
     dx2=x[2]-x[1]
-    if abs(dx1)<=1e-8 or abs(dx2)<=1e-8:
+    dy1=y[1]-y[0]
+    dy2=y[2]-y[1]
+    # An address-shaped bit pattern can decode as a tiny subnormal f32;
+    # trivial / numerically unresolved y-deltas must never count as
+    # positive affine/physics evidence (even if both slopes round to 0).
+    if min(abs(dx1),abs(dx2),abs(dy1),abs(dy2))<=1e-8:
         return None
-    slope1=(y[1]-y[0])/dx1
-    slope2=(y[2]-y[1])/dx2
+    slope1=dy1/dx1
+    slope2=dy2/dx2
     if not (math.isfinite(slope1) and math.isfinite(slope2)):
         return None
     return _approx_equal(slope1,slope2)
