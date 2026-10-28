@@ -26,6 +26,26 @@ CALLERS = (
 MAX_WORDS = 128
 MAX_STATES = MAX_WORDS * 4
 
+# Literal-only diagnostic categories. No PPC words or private memory escape.
+# This is the first encountered unresolved instruction on our bounded
+# traversal, NOT a proof of the first instruction in runtime execution.
+_ABSTAIN_REASONS = {
+    "invalid published function boundary": "INVALID_WINDOW",
+    "unqualified source code": "INVALID_SOURCE_WORD",
+    "not exact bl to cache writer": "TARGET_CALL_MISMATCH",
+    "bounded CFG state budget exceeded": "STATE_BUDGET",
+    "branch leaves certified function window": "OUT_OF_WINDOW_PATH",
+    "zero instruction word": "ZERO_INSTRUCTION",
+    "uncertified direct branch destination": "OUT_OF_WINDOW_BRANCH",
+    "other X-form instruction could clobber tracked GPR": "UNSUPPORTED_XFORM",
+    "unsupported PPC opcode may affect source alias": "UNSUPPORTED_OPCODE",
+    "subcall or conditional call before target": "INTERVENING_CALL",
+    "conditional call": "INTERVENING_CALL",
+    "indirect branch, bclr/bcctr or CR opcode unsupported": "INDIRECT_OR_UNSUPPORTED_BRANCH",
+    "system call": "SYSTEM_CALL",
+    "target must be exact linked call": "CALLSITE_NOT_VERIFIED",
+}
+
 
 class Unresolved(Exception):
     pass
@@ -157,6 +177,9 @@ def prove_caller(read_u32: Callable[[int], int], *, entry: int,
     status = "ABSTAIN_SOURCE_UNRESOLVED"
     reached = False
     seen = set()
+    last_pc = None
+    reason = None
+    reason_pc = None
     try:
         if (type(entry) is not int or type(callsite) is not int
             or type(target) is not int or entry % 4 or callsite % 4
@@ -165,10 +188,12 @@ def prove_caller(read_u32: Callable[[int], int], *, entry: int,
             raise Unresolved("invalid published function boundary")
         code = {}
         for pc in range(entry, callsite+4, 4):
+            last_pc = pc
             word = read_u32(pc)
             if type(word) is not int or not 0 <= word <= 0xFFFFFFFF:
                 raise Unresolved("unqualified source code")
             code[pc] = word
+        last_pc = callsite
         tail = code[callsite]
         if tail >> 26 != 18 or not tail & 1 or _branch(callsite, tail, 26) != target:
             raise Unresolved("not exact bl to cache writer")
@@ -184,6 +209,7 @@ def prove_caller(read_u32: Callable[[int], int], *, entry: int,
                 raise Unresolved("bounded CFG state budget exceeded")
             if pc < entry or pc > callsite or pc not in code:
                 raise Unresolved("branch leaves certified function window")
+            last_pc = pc
             word = code[pc]
             if pc == callsite:
                 reached = True
@@ -204,11 +230,25 @@ def prove_caller(read_u32: Callable[[int], int], *, entry: int,
                 q.append((dest, next_r3, next_r31))
         if not reached:
             status = "ABSTAIN_TARGET_UNREACHABLE"
-    except (Unresolved, KeyError, TypeError, IndexError):
+            reason = "NO_REACHABLE_TARGET_PATH"
+    except (Unresolved, KeyError, TypeError, IndexError) as error:
         status = "ABSTAIN_SOURCE_UNRESOLVED"
+        reason = (_ABSTAIN_REASONS.get(str(error), "UNCLASSIFIED_SOURCE_FAILURE")
+                  if isinstance(error, Unresolved) else "SOURCE_ACCESS_FAILURE")
+        reason_pc = last_pc
+    # Public source-relative offset only; no code word or runtime pointer.
+    # Keep it null on malformed/unknown entry or out-of-bounds errors.
+    safe_relative = (
+        f"+0x{reason_pc-entry:04X}"
+        if type(entry) is int and type(reason_pc) is int
+           and 0 <= reason_pc-entry <= MAX_WORDS*4 else None
+    )
     return {
         "kind": "P0-STATIC-PPC-R31-CALLSITE-MUSTDEF",
         "status": status,
+        "abstain_reason_category": reason,
+        "first_encountered_unresolved_source_relative_offset": safe_relative,
+        "unresolved_witness_is_static_decoder_not_runtime_execution": True,
         "known_exact_cache_writer_callsite_reached": reached,
         "all_reaching_paths_pass_entry_r3_through_r31_to_call_r3":
             status == "STATIC_ENTRY_R3_MUST_FLOW",
