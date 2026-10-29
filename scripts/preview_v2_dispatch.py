@@ -97,7 +97,7 @@ def preview(roster: dict, backlog: dict, *, verified_main: str,
         receipt = verified_receipts.get(row["instance"])
         if row["state"] not in COMPLETED and receipt is None:
             continue
-        options = [t for t in eligible.get(row["role"], []) if t["id"] not in assigned_ids or (receipt and t["id"] != row.get("task_id"))]
+        options = [t for t in eligible.get(row["role"], []) if t["id"] not in assigned_ids]
         preferred = reserves.get(row["instance"], [])
         options.sort(key=lambda t: (preferred.index(t["id"]) if t["id"] in preferred else len(preferred), {"P0": 0, "P1": 1, "P2": 2}.get(t.get("priority"), 3), t["id"]))
         selected = None
