@@ -6,7 +6,6 @@ The canonical, versioned [game-memory variable registry](research/memory-variabl
 
 No field is training-approved yet: scene ID, tee/pin/cup translations are snapshot-corroborated only; the changing two-float candidate is unidentified and real ball XYZ/velocity remain unverified. Keep raw RAM and per-boot heap pointers private. Agent-only lint: `py scripts/validate_memory_registry.py`. This does not start Dolphin or alter the canonical user CLI.
 
-
 ## One-command research status sharing (existing Git authentication)
 
 ```powershell
