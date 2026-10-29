@@ -183,5 +183,40 @@ class S005EvaluationEvidenceGateTests(unittest.TestCase):
         self.assertEqual(metrics.attempts, 2)
 
 
+    def test_slotted_proxy_dolphin_refused_before_bridge_activity(self):
+        class SlottedProxy:
+            __slots__ = ("delegate",)
+
+            def __init__(self, delegate):
+                self.delegate = delegate
+
+            def reset(self, scenario_id, *, seed):
+                return self.delegate.reset(scenario_id, seed=seed)
+
+            def step(self, action):
+                return self.delegate.step(action)
+
+        class FakeBridge:
+            def __init__(self):
+                self.loads = self.swings = self.reads = 0
+
+            def load_scenario(self, scenario_id, seed):
+                self.loads += 1
+                return Observation(scenario_id, (.1,))
+
+            def perform_swing(self, action):
+                self.swings += 1
+
+            def read_final_result(self):
+                self.reads += 1
+                return ShotResult(1.0, False, {"source": "synthetic"})
+
+        bridge = FakeBridge()
+        proxy = SlottedProxy(DolphinEnvironment(bridge))
+        with self.assertRaisesRegex(ValueError, "verified real-shot"):
+            evaluate(RandomPolicy(5), proxy, ["scene"])
+        self.assertEqual((bridge.loads, bridge.swings, bridge.reads), (0, 0, 0))
+
+
 if __name__ == "__main__":
     unittest.main()
