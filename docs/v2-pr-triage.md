@@ -21,7 +21,7 @@ The research backlog is mostly stacked investigations. This ledger identifies fa
 3. Assign exactly one disposition: **already merged**, **exact duplicate**, **unique integration work**, **research-only evidence**, **blocked incompatible**.
 4. For *exact duplicate*, cite matching blobs or equivalent complete semantic analysis and close with a clear parent link.
 5. For *unique integration work*, transfer guards and tests into canonical owner branch, execute full checks, then close child.
-6. For *research evidence*, preserve source/hypothesis/negative results in the ledger or parent before closing.
+6. For *research evidence*, preserve the motivation, input provenance, observed findings, counterexamples, uncertainty/limitations, source commit and links, plus any reusable testing instructions in the canonical evidence ledger or parent **before** closing. The experimental script itself may be retired if no unique executable capability remains needed for V2. Operator explicitly authorized this evidence-preserving retirement.
 7. Never close an active unique implementation merely to achieve a PR count.
 
 ## Immediate focus

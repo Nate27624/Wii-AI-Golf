@@ -21,6 +21,8 @@ class AgentInitTests(unittest.TestCase):
         proc = self.invoke("--role", "S000", "--instance", "S000-manager")
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("MANAGER_PLAYBOOK=docs/S000-manager-playbook.md", proc.stdout)
+        self.assertIn("MANAGER_DUTY=Collect agent questions", proc.stdout)
+        self.assertIn("MANAGER_DUTY=Keep roles focused", proc.stdout)
 
     def test_v2_navigation_targets_exist(self):
         for path in ('docs/v2-navigation.md', 'docs/v2-evidence-gates.md', 'docs/v2-pr-triage.md', 'docs/S000-manager-playbook.md', 'merging.md'):
