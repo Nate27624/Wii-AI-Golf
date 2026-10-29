@@ -1,7 +1,7 @@
 """Offline deterministic dispatcher preview regression tests."""
 import unittest
 
-from scripts.preview_v2_dispatch import preview
+from scripts.preview_v2_dispatch import preview, parse_advisory, find_handoff
 
 SHA = "a" * 40
 
@@ -98,6 +98,70 @@ class DispatchPreviewTests(unittest.TestCase):
                                                     task("reserve", "S001", ["reserve.py"], priority="P2")]},
                       verified_main=SHA, reserves={"s1": ["reserve", "high"]})
         self.assertEqual(got["proposals"][0]["task_id"], "reserve")
+
+
+    def test_dispatch_advisory_verifies_main_and_roster(self):
+        import json
+        data = {"schema": "v2-dispatch-advisory-v1", "authority": "ADVISORY_ONLY_NOT_A_CLAIM",
+                "main_sha": SHA, "roster_comment_id": 123, "tasks": []}
+        comment = {"user": {"login": "AI-Bott"},
+                   "body": "[S000-dispatcher-test] snapshot\\n"
+                           "<!-- V2_DISPATCH_ADVISORY_JSON_BEGIN -->\\n"
+                           + "```json\\n" + json.dumps(data) + "\\n```\\n"
+                           + "<!-- V2_DISPATCH_ADVISORY_JSON_END -->"}
+        got = parse_advisory([comment], verified_main=SHA, roster_comment_id=123)
+        self.assertEqual(got["tasks"], [])
+        with self.assertRaises(ValueError):
+            parse_advisory([comment], verified_main=SHA, roster_comment_id=124)
+
+    def test_dispatch_advisory_rejects_untrusted_author(self):
+        import json
+        data = {"schema": "v2-dispatch-advisory-v1", "authority": "ADVISORY_ONLY_NOT_A_CLAIM",
+                "main_sha": SHA, "roster_comment_id": 123}
+        comment = {"user": {"login": "attacker"},
+                   "body": "[S000-dispatcher-spoof] " +
+                           "<!-- V2_DISPATCH_ADVISORY_JSON_BEGIN -->" + json.dumps(data) +
+                           "<!-- V2_DISPATCH_ADVISORY_JSON_END -->"}
+        with self.assertRaises(ValueError):
+            parse_advisory([comment], verified_main=SHA, roster_comment_id=123)
+
+    def test_canonical_handoff_candidate_is_advisory(self):
+        rr = row("S001-worker", "S001", "ASSIGNED", ["old.py"], "S001-OLD")
+        comment = {"user": {"login": "AI-Bott"}, "created_at": "2026-10-29T18:11:00Z",
+                   "body": "[S001-worker] HANDOFF S001-OLD complete. main " + SHA + " released ownership.",
+                   "html_url": "https://github.com/Nate27624/Wii-AI-Golf/issues/308#issuecomment-123"}
+        got = find_handoff(rr, [comment], verified_main=SHA,
+                           roster_created_at="2026-10-29T18:00:00Z")
+        self.assertEqual(got["task_id"], "S001-OLD")
+        self.assertEqual(got["status"], "COMPLETE_RELEASED")
+
+    def test_newer_claim_invalidates_prior_handoff(self):
+        rr = row("S001-worker", "S001", "ASSIGNED", ["old.py"], "S001-OLD")
+        history = [
+            {"user": {"login": "AI-Bott"}, "created_at": "2026-10-29T18:11:00Z",
+             "body": "[S001-worker] HANDOFF S001-OLD main " + SHA + " released.",
+             "html_url": "https://github.com/Nate27624/Wii-AI-Golf/issues/308#issuecomment-123"},
+            {"user": {"login": "AI-Bott"}, "created_at": "2026-10-29T18:12:00Z",
+             "body": "[S001-worker] CLAIM new work"}
+        ]
+        self.assertIsNone(find_handoff(rr, history, verified_main=SHA,
+                                       roster_created_at="2026-10-29T18:00:00Z"))
+
+    def test_wrong_task_or_missing_release_not_accepted(self):
+        rr = row("S001-worker", "S001", "ASSIGNED", ["old.py"], "S001-OLD")
+        comment = {"user": {"login": "AI-Bott"}, "created_at": "2026-10-29T18:11:00Z",
+                   "body": "[S001-worker] HANDOFF S001-NEW main " + SHA + " not released",
+                   "html_url": "https://github.com/Nate27624/Wii-AI-Golf/issues/308#issuecomment-123"}
+        self.assertIsNone(find_handoff(rr, [comment], verified_main=SHA,
+                                       roster_created_at="2026-10-29T18:00:00Z"))
+
+    def test_handoff_before_roster_does_not_unlock(self):
+        rr = row("S001-worker", "S001", "ASSIGNED", ["old.py"], "S001-OLD")
+        comment = {"user": {"login": "AI-Bott"}, "created_at": "2026-10-29T17:11:00Z",
+                   "body": "[S001-worker] HANDOFF S001-OLD main " + SHA + " released.",
+                   "html_url": "https://github.com/Nate27624/Wii-AI-Golf/issues/308#issuecomment-123"}
+        self.assertIsNone(find_handoff(rr, [comment], verified_main=SHA,
+                                       roster_created_at="2026-10-29T18:00:00Z"))
 
     def test_priority_order(self):
         got = self.run_preview([row("a", "S001")],
