@@ -159,6 +159,15 @@ class PostshotFollowupPrivateTests(unittest.TestCase):
              vec:u32(2),vec+4:u32(1),vec+8:u32(4)}
         self.assertEqual(follow.pin_words(mem.__getitem__),
                          (u32(2),u32(1),u32(4)))
+        # In-bounds but redirected: a foreign MEM2 vector is not a PIN.
+        alternate_vec=0x90012000
+        mem[pinobj+0x4C]=alternate_vec
+        mem[alternate_vec]=u32(8)
+        mem[alternate_vec+4]=u32(9)
+        mem[alternate_vec+8]=u32(10)
+        with self.assertRaisesRegex(ValueError, "selfref"):
+            follow.pin_words(mem.__getitem__)
+        # Invalid/out-of-bank pointer remains rejected as well.
         mem[pinobj+0x4C]=0
         with self.assertRaises(ValueError):
             follow.pin_words(mem.__getitem__)
