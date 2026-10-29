@@ -66,7 +66,17 @@ def _launch(args, profile):
             raise ValueError(f"{name} not found: {path}")
     if _connected(args.port):
         raise RuntimeError("port is already open: close existing Dolphin/bridge before start")
-    process = subprocess.Popen([str(exe), "--script", str(script), "--exec", str(game)], cwd=str(exe.parent))
+    command = [str(exe)]
+    selected_user = getattr(args, "dolphin_user", None)
+    if selected_user is not None:
+        # Upstream Dolphin's -u selects this *process's* user folder. Merely
+        # editing an INI through a parent process does not select it at boot.
+        user_dir = Path(selected_user).expanduser().resolve()
+        if not user_dir.is_dir() or not (user_dir / "Config" / "WiimoteNew.ini").is_file():
+            raise ValueError("Explicit Dolphin user root lacks existing Config/WiimoteNew.ini; no launch")
+        command.extend(["-u", str(user_dir)])
+    command.extend(["--script", str(script), "--exec", str(game)])
+    process = subprocess.Popen(command, cwd=str(exe.parent))
     deadline = time.monotonic() + args.timeout
     while time.monotonic() < deadline:
         if process.poll() is not None:
@@ -99,6 +109,8 @@ def main():
     start = sub.add_parser("start", help="Launch Dolphin + bridge + game then restore a registered state")
     start.add_argument("name")
     start.add_argument("--dolphin", required=True)
+    start.add_argument("--dolphin-user", type=Path,
+                       help="Existing Dolphin User directory (passed to Dolphin -u)")
     start.add_argument("--game", required=True)
     start.add_argument("--bridge", required=True)
     start.add_argument("--timeout", type=float, default=60.0)
