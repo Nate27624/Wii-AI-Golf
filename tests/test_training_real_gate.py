@@ -118,5 +118,64 @@ class TrainerPreactionGateTests(unittest.TestCase):
         self.assertIn("toy-01", policy.estimates)
 
 
+    def test_wrapped_dolphin_rejected_before_reset_swing_or_observe(self):
+        class ProxyEnvironment:
+            def __init__(self, target):
+                self.target = target
+
+            def reset(self, scenario_id, *, seed):
+                return self.target.reset(scenario_id, seed=seed)
+
+            def step(self, action):
+                return self.target.step(action)
+
+        class FakeBridge:
+            def __init__(self):
+                self.loads = 0
+                self.swings = 0
+                self.reads = 0
+
+            def load_scenario(self, scenario_id, seed):
+                self.loads += 1
+                return Observation(scenario_id, (.1, .2))
+
+            def perform_swing(self, action):
+                self.swings += 1
+
+            def read_final_result(self):
+                self.reads += 1
+                return ShotResult(30.48, False, {"source": "synthetic"})
+
+        for depth in (1, 3):
+            with self.subTest(depth=depth):
+                bridge = FakeBridge()
+                env = DolphinEnvironment(bridge)
+                for _ in range(depth):
+                    env = ProxyEnvironment(env)
+                policy = TrackingPolicy()
+                with self.assertRaisesRegex(ValueError, "verified real-shot"):
+                    train_elite_search(policy, env, ["fake"], iterations=1)
+                self.assertEqual((bridge.loads, bridge.swings, bridge.reads),
+                                 (0, 0, 0))
+                self.assertEqual((policy.acts, policy.observations), (0, []))
+
+    def test_wrapped_toy_remains_valid_synthetic_training(self):
+        class ProxyEnvironment:
+            def __init__(self, target):
+                self.target = target
+
+            def reset(self, scenario_id, *, seed):
+                return self.target.reset(scenario_id, seed=seed)
+
+            def step(self, action):
+                return self.target.step(action)
+
+        policy = TrackingPolicy()
+        train_elite_search(policy,
+                           ProxyEnvironment(ProxyEnvironment(ToyGolfEnvironment())),
+                           ["toy-01"], iterations=3)
+        self.assertEqual((policy.acts, len(policy.observations)), (3, 3))
+
+
 if __name__ == "__main__":
     unittest.main()
