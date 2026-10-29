@@ -17,6 +17,11 @@ class AgentInitTests(unittest.TestCase):
         self.assertIn("AGENT_ID=S002-memory-a", proc.stdout)
         self.assertIn("NO LIVE DOLPHIN", proc.stdout)
 
+    def test_manager_playbook_link(self):
+        proc = self.invoke("--role", "S000", "--instance", "S000-manager")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("MANAGER_PLAYBOOK=docs/S000-manager-playbook.md", proc.stdout)
+
     def test_wrong_role_prefix_rejected(self):
         proc = self.invoke("--role", "S002", "--instance", "S001-memory-a")
         self.assertNotEqual(proc.returncode, 0)
