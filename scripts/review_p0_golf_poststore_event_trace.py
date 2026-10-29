@@ -6,10 +6,14 @@ synthetic or externally claimed. Source-backed static candidates are:
   RPGolScene OnCalculate -> main fn_8028E158,
   +0x7C BL fn_8029B554 (possibly repeated by BC +0x88 -> +0x6C),
   +0x90 BL fn_8029B43C, +0x168 BL fn_8029B57C,
-  B57C+0x50 contains a syntactic stfs 0(r26), UNKNOWN receiver.
-A matched return after that stfs is only a *possible* post-store event, not
-an authenticated ball step, object write, guest-frame tick, rendered XYZ,
-shot event or training sample.
+  B57C+0x50 contains stfs f1,0(r26). Actual original B0 (#270)
+  independently found the nearest recognized r26 write was addi/addis
+  from r1 (stack pointer), with an intervening control-flow barrier.
+  This is a STACK-DERIVED SCRATCH/OUTPUT CANDIDATE, NOT a source-typed
+  ball integrator or a verified persistent ball-state destination.
+A matched return after that stfs is only an *untrusted possible return
+after scratch-output write*, NOT a ball update, guest physics step,
+rendered XYZ, shot outcome, or model training sample.
 """
 from __future__ import annotations
 
@@ -100,8 +104,19 @@ def inspect_events(events: list[dict]) -> dict:
         "scene_exit_event_count_unverified": completed_scenes,
         "source_call_entry_counts_unverified": total_calls,
         "scene_event_groups_with_multiple_B554_entries": repeated_b554_scenes,
+        # Historical v1 output retained for existing consumers. Never use
+        # this as a game-ball or guest-frame counter. Independent original
+        # B0 Rev1 source #270 found r26 from stack pointer r1 with a
+        # control-transfer hazard; not a proven dynamic stack store either.
         "B57C_callee_returns_after_same_call_syntactic_store_candidates":
             calls_with_store,
+        "B57C_static_r26_nearest_recognized_def_class":
+            "addi_or_addis_from_r1_with_control_barrier",
+        "B57C_store_source_role_class":
+            "stack_derived_scratch_or_output_candidate_not_typed_ball",
+        "B57C_stfs_actual_runtime_receiver_verified": False,
+        "B57C_store_is_eligible_ball_update_completion_anchor": False,
+        "eligible_ball_update_completion_observations": 0,
         "per_scene_event_count_is_not_guest_physics_step": True,
         "B57C_stfs_receiver_is_selected_or_global_ball_verified": False,
         "source_qualified_post_ball_integrator_completed_verified": False,
