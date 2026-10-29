@@ -9,8 +9,10 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import re
 from pathlib import Path
+import stat
 import struct
 import subprocess
 import sys
@@ -124,7 +126,17 @@ def report_from_bytes(bank: Path, module, *, public_units):
     Caller must verify original bank SHA before and AFTER this function.
     """
     _validate_source_ownership(public_units)
+    # Bind the actual read descriptor to the regular file that was checked
+    # by path. Pre/post path hashes alone cannot detect a substituted fd.
+    before = bank.lstat()
+    if not stat.S_ISREG(before.st_mode) or before.st_size != source.MEM1_LEN:
+        raise QualificationError
+    identity = (before.st_dev, before.st_ino, before.st_size)
     with bank.open("rb") as f:
+        opened = os.fstat(f.fileno())
+        if (not stat.S_ISREG(opened.st_mode)
+                or (opened.st_dev, opened.st_ino, opened.st_size) != identity):
+            raise QualificationError
         if f.read(6) != source.GAME_ID:
             raise QualificationError
         f.seek(7)
@@ -145,6 +157,13 @@ def report_from_bytes(bank: Path, module, *, public_units):
             return struct.unpack(">I", word)[0]
 
         findings = module.inspect_known_callers(native_u32)
+        after = bank.lstat()
+        final_fd = os.fstat(f.fileno())
+        if (not stat.S_ISREG(after.st_mode)
+                or not stat.S_ISREG(final_fd.st_mode)
+                or (after.st_dev, after.st_ino, after.st_size) != identity
+                or (final_fd.st_dev, final_fd.st_ino, final_fd.st_size) != identity):
+            raise QualificationError
 
     if (type(findings) is not dict
             or findings.get("kind") != "P0-STATIC-TWO-CALLER-R31-MUSTDEF-REVIEW"
