@@ -418,7 +418,11 @@ def _public_observation_record(summary: dict) -> dict:
             or summary.get("numeric_distance_target_eligible") is not False
             or summary.get("train_approved") is not False
             or summary.get("physical_distance_verified") is not False
-            or summary.get("bridge_source_changed_during_action") is True):
+            # The CLI normally omits the flag when the bridge is stable.
+            # A directly supplied non-Boolean (1, "yes", etc.) is not
+            # evidence of a stable source and must be refused explicitly.
+            or ("bridge_source_changed_during_action" in summary
+                and summary["bridge_source_changed_during_action"] is not False)):
         raise ValueError("unjoined or ineligible V1 observation")
     controller = summary.get("controller")
     if type(controller) is not dict:
@@ -430,7 +434,10 @@ def _public_observation_record(summary: dict) -> dict:
     if (type(lead) is not int or lead != 45
             or type(speed) not in (float, int) or speed != 1.0
             or type(backswing) not in (float, int) or backswing not in (1.0, 1.2)
-            or summary.get("requested_motion_scale") != 1.0):
+            # bool is a subclass of int: True == 1.0, but a boolean
+            # cannot attest a requested motion scale.
+            or type(summary.get("requested_motion_scale")) not in (int, float)
+            or summary["requested_motion_scale"] != 1.0):
         raise ValueError("unregistered V1 settings")
     joined = _joined_visual_first(token, start, a_lead=lead, speed=speed,
                                   backswing=backswing, atomic_a45=atomic)
