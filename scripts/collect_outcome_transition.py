@@ -112,6 +112,27 @@ def _result_first_checkpoint(input_fn: Callable[[str], str]) -> dict[str, Any]:
 
 
 
+def _build_v1_trace_and_digest(*, motion_scale: float, speed_scale: float,
+                               backswing_scale: float):
+    """Canonical requested waveform and digest, never evidence of game contact."""
+    samples = build_probe("forward", follow_through_frames=30)
+    if backswing_scale != 1.0:
+        samples = [replace(s, distance_m=s.distance_m * backswing_scale)
+                   if s.direction == (0.0, -1.0, 0.0) else s for s in samples]
+    if motion_scale != 1.0:
+        samples = [replace(s, distance_m=s.distance_m * motion_scale,
+                           speed_m_s=s.speed_m_s * motion_scale,
+                           return_speed_m_s=s.return_speed_m_s * motion_scale)
+                   for s in samples]
+    if speed_scale != 1.0:
+        samples = [replace(s, speed_m_s=s.speed_m_s * speed_scale) for s in samples]
+    digest = hashlib.sha256(json.dumps(
+        [[s.hold_a, *s.direction, s.distance_m, s.speed_m_s,
+          s.return_speed_m_s, s.angle_rad] for s in samples],
+        separators=(",", ":")).encode()).hexdigest()
+    return samples, digest
+
+
 def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 post_samples: int, settled_samples: int, interval: float,
                 input_fn: Callable[[str], str] = operator_input,
@@ -152,21 +173,9 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         raise ValueError("backswing scale must be 0.8/1.0/1.2")
     if backswing_scale != 1.0 and (speed_scale != 1.0 or motion_scale != 1.0):
         raise ValueError("backswing study changes one physical parameter only")
-    samples = build_probe("forward", follow_through_frames=30)
-    if backswing_scale != 1.0:
-        samples = [replace(s, distance_m=s.distance_m * backswing_scale)
-                   if s.direction == (0.0, -1.0, 0.0) else s for s in samples]
-    if motion_scale != 1.0:
-        samples = [replace(s, distance_m=s.distance_m * motion_scale,
-                           speed_m_s=s.speed_m_s * motion_scale,
-                           return_speed_m_s=s.return_speed_m_s * motion_scale)
-                   for s in samples]
-    if speed_scale != 1.0:
-        samples = [replace(s, speed_m_s=s.speed_m_s * speed_scale) for s in samples]
-    trace_sha256 = hashlib.sha256(json.dumps(
-        [[s.hold_a, *s.direction, s.distance_m, s.speed_m_s,
-          s.return_speed_m_s, s.angle_rad] for s in samples],
-        separators=(",", ":")).encode()).hexdigest()
+    samples, trace_sha256 = _build_v1_trace_and_digest(
+        motion_scale=motion_scale, speed_scale=speed_scale,
+        backswing_scale=backswing_scale)
     canonical_swing = swing_fn is None
     a_lead_report: dict[str, Any] | None = None
     if canonical_swing:
