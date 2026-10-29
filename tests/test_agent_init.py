@@ -16,6 +16,8 @@ class AgentInitTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("AGENT_ID=S002-memory-a", proc.stdout)
         self.assertIn("NO LIVE DOLPHIN", proc.stdout)
+        self.assertIn("SELF-MERGE=Allowed only when all merging.md gates PASS", proc.stdout)
+        self.assertNotIn("NO AUTO MERGE/PUBLISH", proc.stdout)
         self.assertIn("FINAL STATUS=CONTINUE | ACTION REQUIRED | DECISION REQUIRED", proc.stdout)
 
     def test_manager_playbook_link(self):

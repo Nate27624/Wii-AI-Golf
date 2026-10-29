@@ -7,6 +7,8 @@ on:
       - 'tests/test_outcome_transition.py'
       - 'tests/test_outcome_capture_cli.py'
       - 'tests/test_outcome_recovery.py'
+      - 'src/wii_ai_golf/audit/outcome_compare.py'
+      - 'tests/test_outcome_compare.py'
       - '.github/workflows/p0-s002-outcome-ranker-gates.yml'
   pull_request:
     paths:
@@ -14,6 +16,8 @@ on:
       - 'tests/test_outcome_transition.py'
       - 'tests/test_outcome_capture_cli.py'
       - 'tests/test_outcome_recovery.py'
+      - 'src/wii_ai_golf/audit/outcome_compare.py'
+      - 'tests/test_outcome_compare.py'
       - '.github/workflows/p0-s002-outcome-ranker-gates.yml'
 
 permissions:
@@ -40,5 +44,7 @@ jobs:
         run: python -m unittest discover -s tests -p "test_outcome_capture_cli.py" -v
       - name: Focused offline recovery compatibility regressions
         run: python -m unittest discover -s tests -p "test_outcome_recovery.py" -v
+      - name: Focused cross-run comparison censoring
+        run: python -m unittest discover -s tests -p "test_outcome_compare.py" -v
       - name: Full offline repository regression
         run: python -m unittest discover -s tests -v

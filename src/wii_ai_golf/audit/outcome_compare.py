@@ -9,6 +9,8 @@ from collections import defaultdict
 import math
 from typing import Any
 
+from .outcome_recovery import exploratory_ranking_target
+
 MAX_RUNS = 25
 MAX_CANDIDATES_PER_RUN = 1000
 
@@ -68,6 +70,17 @@ def _run(doc: dict[str, Any], index: int) -> tuple[dict[str, Any], dict[str, Any
     value = label.get("displayed_distance_human")
     if value is not None and (type(value) not in (int, float) or not math.isfinite(value)):
         raise ValueError("human displayed distance must be finite numeric or null")
+    # Historical sanitized rows can predate the fixed-100ft penalty gate.
+    # Never revive an invalid numeric match from their candidate annotations.
+    censored_penalty = (
+        value is not None
+        and exploratory_ranking_target(
+            value, displayed_unit=label.get("displayed_unit_human"),
+            green=label.get("finished_on_green_human")) is None
+    )
+    if censored_penalty:
+        for row in candidates.values():
+            row["literal_display_matches"] = []
     dispatch = doc.get("swing_dispatch") or {}
     requested = doc.get("known_good_swing_request") or {}
     if not isinstance(dispatch, dict) or not isinstance(requested, dict):
@@ -100,6 +113,8 @@ def _run(doc: dict[str, Any], index: int) -> tuple[dict[str, Any], dict[str, Any
         "run_number": index,
         "displayed_distance_human": value,
         "displayed_unit_human": label.get("displayed_unit_human"),
+        "displayed_distance_censored_penalty": censored_penalty,
+        "numeric_distance_target_eligible": False,
         "finished_on_green_human": label.get("finished_on_green_human"),
         "contact_human": label.get("contact_human"),
         "applied_frames": applied,
@@ -202,6 +217,9 @@ def compare_outcome_runs(reports: list[dict[str, Any]]) -> dict[str, Any]:
         "button_prime_program_comparable": priming_same,
         "full_controller_program_comparable": trace_comparable and priming_same,
         "ball_position_verified": False, "game_score_verified": False,
+        "training_approved": False,
+        "censored_penalty_runs": sum(
+            row["displayed_distance_censored_penalty"] for row in sessions),
         "warning": ("This compares published, possibly truncated candidate lists only. "
                     "Two labelled shots cannot distinguish swing/setup/run effects from "
                     "landing effects or identify a true game score. Identical RAM values "
