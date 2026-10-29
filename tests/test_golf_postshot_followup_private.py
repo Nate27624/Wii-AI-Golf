@@ -19,8 +19,10 @@ def u32(x):
     return int.from_bytes(struct.pack(">f", float(x)), "big")
 
 
-def sample(x=0., *, owner=(10,20,30,40,50), hole=1, start=0.):
+def sample(x=0., *, owner=(10,20,30,40,50), hole=1, start=0.,
+           pin_object=0x90011000):
     return {"source_gates": True, "owner": owner, "slot": 0, "hole": hole,
+            "pin_object": pin_object,
             "ball_words": (u32(x),u32(0),u32(0)),
             "record_words": (u32(x),u32(0),u32(0)),
             "start_words": (u32(start),u32(0),u32(0))}
@@ -92,6 +94,19 @@ class PostshotFollowupPrivateTests(unittest.TestCase):
                                     pin,pin,pin)
         with self.assertRaisesRegex(ValueError, "identity"):
             follow.evaluate_settled(sample(),sample(2),sample(3,hole=2),
+                                    pin,pin,pin)
+
+    def test_pin_object_switch_rejected_even_when_pin_vector_identical(self):
+        pin=(u32(10),u32(0),u32(0))
+        # The old code compared only three coordinate words; a source PIN
+        # pointer switch would have been silently accepted as same geometry.
+        with self.assertRaisesRegex(ValueError, "PIN object identity"):
+            follow.evaluate_settled(sample(0),sample(3),
+                                    sample(7,pin_object=0x90012000),
+                                    pin,pin,pin)
+        with self.assertRaisesRegex(ValueError, "PIN object identity"):
+            follow.evaluate_settled(sample(0),sample(3),
+                                    sample(7,pin_object=None),
                                     pin,pin,pin)
 
     def test_valid_ui_distance_is_human_label_only_not_decoded(self):
