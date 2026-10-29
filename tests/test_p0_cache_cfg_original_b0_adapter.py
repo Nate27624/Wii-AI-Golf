@@ -357,6 +357,37 @@ class AdapterTests(unittest.TestCase):
         self.assertFalse(r["rendered_physical_ball_XYZ_velocity_power_impact_score_verified"])
         self.assertFalse(r["entry_r3_object_class_or_identity_verified"])
 
+    def test_same_bytes_substituted_open_descriptor_rejected(self):
+        # Two matching synthetic ROM-revision headers and code windows are
+        # not interchangeable evidence: the opened fd must belong to bank.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            bank = synthetic_b0(root)
+            other = root / "B0-other-fabricated"
+            other.write_bytes(bank.read_bytes())
+            real_open = Path.open
+
+            def substituted(path, *args, **kwargs):
+                return real_open(other if path == bank else path, *args, **kwargs)
+
+            with patch.object(Path, "open", new=substituted):
+                with self.assertRaises(adapter.QualificationError):
+                    adapter.report_from_bytes(
+                        bank, FakeCFG(), public_units=PUBLIC)
+
+    def test_b0_path_symlink_rejected_even_with_matching_bytes(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            target = synthetic_b0(root)
+            link = root / "B0-linked-fabricated"
+            try:
+                link.symlink_to(target)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlinks unavailable on this test host")
+            with self.assertRaises(adapter.QualificationError):
+                adapter.report_from_bytes(
+                    link, FakeCFG(), public_units=PUBLIC)
+
     def test_missing_bad_bank_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             bank = Path(td) / "invalid"
