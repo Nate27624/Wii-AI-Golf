@@ -124,6 +124,24 @@ class SourceGlobalXrefsTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         mod._verify_original_pair_hashes(6,pair,originals)
 
+    def test_archive_manifest_mutation_after_preserved_bank_scan_abstains(self):
+        manifest=Path("fabricated-manifest-PRIVATE.json")
+        with mock.patch.object(mod.seven,"_hash",return_value=b"X"*32):
+            with self.assertRaisesRegex(ValueError,"manifest changed"):
+                mod._require_same_manifest(manifest,b"Y"*32)
+
+    def test_archive_manifest_same_digest_preserves_private_identity(self):
+        manifest=Path("fabricated-manifest-PRIVATE.json")
+        with mock.patch.object(mod.seven,"_hash",return_value=b"Q"*32) as hashed:
+            self.assertIsNone(mod._require_same_manifest(manifest,b"Q"*32))
+            hashed.assert_called_once_with(manifest)
+        for invalid in (None,"not-private-sha",b"short"):
+            with self.subTest(invalid=type(invalid).__name__):
+                with mock.patch.object(mod.seven,"_hash",
+                                       side_effect=AssertionError("read was not qualified")):
+                    with self.assertRaises(ValueError):
+                        mod._require_same_manifest(manifest,invalid)
+
     def test_isolated_cli_import(self):
         path=Path(mod.__file__)
         result=subprocess.run([sys.executable,"-I",str(path),"--help"],
