@@ -8,7 +8,7 @@ SHA = "a" * 40
 
 def row(name, role, state="COMPLETED", paths=None, task_id="old"):
     return {"instance": name, "role": role, "state": state,
-            "owned_paths": paths or [], "task_id": task_id}
+            "owned_paths": paths or [], "task_id": task_id,\n            "thread": "https://github.com/Nate27624/Wii-AI-Golf/issues/308"}
 
 
 def task(name, role, paths, status="READY", priority="P0", dependencies=None):
@@ -160,6 +160,23 @@ class DispatchPreviewTests(unittest.TestCase):
         comment = {"user": {"login": "AI-Bott"}, "created_at": "2026-10-29T17:11:00Z",
                    "body": "[S001-worker] HANDOFF S001-OLD main " + SHA + " released.",
                    "html_url": "https://github.com/Nate27624/Wii-AI-Golf/issues/308#issuecomment-123"}
+        self.assertIsNone(find_handoff(rr, [comment], verified_main=SHA,
+                                       roster_created_at="2026-10-29T18:00:00Z"))
+
+
+    def test_negative_release_language_fails_closed(self):
+        rr = row("S001-worker", "S001", "ASSIGNED", ["old.py"], "S001-OLD")
+        comment = {"user": {"login": "AI-Bott"}, "created_at": "2026-10-29T18:11:00Z",
+                   "body": "[S001-worker] HANDOFF S001-OLD " + SHA + " not released.",
+                   "html_url": "https://github.com/Nate27624/Wii-AI-Golf/issues/308#issuecomment-123"}
+        self.assertIsNone(find_handoff(rr, [comment], verified_main=SHA,
+                                       roster_created_at="2026-10-29T18:00:00Z"))
+
+    def test_cross_issue_handoff_fails_closed(self):
+        rr = row("S001-worker", "S001", "ASSIGNED", ["old.py"], "S001-OLD")
+        comment = {"user": {"login": "AI-Bott"}, "created_at": "2026-10-29T18:11:00Z",
+                   "body": "[S001-worker] HANDOFF S001-OLD " + SHA + " released.",
+                   "html_url": "https://github.com/Nate27624/Wii-AI-Golf/issues/121#issuecomment-123"}
         self.assertIsNone(find_handoff(rr, [comment], verified_main=SHA,
                                        roster_created_at="2026-10-29T18:00:00Z"))
 
