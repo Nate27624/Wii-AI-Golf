@@ -24,7 +24,7 @@ def local_git(root: Path, *args: str) -> str:
             text=True,
             stderr=subprocess.DEVNULL,
             timeout=8,
-        ).strip() or "unavailable"
+        ).strip()
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return "unavailable"
 
@@ -48,8 +48,8 @@ def main() -> int:
         parser.error("thread must be a canonical issue/PR URL in Nate27624/Wii-AI-Golf")
 
     root = Path(__file__).resolve().parents[1]
-    branch = local_git(root, "branch", "--show-current")
-    head = local_git(root, "rev-parse", "HEAD")
+    branch = local_git(root, "branch", "--show-current") or "unavailable"
+    head = local_git(root, "rev-parse", "HEAD") or "unavailable"
     status = local_git(root, "status", "--porcelain")
     cleanliness = "unavailable" if status == "unavailable" else ("clean" if not status else "dirty")
 
