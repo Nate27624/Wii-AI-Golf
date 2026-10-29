@@ -42,6 +42,15 @@ The S000 manager consolidates other agents' questions. Resolve technical questio
 
 The roster uses JSON version 1 between `<!-- V2_ASSIGNMENTS_JSON_BEGIN -->` and `<!-- V2_ASSIGNMENTS_JSON_END -->`, with `main_sha`, `manager_id`, and `assignments` (1–20 rows). Each row has an exact `instance` and matching `role` (S000–S005), unique active `task_id`, lifecycle `state` (`ASSIGNED`, `CLAIMED`, `IN_PROGRESS`, `BLOCKED`, `COMPLETED`, or `PARKED`), canonical `thread`, nonoverlapping concrete `owned_paths`, bounded `objective` and `acceptance` text. Identify the authenticated single manager in the GitHub comment header (`manager_id: S000-...`). The roster is NOT an atomic lock or a GitHub notification: an agent must still verify no competing owner PR and reference the roster permalink in its own CLAIM. Manager documents exact path delegation and gives one implementation owner per behavior.
 
+**First-roster bootstrap:** If no assignment roster exists yet, the single
+already operator-authorized S000 Manager with a verified canonical GitHub
+`MANAGER RESUMPTION / CLAIM` must publish the first full roster without
+waiting for a self-assignment. The manager must inspect current owner claims,
+PR collisions and main SHA, assigning nonoverlapping scopes or PARKED empty
+paths. The S000 cleanup agent and other specialists cannot bootstrap the
+manager roster; they report `ASSIGNMENT REQUEST` and PARK. Missing roster
+means **manager coordination pending**, not that no manager was initialized.
+
 Lifecycle: **AVAILABLE on candidate board → manager ASSIGNED → agent CLAIMED → IN_PROGRESS → COMPLETED / BLOCKED / PARKED**. The manager alone publishes assignment revisions. A new agent without an exact roster entry posts `[INSTANCE] ASSIGNMENT REQUEST` on #320 and does not self-assign source files. A continuing agent finishes its existing verified CLAIM first; after HANDOFF it requests another manager assignment and **parks rather than inventing work**. The manager can reassign an explicitly released or superseded task and updates roster on meaningful changes. On succession the outgoing agent posts a SUCCESSION HANDOFF and releases old ownership; S000 changes the roster to the unique incoming instance before its new CLAIM. Source research and negative evidence remain preserved.
 
 The current local helper `scripts/agent_init.py` uses authenticated, read-only GitHub GETs. `--live` reads both advisory priorities and the authoritative named roster; `--roster-file` is **offline test input only**. A missing, malformed, stale-main, overlapping, or unmatched roster fails closed for **new** ownership. Existing work can continue only after independently verifying the original claim, current PR and main compatibility. Since all agents may share a GitHub account, the helper validates comment author + manager identity format but does NOT cryptographically prove which ChatGPT conversation posted a comment; manager resolves any apparent impersonation/collision from canonical evidence.
