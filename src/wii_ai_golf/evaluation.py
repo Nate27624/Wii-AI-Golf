@@ -6,6 +6,7 @@ from statistics import mean, median
 from typing import Iterable
 
 from .agents import EliteSearchPolicy, Policy
+from .emulator import DolphinEnvironment
 from .protocol import ShotEnvironment
 
 
@@ -40,6 +41,11 @@ def evaluate(policy: Policy, env: ShotEnvironment, scenario_ids: Iterable[str],
     ids = tuple(scenario_ids)
     if not ids or repeats < 1:
         raise ValueError("Evaluation needs scenarios and positive repeats")
+    # No approved real-game result reader/shot-identity join exists yet. A
+    # DolphinEnvironment.step() can issue an actual swing, so refuse it BEFORE
+    # even resetting the bridge; a post-step eligibility check is too late.
+    if isinstance(env, DolphinEnvironment):
+        raise ValueError("Dolphin evaluation requires a verified real-shot outcome contract")
     distances: list[float] = []
     per_scenario: dict[str, list[float]] = {k: [] for k in ids}
     holes = 0
@@ -47,6 +53,11 @@ def evaluate(policy: Policy, env: ShotEnvironment, scenario_ids: Iterable[str],
         for j, scenario_id in enumerate(ids):
             observation = env.reset(scenario_id, seed=seed + r * len(ids) + j)
             result = env.step(policy.act(observation, explore=False))
+            # Generic ShotEnvironment can also return arbitrary numerical
+            # scores. Only explicitly synthetic results may reach these
+            # legacy distance aggregates until a real eligibility gate exists.
+            if result.metadata.get("source") != "synthetic":
+                raise ValueError("Evaluation requires explicitly synthetic ShotResult data")
             distances.append(result.distance_m)
             per_scenario[scenario_id].append(result.distance_m)
             holes += int(result.holed_out)
