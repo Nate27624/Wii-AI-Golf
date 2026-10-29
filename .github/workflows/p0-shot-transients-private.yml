@@ -1,0 +1,51 @@
+name: P0 original positive-shot POST transient audit (offline only)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_shot_transients_private.py'
+      - 'scripts/audit_p0_settled_variability_private.py'
+      - 'scripts/Invoke-P0ShotSettledVariability.ps1'
+      - 'tests/test_p0_settled_variability_private.py'
+      - 'research/studies/P0-SHOT-SETTLED-VARIABILITY-02.md'
+      - 'scripts/Invoke-P0ShotTransientAudit.ps1'
+      - 'tests/test_p0_shot_transients_private.py'
+      - 'research/studies/P0-SHOT-TRANSIENT-MEMORY-01.md'
+      - '.github/workflows/p0-shot-transients-private.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-private-contract:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Bounded synthetic POST transient and privacy controls (no Dolphin)
+        run: python -m unittest discover -s tests -p test_p0_shot_transients_private.py -v
+      - name: Settled candidate and alias/privacy controls (no Dolphin)
+        run: python -m unittest discover -s tests -p test_p0_settled_variability_private.py -v
+      - name: Python syntax (offline)
+        run: python -m py_compile scripts/audit_p0_shot_transients_private.py scripts/audit_p0_settled_variability_private.py
+      - name: PowerShell syntax of requested operator workflow (no execution)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = Join-Path $PWD 'scripts/Invoke-P0ShotTransientAudit.ps1'
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -ne 0) { throw 'Invalid PowerShell syntax' }
+          $settled = Join-Path $PWD 'scripts/Invoke-P0ShotSettledVariability.ps1'
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($settled, [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -ne 0) { throw 'Invalid settled PowerShell syntax' }
