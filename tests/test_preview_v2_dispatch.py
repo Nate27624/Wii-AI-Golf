@@ -60,6 +60,21 @@ class DispatchPreviewTests(unittest.TestCase):
             self.run_preview([row("a", "S001", "CLAIMED", ["same.py"]),
                               row("b", "S002", "CLAIMED", ["same.py"])], [])
 
+    def test_duplicate_backlog_ids_fail_closed(self):
+        with self.assertRaises(ValueError):
+            self.run_preview([row("a", "S001")],
+                             [task("dupe", "S001", ["a.py"]),
+                              task("dupe", "S001", ["b.py"])])
+
+    def test_manager_cannot_be_auto_dispatched(self):
+        got = self.run_preview([row("mgr", "S000", "PARKED")],
+                               [task("takeover", "S000", ["manager.py"])])
+        self.assertFalse(got["proposals"])
+
+    def test_non_hex_sha_fails_closed(self):
+        with self.assertRaises(ValueError):
+            self.run_preview([row("a", "S001")], [], sha="z" * 40)
+
     def test_priority_order(self):
         got = self.run_preview([row("a", "S001")],
                                [task("low", "S001", ["l.py"], priority="P2"),
