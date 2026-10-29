@@ -29,10 +29,26 @@ def train_elite_search(policy: EliteSearchPolicy, env: ShotEnvironment,
     ids = tuple(scenario_ids)
     if not ids or iterations < 1:
         raise ValueError("Training needs scenarios and positive iterations")
+    # No independently verified real-game action/outcome join exists. Refuse
+    # the direct Dolphin adapter *before* reset, which can begin gameplay.
+    if isinstance(env, DolphinEnvironment):
+        raise ValueError("Dolphin training requires a verified real-shot outcome contract")
     for i in range(iterations):
-        observation = env.reset(ids[i % len(ids)], seed=seed + i)
+        scenario_id = ids[i % len(ids)]
+        observation = env.reset(scenario_id, seed=seed + i)
+        if observation.scenario_id != scenario_id:
+            raise ValueError("Training reset scenario identity mismatch")
         action = policy.act(observation, explore=True)
         result = env.step(action)
+        # The legacy trainer may only fit its explicitly synthetic objective.
+        # Caller-controlled metadata is NOT verified real-game provenance.
+        if result.metadata.get("source") != "synthetic":
+            raise ValueError("Training requires explicitly synthetic ShotResult data")
+        if (result.metadata.get("measurement_type") == "offgreen_100ft_penalty"
+                or any(str(result.metadata.get(key, "")).strip().lower()
+                       in ("1", "true", "yes")
+                       for key in ("censored", "outcome_is_censored_penalty"))):
+            raise ValueError("Training rejects censored ShotResult penalties")
         policy.observe(observation, action, result)
 
 
