@@ -91,7 +91,8 @@ def train_elite_search(policy: EliteSearchPolicy, env: ShotEnvironment,
         # Caller-controlled metadata is NOT verified real-game provenance.
         if result.metadata.get("source") != "synthetic":
             raise ValueError("Training requires explicitly synthetic ShotResult data")
-        if (result.metadata.get("measurement_type") == "offgreen_100ft_penalty"
+        if (any(result.metadata.get(key) == "offgreen_100ft_penalty"
+                for key in ("measurement_type", "distance_label"))
                 or any(str(result.metadata.get(key, "")).strip().lower()
                        in ("1", "true", "yes")
                        for key in ("censored", "outcome_is_censored_penalty"))):
