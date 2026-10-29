@@ -9,6 +9,8 @@ from contextlib import ExitStack
 import hashlib
 import json
 import mmap
+import math
+import struct
 from pathlib import Path
 import sys
 
@@ -74,12 +76,20 @@ def _get(rd):
     config = u(roster.GOLF_CONFIG_STATIC)
     pin = u(field + 0x44)
     start_obj = u(field + 0x50)
+    pm = u(roster.PLAYER_MANAGER_STATIC_CANDIDATE)
+    rec = pm + 4 + result["selected_index"] * roster.ROSTER_STRIDE
+    ball = u(rec + 0x88)
+    if (roster._bank(ball, 0x108) != "MEM2"
+            or u(ball + 0x4C) != ball + 0x30):
+        raise ValueError("Source-selected ball object/selfref invalid")
     if (roster._bank(pin, 0x50) != "MEM2"
             or roster._bank(config, 0xC8) != "MEM2"
             or roster._bank(start_obj, 0x50) != "MEM2"
             or u(pin + 0x4C) != pin + 0x30):
         raise ValueError("Source pin/start/config incomplete")
     result["pin"] = tuple(u(pin + 0x30 + 4*i) for i in range(3))
+    # Private identity only; the sanitized report never prints heap pointers.
+    result["selected_ball_obj"] = ball
     result["pin_obj"] = pin
     result["start_obj"] = start_obj
     result["field"] = field
@@ -92,6 +102,80 @@ def _diff(a, b):
     if len(a) != len(b):
         raise ValueError("Incompatible source vectors")
     return sum(x != y for x, y in zip(a,b))
+
+def _f32_numeric_middle(word: int) -> float:
+    """Decode one source-backed, BE float32 component; never expose its value."""
+    if type(word) is not int or not 0 <= word <= 0xFFFFFFFF:
+        raise ValueError("Invalid private middle-component float32 word")
+    value = struct.unpack(">f", struct.pack(">I", word))[0]
+    if not math.isfinite(value):
+        raise ValueError("Nonfinite middle-component source value")
+    return value
+
+
+def _middle_direction(a: int, b: int) -> str:
+    before, after = _f32_numeric_middle(a), _f32_numeric_middle(b)
+    return "increasing" if after > before else ("decreasing" if after < before else "unchanged")
+
+
+def middle_component_study(samples: dict[int, dict]) -> dict:
+    """One source-selected 0x34 scalar, with explicit negative controls.
+
+    Input source pointers/float words remain in RAM-only local structures.
+    A human filename/phase hint is not a machine-verified physics clock.
+    """
+    if set(samples) != set(range(1, 8)):
+        raise ValueError("Exactly seven source-gated samples required")
+    edges = []
+    for before, after in ((5, 6), (6, 7), (5, 7)):
+        a, b = samples[before], samples[after]
+        if (a["selected_index"] != b["selected_index"]
+                or a["hole"] != b["hole"]
+                or any(a[k] != b[k] for k in
+                       ("selected_ball_obj", "pin_obj", "start_obj", "field"))):
+            raise ValueError("Wedge source owner or object identity changed")
+        if any(a[k] != b[k] for k in ("cfg_bc", "cfg_c0", "cfg_c4")):
+            raise ValueError("Wedge Config selector changed")
+        ta, tb = a["triplets"], b["triplets"]
+        for key in ("ball_object_0x030", "ball_cache_0x0cc",
+                    "source_current_start"):
+            if len(ta[key]) != 3 or len(tb[key]) != 3:
+                raise ValueError("Incomplete source selected triplet")
+        if len(a["pin"]) != 3 or len(b["pin"]) != 3:
+            raise ValueError("Incomplete source pin vector")
+        if (ta["source_current_start"] != tb["source_current_start"]
+                or a["pin"] != b["pin"]):
+            raise ValueError("Wedge tee or pin changed; cannot isolate ball scalar")
+        edges.append({
+            "transition": f"{before}_to_{after}",
+            "selected_ball_plus_0x34_direction": _middle_direction(
+                ta["ball_object_0x030"][1], tb["ball_object_0x030"][1]),
+            "selected_cache_plus_0xD0_direction": _middle_direction(
+                ta["ball_cache_0x0cc"][1], tb["ball_cache_0x0cc"][1]),
+            "start_middle_direction": _middle_direction(
+                ta["source_current_start"][1], tb["source_current_start"][1]),
+            "pin_middle_direction": _middle_direction(a["pin"][1], b["pin"][1]),
+            "source_ball_pointer_unchanged": True,
+            "source_owner_hole_config_and_geometry_stable": True,
+        })
+    return {
+        "kind": "P0-SANITIZED-SOURCE-SELECTED-BALL-MIDDLE-F32-DIRECTION",
+        "relative_ball_object_offset": "+0x34",
+        "component_index_zero_based": 1,
+        "candidate_role": "unverified_vertical_height_hypothesis",
+        "human_phase_order_independently_verified": False,
+        "original_banks_integrity_gate_inherited": True,
+        "source_global_control_measured_in_this_reader": False,
+        "source_global_owner_crosscheck_required": True,
+        "middle_axis_as_world_y_verified": False,
+        "actual_ball_world_xyz_verified": False,
+        "same_guest_physics_frame_verified": False,
+        "velocity_verified": False,
+        "training_approved": False,
+        "allowed_to_publish": False,
+        "wedge_edges": edges,
+    }
+
 
 def summarize(samples: dict[int, dict]) -> dict:
     if set(samples) != set(range(1,8)):
@@ -154,7 +238,8 @@ def summarize(samples: dict[int, dict]) -> dict:
         "training_approved":False,
         "allowed_to_publish":False,
         "samples":records,
-        "comparisons":comparisons
+        "comparisons":comparisons,
+        "ball_middle_component_hypothesis":middle_component_study(samples)
     }
 
 def analyze(archive:Path):
