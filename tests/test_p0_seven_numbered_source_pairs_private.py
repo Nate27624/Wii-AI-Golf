@@ -74,6 +74,46 @@ class TestSeven(unittest.TestCase):
         self.assertFalse(r["comparisons"][0]["same_source_selected_slot_and_hole"])
         self.assertIsNone(r["comparisons"][0]["ball_changed_components"])
 
+    def test_d1_to_d2_replaced_ball_abstains_only_ball_specific_deltas(self):
+        # A reused selected slot and hole can point at a different ball object.
+        # The old generic source report returned a plausible 1-component
+        # ball delta even though no same-object motion was established.
+        x=seven()
+        x[2]["selected_ball_obj"]=0x90006000
+        row=mod.summarize(x)["comparisons"][0]
+        self.assertTrue(row["same_source_selected_slot_and_hole"])
+        self.assertFalse(row["same_source_selected_ball_object"])
+        for key in ("ball_changed_components", "ball_cache_CC_changed",
+                    "ball_cache_F0_changed", "ball_cache_FC_changed"):
+            self.assertIsNone(row[key])
+        # A player-record comparison and separate geometry controls are not
+        # selected-ball-object motion, so remain independently reportable.
+        self.assertTrue(row["record_34_changed"])
+        self.assertEqual(row["start_changed_components"],0)
+        self.assertEqual(row["pin_changed_components"],0)
+        self.assertNotIn(str(0x90006000),str(row))
+
+    def test_stable_d1_ball_object_retains_original_categorical_delta(self):
+        row=mod.summarize(seven())["comparisons"][0]
+        self.assertTrue(row["same_source_selected_ball_object"])
+        self.assertEqual(row["ball_changed_components"],1)
+        self.assertFalse(mod.summarize(seven())["training_approved"])
+
+    def test_wedge_replaced_selected_ball_rejects_edge_deltas_and_scalar(self):
+        x=seven()
+        x[6]["selected_ball_obj"]=0x90006000
+        report=mod.summarize(x)
+        by_edge={row["transition"]:row for row in report["comparisons"]}
+        for edge in ("5_to_6", "6_to_7"):
+            row=by_edge[edge]
+            self.assertFalse(row["same_source_selected_ball_object"])
+            self.assertIsNone(row["ball_changed_components"])
+            self.assertIsNone(row["ball_cache_CC_changed"])
+        self.assertTrue(by_edge["5_to_7"]["same_source_selected_ball_object"])
+        self.assertEqual(report["ball_middle_component_hypothesis"]["status"],
+                         "abstained")
+        self.assertFalse(report["allowed_to_publish"])
+
     def test_different_hole_rejects_numeric_delta(self):
         x=seven();x[2]["hole"]=3
         r=mod.summarize(x)
