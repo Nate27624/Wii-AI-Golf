@@ -28,3 +28,5 @@ jobs:
           python-version: "3.12"
       - name: Source-only PPC synthetic callsite regressions
         run: python -m unittest discover -s tests -p test_ball_xyz_source_callers_private.py -v
+      - name: Full offline regression suite (no private ROM/RAM)
+        run: python -B -m unittest discover -s tests -v
