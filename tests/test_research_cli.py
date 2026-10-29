@@ -78,6 +78,7 @@ class ResearchCliTests(unittest.TestCase):
              patch.object(research_cli, "sync_merged_main",
                           return_value=SyncReport("up_to_date")), \
              patch.object(research_cli, "_run", return_value=0) as runner, \
+             patch.object(research_cli, "v1_clean_boot_args", return_value=["--dolphin", "MOCK-CLEAN-EXE", "--dolphin-user", "MOCK-CLEAN-USER", "--config", "MOCK-LOCAL-CONFIG", "--catalog", "MOCK-LOCAL-CATALOG"]), \
              patch.object(research_cli, "DATA", Path(folder)), \
              patch.object(research_cli, "publish_summary") as publisher, \
              patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
@@ -109,6 +110,7 @@ class ResearchCliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder, \
              patch.object(research_cli, "sync_merged_main", return_value=SyncReport("up_to_date")), \
              patch.object(research_cli, "_run", return_value=0) as runner, \
+             patch.object(research_cli, "v1_clean_boot_args", return_value=["--dolphin", "MOCK-CLEAN-EXE", "--dolphin-user", "MOCK-CLEAN-USER", "--config", "MOCK-LOCAL-CONFIG", "--catalog", "MOCK-LOCAL-CATALOG"]), \
              patch.object(research_cli, "DATA", Path(folder)), \
              patch.object(research_cli, "publish_summary") as publish, \
              patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",

@@ -30,10 +30,11 @@ class FreshBootDispatchTests(unittest.TestCase):
 
     def test_boot_precedes_action_and_invokes_canonical_launcher(self):
         boot, action = self.plan()
-        self.assertEqual(boot[:2], ["py", str(self.scripts / "launch_golf.py")])
+        self.assertEqual(boot[0], "py")
+        self.assertTrue(Path(boot[1]).samefile(self.scripts / "launch_golf.py"))
         self.assertEqual(boot[boot.index("--profile") + 1], "green-pre-start")
         self.assertEqual(boot[boot.index("--game") + 1], "G:/Wii Sports.wbfs")
-        self.assertEqual(action[1], str(self.scripts / "probe_swing.py"))
+        self.assertTrue(Path(action[1]).samefile(self.scripts / "probe_swing.py"))
         self.assertIn("--send-live-swing", action)
         self.assertIn("--attach-running", action)
         self.assertEqual(action.count("--attach-running"), 1)
@@ -42,9 +43,9 @@ class FreshBootDispatchTests(unittest.TestCase):
     def test_future_capture_script_without_boot_code_is_accepted(self):
         boot, action = self.plan(action="discover_golf_motion.py",
                                  action_args=["--seconds", "30", "--profile", "fast"])
-        self.assertEqual(action[1], str(self.scripts / "discover_golf_motion.py"))
+        self.assertTrue(Path(action[1]).samefile(self.scripts / "discover_golf_motion.py"))
         self.assertNotIn("--attach-running", action)
-        self.assertEqual(boot[1], str(self.scripts / "launch_golf.py"))
+        self.assertTrue(Path(boot[1]).samefile(self.scripts / "launch_golf.py"))
 
     def test_no_arbitrary_paths_or_double_launch(self):
         for action in ("../probe_swing.py", "/tmp/probe_swing.py",
