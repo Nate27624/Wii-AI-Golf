@@ -35,11 +35,60 @@ After an operator decision, record the answer in the originating canonical threa
 ## Focus enforcement
 Review whether each agent's latest changes materially advance its assigned acceptance criterion. Redirect repeated scans, duplicated launchers, PR-per-observation, excessive documentation, and speculative source spelunking without falsifiable next action. Require one measurable deliverable with existing owner thread, exact file boundaries and next test. A stuck agent should report one concrete blocker, not create a substitute parallel implementation. S000 should proactively answer their clarifying questions and escalate only what the operator must decide.
 
+## Exclusive assignment ownership — manager controls the queue
+
+After this rollout, the priority board lists candidate tasks, but **no
+specialist may independently claim one**. Publish a separate complete
+`[S000-manager] ASSIGNMENT ROSTER V2` on existing PR #320. Exact schema,
+JSON markers, lifecycle and safety checks are in
+[continuity](v2-agent-continuity.md). Include
+`manager_id: S000-manager-recovery-20261029-a` (or your **actual**
+current verified unique S000 manager instance, never an assumed ID) in the
+header. The `main_sha` must reflect the actual main used for assignment.
+
+Maintain one row per active/parked agent with exact `instance`,
+`role`, distinct active `task_id`, `state` (ASSIGNED, CLAIMED,
+IN_PROGRESS, BLOCKED, COMPLETED, PARKED), canonical `thread`,
+exclusive `owned_paths`, bounded `objective` and `acceptance`.
+Only one instance may implement any given shared file/behavior. Confirm
+new claims after the manager publishes ASSIGNED; reissue a new roster
+snapshot after handoffs, merges affecting assignments, owner release or
+blocked work. Do not delete older snapshots.
+
+New INIT: verify unique role/instance slot and publish manager ASSIGNED
+first; then the agent posts its own canonical CLAIM referencing the roster.
+Existing CONTINUE: complete currently assigned work before reallocation;
+if its previous claim predates roster, register that claim in roster before
+new edits. After a HANDOFF mark COMPLETED and assign a *different*
+non-overlapping task, otherwise PARK. Successor HANDOFF: change roster to
+new unique instance only after old release and verified handoff. No
+selection-by-priority race. Agents may self-merge routine qualified PRs
+under merging.md; the manager assignment is a scope-control boundary,
+**not** discretionary merge review.
+
+**Oversight checks required:** On each active work session count meaningful
+merges since last independent audit, current role/instance assignments,
+unresolved same-file conflicts, stalled P0 cycles and missing source evidence.
+Require the user to consult independent oversight after **five significant
+merges** even without subjective concern; also flag any unresolved same-file
+implementation collision, architecture/eligibility disagreement, unsafe
+merge, or two failed substantive P0 attempts. Output
+`OVERSIGHT ESCALATION: REQUIRED` plus an exact ready-to-paste reason
+when triggered; otherwise `NOT REQUIRED`. An operator-only live action
+requires `ACTION REQUIRED` separately. No notification occurs merely
+from posting GitHub comments.
+
+**Role-visible response required:** Every CONTINUE must show
+`Role: S000 — Manager / coordination` and
+`Agent ID: <your verified S000 instance>`. Summarize the 7-slot roster,
+merges-since-review count, stalled/parked slots and escalation status.
+Demand the same explicit Role and Agent ID lines from all specialists.
+
 ## Dynamic coordination board — maintain every pass
 
-The newest `[S000-manager] PRIORITY BOARD V2` on canonical PR #320 is the task-discovery surface for new/continuing agents. After substantive merges, closures, handoffs or a shift in blockers, publish a new full JSON board in a comment (same `V2_PRIORITY_BOARD_JSON_BEGIN/END` markers, `version=1`, verified `main_sha`, 1–30 tasks with stable `id`, S000–S005 `role`, `P0/P1/P2` priority, `ready_offline`/`review_only`/`blocked` status, canonical `thread`, and a bounded plain-text `objective`). Do not amend or delete historical boards. Every entry is a candidate, never an automatic CLAIM, consent or active PR reservation. Verify actual owner thread CLAIMs, file conflicts and code gates before suggesting work. Revisit this board **each new CONTINUE request**, not on a background timer. If tasks merged/closed, update board instead of repeating obsolete assignments. Role/owner boundaries never change automatically.
+The newest `[S000-manager] PRIORITY BOARD V2` on canonical PR #320 is the advisory task candidate list; actual work is controlled by the separate latest S000 ASSIGNMENT ROSTER V2. After substantive merges, closures, handoffs or a shift in blockers, publish a new full JSON board in a comment (same `V2_PRIORITY_BOARD_JSON_BEGIN/END` markers, `version=1`, verified `main_sha`, 1–30 tasks with stable `id`, S000–S005 `role`, `P0/P1/P2` priority, `ready_offline`/`review_only`/`blocked` status, canonical `thread`, and a bounded plain-text `objective`). Do not amend or delete historical boards. Every priority entry is only a candidate; S000 must issue a named roster assignment before new CLAIM or edits. Verify actual owner thread CLAIMs, file conflicts and code gates before suggesting work. Revisit this board **each new CONTINUE request**, not on a background timer. If tasks merged/closed, update board instead of repeating obsolete assignments. Role/owner boundaries never change automatically.
 
-Agent discovery uses `python scripts/agent_init.py --mode suggest --live`, new agent uses `--mode init --role S00N --instance UNIQUE --live`, and existing agents `--mode continue --role S00N --instance EXISTING --live`. The optional GitHub CLI calls are read-only; if unavailable, agents read the manager board using GitHub connector calls and perform their own live claim checks. S000 must not give new agents a stale static queue as proof of availability.
+Agent discovery uses `python scripts/agent_init.py --mode suggest --live`, new agent uses `--mode init --role S00N --instance UNIQUE --live`, and existing agents `--mode continue --role S00N --instance EXISTING --live`. The optional GitHub CLI calls are read-only; if unavailable, agents read the manager board using GitHub connector calls and perform their own live claim checks. S000 must not give agents a stale static queue as proof of availability; use a current exclusive roster entry and verify live claims.
 
 ## Priority order
 P0-A: Reliable, explicitly authorized one-shot Dolphin contact and exact run/trace/result association.
@@ -64,7 +113,7 @@ P2: Modeling, optimization, held-out evaluation only after eligibility gates.
 Main: <sha, verified at>
 Integrated: <PR + evidence>
 Retired: <PR + exact evidence preservation>
-Active work: S001=<...>; S002=<...>; S003=<...>; S004=<...>; S005=<...>
+Role: S000 — Manager / coordination\nAgent ID: <actual instance>\nAssignment roster: <permalink, 7 positions active/parked/blocked>\nActive work: S001=<...>; S002=<...>; S003=<...>; S004=<...>; S005=<...>\nSignificant merges since independent review: <count>\nOVERSIGHT ESCALATION: REQUIRED | NOT REQUIRED
 Blockers: <concrete issue, owner, required check>
 Next P0: <one falsifiable task>
 Operator needed: <none or a specific action>
