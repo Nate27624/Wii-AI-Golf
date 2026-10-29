@@ -22,6 +22,11 @@ class AgentInitTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("MANAGER_PLAYBOOK=docs/S000-manager-playbook.md", proc.stdout)
 
+    def test_v2_navigation_targets_exist(self):
+        for path in ('docs/v2-navigation.md', 'docs/v2-evidence-gates.md', 'docs/v2-pr-triage.md', 'docs/S000-manager-playbook.md', 'merging.md'):
+            with self.subTest(path=path):
+                self.assertTrue((ROOT / path).is_file())
+
     def test_wrong_role_prefix_rejected(self):
         proc = self.invoke("--role", "S002", "--instance", "S001-memory-a")
         self.assertNotEqual(proc.returncode, 0)
