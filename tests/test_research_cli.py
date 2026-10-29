@@ -95,9 +95,86 @@ class ResearchCliTests(unittest.TestCase):
             self.assertEqual(command[command.index("--motion-scale") + 1], "1.0")
             self.assertEqual(command[command.index("--speed-scale") + 1], "0.9")
             self.assertIn("--ask-power", command)
-            publisher.assert_called_once()
-            self.assertEqual(publisher.call_args.args[0]["requested_motion_scale"], 1.0)
-            self.assertEqual(publisher.call_args.args[0]["requested_speed_scale"], 0.9)
+            publisher.assert_not_called()
+            local = list((Path(folder) / "research-cli").glob("*.json"))
+            self.assertEqual(len(local), 1)
+            report = json.loads(local[0].read_text(encoding="utf-8"))
+            self.assertEqual(report["requested_motion_scale"], 1.0)
+            self.assertEqual(report["requested_speed_scale"], 0.9)
+            self.assertEqual(report["kind"], "v1_attempt")
+            self.assertFalse(report["trial_valid_for_action_outcome"])
+            self.assertFalse(report["train_approved"])
+
+    def test_legacy_v1_contact_cancel_and_ambiguous_child_never_publish(self):
+        from wii_ai_golf.lab.github_sync import SyncReport
+        cases = (
+            (0, {"capture_status": "sanitized_human_annotation_only",
+                 "human": {"contact_human": "yes",
+                           "finished_on_green_human": "yes",
+                           "displayed_distance_human": 15.2,
+                           "displayed_unit_human": "ft"},
+                 "settled_screen_observation": "operator_confirmed_before_transition"}),
+            (0, {"capture_status": "sanitized_human_annotation_only",
+                 "human": {"contact_human": "no"}}),
+            (0, {"capture_status": "sanitized_human_annotation_only",
+                 "human": {"contact_human": "unknown"}}),
+            (0, {"capture_status": "none_or_ambiguous"}),
+            (0, {"capture_status": "sanitized_human_annotation_only",
+                 "human": {"contact_human": "yes"},
+                 "settled_screen_observation":
+                     "screen_had_already_transitioned_before_settled_samples"}),
+            (2, {"capture_status": "sanitized_human_annotation_only",
+                 "human": {"contact_human": "yes"}}),
+        )
+        for exit_code, candidate in cases:
+            with self.subTest(exit_code=exit_code, candidate=candidate), \
+                 tempfile.TemporaryDirectory() as folder, \
+                 patch.object(research_cli, "sync_merged_main",
+                              return_value=SyncReport("up_to_date")), \
+                 patch.object(research_cli, "_run", return_value=exit_code), \
+                 patch.object(research_cli, "v1_clean_boot_args",
+                              return_value=["--dolphin", "MOCK-CLEAN-EXE"]), \
+                 patch.object(research_cli, "DATA", Path(folder)), \
+                 patch.object(research_cli, "publish_summary") as publish, \
+                 patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
+                       return_value={"revision": "V1-neutral-swing-calls",
+                                     "safe_for_isolated_legacy_copy": True}), \
+                 patch.object(research_cli, "_fresh_human_labels",
+                              return_value=candidate), \
+                 patch.object(research_cli, "_fallback_human_observation",
+                              return_value={"human": {"contact_human": "unknown"}}):
+                self.assertEqual(research_cli.main(
+                    ["v1", "--live", "--a-lead", "45"]), exit_code)
+                publish.assert_not_called()
+                files = list((Path(folder) / "research-cli").glob("*.json"))
+                self.assertEqual(len(files), 1)
+                report = json.loads(files[0].read_text(encoding="utf-8"))
+                self.assertEqual(report["kind"], "v1_attempt")
+                self.assertFalse(report["trial_valid_for_action_outcome"])
+                self.assertFalse(report["shot_dispatch_verified_by_collector"])
+                self.assertFalse(report["train_approved"])
+                self.assertFalse(report["numeric_distance_target_eligible"])
+                self.assertEqual(report["shot_dispatched"], "unknown")
+                self.assertEqual(
+                    report["legacy_candidate_capture_status_unverified"],
+                    candidate["capture_status"] if exit_code == 0
+                    else "failed_or_cancelled_action")
+                self.assertEqual(
+                    report["attempt_status"],
+                    "failed_or_cancelled_action" if exit_code
+                    else "legacy_child_identity_unverified")
+
+    def test_offline_test_command_retains_existing_publisher_behavior(self):
+        from wii_ai_golf.lab.github_sync import SyncReport
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(research_cli, "sync_merged_main",
+                          return_value=SyncReport("up_to_date")), \
+             patch.object(research_cli, "_run", return_value=0), \
+             patch.object(research_cli, "DATA", Path(folder)), \
+             patch.object(research_cli, "publish_summary") as publish:
+            self.assertEqual(research_cli.main(["test", "--pattern", "test_example.py"]), 0)
+            publish.assert_called_once()
+            self.assertEqual(publish.call_args.args[0]["kind"], "test")
 
     def test_multidimensional_motion_scale_is_not_allowed_in_v1_cli(self):
         from wii_ai_golf.lab.github_sync import SyncReport
@@ -124,7 +201,13 @@ class ResearchCliTests(unittest.TestCase):
             self.assertEqual(command[command.index("--backswing-scale") + 1], "0.8")
             self.assertEqual(command[command.index("--speed-scale") + 1], "1.0")
             self.assertEqual(command[command.index("--a-lead-frames") + 1], "45")
-            self.assertEqual(publish.call_args.args[0]["requested_backswing_scale"], 0.8)
+            publish.assert_not_called()
+            local = list((Path(folder) / "research-cli").glob("*.json"))
+            self.assertEqual(len(local), 1)
+            report = json.loads(local[0].read_text(encoding="utf-8"))
+            self.assertEqual(report["requested_backswing_scale"], 0.8)
+            self.assertEqual(report["kind"], "v1_attempt")
+            self.assertFalse(report["shot_dispatch_verified_by_collector"])
 
     def test_reject_simultaneous_backswing_and_speed_change(self):
         from wii_ai_golf.lab.github_sync import SyncReport

@@ -96,7 +96,11 @@ def v1_clean_boot_args(root: Path) -> list[str]:
 
 
 def _fresh_human_labels(start_time: datetime) -> dict:
-    """Read ONLY selected public/sanitized fields from a NEW locally generated summary."""
+    """Inspect one recent legacy candidate for LOCAL annotation only, never a shot join.
+
+    File modification time does not authenticate run, action, game or terminal
+    outcome. The legacy V1 path must not publish or train from this helper.
+    """
     if not CAPTURES.is_dir():
         return {}
     options = [p for p in CAPTURES.glob("outcome-*-candidates.json")
@@ -579,6 +583,29 @@ def main(argv: list[str] | None = None) -> int:
                     summary.update(_fallback_human_observation())
             else:
                 summary["capture_status"] = "failed_or_cancelled_action"
+        if args.command == "v1" and not args.visual_first:
+            # The old V1 child is discovered by file mtime, not an exact
+            # run token, completed trace and witnessed terminal outcome.
+            # Keep its optional sanitized human notes locally, but never
+            # turn an apparent success or a fallback into published evidence.
+            candidate_status = summary.get("capture_status", "missing")
+            summary.update({
+                "kind": "v1_attempt",
+                "attempt_status": ("legacy_child_identity_unverified"
+                                   if exit_code == 0
+                                   else "failed_or_cancelled_action"),
+                "capture_status": ("legacy_v1_local_only_unjoined"
+                                   if exit_code == 0
+                                   else "failed_or_cancelled_action"),
+                "legacy_candidate_capture_status_unverified": candidate_status,
+                "shot_dispatched": "unknown",
+                "shot_dispatch_verified_by_collector": False,
+                "trial_valid_for_action_outcome": False,
+                "informative_action_outcome_trial": False,
+                "train_approved": False,
+                "physical_distance_verified": False,
+                "numeric_distance_target_eligible": False,
+            })
         private = DATA / "research-cli"
         private.mkdir(parents=True, exist_ok=True)
         dest = private / (summary["id"] + ".json")
@@ -588,11 +615,16 @@ def main(argv: list[str] | None = None) -> int:
         print("Local sanitized result:", dest, flush=True)
         # Never publish a failed/cancelled action, nor a visual result whose
         # unique child shot/trace token cannot be joined to this exact command.
-        if args.command == "v1" and (exit_code != 0 or
-                (args.visual_first and (summary.get("capture_status") != "visual_first_joined"
-                                        or summary.get("informative_action_outcome_trial") is not True))):
-            print("M1.5 outcome NOT eligible; no GitHub publication.", flush=True)
-            return exit_code if exit_code != 0 else 2
+        if args.command == "v1":
+            if not args.visual_first:
+                print("Legacy V1 annotation retained locally, not joined or "
+                      "eligible for GitHub publication.", flush=True)
+                return exit_code
+            if (exit_code != 0
+                    or summary.get("capture_status") != "visual_first_joined"
+                    or summary.get("informative_action_outcome_trial") is not True):
+                print("M1.5 outcome NOT eligible; no GitHub publication.", flush=True)
+                return exit_code if exit_code != 0 else 2
         if not args.no_upload:
             try:
                 url = publish_summary(summary)
