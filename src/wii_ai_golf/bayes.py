@@ -109,10 +109,17 @@ class BayesianSearchPolicy:
         cdf = np.asarray([0.5 * (1.0 + math.erf(float(t) / math.sqrt(2.0))) for t in z])
         pdf = np.exp(-0.5 * z * z) / math.sqrt(2.0 * math.pi)
         expected_improvement = improvement * cdf + std * pdf
-        # Do not burn an expensive game attempt by replaying an already sampled
-        # action when other candidate actions are available.
-        already = np.sqrt(np.min(np.sum((query[:, None, :] - x[None, :, :]) ** 2, axis=2), axis=1))
-        expected_improvement[already < 1e-5] = -1.0
+        # The surrogate fits recent trials, but duplicate protection must
+        # cover the full scenario history, including older capped-out actions.
+        # Check in chunks to avoid allocating an unbounded query-by-history array.
+        already = np.zeros(len(query), dtype=bool)
+        for offset in range(0, len(trials), 256):
+            observed = np.asarray([_encode(a) for a, _ in trials[offset:offset + 256]],
+                                  dtype=float)
+            distance_sq = np.sum((query[:, None, :] - observed[None, :, :]) ** 2,
+                                 axis=2)
+            already |= np.any(distance_sq < 1e-10, axis=1)
+        expected_improvement[already] = -1.0
         selected = query[int(np.argmax(expected_improvement))]
         return ShotAction(float(2.0 * selected[0] - 1.0), float(selected[1]))
 
