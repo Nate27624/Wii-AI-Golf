@@ -28,3 +28,5 @@ jobs:
           python-version: '3.12'
       - name: Source adapter synthetics only (no original RAM)
         run: python -B -m unittest discover -s tests -p "test_p0_cache_cfg_original_b0_adapter.py" -v
+      - name: Full offline regression suite (no original RAM)
+        run: python -B -m unittest discover -s tests -v
