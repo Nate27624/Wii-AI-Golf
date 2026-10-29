@@ -30,7 +30,8 @@ def child_summary():
         "outcome_collection_mode": "human_terminal_first_no_ram",
         "raw_data_created": False,
         "candidate_ranking": None,
-        "swing_dispatch": {"state": "complete", "applied_frames": 89},
+        "swing_dispatch": {"state": "complete", "applied_frames": 89,
+                           "start_frame": 170, "completion_dispatch_frame": 259},
         "known_good_swing_request": {
             "preset": "forward", "generated_trace_frames": 89,
             "trace_sha256": _build_v1_trace_and_digest(
@@ -39,6 +40,8 @@ def child_summary():
             "speed_scale": 1.0, "backswing_scale": 1.0,
             "a_lead_requested_frames": 45,
             "a_lead_observed_frame_delta": 45,
+            "a_lead_start_frame": 121,
+            "a_lead_last_observed_frame": 166,
         },
         "human_observation": {
             "contact_human": "yes", "finished_on_green_human": "no",
@@ -212,6 +215,29 @@ class VisualFirstJoinTests(unittest.TestCase):
                 data = child_summary()
                 data["swing_dispatch"][key] = value
                 self._check(data, expect_ok=False)
+
+    def test_exact_bridge_tick_arithmetic_is_required_before_join(self):
+        # Synthetic child cannot claim a coherent A45 lead and 89-frame trace
+        # just by reporting positive counts; the bridge tick chain must join.
+        self.assertEqual(self._check(child_summary())["capture_status"],
+                         "visual_first_joined")
+        edits = (
+            ("known_good_swing_request", "a_lead_start_frame", None),
+            ("known_good_swing_request", "a_lead_start_frame", True),
+            ("known_good_swing_request", "a_lead_last_observed_frame", 165),
+            ("known_good_swing_request", "a_lead_last_observed_frame", 120),
+            ("swing_dispatch", "start_frame", 166),
+            ("swing_dispatch", "start_frame", 0),
+            ("swing_dispatch", "completion_dispatch_frame", 258),
+            ("swing_dispatch", "completion_dispatch_frame", 400),
+            ("human_observation", "shot_start_frame_before_controller_trace", 122),
+        )
+        for parent, key, bad in edits:
+            with self.subTest(parent=parent, key=key, bad=bad):
+                data = deepcopy(child_summary())
+                data[parent][key] = bad
+                joined = self._check(data, expect_ok=False)
+                self.assertFalse(joined["shot_dispatch_verified_by_collector"])
 
     def test_unreviewed_numeric_ram_or_human_schema_fails_closed(self):
         mutations = (
