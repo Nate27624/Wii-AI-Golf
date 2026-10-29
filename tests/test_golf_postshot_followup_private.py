@@ -5,6 +5,8 @@ from contextlib import redirect_stderr
 from io import StringIO
 import json
 import hashlib
+import os
+import stat
 from pathlib import Path
 import struct
 import sys
@@ -234,6 +236,48 @@ class PostshotFollowupPrivateTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "changed during offline"):
                     follow._phase_read(folder,"RESULT",hashes,source=False)
             self.assertTrue(changed)
+
+    def test_same_sha_replaced_inode_before_map_rejected(self):
+        # In the old implementation a same-content rename between
+        # pathname SHA and mmap passed both SHA tests but switched objects.
+        with tempfile.TemporaryDirectory() as t:
+            folder=Path(t)
+            mem1=folder/"RESULT-MEM1.bin"
+            mem2=folder/"RESULT-MEM2.bin"
+            replacement=folder/"private-replacement.tmp"
+            mem1.write_bytes(b"A"*64)
+            mem2.write_bytes(b"B"*96)
+            replacement.write_bytes(b"A"*64)  # identical content, new inode
+            original_inode=follow._file_identity(mem1,64)
+            hashes={"MEM1":hashlib.sha256(b"A"*64).hexdigest(),
+                    "MEM2":hashlib.sha256(b"B"*96).hexdigest()}
+            true_hash=follow._hash
+            swapped=False
+
+            def swap_after_sha(path):
+                nonlocal swapped
+                digest=true_hash(path)
+                if path==mem1 and not swapped:
+                    os.replace(replacement,mem1)
+                    swapped=True
+                return digest
+
+            with patch.dict(follow.SIZES,{"MEM1":64,"MEM2":96},clear=True), \
+                    patch.object(follow,"_hash",side_effect=swap_after_sha):
+                with self.assertRaisesRegex(ValueError,"changed during offline"):
+                    follow._phase_read(folder,"RESULT",hashes,source=False)
+            self.assertTrue(swapped)
+            self.assertNotEqual(original_inode,follow._file_identity(mem1,64))
+
+    def test_private_bank_symlink_identity_rejected_without_following_link(self):
+        # Portable across Windows where creating test symlinks may need
+        # administrative privileges: the no-follow stat mode is simulated.
+        fake=type("FakeStat",(),{"st_mode":stat.S_IFLNK|0o777,
+                                "st_size":64,"st_dev":1,"st_ino":123})()
+        with patch.object(follow.os,"stat",return_value=fake) as spy:
+            with self.assertRaisesRegex(ValueError,"changed during offline"):
+                follow._file_identity(Path("PRIVATE-NO-FOLLOW-SENTINEL"),64)
+            self.assertEqual(spy.call_args.kwargs,{"follow_symlinks":False})
 
     def test_terminal_rehash_rejects_pre_bank_changed_after_base_audit(self):
         with tempfile.TemporaryDirectory() as t:
