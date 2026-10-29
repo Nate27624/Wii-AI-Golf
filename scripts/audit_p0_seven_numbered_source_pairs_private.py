@@ -258,14 +258,20 @@ def summarize(samples: dict[int, dict]) -> dict:
     for a,b in EDGES:
         x,y=samples[a],samples[b]
         same=x["selected_index"]==y["selected_index"] and x["hole"]==y["hole"]
+        # A stable selected slot/hole does NOT prove the same selected ball
+        # instance survived across archived phases. The source reader already
+        # records its private object identity; export only a sanitized boolean.
+        # Player-record and pin/start controls are independent of ball identity.
+        same_ball=same and x["selected_ball_obj"]==y["selected_ball_obj"]
         f=x["triplets"]; t=y["triplets"]
         comparisons.append({
             "transition":f"{a}_to_{b}",
             "same_source_selected_slot_and_hole":same,
-            "ball_changed_components": _diff(f["ball_object_0x030"],t["ball_object_0x030"]) if same else None,
-            "ball_cache_CC_changed":_diff(f["ball_cache_0x0cc"],t["ball_cache_0x0cc"]) if same else None,
-            "ball_cache_F0_changed":_diff(f["ball_cache_0x0f0"],t["ball_cache_0x0f0"]) if same else None,
-            "ball_cache_FC_changed":_diff(f["ball_cache_0x0fc"],t["ball_cache_0x0fc"]) if same else None,
+            "same_source_selected_ball_object":same_ball,
+            "ball_changed_components": _diff(f["ball_object_0x030"],t["ball_object_0x030"]) if same_ball else None,
+            "ball_cache_CC_changed":_diff(f["ball_cache_0x0cc"],t["ball_cache_0x0cc"]) if same_ball else None,
+            "ball_cache_F0_changed":_diff(f["ball_cache_0x0f0"],t["ball_cache_0x0f0"]) if same_ball else None,
+            "ball_cache_FC_changed":_diff(f["ball_cache_0x0fc"],t["ball_cache_0x0fc"]) if same_ball else None,
             "start_changed_components":_diff(f["source_current_start"],t["source_current_start"]) if same else None,
             "pin_changed_components":_diff(x["pin"],y["pin"]) if same else None,
             "pin_object_pointer_identical":x["pin_obj"]==y["pin_obj"],
