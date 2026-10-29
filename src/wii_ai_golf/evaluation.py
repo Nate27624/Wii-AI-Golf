@@ -41,6 +41,10 @@ def evaluate(policy: Policy, env: ShotEnvironment, scenario_ids: Iterable[str],
     ids = tuple(scenario_ids)
     if not ids or repeats < 1:
         raise ValueError("Evaluation needs scenarios and positive repeats")
+    # Repeating a configuration within the ID list silently biases the
+    # global mean toward it while collapsing per_scenario_mean_m keys.
+    if len(set(ids)) != len(ids):
+        raise ValueError("Evaluation scenario IDs must be unique")
     # No approved real-game result reader/shot-identity join exists yet. A
     # DolphinEnvironment.step() can issue an actual swing, so refuse it BEFORE
     # even resetting the bridge; a post-step eligibility check is too late.
@@ -52,6 +56,10 @@ def evaluate(policy: Policy, env: ShotEnvironment, scenario_ids: Iterable[str],
     for r in range(repeats):
         for j, scenario_id in enumerate(ids):
             observation = env.reset(scenario_id, seed=seed + r * len(ids) + j)
+            # A generic environment may return another scenario: do not
+            # attribute that observation/result to the requested holdout ID.
+            if observation.scenario_id != scenario_id:
+                raise ValueError("Evaluation reset scenario identity mismatch")
             result = env.step(policy.act(observation, explore=False))
             # Generic ShotEnvironment can also return arbitrary numerical
             # scores. Only explicitly synthetic results may reach these
