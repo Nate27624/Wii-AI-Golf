@@ -27,6 +27,9 @@ def b(pc,target):
     return (18<<26)|((target-pc)&0x03FFFFFC)
 def bc(pc,target):
     return (16<<26)|((target-pc)&0xFFFC)
+def psq_indexed_update(subop,ra):
+    # Gekko indexed psq_lux (38) / psq_stux (39), both update base rA.
+    return (4<<26)|(1<<21)|(ra<<16)|(4<<11)|(subop<<1)
 
 def fixture():
     src={E+i*4:NOP for i in range(8)}
@@ -49,6 +52,53 @@ class CfgReceiverMustDefTests(unittest.TestCase):
         self.assertEqual(r["status"],"STATIC_ENTRY_R3_MUST_FLOW")
         self.assertTrue(r["all_reaching_paths_pass_entry_r3_through_r31_to_call_r3"])
         self.assertFalse(r["runtime_receiver_object_verified"])
+
+    def test_psq_indexed_update_overwrites_tracked_r31_fail_closed(self):
+        # Both paths pass through E+12, before mr r3,r31 repairs r3.
+        # The old blanket op4 whitelist falsely proved entry-r3 must-flow.
+        for subop in (38,39):  # psq_lux / psq_stux
+            with self.subTest(subop=subop,base="r31"):
+                s=fixture()
+                s[E+12]=psq_indexed_update(subop,31)
+                r=check(s)
+                self.assertEqual(r["status"],"ABSTAIN_SOURCE_UNRESOLVED")
+                self.assertEqual(r["abstain_reason_category"],"UNSUPPORTED_OPCODE")
+                self.assertEqual(
+                    r["first_encountered_unresolved_source_relative_offset"],
+                    "+0x000C")
+                self.assertFalse(r["all_reaching_paths_pass_entry_r3_through_r31_to_call_r3"])
+                self.assertFalse(r["training_approved"])
+                self.assertFalse(r["allowed_to_publish"])
+
+    def test_psq_indexed_update_overwrites_tracked_r3_fail_closed(self):
+        # Both sides of branch E+16 merge at E+24; replacing the terminal
+        # mr r3,r31 means an op4 update-base to r3 can break the static proof.
+        for subop in (38,39):  # psq_lux / psq_stux
+            with self.subTest(subop=subop,base="r3"):
+                s=fixture()
+                s[E+24]=psq_indexed_update(subop,3)
+                r=check(s)
+                self.assertEqual(r["status"],"ABSTAIN_SOURCE_UNRESOLVED")
+                self.assertEqual(r["abstain_reason_category"],"UNSUPPORTED_OPCODE")
+                self.assertEqual(
+                    r["first_encountered_unresolved_source_relative_offset"],
+                    "+0x0018")
+                self.assertFalse(r["known_exact_cache_writer_callsite_reached"])
+                self.assertFalse(r["all_reaching_paths_pass_entry_r3_through_r31_to_call_r3"])
+                self.assertFalse(r["training_approved"])
+
+    def test_unclassified_opcode4_without_update_still_abstains(self):
+        # The initial safety fix intentionally abstains even if a particular
+        # op4 variant might later be certified GPR-preserving.
+        for subop in (6,7):  # psq_lx / psq_stx (indexed without update)
+            with self.subTest(subop=subop):
+                s=fixture()
+                s[E+12]=psq_indexed_update(subop,31)
+                r=check(s)
+                self.assertEqual(r["status"],"ABSTAIN_SOURCE_UNRESOLVED")
+                self.assertEqual(r["abstain_reason_category"],"UNSUPPORTED_OPCODE")
+        # The original validated comparison/nop/branch fixture still proves.
+        self.assertEqual(check(fixture())["status"],"STATIC_ENTRY_R3_MUST_FLOW")
 
     def test_reordered_src_branch_skips_r31_assignment(self):
         s=fixture()
