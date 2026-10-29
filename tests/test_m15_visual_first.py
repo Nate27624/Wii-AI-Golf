@@ -348,7 +348,8 @@ class VisualFirstJoinTests(unittest.TestCase):
                  patch.object(research_cli, "publish_summary") as publish, \
                  patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
                        return_value={"revision": "V1-neutral-swing-calls",
-                                     "safe_for_isolated_legacy_copy": True}):
+                                     "safe_for_isolated_legacy_copy": True,
+                                     "sha256": "a" * 64}):
                 for backswing in ("1.0", "1.2"):
                     result = research_cli.main([
                         "v1", "--live", "--visual-first", "--no-upload",
@@ -372,7 +373,8 @@ class VisualFirstJoinTests(unittest.TestCase):
                  patch.object(research_cli, "publish_summary") as publish, \
                  patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
                        return_value={"revision": "V1-neutral-swing-calls",
-                                     "safe_for_isolated_legacy_copy": True}):
+                                     "safe_for_isolated_legacy_copy": True,
+                                     "sha256": "a" * 64}):
                 result = research_cli.main(["v1", "--live", "--a-lead", "45",
                                             "--visual-first"])
                 self.assertEqual(result, 4)
@@ -421,7 +423,8 @@ class VisualFirstJoinTests(unittest.TestCase):
                  patch.object(research_cli, "publish_summary") as publish, \
                  patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
                        return_value={"revision": "V1-neutral-swing-calls",
-                                     "safe_for_isolated_legacy_copy": True}):
+                                     "safe_for_isolated_legacy_copy": True,
+                                     "sha256": "a" * 64}):
                 code = research_cli.main([
                     "v1", "--live", "--visual-first", "--no-upload",
                     "--a-lead", "45", "--speed-scale", "1.0",
@@ -463,7 +466,8 @@ class VisualFirstJoinTests(unittest.TestCase):
                  patch.object(research_cli, "publish_summary") as publish, \
                  patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
                        return_value={"revision": "V1-neutral-swing-calls",
-                                     "safe_for_isolated_legacy_copy": True}):
+                                     "safe_for_isolated_legacy_copy": True,
+                                     "sha256": "a" * 64}):
                 code = research_cli.main(["v1", "--live", "--a-lead", "45",
                                           "--visual-first"])
                 self.assertEqual(code, 2)
@@ -472,6 +476,71 @@ class VisualFirstJoinTests(unittest.TestCase):
                 self.assertEqual(len(records), 1)
                 saved = json.loads(records[0].read_text())
                 self.assertFalse(saved["informative_action_outcome_trial"])
+
+    def test_bridge_source_changed_during_action_quarantines_b1(self):
+        """A source mutation during a synthetic completed action cannot pass B1."""
+        from wii_ai_golf.lab.github_sync import SyncReport
+        with tempfile.TemporaryDirectory() as directory:
+            sandbox = Path(directory)
+            checkout = sandbox / "checkout"
+            checkout.mkdir()
+            bridge = sandbox / "tools" / "mcp_bridge_swing_legacy_eval.py"
+            bridge.parent.mkdir()
+            original = (
+                "# WII_AI_GOLF_ATOMIC_TRACE_V1\\n"
+                "# WII_AI_GOLF_SWING_TRACE_V1\\n"
+                "print('before')\\n"
+            ).replace("\\\\n", "\\n")
+            bridge.write_text(original, encoding="utf-8")
+            runner_calls = []
+
+            def mutating_runner(argv, **_kwargs):
+                runner_calls.append(list(argv))
+                bridge.write_text(original + "# changed during action\\n",
+                                  encoding="utf-8")
+                return 0
+
+            with patch.object(research_cli, "ROOT", checkout), \\
+                 patch.object(research_cli, "DATA", sandbox / "data"), \\
+                 patch.object(research_cli, "sync_merged_main",
+                              return_value=SyncReport("up_to_date")), \\
+                 patch.object(research_cli, "v1_clean_boot_args",
+                              return_value=["--dolphin", "MOCK_CLEAN"]), \\
+                 patch.object(research_cli, "_run", side_effect=mutating_runner), \\
+                 patch.object(research_cli, "_joined_visual_first") as join, \\
+                 patch.object(research_cli, "publish_summary") as publish:
+                code = research_cli.main([
+                    "v1", "--live", "--visual-first", "--no-upload",
+                    "--a-lead", "45", "--speed-scale", "1.0",
+                    "--backswing-scale", "1.0",
+                ])
+            self.assertEqual(code, 2)
+            self.assertEqual(len(runner_calls), 1)
+            join.assert_not_called()
+            publish.assert_not_called()
+            summaries = list((sandbox / "data" / "research-cli").glob("*.json"))
+            self.assertEqual(len(summaries), 1)
+            saved = json.loads(summaries[0].read_text(encoding="utf-8"))
+            self.assertEqual(saved["capture_status"],
+                             "unqualified_bridge_source_change")
+            self.assertTrue(saved["bridge_source_changed_during_action"])
+            self.assertFalse(saved["informative_action_outcome_trial"])
+            self.assertFalse(saved["train_approved"])
+
+    def test_missing_bridge_source_digest_prevents_b1_launch(self):
+        from wii_ai_golf.lab.github_sync import SyncReport
+        with tempfile.TemporaryDirectory() as directory, \\
+             patch.object(research_cli, "DATA", Path(directory)), \\
+             patch.object(research_cli, "sync_merged_main",
+                          return_value=SyncReport("up_to_date")), \\
+             patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
+                   return_value={"revision": "V1-neutral-swing-calls",
+                                 "safe_for_isolated_legacy_copy": True}), \\
+             patch.object(research_cli, "_run") as runner:
+            code = research_cli.main(["v1", "--live", "--visual-first",
+                                      "--no-upload", "--a-lead", "45"])
+            self.assertEqual(code, 2)
+            runner.assert_not_called()
 
     def test_malicious_legacy_nested_screen_label_not_published(self):
         with tempfile.TemporaryDirectory() as directory:
