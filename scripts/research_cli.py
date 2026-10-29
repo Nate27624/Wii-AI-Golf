@@ -149,6 +149,11 @@ def _fresh_human_labels(start_time: datetime, *, run_token: str | None = None,
     if (swing["generated_trace_frames"] != len(samples)
             or swing["trace_sha256"] != expected_digest):
         return {"capture_status": "unqualified_child_trace_digest"}
+    a_lead = expected_controller["a_lead_requested_frames"]
+    if (a_lead > 0 and
+            (type(swing.get("a_lead_observed_frame_delta")) is not int
+             or swing["a_lead_observed_frame_delta"] < a_lead)):
+        return {"capture_status": "unqualified_child_a_lead_observation"}
     timing = content.get("settled_screen_observation")
     if timing not in ("operator_confirmed_before_transition",
                       "screen_had_already_transitioned_before_settled_samples"):
