@@ -4,7 +4,7 @@
 Recover a minimal CLI-only shot → source-validated observation → result → eligible training record pipeline. Keep existing main unchanged until all acceptance gates pass. No ROM, raw RAM, savestate, private path, secrets, or captured data in Git. Existing original captures stay local; do not solicit repeat captures unless a precise falsification gap is proven. No unattended live swing or publication.
 
 ## Agent identity and ownership
-Use stable **role IDs**, never GitHub login as identity (multiple agents can share an account). At initialization select the one role assigned by operator, then choose a distinct `instance_id` (e.g. `S002-memory-a`). Include `[S002-memory-a]` prefix in GitHub comments and handoffs.
+Use stable **role IDs**, never GitHub login as identity (multiple agents can share an account). At initialization keep the role assigned by the operator when specified. For an open-ended request for a **new research agent**, first inspect the latest S000 priority board on #320 plus live active claims, choose the highest-impact *available* role within this charter, then choose a distinct `instance_id` (e.g. `S002-memory-a`). A continuing chat always retains its role and instance ID. The manager board is advisory and must be revalidated against current main and owner threads. Include `[S002-memory-a]` prefix in GitHub comments and handoffs.
 
 | ID | Role | Owns | Must not change without review |
 | --- | --- | --- | --- |
@@ -20,8 +20,8 @@ S000 coordinates cross-domain contracts, but agents self-merge whenever every ob
 S000 manager agents must additionally read [`docs/S000-manager-playbook.md`](S000-manager-playbook.md); S000 coordination is not a routine PR approval gate.
 
 ## Initialization contract
-1. Run `python scripts/agent_init.py --role S002 --instance S002-memory-a` (substitute role/instance); read its printed charter and checks.
-2. Fetch latest `main`, inspect open PRs and `docs/p0-pr-consolidation-lanes.md`, read `docs/merging-requirements.md` and this charter.
+1. Read the latest S000 priority board on #320 and all relevant live CLAIM/HANDOFF and PR overlaps. Use `python scripts/agent_init.py --mode suggest --live` to view role candidates (if authenticated `gh` exists); for a new role-specific agent run `python scripts/agent_init.py --mode init --role S002 --instance S002-memory-a --live`. No invocation automatically reserves a task or ID.
+2. Fetch latest `main`, inspect open PRs and `docs/p0-pr-consolidation-lanes.md`, read root `merging.md` and this charter.
 3. Post `[INSTANCE] CLAIM` on the existing owner PR/issue: specific input, output, paths, contract, overlap check and expected test.
 4. Do exactly one self-contained task. No competing UI, launcher, memory scanner or PowerShell replacement.
 5. Post `[INSTANCE] HANDOFF` containing branch/head, changed paths, tests and exact SHA, evidence confidence, blockers, and next owner.
@@ -42,4 +42,4 @@ S000 manager agents must additionally read [`docs/S000-manager-playbook.md`](S00
 - Fail closed on missing identity, provenance, phase, frame, or uncertainty. Tests report which checks actually ran, including Windows and Ubuntu where required.
 
 ## Coordination and scope
-Use the existing parent PRs: #231 seven-phase; #240 global-pointer; #163 baseline; #223 airborne; #219 callers; #315 timing; #310 crash diagnosis; #205 registry. Leave research-only findings on canonical parents. A new PR requires a unique executable change and explicit owner approval. This charter itself is an **isolated proposal**, not an architecture migration or authorization to merge/close any existing PR.
+Use the existing parent PRs: #231 seven-phase; #240 global-pointer; #163 baseline; #223 airborne; #219 callers; #315 timing; #310 crash diagnosis; #205 registry. Leave research-only findings on canonical parents. A new PR must add unique reviewed functionality or tests and coordinate with the canonical owner on overlaps; no discretionary owner approval is required for routine merges satisfying `merging.md`. Historical parent PR states must be verified live; #231 and #240 are now closed unmerged with source evidence preserved, while minimum components were selectively integrated. This charter governs role boundaries, not live PR inventory.
