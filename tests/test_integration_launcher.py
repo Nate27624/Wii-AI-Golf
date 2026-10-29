@@ -1,6 +1,7 @@
 """Offline tests for one-command Dolphin + bridge + named-state launcher."""
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 import subprocess
@@ -304,26 +305,75 @@ class OneCommandLauncherTests(unittest.TestCase):
             run.assert_not_called()
         self.assertIn("Source = 2", self.ini.read_text())
 
-    def test_explicit_dolphin_user_dir_remembered_for_future_runs(self):
+    def test_matching_portable_user_dir_is_remembered_and_reused(self):
+        argv = [
+            "--game", str(self.game), "--config", str(self.config),
+            "--bridge", str(self.bridge), "--dolphin", str(self.exe),
+            "--catalog", str(self.catalog),
+            "--dolphin-user", str(self.user)
+        ]
+        with patch.object(launch_golf.subprocess, "run",
+                          return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(launch_golf.main(argv), 0)
+            run.assert_called_once()
+        self.assertEqual(launch_golf.read_config(self.config)["dolphin_user"], str(self.user))
+        self.assertIn("Source = 1", self.ini.read_text())
+        with patch.object(launch_golf.subprocess, "run",
+                          return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(launch_golf.main(argv[:-2]), 0)
+            run.assert_called_once()
+
+    def test_portable_user_override_mismatch_aborts_before_config_or_launch(self):
         custom = self.root / "custom-user"
-        ini = custom / "Config" / "WiimoteNew.ini"
-        ini.parent.mkdir(parents=True)
-        ini.write_text("[Wiimote1]\nSource = 2\nExtension = Nunchuk\n")
+        custom_ini = custom / "Config" / "WiimoteNew.ini"
+        custom_ini.parent.mkdir(parents=True)
+        custom_ini.write_text("[Wiimote1]\\nSource = 2\\nExtension = Nunchuk\\n")
+        original_portable = self.ini.read_bytes()
+        original_custom = custom_ini.read_bytes()
         argv = [
             "--game", str(self.game), "--config", str(self.config),
             "--bridge", str(self.bridge), "--dolphin", str(self.exe),
             "--catalog", str(self.catalog),
             "--dolphin-user", str(custom)
         ]
-        with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
-            self.assertEqual(launch_golf.main(argv), 0)
-        self.assertEqual(launch_golf.read_config(self.config)["dolphin_user"], str(custom))
-        self.assertIn("Source = 1", ini.read_text())
-        self.assertIn("Source = 2", self.ini.read_text())
-        with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
-            self.assertEqual(launch_golf.main(argv[:-2]), 0)
-        self.assertIn("Source = 2", self.ini.read_text())
-        self.assertIn("Source = 1", ini.read_text())
+        with patch.object(launch_golf.subprocess, "run") as run, \\
+             patch.object(launch_golf, "ensure_emulated_controller") as configure, \\
+             patch("sys.stderr", new_callable=io.StringIO) as errors:
+            self.assertEqual(launch_golf.main(argv), 1)
+            run.assert_not_called()
+            configure.assert_not_called()
+        self.assertIn("Portable Dolphin user-root mismatch", errors.getvalue())
+        self.assertNotIn(str(custom), errors.getvalue())
+        self.assertEqual(self.ini.read_bytes(), original_portable)
+        self.assertEqual(custom_ini.read_bytes(), original_custom)
+        self.assertFalse(custom_ini.with_name(custom_ini.name +
+                         ".wii-ai-golf.original.bak").exists())
+        self.assertFalse(self.ini.with_name(self.ini.name +
+                         ".wii-ai-golf.original.bak").exists())
+
+    def test_remembered_mismatched_portable_user_refused_before_ini_edit(self):
+        custom = self.root / "stale-user"
+        custom_ini = custom / "Config" / "WiimoteNew.ini"
+        custom_ini.parent.mkdir(parents=True)
+        custom_ini.write_text("[Wiimote1]\\nSource = 2\\nExtension = Nunchuk\\n")
+        launch_golf.resolve_game(str(self.game), self.config)
+        launch_golf.remember_dolphin_user(self.config, str(custom))
+        before_portable = self.ini.read_bytes()
+        before_custom = custom_ini.read_bytes()
+        argv = [
+            "--config", str(self.config),
+            "--bridge", str(self.bridge), "--dolphin", str(self.exe),
+            "--catalog", str(self.catalog)
+        ]
+        with patch.object(launch_golf.subprocess, "run") as run, \\
+             patch.object(launch_golf, "ensure_emulated_controller") as configure:
+            self.assertEqual(launch_golf.main(argv), 1)
+            run.assert_not_called()
+            configure.assert_not_called()
+        self.assertEqual(self.ini.read_bytes(), before_portable)
+        self.assertEqual(custom_ini.read_bytes(), before_custom)
+        self.assertFalse(custom_ini.with_name(custom_ini.name +
+                         ".wii-ai-golf.original.bak").exists())
 
     def test_launch_error_never_sends_swing(self):
         argv = [
