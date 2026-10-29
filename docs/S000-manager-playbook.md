@@ -35,6 +35,12 @@ After an operator decision, record the answer in the originating canonical threa
 ## Focus enforcement
 Review whether each agent's latest changes materially advance its assigned acceptance criterion. Redirect repeated scans, duplicated launchers, PR-per-observation, excessive documentation, and speculative source spelunking without falsifiable next action. Require one measurable deliverable with existing owner thread, exact file boundaries and next test. A stuck agent should report one concrete blocker, not create a substitute parallel implementation. S000 should proactively answer their clarifying questions and escalate only what the operator must decide.
 
+## Dynamic coordination board — maintain every pass
+
+The newest `[S000-manager] PRIORITY BOARD V2` on canonical PR #320 is the task-discovery surface for new/continuing agents. After substantive merges, closures, handoffs or a shift in blockers, publish a new full JSON board in a comment (same `V2_PRIORITY_BOARD_JSON_BEGIN/END` markers, `version=1`, verified `main_sha`, 1–30 tasks with stable `id`, S000–S005 `role`, `P0/P1/P2` priority, `ready_offline`/`review_only`/`blocked` status, canonical `thread`, and a bounded plain-text `objective`). Do not amend or delete historical boards. Every entry is a candidate, never an automatic CLAIM, consent or active PR reservation. Verify actual owner thread CLAIMs, file conflicts and code gates before suggesting work. Revisit this board **each new CONTINUE request**, not on a background timer. If tasks merged/closed, update board instead of repeating obsolete assignments. Role/owner boundaries never change automatically.
+
+Agent discovery uses `python scripts/agent_init.py --mode suggest --live`, new agent uses `--mode init --role S00N --instance UNIQUE --live`, and existing agents `--mode continue --role S00N --instance EXISTING --live`. The optional GitHub CLI calls are read-only; if unavailable, agents read the manager board using GitHub connector calls and perform their own live claim checks. S000 must not give new agents a stale static queue as proof of availability.
+
 ## Priority order
 P0-A: Reliable, explicitly authorized one-shot Dolphin contact and exact run/trace/result association.
 P0-B: Existing native memory archives: SHA/source-gated same-shot selected/global translation candidates, D1 contradiction, W5/W6/W7 evidence. Do not request duplicated captures by default.
