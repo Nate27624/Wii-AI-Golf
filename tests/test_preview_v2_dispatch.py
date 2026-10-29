@@ -75,6 +75,30 @@ class DispatchPreviewTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.run_preview([row("a", "S001")], [], sha="z" * 40)
 
+    def test_receipt_surfaces_stale_assigned_row_for_manager(self):
+        receipt = [{"instance": "s1", "task_id": "old", "status": "COMPLETE_RELEASED",
+                    "url": "https://github.com/test/issues/1#issuecomment-2", "main_sha": SHA}]
+        got = preview({"main_sha": SHA, "assignments": [row("s1", "S001", "ASSIGNED", ["old.py"])]},
+                      {"main_sha": SHA, "tasks": [task("fresh", "S001", ["new.py"])]},
+                      verified_main=SHA, handoffs=receipt)
+        self.assertTrue(got["proposals"][0]["requires_roster_reconciliation"])
+        self.assertEqual(got["proposals"][0]["handoff"], receipt[0]["url"])
+
+    def test_wrong_task_handoff_cannot_unlock(self):
+        receipt = [{"instance": "s1", "task_id": "other", "status": "COMPLETE_RELEASED",
+                    "url": "https://github.com/test/issues/1", "main_sha": SHA}]
+        got = preview({"main_sha": SHA, "assignments": [row("s1", "S001", "ASSIGNED")]},
+                      {"main_sha": SHA, "tasks": [task("fresh", "S001", ["new.py"])]},
+                      verified_main=SHA, handoffs=receipt)
+        self.assertFalse(got["proposals"])
+
+    def test_reserve_order_and_dependencies(self):
+        got = preview({"main_sha": SHA, "assignments": [row("s1", "S001")]},
+                      {"main_sha": SHA, "tasks": [task("high", "S001", ["high.py"]),
+                                                    task("reserve", "S001", ["reserve.py"], priority="P2")]},
+                      verified_main=SHA, reserves={"s1": ["reserve", "high"]})
+        self.assertEqual(got["proposals"][0]["task_id"], "reserve")
+
     def test_priority_order(self):
         got = self.run_preview([row("a", "S001")],
                                [task("low", "S001", ["l.py"], priority="P2"),
