@@ -5,7 +5,9 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("memory_registry_validator", ROOT / "scripts/validate_memory_registry.py")
@@ -18,6 +20,51 @@ class MemoryRegistryTests(unittest.TestCase):
     def setUp(self):
         self.payload = json.loads(REGISTRY.read_text(encoding="utf-8"))
         self.variable = self.payload["variables"][0]
+
+    def test_bounded_regular_registry_read_preserves_current_schema(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "registry.json"
+            path.write_text(json.dumps(self.payload), encoding="utf-8")
+            loaded = validator.load_registry(path)
+            self.assertEqual(validator.validate_registry(loaded), [])
+            self.assertEqual(len(loaded["variables"]), len(self.payload["variables"]))
+
+    def test_missing_symlink_and_oversize_registry_files_fail_closed(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            missing = root / "missing.json"
+            with self.assertRaises(OSError):
+                validator.load_registry(missing)
+            oversized = root / "oversized.json"
+            oversized.write_bytes(b"x" * (validator.MAX_REGISTRY_BYTES + 1))
+            with self.assertRaisesRegex(ValueError, "bounded regular file"):
+                validator.load_registry(oversized)
+            target = root / "real.json"
+            target.write_text(json.dumps(self.payload), encoding="utf-8")
+            linked = root / "linked.json"
+            try:
+                linked.symlink_to(target)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlink creation unavailable on this host")
+            with self.assertRaisesRegex(ValueError, "bounded regular file"):
+                validator.load_registry(linked)
+
+    def test_matching_json_from_substituted_open_descriptor_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            checked = root / "checked.json"
+            other = root / "other.json"
+            data = json.dumps(self.payload)
+            checked.write_text(data, encoding="utf-8")
+            other.write_text(data, encoding="utf-8")
+            real_open = Path.open
+
+            def swapped(path, *args, **kwargs):
+                return real_open(other if path == checked else path, *args, **kwargs)
+
+            with patch.object(Path, "open", new=swapped):
+                with self.assertRaisesRegex(ValueError, "does not match"):
+                    validator.load_registry(checked)
 
     def test_committed_registry_has_no_validation_errors(self):
         self.assertEqual(validator.validate_registry(self.payload), [])
