@@ -35,6 +35,51 @@ def make_report(*, green="yes", distance=2.1, frames=122, contents=None):
 
 
 class OutcomeComparisonTests(unittest.TestCase):
+    def test_archived_offgreen_penalty_matches_do_not_reappear(self):
+        first = make_report(green="no", distance=100.0,
+                            contents=[("0x91BF176C", 7, 100)])
+        first["candidate_ranking"]["candidates"][0][
+            "matches_displayed_numeric_label_as"] = ["u32"]
+        other = make_report(green="yes", distance=2.1,
+                            contents=[("0x91BF176C", 7, 100)])
+        other["candidate_ranking"]["candidates"][0][
+            "matches_displayed_numeric_label_as"] = ["u32"]
+        report = compare_outcome_runs([first, other])
+        self.assertTrue(report["runs"][0]["displayed_distance_censored_penalty"])
+        self.assertEqual(
+            report["runs"][0]["literal_memory_matches_to_displayed_number"], 0)
+        self.assertFalse(report["runs"][1]["displayed_distance_censored_penalty"])
+        self.assertEqual(
+            report["runs"][1]["literal_memory_matches_to_displayed_number"], 1)
+        self.assertEqual(report["censored_penalty_runs"], 1)
+        self.assertEqual(report["identical_settled_u32_among_shared"], 1)
+        self.assertFalse(report["game_score_verified"])
+        self.assertFalse(report["training_approved"])
+        self.assertTrue(all(
+            not row["numeric_distance_target_eligible"] for row in report["runs"]))
+
+    def test_only_fixed_100ft_offgreen_penalty_is_censored(self):
+        for green, unit, distance, expected in (
+            ("no", "ft", 100.0, True),
+            ("yes", "ft", 100.0, False),
+            ("no", "yd", 100.0, False),
+            ("no", "ft", 99.0, False),
+            ("unknown", "ft", 100.0, False),
+        ):
+            with self.subTest(green=green, unit=unit, distance=distance):
+                first = make_report(green=green, distance=distance,
+                                    contents=[("0x91BF176C", 7, 100)])
+                first["human_observation"]["displayed_unit_human"] = unit
+                first["candidate_ranking"]["candidates"][0][
+                    "matches_displayed_numeric_label_as"] = ["u32"]
+                report = compare_outcome_runs([first, make_report()])
+                self.assertEqual(
+                    report["runs"][0]["displayed_distance_censored_penalty"],
+                    expected)
+                self.assertEqual(
+                    report["runs"][0]["literal_memory_matches_to_displayed_number"],
+                    0 if expected else 1)
+
     def test_different_labels_same_ram_does_not_verify_score(self):
         out = compare_outcome_runs([
             make_report(), make_report(green="no", distance=100.0, frames=89),
