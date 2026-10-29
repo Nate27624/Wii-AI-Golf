@@ -35,7 +35,7 @@ def waveform(variant):
         output.append(s)
     return output
 
-def public_record(variant,trace,dispatch,contact,power):
+def public_record(variant,trace,dispatch,contact,power,start_pose="unknown",power_source="unavailable"):
     payload=[[s.hold_a,*s.direction,s.distance_m,s.speed_m_s,s.return_speed_m_s,s.angle_rad] for s in trace]
     return {"schema_version":1,"kind":"swing-power-calibration","study_id":"S002-POWER-INPUT-OUTPUT",
             "id":datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-")+"-"+variant,
@@ -44,6 +44,9 @@ def public_record(variant,trace,dispatch,contact,power):
             "trace_sha256":hashlib.sha256(json.dumps(payload,separators=(",",":")).encode()).hexdigest(),
             "trace_frames":len(trace),"dispatch_acknowledged":isinstance(dispatch,dict),
             "contact_human":contact,"power_percent_human":power,
+            "initial_club_pose_human":start_pose,
+            "initial_club_pose_verified_by_memory":False,
+            "power_observation_source_human":power_source,
             "power_verified_by_memory":False,"contact_verified_by_memory":False}
 
 def main():
@@ -59,6 +62,9 @@ def main():
     if not a.live:
         print("Dry run: no controller inputs sent");return 0
     with FelkRPC(port=a.port,timeout_s=15) as rpc:
+        while True:
+            start_pose=input("Club position BEFORE swing [back/center/forward/unknown]: ").strip().lower()
+            if start_pose in ("back","center","forward","unknown"):break
         input("Check ready-to-swing tee, then press ENTER (Ctrl+C cancels): ")
         dispatched=SwingTraceClient(rpc,port=0).run(trace)
     print("Controller trace dispatched; observe game to decide hit and power.")
@@ -73,7 +79,11 @@ def main():
             if math.isfinite(power) and 0<=power<=100:break
         except ValueError:pass
         print("Enter a percent between 0 and 100, or leave blank.")
-    record=public_record(a.variant,trace,dispatched,contact,power)
+    while True:
+        power_source=input("Power source [meter/result/estimate/unavailable]: ").strip().lower()
+        if power_source in ("meter","result","estimate","unavailable"):break
+    if power is None:power_source="unavailable"
+    record=public_record(a.variant,trace,dispatched,contact,power,start_pose,power_source)
     CAPTURES.mkdir(parents=True,exist_ok=True)
     path=CAPTURES/(record["id"]+"-power-summary.json")
     path.write_text(json.dumps(record,indent=2)+"\n",encoding="utf-8")
