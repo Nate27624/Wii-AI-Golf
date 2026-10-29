@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
 import audit_p0_global_ball_source_xrefs_private as mod
@@ -84,6 +85,44 @@ class SourceGlobalXrefsTests(unittest.TestCase):
         self.assertNotIn("bank_sha",txt)
         self.assertEqual(report["source_golf_text_units_examined"],6)
         self.assertGreater(report["golf_source_code_words_examined"],10000)
+
+    def test_original_manifest_gate_runs_before_any_native_bank_read(self):
+        with (mock.patch.object(mod.seven, "_private_directory",
+                                return_value=Path("ignored-fabricated")),
+              mock.patch.object(mod.prev, "_canonical_archive_sha",
+                                side_effect=ValueError("original manifest mismatch")) as gate,
+              mock.patch.object(mod.seven, "_phase_banks",
+                                side_effect=AssertionError("unsafe bank opened"))):
+            with self.assertRaisesRegex(ValueError, "original manifest mismatch"):
+                mod.validate_and_read_three(Path("ignored-fabricated"))
+            gate.assert_called_once()
+
+    def test_original_pair_hash_mismatch_abstains_instead_of_rebaselining(self):
+        pair={"MEM1":Path("fabricated-5.1.raw"),"MEM2":Path("fabricated-5.2.raw")}
+        originals={5:{"MEM1":b"A"*32,"MEM2":b"B"*32}}
+        with mock.patch.object(mod.seven,"_hash",
+                               side_effect=[b"A"*32,b"Z"*32]) as hashed:
+            with self.assertRaisesRegex(ValueError,"preserved original"):
+                mod._verify_original_pair_hashes(5,pair,originals)
+            self.assertEqual(hashed.call_count,2)
+
+    def test_exact_original_pair_hashes_accept_fabricated_unchanged_inputs(self):
+        pair={"MEM1":Path("fabricated-7.1.raw"),"MEM2":Path("fabricated-7.2.raw")}
+        originals={7:{"MEM1":b"C"*32,"MEM2":b"D"*32}}
+        with mock.patch.object(mod.seven,"_hash",side_effect=[b"C"*32,b"D"*32]):
+            self.assertIsNone(mod._verify_original_pair_hashes(7,pair,originals))
+
+    def test_original_pair_missing_bank_or_digest_abstains(self):
+        pair={"MEM1":Path("fabricated-6.1.raw"),"MEM2":Path("fabricated-6.2.raw")}
+        for originals in ({6:{"MEM1":b"A"*32}},
+                          {6:{"MEM1":b"A"*31,"MEM2":b"B"*32}},
+                          {6:{"MEM1":"secret","MEM2":b"B"*32}},
+                          {5:{"MEM1":b"A"*32,"MEM2":b"B"*32}}):
+            with self.subTest(case=str(tuple(originals))):
+                with mock.patch.object(mod.seven,"_hash",
+                                       side_effect=AssertionError("unqualified read")):
+                    with self.assertRaises(ValueError):
+                        mod._verify_original_pair_hashes(6,pair,originals)
 
     def test_isolated_cli_import(self):
         path=Path(mod.__file__)
