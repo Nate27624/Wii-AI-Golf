@@ -27,18 +27,42 @@ class FakeRPC:
 
 
 class ObservedAPreholdTests(unittest.TestCase):
-    def test_one_a_button_call_before_twelve_observed_emulator_frames(self):
-        rpc = FakeRPC([100, 101, 103, 112])
+    def test_a_button_reasserted_for_each_observed_emulator_frame(self):
+        # Frame-scoped Felk input: one A request followed by polls alone would
+        # leave 11/12 frames without button coverage in the old implementation.
+        rpc = FakeRPC(list(range(100, 113)))
         result = hold_a_for_observed_frames(
             rpc, frames=12, sleep=lambda _: None, clock=lambda: 1.0)
         self.assertEqual(result["observed_frame_delta"], 12)
         self.assertEqual(result["requested_lead_frames"], 12)
-        self.assertEqual(result["a_button_only_requests"], 1)
+        self.assertEqual(result["a_button_only_requests"], 13)
+        self.assertTrue(result["per_observed_frame_a_reasserted"])
         self.assertFalse(result["game_a_recognition_verified"])
-        self.assertEqual(result["polls"], 3)
+        self.assertEqual(result["polls"], 12)
         self.assertEqual(rpc.calls[0], (
             "controller.set_wiimote_buttons", [0, {"A": True, "B": False}]))
-        self.assertEqual(rpc.calls[-1][0], "frame.get_count")
+        buttons = [parameters for method, parameters in rpc.calls
+                   if method == "controller.set_wiimote_buttons"]
+        self.assertEqual(buttons, [[0, {"A": True, "B": False}]] * 13)
+        self.assertEqual(rpc.calls[-1][0], "controller.set_wiimote_buttons")
+        self.assertFalse(any("swing" in name for name, _ in rpc.calls))
+
+    def test_same_frame_poll_does_not_invent_elapsed_frames(self):
+        rpc = FakeRPC([100, 100, 100, 101, 101, 102, 103])
+        result = hold_a_for_observed_frames(
+            rpc, frames=3, sleep=lambda _: None, clock=lambda: 1.0)
+        self.assertEqual(result["polls"], 6)
+        self.assertEqual(result["observed_frame_delta"], 3)
+        self.assertEqual(result["a_button_only_requests"], 4)
+        self.assertFalse(result["game_a_recognition_verified"])
+
+    def test_skipped_emulated_frame_aborts_before_swing(self):
+        rpc = FakeRPC([100, 101, 103])
+        with self.assertRaisesRegex(RuntimeError, "Unobserved emulated frame gap"):
+            hold_a_for_observed_frames(
+                rpc, frames=12, sleep=lambda _: None, clock=lambda: 1.0)
+        self.assertEqual(rpc.calls[-1], (
+            "controller.set_wiimote_buttons", [0, {"A": False, "B": False}]))
         self.assertFalse(any("swing" in name for name, _ in rpc.calls))
 
     def test_timeout_releases_a_and_never_sends_motion(self):
@@ -75,8 +99,29 @@ class ObservedAPreholdTests(unittest.TestCase):
                     hold_a_for_observed_frames(rpc, frames=frames)
                 self.assertEqual(rpc.calls, [])
 
+    def test_reassertion_rpc_failure_releases_and_never_sends_motion(self):
+        class ErrorRPC(FakeRPC):
+            def __init__(self, counts):
+                super().__init__(counts)
+                self.a_true_requests = 0
+
+            def call(self, name, arguments):
+                if name == "controller.set_wiimote_buttons" and arguments[1]["A"]:
+                    self.a_true_requests += 1
+                    if self.a_true_requests == 2:
+                        raise OSError("injected A refresh failure")
+                return super().call(name, arguments)
+
+        rpc = ErrorRPC([100, 101])
+        with self.assertRaisesRegex(OSError, "injected A refresh failure"):
+            hold_a_for_observed_frames(
+                rpc, frames=12, sleep=lambda _: None, clock=lambda: 1.0)
+        self.assertEqual(rpc.calls[-1], (
+            "controller.set_wiimote_buttons", [0, {"A": False, "B": False}]))
+        self.assertFalse(any("swing" in name for name, _ in rpc.calls))
+
     def test_custom_remote_stays_consistent(self):
-        rpc = FakeRPC([55, 67])
+        rpc = FakeRPC(list(range(55, 68)))
         result = hold_a_for_observed_frames(
             rpc, frames=12, remote=1, sleep=lambda _: None, clock=lambda: 1.0)
         self.assertEqual(result["remote"], 1)

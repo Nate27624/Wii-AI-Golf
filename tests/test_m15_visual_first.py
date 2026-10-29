@@ -30,7 +30,8 @@ def child_summary():
         "outcome_collection_mode": "human_terminal_first_no_ram",
         "raw_data_created": False,
         "candidate_ranking": None,
-        "swing_dispatch": {"state": "complete", "applied_frames": 89},
+        "swing_dispatch": {"state": "complete", "applied_frames": 89,
+                           "start_frame": 170, "completion_dispatch_frame": 259},
         "known_good_swing_request": {
             "preset": "forward", "generated_trace_frames": 89,
             "trace_sha256": _build_v1_trace_and_digest(
@@ -39,6 +40,8 @@ def child_summary():
             "speed_scale": 1.0, "backswing_scale": 1.0,
             "a_lead_requested_frames": 45,
             "a_lead_observed_frame_delta": 45,
+            "a_lead_start_frame": 121,
+            "a_lead_last_observed_frame": 166,
         },
         "human_observation": {
             "contact_human": "yes", "finished_on_green_human": "no",
@@ -96,6 +99,147 @@ class VisualFirstCollectorTests(unittest.TestCase):
         self.assertEqual(report["source"],
                          "human-terminal-result-no-ram-game-context-unverified")
 
+    def test_setup_narrative_reprompts_and_only_explicit_enter_dispatches(self):
+        # Reproduces the operator's aborted B1: a descriptive setup sentence
+        # must not be silently interpreted as q or as permission to swing.
+        replies = iter([
+            "We are at the starting position, with 0 wind and aligned aim",
+            "",  # explicit ready confirmation
+            "The club is around halfway back",
+            "",  # separate explicit swing permission
+            "M:100ft", "yes",
+        ])
+        prompts = []
+        swings = []
+        def answer(prompt):
+            prompts.append(prompt)
+            return next(replies)
+        def swing(_rpc):
+            swings.append("one")
+            return {"state": "complete", "applied_frames": 89}
+        with tempfile.TemporaryDirectory() as folder:
+            private = Path(folder) / "RAW-PRIVATE.jsonl"
+            result = run_session(object(), raw_path=private, pre_samples=2,
+                post_samples=2, settled_samples=2, interval=0,
+                input_fn=answer, swing_fn=swing, visual_first=True,
+                snapshot_fn=lambda *_: self.fail("visual-first may not sample RAM"))
+            self.assertFalse(private.exists())
+        self.assertEqual(swings, ["one"])
+        self.assertEqual(len(prompts), 6)
+        self.assertEqual(prompts[0], prompts[1])
+        self.assertEqual(prompts[2], prompts[3])
+        self.assertFalse(result.get("cancelled", False))
+        self.assertTrue(result["human_observation"]["terminal_screen_seen_before_transition_human"])
+        self.assertEqual(result["human_observation"]["contact_human"], "yes")
+
+    def test_invalid_setup_text_then_q_never_dispatches(self):
+        for replies in (
+            ["A is not pressed; pin appears far away", "Q"],
+            ["", "A is not pressed; pin appears far away", " q "],
+        ):
+            with self.subTest(replies=replies), tempfile.TemporaryDirectory() as folder:
+                raw = Path(folder) / "RAW-PRIVATE.jsonl"
+                answers = iter(replies)
+                result = run_session(object(), raw_path=raw, pre_samples=2,
+                    post_samples=2, settled_samples=2, interval=0,
+                    visual_first=True, input_fn=lambda _: next(answers),
+                    swing_fn=lambda _: self.fail("no explicit swing approval"),
+                    snapshot_fn=lambda *_: self.fail("no RAM sampling"))
+                self.assertTrue(result["cancelled"])
+                self.assertFalse(result["raw_data_created"])
+                self.assertFalse(raw.exists())
+
+    def test_a45_receipt_records_46_button_requests_not_one(self):
+        # The actual helper issues one initial A plus one per observed tick.
+        # A completed 89-sample trace does NOT prove A game-side recognition.
+        replies = iter(["", "", "U", "no"])
+        with tempfile.TemporaryDirectory() as folder:
+            private = Path(folder) / "RAW-PRIVATE.jsonl"
+            with patch("scripts.collect_outcome_transition.hold_a_for_observed_frames") as hold, \
+                 patch("scripts.collect_outcome_transition.SwingTraceClient") as trace, \
+                 patch("scripts.collect_outcome_transition.release_buttons") as release:
+                hold.return_value = {
+                    "a_button_only_requests": 46,
+                    "per_observed_frame_a_reasserted": True,
+                    "observed_frame_delta": 45,
+                    "start_frame_after_a_request": 100,
+                    "last_observed_frame": 145,
+                    "game_a_recognition_verified": False,
+                }
+                trace.return_value.run.return_value = {
+                    "state": "complete", "applied_frames": 89,
+                }
+                result = run_session(object(), raw_path=private,
+                    pre_samples=2, post_samples=2, settled_samples=2,
+                    interval=0, visual_first=True, a_lead_frames=45,
+                    input_fn=lambda _: next(replies),
+                    snapshot_fn=lambda *_: self.fail("visual-first must not sample RAM"))
+                hold.assert_called_once()
+                release.assert_called_once()
+                self.assertFalse(private.exists())
+        req = result["known_good_swing_request"]
+        self.assertEqual(req["a_lead_requested_frames"], 45)
+        self.assertEqual(req["a_lead_observed_frame_delta"], 45)
+        self.assertEqual(req["a_button_only_prime_requests"], 46)
+        self.assertTrue(req["a_lead_per_observed_frame_reasserted"])
+        self.assertIn("not_game_verified", req["a_priming_evidence"])
+        self.assertEqual(result["human_observation"]["contact_human"], "no")
+        self.assertFalse(result["raw_data_created"])
+
+    def test_atomic_a45_success_one_swing_and_bridge_receipt_no_ram(self):
+        replies = iter(["", "", "U", "no"])
+        with tempfile.TemporaryDirectory() as folder:
+            private = Path(folder) / "RAW-PRIVATE.jsonl"
+            with patch("scripts.collect_outcome_transition.AtomicA45SwingTraceClient") as client, \
+                 patch("scripts.collect_outcome_transition.hold_a_for_observed_frames") as poll, \
+                 patch("scripts.collect_outcome_transition.release_buttons") as release:
+                client.return_value.run.return_value = {
+                    "state": "complete", "id": 1, "kind": "atomic_a45_swing",
+                    "applied_frames": 89, "prehold_applied_frames": 45,
+                    "prehold_start_frame": 100,
+                    "last_prehold_frame": 144, "trace_start_frame": 145,
+                    "game_a_recognition_verified": False,
+                }
+                result = run_session(object(), raw_path=private,
+                    pre_samples=2, post_samples=2, settled_samples=2,
+                    interval=0, visual_first=True, atomic_a45=True,
+                    a_lead_frames=45, input_fn=lambda _: next(replies),
+                    snapshot_fn=lambda *_: self.fail("no RAM in M1.5"))
+                self.assertEqual(client.return_value.run.call_count, 1)
+                poll.assert_not_called()
+                release.assert_called_once()
+                self.assertFalse(private.exists())
+        req = result["known_good_swing_request"]
+        self.assertEqual(req["a_lead_requested_frames"], 45)
+        self.assertEqual(req["a_lead_observed_frame_delta"], 45)
+        self.assertEqual(req["a_button_only_prime_requests"], 0)
+        self.assertTrue(req["a_lead_atomic_bridge_callback"])
+        self.assertEqual(req["a_lead_bridge_button_dispatch_frames"], 45)
+        self.assertFalse(req["a_lead_per_observed_frame_reasserted"])
+        self.assertEqual(req["generated_trace_frames"], 89)
+        self.assertEqual(result["human_observation"]["contact_human"], "no")
+
+    def test_atomic_a45_preflight_failure_has_no_swing_and_releases(self):
+        replies = iter(["", ""])
+        with tempfile.TemporaryDirectory() as folder:
+            with patch("scripts.collect_outcome_transition.AtomicA45SwingTraceClient") as client, \
+                 patch("scripts.collect_outcome_transition.release_buttons") as release:
+                client.return_value.run.side_effect = RuntimeError("missing capability")
+                with self.assertRaisesRegex(RuntimeError, "missing capability"):
+                    run_session(object(), raw_path=Path(folder) / "RAW.jsonl",
+                        pre_samples=2, post_samples=2, settled_samples=2,
+                        interval=0, visual_first=True, atomic_a45=True,
+                        a_lead_frames=45, input_fn=lambda _: next(replies))
+                release.assert_called_once()
+
+    def test_atomic_a45_invalid_optin_rejected_before_any_controller_input(self):
+        with self.assertRaisesRegex(ValueError, "atomic A45 requires"):
+            run_session(object(), raw_path=Path("unused.jsonl"),
+                        pre_samples=2, post_samples=2, settled_samples=2,
+                        interval=0, atomic_a45=True, a_lead_frames=12,
+                        visual_first=True,
+                        input_fn=lambda _: self.fail("must not prompt"))
+
     def test_fixed_offgreen_display_is_censored_not_physical_distance(self):
         response = _visual_first_label(lambda _: "M:100ft")
         self.assertEqual(response["displayed_distance_human"], 100.0)
@@ -146,6 +290,66 @@ class VisualFirstJoinTests(unittest.TestCase):
                     a_lead=45, speed=1.0, backswing=backswing)
         self.assertEqual(joined["capture_status"] == "visual_first_joined", expect_ok)
         return joined
+
+    def test_atomic_a45_join_requires_exact_callback_receipt(self):
+        report = child_summary()
+        report["known_good_swing_request"].update({
+            "a_lead_atomic_bridge_callback": True,
+            "a_lead_bridge_button_dispatch_frames": 45,
+            "a_button_only_prime_requests": 0,
+        })
+        report["swing_dispatch"].update({
+            "kind": "atomic_a45_swing",
+            "prehold_applied_frames": 45,
+            "game_a_recognition_verified": False,
+            "start_frame": 167, "completion_dispatch_frame": 256,
+            "prehold_start_frame": 122, "last_prehold_frame": 166,
+            "trace_start_frame": 167,
+        })
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / f"outcome-{TOKEN}-candidates.json"
+            with patch.object(research_cli, "CAPTURES", Path(folder)):
+                def join(data):
+                    target.write_text(json.dumps(data), encoding="utf-8")
+                    return research_cli._joined_visual_first(
+                        TOKEN, datetime.now(timezone.utc) - timedelta(seconds=2),
+                        a_lead=45, speed=1.0, backswing=1.0, atomic_a45=True)
+                good = join(report)
+                self.assertEqual(good["capture_status"], "visual_first_joined")
+                self.assertEqual(good["controller"]["a_lead_bridge_button_dispatch_frames"], 45)
+                self.assertFalse(good["train_approved"])
+                for mutate in (
+                    ("a_lead_bridge_button_dispatch_frames", 44),
+                    ("a_lead_atomic_bridge_callback", False),
+                    ("a_button_only_prime_requests", 1),
+                ):
+                    with self.subTest(mutate=mutate):
+                        bad = deepcopy(report)
+                        bad["known_good_swing_request"][mutate[0]] = mutate[1]
+                        self.assertEqual(join(bad)["capture_status"], "visual_first_join_refused")
+                # Atomic receipts additionally require an uninterrupted
+                # lead-to-trace boundary, not merely later positive counters.
+                for field, bad in (
+                    ("prehold_start_frame", 123),
+                    ("last_prehold_frame", 165),
+                    ("trace_start_frame", 168),
+                ):
+                    with self.subTest(atomic_field=field):
+                        malformed = deepcopy(report)
+                        malformed["swing_dispatch"][field] = bad
+                        self.assertEqual(join(malformed)["capture_status"],
+                                         "visual_first_join_refused")
+                delayed = deepcopy(report)
+                delayed["swing_dispatch"].update({
+                    "start_frame": 170, "trace_start_frame": 170,
+                    "completion_dispatch_frame": 259,
+                })
+                self.assertEqual(join(delayed)["capture_status"],
+                                 "visual_first_join_refused")
+                bad_status = deepcopy(report)
+                bad_status["swing_dispatch"]["prehold_applied_frames"] = 44
+                self.assertEqual(join(bad_status)["capture_status"], "visual_first_join_refused")
+                self.assertEqual(join(child_summary())["capture_status"], "visual_first_join_refused")
 
     def test_exact_run_token_allows_bounded_mtime_granularity_not_stale_files(self):
         # Windows temp-file metadata may round slightly before the parent's
@@ -212,6 +416,27 @@ class VisualFirstJoinTests(unittest.TestCase):
                 data = child_summary()
                 data["swing_dispatch"][key] = value
                 self._check(data, expect_ok=False)
+
+    def test_exact_bridge_tick_arithmetic_is_required_before_join(self):
+        self.assertEqual(self._check(child_summary())["capture_status"],
+                         "visual_first_joined")
+        edits = (
+            ("known_good_swing_request", "a_lead_start_frame", None),
+            ("known_good_swing_request", "a_lead_start_frame", True),
+            ("known_good_swing_request", "a_lead_last_observed_frame", 165),
+            ("known_good_swing_request", "a_lead_last_observed_frame", 120),
+            ("swing_dispatch", "start_frame", 166),
+            ("swing_dispatch", "start_frame", 0),
+            ("swing_dispatch", "completion_dispatch_frame", 258),
+            ("swing_dispatch", "completion_dispatch_frame", 400),
+            ("human_observation", "shot_start_frame_before_controller_trace", 122),
+        )
+        for parent, key, bad in edits:
+            with self.subTest(parent=parent, key=key, bad=bad):
+                data = deepcopy(child_summary())
+                data[parent][key] = bad
+                joined = self._check(data, expect_ok=False)
+                self.assertFalse(joined["shot_dispatch_verified_by_collector"])
 
     def test_unreviewed_numeric_ram_or_human_schema_fails_closed(self):
         mutations = (

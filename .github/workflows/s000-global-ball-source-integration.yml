@@ -1,0 +1,43 @@
+name: S000 global-ball source receiver + roster integration
+
+on:
+  push:
+    paths:
+      - 'scripts/audit_p0_seven_source_trajectory_private.py'
+      - 'scripts/audit_p0_cache_global_receiver_private.py'
+      - 'scripts/audit_p0_global_ball_roster_receiver_private.py'
+      - 'tests/test_p0_seven_source_trajectory_private.py'
+      - 'tests/test_p0_cache_global_receiver_private.py'
+      - 'tests/test_p0_global_ball_roster_receiver_private.py'
+      - '.github/workflows/s000-global-ball-source-integration.yml'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_seven_source_trajectory_private.py'
+      - 'scripts/audit_p0_cache_global_receiver_private.py'
+      - 'scripts/audit_p0_global_ball_roster_receiver_private.py'
+      - 'tests/test_p0_seven_source_trajectory_private.py'
+      - 'tests/test_p0_cache_global_receiver_private.py'
+      - 'tests/test_p0_global_ball_roster_receiver_private.py'
+      - '.github/workflows/s000-global-ball-source-integration.yml'
+  workflow_dispatch:
+
+jobs:
+  synthetic:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Seven-phase source trajectory synthetic
+        run: python -m unittest discover -s tests -p test_p0_seven_source_trajectory_private.py -v
+      - name: Global receiver and caller provenance synthetic
+        run: python -m unittest discover -s tests -p test_p0_cache_global_receiver_private.py -v
+      - name: Four-slot roster and r31 synthetic
+        run: python -m unittest discover -s tests -p test_p0_global_ball_roster_receiver_private.py -v
+      - name: Full offline regressions
+        run: python -m unittest discover -s tests -v

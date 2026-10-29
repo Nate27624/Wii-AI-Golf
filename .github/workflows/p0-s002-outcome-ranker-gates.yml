@@ -1,0 +1,50 @@
+name: P0 S002 outcome ranker gates (synthetic only)
+
+on:
+  push:
+    paths:
+      - 'src/wii_ai_golf/audit/outcome_transition.py'
+      - 'tests/test_outcome_transition.py'
+      - 'tests/test_outcome_capture_cli.py'
+      - 'tests/test_outcome_recovery.py'
+      - 'src/wii_ai_golf/audit/outcome_compare.py'
+      - 'tests/test_outcome_compare.py'
+      - '.github/workflows/p0-s002-outcome-ranker-gates.yml'
+  pull_request:
+    paths:
+      - 'src/wii_ai_golf/audit/outcome_transition.py'
+      - 'tests/test_outcome_transition.py'
+      - 'tests/test_outcome_capture_cli.py'
+      - 'tests/test_outcome_recovery.py'
+      - 'src/wii_ai_golf/audit/outcome_compare.py'
+      - 'tests/test_outcome_compare.py'
+      - '.github/workflows/p0-s002-outcome-ranker-gates.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  offline-validation:
+    name: offline Python / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile Python (synthetic source only)
+        run: python -m compileall -q src scripts tests
+      - name: Focused outcome ranker regressions
+        run: python -m unittest discover -s tests -p "test_outcome_transition.py" -v
+      - name: Focused collector compatibility regressions
+        run: python -m unittest discover -s tests -p "test_outcome_capture_cli.py" -v
+      - name: Focused offline recovery compatibility regressions
+        run: python -m unittest discover -s tests -p "test_outcome_recovery.py" -v
+      - name: Focused cross-run comparison censoring
+        run: python -m unittest discover -s tests -p "test_outcome_compare.py" -v
+      - name: Full offline repository regression
+        run: python -m unittest discover -s tests -v

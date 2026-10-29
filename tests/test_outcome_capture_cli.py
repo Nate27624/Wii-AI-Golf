@@ -1,5 +1,6 @@
 """Mocked capture lifecycle tests: no emulator, no user files."""
 from pathlib import Path
+import itertools
 import struct
 from unittest.mock import patch
 import sys
@@ -15,9 +16,14 @@ from scripts.collect_outcome_transition import run_session
 from scripts.probe_swing import build_probe
 
 
+_FAKE_FRAMES = itertools.count(10, 3)
+
+
 def row(phase, value):
-    return {"game_id": "RSPE01", "disc_revision": 1, "phase": phase,
-            "frame_start": 1, "frame_end": 2,
+    frame = next(_FAKE_FRAMES)  # synthetic monotonic RPC brackets, not game ticks
+    return {"game_id": "RSPE01", "disc_revision": 1, "game_mode_raw": 4,
+            "phase": phase, "frame_start": frame, "frame_end": frame + 1,
+            "non_atomic_frame_span": 1,
             "windows": {"golf_config": {"address": "0x90010000",
                                        "bytes_hex": struct.pack(">I", value).hex()}}}
 
@@ -39,11 +45,16 @@ class OutcomeCaptureCliTests(unittest.TestCase):
         with patch("scripts.collect_outcome_transition.SwingTraceClient", Recorder):
             with tempfile.TemporaryDirectory() as folder:
                 inputs = iter(["", "", "", "yes", "no", "100ft"])
-                run_session(object(), raw_path=Path(folder) / "a.jsonl",
+                result = run_session(object(), raw_path=Path(folder) / "a.jsonl",
                             pre_samples=2, post_samples=2, settled_samples=2,
                             interval=0, backswing_scale=0.8,
                             input_fn=lambda _p: next(inputs),
                             snapshot_fn=lambda _r, phase: row(phase, 1))
+        self.assertEqual(result["human_observation"]["displayed_distance_human"], 100)
+        self.assertEqual(result["human_observation"]["displayed_unit_human"], "ft")
+        self.assertEqual(result["human_observation"]["finished_on_green_human"], "no")
+        self.assertIsNone(
+            result["candidate_ranking"]["human_displayed_distance_raw_unverified"])
         after = recorded["samples"]
         self.assertEqual(len(after), len(baseline))
         for old, new in zip(baseline, after):
@@ -77,6 +88,9 @@ class OutcomeCaptureCliTests(unittest.TestCase):
                 ["pre", "pre", "swing", "post", "post", "settled", "settled"])
             self.assertEqual(result["candidate_ranking"]["all_phase_stable_change_count"], 1)
             self.assertEqual(result["human_observation"]["displayed_distance_human"], 12.5)
+            self.assertEqual(
+                result["candidate_ranking"]["human_displayed_distance_raw_unverified"],
+                12.5)
             self.assertEqual(result["known_good_swing_request"]["generated_trace_frames"],
                              len(build_probe("forward", follow_through_frames=30)))
             self.assertFalse(result["candidate_ranking"]["game_score_verified"])
@@ -229,7 +243,8 @@ class OutcomeCaptureCliTests(unittest.TestCase):
                     self.assertEqual((frames, remote), (12, 0))
                     events.append("hold-a-observed-12")
                     return {"observed_frame_delta": 13, "start_frame_after_a_request": 120,
-                            "last_observed_frame": 133}
+                            "last_observed_frame": 133, "a_button_only_requests": 14,
+                            "per_observed_frame_a_reasserted": True}
                 hold.side_effect = hold_side_effect
                 def trace(samples):
                     events.append("trace-unchanged")
@@ -246,7 +261,8 @@ class OutcomeCaptureCliTests(unittest.TestCase):
             old_prime.assert_not_called()
             self.assertEqual(result["known_good_swing_request"]["a_lead_requested_frames"], 12)
             self.assertEqual(result["known_good_swing_request"]["a_lead_observed_frame_delta"], 13)
-            self.assertEqual(result["known_good_swing_request"]["a_button_only_prime_requests"], 1)
+            self.assertEqual(result["known_good_swing_request"]["a_button_only_prime_requests"], 14)
+            self.assertTrue(result["known_good_swing_request"]["a_lead_per_observed_frame_reasserted"])
             self.assertTrue(result["known_good_swing_request"]["a_button_prime_applied"])
             self.assertIn("not_game_verified", result["known_good_swing_request"]["a_priming_evidence"])
 

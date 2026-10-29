@@ -49,6 +49,20 @@ def parse_displayed_distance(value: str) -> tuple[float | None, str | None]:
     return number, _UNITS[raw_unit.lower()] if raw_unit else None
 
 
+def exploratory_ranking_target(
+    distance: float | None, *, displayed_unit: str | None, green: str,
+) -> float | None:
+    """Exclude fixed off-green 100-foot penalty from raw RAM numeric matching.
+
+    The HUD label is retained as human evidence in the summary. None here
+    means NO numeric target; it does not erase the category or verify physics.
+    No other displayed number becomes a physical distance or true score.
+    """
+    if green == "no" and displayed_unit == "ft" and distance == 100.0:
+        return None
+    return distance
+
+
 def recover_outcome_summary(
     path: Path, *, contact: str, green: str, distance_text: str,
     unit: str = "unknown",
@@ -77,7 +91,9 @@ def recover_outcome_summary(
             ):
                 raise ValueError("Unexpected raw snapshot source")
             rows.append(record)
-    ranked = rank_outcome_candidates(rows, human_distance=distance)
+    ranked = rank_outcome_candidates(
+        rows, human_distance=exploratory_ranking_target(
+            distance, displayed_unit=display_unit, green=green))
     return {
         "schema_version": 1,
         "study_id": "S002-HG-OUTCOME-TRANSITION-EXPLORATORY",

@@ -38,6 +38,7 @@ SAFE_LABELS = ("contact_human", "initial_club_pose_human",
                "displayed_power_percent_human")
 SAFE_TRACE = ("trace_sha256", "generated_trace_frames",
               "a_lead_requested_frames", "a_lead_observed_frame_delta",
+              "a_lead_atomic_bridge_callback", "a_lead_bridge_button_dispatch_frames",
               "motion_scale", "speed_scale", "backswing_scale")
 _ALLOWED = {"test", "v1"}
 
@@ -95,7 +96,11 @@ def v1_clean_boot_args(root: Path) -> list[str]:
 
 
 def _fresh_human_labels(start_time: datetime) -> dict:
-    """Read ONLY selected public/sanitized fields from a NEW locally generated summary."""
+    """Inspect one recent legacy candidate for LOCAL annotation only, never a shot join.
+
+    File modification time does not authenticate run, action, game or terminal
+    outcome. The legacy V1 path must not publish or train from this helper.
+    """
     if not CAPTURES.is_dir():
         return {}
     options = [p for p in CAPTURES.glob("outcome-*-candidates.json")
@@ -134,7 +139,8 @@ def _fresh_human_labels(start_time: datetime) -> dict:
 
 
 def _joined_visual_first(run_token: str, start: datetime, *,
-                         a_lead: int, speed: float, backswing: float) -> dict:
+                         a_lead: int, speed: float, backswing: float,
+                         atomic_a45: bool = False) -> dict:
     """Read ONE exactly named child artifact; never infer identity via file mtime.
 
     All values are unverified human annotations/command metadata. No RAM or
@@ -179,6 +185,14 @@ def _joined_visual_first(run_token: str, start: datetime, *,
                 or type(swing.get("a_lead_observed_frame_delta")) is not int
                 or swing["a_lead_observed_frame_delta"] < a_lead):
             return invalid
+        if atomic_a45 and (
+            swing.get("a_lead_atomic_bridge_callback") is not True
+            or swing.get("a_lead_bridge_button_dispatch_frames") != 45
+            or swing.get("a_button_only_prime_requests") != 0
+            or dispatch.get("kind") != "atomic_a45_swing"
+            or dispatch.get("prehold_applied_frames") != 45
+            or dispatch.get("game_a_recognition_verified") is not False):
+            return invalid
         digest = swing.get("trace_sha256")
         if type(digest) is not str or re.fullmatch(r"[a-f0-9]{64}", digest) is None:
             return invalid
@@ -208,6 +222,34 @@ def _joined_visual_first(run_token: str, start: datetime, *,
                 or human.get("hitting_green_first_ball_context_human_confirmed") is not True
                 or human.get("game_context_verified_by_memory") is not False):
             return invalid
+        # Bridge callback ticks constrain the chronology of one action, but
+        # are not guest physics frames or evidence of rendered ball contact.
+        lead_start = swing.get("a_lead_start_frame")
+        lead_last = swing.get("a_lead_last_observed_frame")
+        trace_start = dispatch.get("start_frame")
+        trace_completion = dispatch.get("completion_dispatch_frame")
+        if any(type(v) is not int or v < 0 for v in
+               (lead_start, lead_last, trace_start, trace_completion)):
+            return invalid
+        if (shot_start > lead_start
+                or lead_last - lead_start != swing["a_lead_observed_frame_delta"]
+                or trace_start <= lead_last
+                or trace_completion != trace_start + 89):
+            return invalid
+        if atomic_a45:
+            # The source-pinned atomic scheduler requires a contiguous
+            # 45-tick prehold followed immediately by 89 movement ticks.
+            # Independently cross-check both producer field representations.
+            prehold_start = dispatch.get("prehold_start_frame")
+            prehold_last = dispatch.get("last_prehold_frame")
+            atomic_trace_start = dispatch.get("trace_start_frame")
+            if (any(type(v) is not int or v < 0 for v in
+                    (prehold_start, prehold_last, atomic_trace_start))
+                    or prehold_start != lead_start + 1
+                    or prehold_last != lead_last
+                    or trace_start != lead_last + 1
+                    or atomic_trace_start != trace_start):
+                return invalid
         if (contact not in ("yes", "no", "unknown") or green not in ("yes", "no", "unknown")
                 or not (type(seen) is bool or seen is None) or type(kind) is not str
                 or kind not in ("green", "offgreen", "uncertain", "transitioned")
@@ -256,7 +298,10 @@ def _joined_visual_first(run_token: str, start: datetime, *,
                            "a_lead_requested_frames": a_lead,
                            "a_lead_observed_frame_delta": swing["a_lead_observed_frame_delta"],
                            "speed_scale": speed, "backswing_scale": backswing,
-                           "motion_scale": 1.0},
+                           "motion_scale": 1.0,
+                           **({"a_lead_atomic_bridge_callback": True,
+                               "a_lead_bridge_button_dispatch_frames": 45}
+                              if atomic_a45 else {})},
             "human": {"contact_human": contact, "finished_on_green_human": green,
                       "terminal_screen_seen_before_transition_human": seen,
                       "visible_result_class_human": kind,
@@ -317,12 +362,123 @@ def _git(args: list[str], *, cwd: Path) -> str:
     return p.stdout.strip()
 
 
+def _public_observation_record(summary: dict) -> dict:
+    """Re-authorize and project the ONLY two publishable record kinds.
+
+    The CLI gate is not a trust boundary: direct Python callers can invoke
+    publish_summary(). Never write the caller's dictionary to GitHub, even
+    when it contains a plausible capture status or private extra fields.
+    """
+    if (type(summary) is not dict or type(summary.get("schema")) is not int
+            or summary["schema"] != 1):
+        raise ValueError("invalid observation schema")
+    token, kind = summary.get("id"), summary.get("kind")
+    if type(token) is not str or re.fullmatch(
+            r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{10}", token) is None:
+        raise ValueError("unsafe observation id")
+    if kind not in ("test", "v1"):
+        raise ValueError("unpublishable observation kind")
+    if (type(summary.get("process_exit_code")) is not int
+            or summary["process_exit_code"] != 0
+            or summary.get("verified_game_score") is not False):
+        raise ValueError("failed or unverified observation")
+    try:
+        start = datetime.fromisoformat(summary["started_utc"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("invalid UTC timestamp") from exc
+    if start.tzinfo is None or start.utcoffset() is None:
+        raise ValueError("missing UTC offset")
+    commit = summary.get("git_commit")
+    if type(commit) is not str or not (
+            commit == "unavailable"
+            or re.fullmatch(r"[a-f0-9]{40}", commit)):
+        raise ValueError("invalid Git commit identity")
+    record = {
+        "schema": 1, "id": token, "kind": kind,
+        "started_utc": start.isoformat(), "git_commit": commit,
+        "process_exit_code": 0, "verified_game_score": False,
+    }
+    if kind == "test":
+        pattern = summary.get("test_pattern")
+        if (summary.get("outcome") != "pass"
+                or type(pattern) is not str or len(pattern) > 80
+                or not re.fullmatch(r"[A-Za-z0-9_.?*-]+", pattern)):
+            raise ValueError("invalid offline test status")
+        record.update({"outcome": "pass", "test_pattern": pattern})
+        return record
+
+    # The present, exactly named no-RAM child report must STILL validate at
+    # the publication boundary, not only when main() first joined it.
+    if (summary.get("visual_first") is not True
+            or summary.get("capture_status") != "visual_first_joined"
+            or summary.get("shot_dispatch_verified_by_collector") is not True
+            or summary.get("informative_action_outcome_trial") is not True
+            or summary.get("hitting_green_first_ball_context_human_confirmed") is not True
+            or summary.get("game_id_revision_mode_machine_verified") is not False
+            or summary.get("numeric_distance_target_eligible") is not False
+            or summary.get("train_approved") is not False
+            or summary.get("physical_distance_verified") is not False
+            or summary.get("bridge_source_changed_during_action") is True):
+        raise ValueError("unjoined or ineligible V1 observation")
+    controller = summary.get("controller")
+    if type(controller) is not dict:
+        raise ValueError("missing sanitized controller metadata")
+    lead = summary.get("requested_a_lead_frames")
+    speed = summary.get("requested_speed_scale")
+    backswing = summary.get("requested_backswing_scale")
+    atomic = controller.get("a_lead_atomic_bridge_callback") is True
+    if (type(lead) is not int or lead != 45
+            or type(speed) not in (float, int) or speed != 1.0
+            or type(backswing) not in (float, int) or backswing not in (1.0, 1.2)
+            or summary.get("requested_motion_scale") != 1.0):
+        raise ValueError("unregistered V1 settings")
+    joined = _joined_visual_first(token, start, a_lead=lead, speed=speed,
+                                  backswing=backswing, atomic_a45=atomic)
+    fields = (
+        "capture_status", "shot_dispatch_verified_by_collector",
+        "informative_action_outcome_trial",
+        "hitting_green_first_ball_context_human_confirmed",
+        "game_id_revision_mode_machine_verified", "controller", "human",
+        "settled_screen_observation", "outcome_is_censored_penalty",
+        "numeric_distance_target_eligible", "train_approved",
+        "verified_game_score", "physical_distance_verified",
+    )
+    if (joined.get("capture_status") != "visual_first_joined"
+            or joined.get("informative_action_outcome_trial") is not True
+            or any(summary.get(key) != joined.get(key) for key in fields)):
+        raise ValueError("V1 child identity or outcome changed before publication")
+    # Source SHA is another independently checked parent precondition. An
+    # externally constructed record must not skip the active bridge check.
+    from wii_ai_golf.shared.bridge_provenance import inspect_bridge_file
+    bridge = ROOT.parent / "tools" / (
+        "mcp_bridge_swing_atomic_a45.py" if atomic
+        else "mcp_bridge_swing_legacy_eval.py")
+    bridge_identity = inspect_bridge_file(bridge)
+    digest = summary.get("bridge_sha256")
+    if (type(digest) is not str or re.fullmatch(r"[a-f0-9]{64}", digest) is None
+            or bridge_identity.get("sha256") != digest
+            or bridge_identity.get("revision") != (
+                "V1-atomic-a45" if atomic else "V1-neutral-swing-calls")
+            or (not atomic and bridge_identity.get("safe_for_isolated_legacy_copy") is not True)):
+        raise ValueError("V1 bridge provenance unqualified")
+    record.update({
+        "visual_first": True, "bridge_sha256": digest,
+        "requested_a_lead_frames": lead,
+        "requested_motion_scale": 1.0,
+        "requested_speed_scale": speed,
+        "requested_backswing_scale": backswing,
+        **{key: joined[key] for key in fields},
+    })
+    return record
+
+
 def publish_summary(summary: dict) -> str:
     """Append a tiny allowlisted record to a separate branch, never main.
 
     Uses a temporary shallow clone to keep the operator's code working tree
     untouched. Refuses to create a new branch implicitly or force-push.
     """
+    public = _public_observation_record(summary)  # validate BEFORE any Git/network operation
     with tempfile.TemporaryDirectory(prefix="wii-golf-observation-") as tmp:
         work = Path(tmp)
         # Reuse configured origin URL only after sync_merged_main verified it.
@@ -335,15 +491,15 @@ def publish_summary(summary: dict) -> str:
         repo = work / "repo"
         target = repo / "research" / "observations"
         target.mkdir(parents=True, exist_ok=True)
-        name = summary["id"] + ".json"
+        name = public["id"] + ".json"
         file = target / name
         with file.open("x", encoding="utf-8") as out:
-            json.dump(summary, out, indent=2, sort_keys=True, allow_nan=False)
+            json.dump(public, out, indent=2, sort_keys=True, allow_nan=False)
             out.write("\n")
         _git(["add", "--", str(file.relative_to(repo))], cwd=repo)
         _git(["-c", "user.name=Wii Golf Research Worker",
               "-c", "user.email=research-worker@users.noreply.github.com",
-              "commit", "-m", "research: record sanitized " + summary["kind"] + " result"], cwd=repo)
+              "commit", "-m", "research: record sanitized " + public["kind"] + " result"], cwd=repo)
         # No force. Concurrent writers are never overwritten; operator can
         # retry publish from locally preserved summary if needed.
         _git(["push", "origin", "HEAD:" + OBS_BRANCH], cwd=repo)
@@ -397,6 +553,8 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--trial-index", type=int, choices=range(1,11), default=None)
     v.add_argument("--live", action="store_true", help="Explicit consent to launch Dolphin")
     v.add_argument("--no-upload", action="store_true", help="Keep report local")
+    v.add_argument("--atomic-a45", action="store_true",
+                   help="Use separately prepared frame-callback A45 bridge; never replace legacy bridge")
     v.add_argument("--visual-first", action="store_true",
                    help="M1.5 one-shot terminal HUMAN result first; no RAM scoring")
     args = parser.parse_args(argv)
@@ -419,6 +577,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "v1" and args.backswing_scale != 1.0 and args.speed_scale != 1.0:
             parser.error("change either --backswing-scale or --speed-scale, not both")
         if args.command == "v1":
+            if args.atomic_a45 and (not args.visual_first or args.a_lead != 45):
+                parser.error("--atomic-a45 requires --visual-first and --a-lead 45")
             # M1.5 is a preregistered B1/B2/X1 pilot, not a free-form sweep.
             # Refuse mismatched settings BEFORE touching the emulator or bridge.
             if args.visual_first and (args.a_lead != 45 or args.speed_scale != 1.0
@@ -441,11 +601,16 @@ def main(argv: list[str] | None = None) -> int:
             exit_code = _run([sys.executable, "-m", "unittest", "discover",
                               "-s", "tests", "-p", args.pattern, "-v"])
         else:
-            bridge = ROOT.parent / "tools" / "mcp_bridge_swing_legacy_eval.py"
+            bridge = ROOT.parent / "tools" / (
+                "mcp_bridge_swing_atomic_a45.py" if args.atomic_a45
+                else "mcp_bridge_swing_legacy_eval.py")
+            expected_revision = "V1-atomic-a45" if args.atomic_a45 else "V1-neutral-swing-calls"
             from wii_ai_golf.shared.bridge_provenance import inspect_bridge_file
             identity = inspect_bridge_file(bridge)
-            if identity["revision"] != "V1-neutral-swing-calls" or not identity["safe_for_isolated_legacy_copy"]:
-                raise RuntimeError("Verified isolated V1 bridge missing; will not launch Dolphin")
+            if identity["revision"] != expected_revision or (
+                not args.atomic_a45 and not identity["safe_for_isolated_legacy_copy"]):
+                raise RuntimeError("Requested isolated bridge revision missing; no Dolphin launch. "
+                                   "For --atomic-a45 prepare via scripts/prepare_atomic_a45_bridge.py")
             # The bridge is a local source artifact, not authenticated in-process
             # code. Require a stable, typed preflight SHA for result-first shots.
             preflight_bridge_sha = identity.get("sha256")
@@ -467,6 +632,8 @@ def main(argv: list[str] | None = None) -> int:
                       "--ask-power"]
             if args.visual_first:
                 action.extend(["--visual-first", "--run-token", run_token])
+            if args.atomic_a45:
+                action.append("--atomic-a45")
             exit_code = _run(action)
             bridge_source_changed = False
             if args.visual_first:
@@ -475,8 +642,8 @@ def main(argv: list[str] | None = None) -> int:
                 try:
                     post_identity = inspect_bridge_file(bridge)
                     bridge_source_changed = not (
-                        post_identity.get("revision") == "V1-neutral-swing-calls"
-                        and post_identity.get("safe_for_isolated_legacy_copy") is True
+                        post_identity.get("revision") == expected_revision
+                        and (args.atomic_a45 or post_identity.get("safe_for_isolated_legacy_copy") is True)
                         and post_identity.get("sha256") == preflight_bridge_sha
                     )
                 except (OSError, ValueError, UnicodeError, KeyError, TypeError):
@@ -514,7 +681,8 @@ def main(argv: list[str] | None = None) -> int:
                 elif exit_code == 0:
                     summary.update(_joined_visual_first(
                         run_token, begin, a_lead=args.a_lead,
-                        speed=args.speed_scale, backswing=args.backswing_scale))
+                        speed=args.speed_scale, backswing=args.backswing_scale,
+                        atomic_a45=args.atomic_a45))
                 else:
                     summary.update({"capture_status": "failed_or_cancelled_action",
                                     "shot_dispatch_verified_by_collector": False})
@@ -526,6 +694,29 @@ def main(argv: list[str] | None = None) -> int:
                     summary.update(_fallback_human_observation())
             else:
                 summary["capture_status"] = "failed_or_cancelled_action"
+        if args.command == "v1" and not args.visual_first:
+            # The old V1 child is discovered by file mtime, not an exact
+            # run token, completed trace and witnessed terminal outcome.
+            # Keep its optional sanitized human notes locally, but never
+            # turn an apparent success or a fallback into published evidence.
+            candidate_status = summary.get("capture_status", "missing")
+            summary.update({
+                "kind": "v1_attempt",
+                "attempt_status": ("legacy_child_identity_unverified"
+                                   if exit_code == 0
+                                   else "failed_or_cancelled_action"),
+                "capture_status": ("legacy_v1_local_only_unjoined"
+                                   if exit_code == 0
+                                   else "failed_or_cancelled_action"),
+                "legacy_candidate_capture_status_unverified": candidate_status,
+                "shot_dispatched": "unknown",
+                "shot_dispatch_verified_by_collector": False,
+                "trial_valid_for_action_outcome": False,
+                "informative_action_outcome_trial": False,
+                "train_approved": False,
+                "physical_distance_verified": False,
+                "numeric_distance_target_eligible": False,
+            })
         private = DATA / "research-cli"
         private.mkdir(parents=True, exist_ok=True)
         dest = private / (summary["id"] + ".json")
@@ -535,11 +726,16 @@ def main(argv: list[str] | None = None) -> int:
         print("Local sanitized result:", dest, flush=True)
         # Never publish a failed/cancelled action, nor a visual result whose
         # unique child shot/trace token cannot be joined to this exact command.
-        if args.command == "v1" and (exit_code != 0 or
-                (args.visual_first and (summary.get("capture_status") != "visual_first_joined"
-                                        or summary.get("informative_action_outcome_trial") is not True))):
-            print("M1.5 outcome NOT eligible; no GitHub publication.", flush=True)
-            return exit_code if exit_code != 0 else 2
+        if args.command == "v1":
+            if not args.visual_first:
+                print("Legacy V1 annotation retained locally, not joined or "
+                      "eligible for GitHub publication.", flush=True)
+                return exit_code
+            if (exit_code != 0
+                    or summary.get("capture_status") != "visual_first_joined"
+                    or summary.get("informative_action_outcome_trial") is not True):
+                print("M1.5 outcome NOT eligible; no GitHub publication.", flush=True)
+                return exit_code if exit_code != 0 else 2
         if not args.no_upload:
             try:
                 url = publish_summary(summary)
