@@ -1,0 +1,28 @@
+name: P0 frame-scoped A lead last-seen diagnostics
+
+on:
+  pull_request:
+    paths:
+      - 'src/wii_ai_golf/shared/controller_timing.py'
+      - 'tests/test_shared_controller_timing.py'
+      - '.github/workflows/p0-a-last-seen-guard.yml'
+  workflow_dispatch:
+
+jobs:
+  offline:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: A lead and negative source observation controls (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_shared_controller_timing.py -v
+      - name: Collector integration regression (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_outcome_capture_cli.py -v
+      - name: Full offline suite (NO Dolphin)
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
