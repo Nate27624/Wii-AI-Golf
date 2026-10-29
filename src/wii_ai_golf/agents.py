@@ -58,6 +58,12 @@ class EliteSearchPolicy:
         )
 
     def observe(self, observation: Observation, action: ShotAction, result: ShotResult) -> None:
+        # This legacy learner has no authenticated real-shot outcome contract.
+        # Refuse unqualified/human/test results BEFORE mutating its history;
+        # caller-supplied "synthetic" is only a toy-data marker, not proof of
+        # Wii-game provenance or permission to train on actual Dolphin shots.
+        if result.metadata.get("source") != "synthetic":
+            raise ValueError("Elite search requires explicitly synthetic ShotResult data")
         samples = self.history[observation.scenario_id]
         samples.append((result.distance_m, action))
         if len(samples) < self.min_samples:
