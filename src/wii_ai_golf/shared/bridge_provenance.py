@@ -40,7 +40,6 @@ def inspect_bridge_file(path: Path) -> dict[str, Any]:
         "autoload_marker": False,
         "swing_v1_marker": False,
         "neutral_v2_marker": False,
-        "atomic_a45_marker": False,
         "safe_for_isolated_legacy_copy": False,
     }
     if not path.is_file():
@@ -63,7 +62,6 @@ def inspect_bridge_file(path: Path) -> dict[str, Any]:
         "autoload_marker": autoload,
         "swing_v1_marker": v1,
         "neutral_v2_marker": v2,
-        "atomic_a45_marker": a45,
     })
     if atomic and v1 and a45 and not v2 and not autoload:
         result["revision"] = "V1-atomic-a45"
