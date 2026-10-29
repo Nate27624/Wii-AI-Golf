@@ -304,26 +304,67 @@ class OneCommandLauncherTests(unittest.TestCase):
             run.assert_not_called()
         self.assertIn("Source = 2", self.ini.read_text())
 
-    def test_explicit_dolphin_user_dir_remembered_for_future_runs(self):
-        custom = self.root / "custom-user"
-        ini = custom / "Config" / "WiimoteNew.ini"
-        ini.parent.mkdir(parents=True)
-        ini.write_text("[Wiimote1]\nSource = 2\nExtension = Nunchuk\n")
+    def test_matching_portable_user_dir_remembered_for_future_runs(self):
         argv = [
             "--game", str(self.game), "--config", str(self.config),
             "--bridge", str(self.bridge), "--dolphin", str(self.exe),
             "--catalog", str(self.catalog),
-            "--dolphin-user", str(custom)
+            "--dolphin-user", str(self.user)
         ]
-        with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+        with patch.object(launch_golf.subprocess, "run",
+                          return_value=subprocess.CompletedProcess([], 0)) as run:
             self.assertEqual(launch_golf.main(argv), 0)
-        self.assertEqual(launch_golf.read_config(self.config)["dolphin_user"], str(custom))
-        self.assertIn("Source = 1", ini.read_text())
-        self.assertIn("Source = 2", self.ini.read_text())
-        with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+            run.assert_called_once()
+        self.assertEqual(launch_golf.read_config(self.config)["dolphin_user"],
+                         str(self.user))
+        self.assertIn("Source = 1", self.ini.read_text())
+        with patch.object(launch_golf.subprocess, "run",
+                          return_value=subprocess.CompletedProcess([], 0)) as run:
             self.assertEqual(launch_golf.main(argv[:-2]), 0)
+            run.assert_called_once()
+
+    def test_explicit_mismatched_portable_user_rejected_before_ini_edit(self):
+        custom = self.root / "custom-user"
+        ini = custom / "Config" / "WiimoteNew.ini"
+        ini.parent.mkdir(parents=True)
+        ini.write_text("[Wiimote1]\\nSource = 2\\nExtension = Nunchuk\\n")
+        original_portable = self.ini.read_bytes()
+        original_custom = ini.read_bytes()
+        argv = [
+            "--game", str(self.game), "--config", str(self.config),
+            "--bridge", str(self.bridge), "--dolphin", str(self.exe),
+            "--catalog", str(self.catalog),
+            "--dolphin-user", str(custom),
+        ]
+        with patch.object(launch_golf.subprocess, "run") as run:
+            self.assertEqual(launch_golf.main(argv), 1)
+            run.assert_not_called()
+        self.assertEqual(self.ini.read_bytes(), original_portable)
+        self.assertEqual(ini.read_bytes(), original_custom)
+        self.assertFalse(self.ini.with_name(
+            self.ini.name + ".wii-ai-golf.original.bak").exists())
+        self.assertFalse(ini.with_name(
+            ini.name + ".wii-ai-golf.original.bak").exists())
+        self.assertNotIn("dolphin_user", launch_golf.read_config(self.config))
+
+    def test_remembered_mismatched_portable_user_rejected_before_ini_edit(self):
+        custom = self.root / "remembered-user"
+        ini = custom / "Config" / "WiimoteNew.ini"
+        ini.parent.mkdir(parents=True)
+        ini.write_text("[Wiimote1]\\nSource = 2\\nExtension = Nunchuk\\n")
+        launch_golf.resolve_game(str(self.game), self.config)
+        launch_golf.remember_dolphin_user(self.config, str(custom))
+        argv = [
+            "--config", str(self.config), "--bridge", str(self.bridge),
+            "--dolphin", str(self.exe), "--catalog", str(self.catalog)
+        ]
+        with patch.object(launch_golf.subprocess, "run") as run:
+            self.assertEqual(launch_golf.main(argv), 1)
+            run.assert_not_called()
+        self.assertIn("Source = 2", ini.read_text())
         self.assertIn("Source = 2", self.ini.read_text())
-        self.assertIn("Source = 1", ini.read_text())
+        self.assertEqual(launch_golf.read_config(self.config)["dolphin_user"],
+                         str(custom))
 
     def test_launch_error_never_sends_swing(self):
         argv = [
