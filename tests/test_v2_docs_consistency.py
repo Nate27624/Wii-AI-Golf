@@ -97,7 +97,7 @@ class V2DocumentationConsistencyTests(unittest.TestCase):
         self.assertIn("OVERSIGHT ESCALATION: REQUIRED", continuity)
         self.assertIn("OVERSIGHT ESCALATION: NOT REQUIRED", continuity)
         self.assertIn("five significant merges", continuity)
-        self.assertIn("one owner", continuity.lower())
+        self.assertIn("one implementation owner", continuity.lower())
         self.assertIn("PARK", doc)
 
     def test_current_relative_markdown_links_exist(self):
