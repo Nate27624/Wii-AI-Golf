@@ -1,0 +1,30 @@
+name: S001 frame-scoped A lead regression
+on:
+  pull_request:
+    paths:
+      - 'src/wii_ai_golf/shared/controller_timing.py'
+      - 'tests/test_shared_controller_timing.py'
+      - '.github/workflows/s001-frame-scoped-a.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install project
+        run: python -m pip install -e .
+      - name: Focused A lead fake-RPC tests (no Dolphin)
+        run: python -m unittest discover -s tests -p test_shared_controller_timing.py -v
+      - name: Full offline regression suite (no Dolphin)
+        run: python -m unittest discover -s tests -v
