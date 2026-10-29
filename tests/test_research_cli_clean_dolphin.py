@@ -86,7 +86,8 @@ class P0CleanCliV1Tests(unittest.TestCase):
             stack.enter_context(patch.object(bridge_provenance, "inspect_bridge_file",
                                              return_value={
                                                  "revision": "V1-neutral-swing-calls",
-                                                 "safe_for_isolated_legacy_copy": True
+                                                 "safe_for_isolated_legacy_copy": True,
+                                                 "sha256": "a" * 64
                                              }))
             fake = stack.enter_context(patch.object(research_cli, "_run", return_value=0))
             stack.enter_context(patch.object(research_cli, "_fresh_human_labels",
