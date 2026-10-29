@@ -1,5 +1,11 @@
 # Wii AI Golf
 
+## Persistent game-memory variable catalog (for all agents and future training)
+
+The canonical, versioned [game-memory variable registry](research/memory-variables/registry.json) tracks what each candidate means, its RSPE01 Rev1 static root/pointer offsets and read type, confidence, missing controls, and whether it is approved as a training input or label. Follow the [agent documentation and verification contract](research/memory-variables/README.md) before starting memory research. Agents **must update an existing variable ID or add a new one in their PR** when discovering, falsifying or validating RAM fields; findings do not live only in chat or unsearchable JSON dumps.
+
+No field is training-approved yet: scene ID, tee/pin/cup translations are snapshot-corroborated only; the changing two-float candidate is unidentified and real ball XYZ/velocity remain unverified. Keep raw RAM and per-boot heap pointers private. Agent-only lint: `py scripts/validate_memory_registry.py`. This does not start Dolphin or alter the canonical user CLI.
+
 ## One-command research status sharing (existing Git authentication)
 
 ```powershell

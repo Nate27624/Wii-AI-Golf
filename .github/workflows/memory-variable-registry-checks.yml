@@ -1,0 +1,30 @@
+name: V2 memory registry validation
+
+on:
+  pull_request:
+    paths:
+      - 'research/memory-variables/**'
+      - 'scripts/validate_memory_registry.py'
+      - 'tests/test_memory_registry.py'
+      - '.github/workflows/memory-variable-registry-checks.yml'
+  workflow_dispatch:
+
+jobs:
+  registry-and-full-offline:
+    name: Registry and full offline (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Validate source-backed registry
+        run: python scripts/validate_memory_registry.py
+      - name: Run focused synthetic registry regression tests
+        run: python -m unittest discover -s tests -p test_memory_registry.py -v
+      - name: Run full offline regression suite (no Dolphin)
+        run: python -m unittest discover -s tests -v
