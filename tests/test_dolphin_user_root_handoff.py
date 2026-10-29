@@ -49,7 +49,7 @@ class DolphinUserRootHandoffTests(unittest.TestCase):
 
     def _assert_early_exit(self, args):
         fake = SimpleNamespace(poll=lambda: 0, returncode=0)
-        with patch.object(savestate_session, "_connected", return_value=False), \\
+        with patch.object(savestate_session, "_connected", return_value=False), \
              patch.object(savestate_session.subprocess, "Popen", return_value=fake) as popen:
             with self.assertRaisesRegex(RuntimeError, "before bridge preflight"):
                 savestate_session._launch(args, object())
@@ -89,7 +89,7 @@ class DolphinUserRootHandoffTests(unittest.TestCase):
         ])
 
     def test_nonexistent_user_root_refuses_before_spawning(self):
-        with patch.object(savestate_session, "_connected", return_value=False), \\
+        with patch.object(savestate_session, "_connected", return_value=False), \
              patch.object(savestate_session.subprocess, "Popen") as popen:
             with self.assertRaisesRegex(ValueError, "existing Config/WiimoteNew.ini"):
                 savestate_session._launch(self._args(self.base / "absent"), object())
@@ -98,7 +98,7 @@ class DolphinUserRootHandoffTests(unittest.TestCase):
     def test_user_root_without_controller_ini_refuses_before_spawning(self):
         other = self.base / "unprepared"
         other.mkdir()
-        with patch.object(savestate_session, "_connected", return_value=False), \\
+        with patch.object(savestate_session, "_connected", return_value=False), \
              patch.object(savestate_session.subprocess, "Popen") as popen:
             with self.assertRaisesRegex(ValueError, "existing Config/WiimoteNew.ini"):
                 savestate_session._launch(self._args(other), object())
@@ -107,8 +107,8 @@ class DolphinUserRootHandoffTests(unittest.TestCase):
     def test_attach_running_cannot_override_user_root(self):
         argv = ["launch_hitting_green.py", "--attach-running",
                 "--dolphin-user", str(self.user_root)]
-        with patch.object(sys, "argv", argv), \\
-             patch.object(launch_hitting_green, "StateCatalog") as catalog, \\
+        with patch.object(sys, "argv", argv), \
+             patch.object(launch_hitting_green, "StateCatalog") as catalog, \
              redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as exc:
                 launch_hitting_green.main()
@@ -124,13 +124,13 @@ class DolphinUserRootHandoffTests(unittest.TestCase):
         }
         argv = ["--catalog", str(self.catalog), "--dolphin", str(self.dolphin),
                 "--bridge", str(self.bridge)]
-        with patch.object(launch_golf, "resolve_game", return_value=self.game), \\
-             patch.object(launch_golf, "resolve_profile", return_value=profile), \\
-             patch.object(launch_golf, "read_config", return_value={"game": str(self.game)}), \\
-             patch.object(launch_golf, "is_bridge_port_open", return_value=False), \\
-             patch.object(launch_golf, "ensure_emulated_controller", return_value=controller), \\
+        with patch.object(launch_golf, "resolve_game", return_value=self.game), \
+             patch.object(launch_golf, "resolve_profile", return_value=profile), \
+             patch.object(launch_golf, "read_config", return_value={"game": str(self.game)}), \
+             patch.object(launch_golf, "is_bridge_port_open", return_value=False), \
+             patch.object(launch_golf, "ensure_emulated_controller", return_value=controller), \
              patch.object(launch_golf.subprocess, "run",
-                          return_value=SimpleNamespace(returncode=0)) as run, \\
+                          return_value=SimpleNamespace(returncode=0)) as run, \
              redirect_stdout(io.StringIO()):
             code = launch_golf.main(argv)
         self.assertEqual(code, 0)
