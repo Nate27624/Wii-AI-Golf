@@ -1,0 +1,108 @@
+name: S002 post-shot settled and result extension (synthetic only)
+on:
+  push:
+    branches:
+      - agent/research/postshot-settled-result-link-20261027
+  pull_request:
+    paths:
+      - scripts/audit_golf_postshot_followup_private.py
+      - scripts/prepare_golf_shot_followup_manifest_private.ps1
+      - scripts/preserve_golf_paused_pair_private.ps1
+      - tests/test_golf_postshot_followup_private.py
+      - .github/workflows/s002-postshot-followup-synthetic.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic:
+    name: No-Dolphin result/settled candidate audit / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m py_compile scripts/audit_golf_postshot_followup_private.py tests/test_golf_postshot_followup_private.py
+      - run: python -m unittest discover -s tests -p "test_golf_postshot_followup_private.py" -v
+
+      - name: Parse optional-phase PowerShell and check explicit attestation failure
+        shell: pwsh
+        run: |
+          foreach ($path in @('scripts/prepare_golf_shot_followup_manifest_private.ps1', 'scripts/preserve_golf_paused_pair_private.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $path), [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) { throw 'Private optional-phase PowerShell syntax invalid' }
+          }
+          $blocked = $false
+          try {
+            & ./scripts/prepare_golf_shot_followup_manifest_private.ps1 -PrivateDataRoot '.' -SessionFolder '.'
+          } catch { $blocked = $_.Exception.Message -match 'attestations missing' }
+          if (-not $blocked) { throw 'Consent flags must fail before file access' }
+
+      - name: End-to-end dummy SETTLED/RESULT staging and UI label SHA contract
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $run = Join-Path $env:RUNNER_TEMP 'postshot-synthetic'
+          $clean = Join-Path $run 'tools/FelkDolphin-Clean/User'
+          $dump = Join-Path $clean 'Dump'
+          $data = Join-Path $run 'Wii-AI-Golf-Data'
+          $session = Join-Path $data 'captures/SHOT-synthetic-result-PRIVATE'
+          New-Item -ItemType Directory -Path $dump -Force | Out-Null
+          New-Item -ItemType Directory -Path $session -Force | Out-Null
+          $canonical = Join-Path $session 'shot-checkpoint-manifest-PRIVATE.json'
+          Set-Content -LiteralPath $canonical -Value 'synthetic-base-placeholder' -NoNewline
+          foreach ($phase in @('PRE','POST')) {
+            foreach ($bank in @('MEM1','MEM2')) {
+              $size = if ($bank -eq 'MEM1') { 24MB } else { 64MB }
+              $p = Join-Path $session "$phase-$bank.bin"
+              $f = [IO.File]::Open($p,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+              try { $f.SetLength($size) } finally { $f.Dispose() }
+            }
+          }
+          $src1 = Join-Path $dump 'mem1.raw'
+          $src2 = Join-Path $dump 'mem2.raw'
+          foreach ($bank in @(@{P=$src1;S=24MB},@{P=$src2;S=64MB})) {
+            $f=[IO.File]::Open($bank.P,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+            try { $f.SetLength($bank.S) } finally { $f.Dispose() }
+          }
+          $stage = @{
+            CleanDolphinUserRoot = $clean
+            SourceMem1Path = $src1
+            SourceMem2Path = $src2
+            PrivateDataRoot = $data
+            SessionFolder = $session
+            ExportStartedAfter = [datetime]::Now.AddMinutes(-5)
+            ConfirmBothExportsUnderSameGuiPause = $true
+            ConfirmCorrectVisibleShotPhase = $true
+          }
+          $one = & ./scripts/preserve_golf_paused_pair_private.ps1 @stage -Phase SETTLED -ConfirmNoHoleOrDolphinProcessChange -ConfirmBallVisiblyStoppedBeforeReset
+          if (-not $?) { throw 'SETTLED staging failed' }
+          $two = & ./scripts/preserve_golf_paused_pair_private.ps1 @stage -Phase RESULT -ConfirmSameDolphinProcess -ConfirmResultScreenVisible
+          if (-not $?) { throw 'RESULT staging failed' }
+          if (($one + $two) -match '(?i)[0-9a-f]{64}|mem1.raw|mem2.raw') { throw 'Private content leaked' }
+          $output = & ./scripts/prepare_golf_shot_followup_manifest_private.ps1 -PrivateDataRoot $data -SessionFolder $session -ConfirmSameDolphinProcess -ConfirmSameOneShot -ConfirmBothExportsUnderSamePauseForEachPresentPhase -ConfirmSettledBallVisiblyStoppedBeforeReset -ConfirmResultScreenVisible -DisplayedDistance 12.5 -DisplayedUnit feet
+          if (-not $?) { throw 'Follow-up manifest generation failed' }
+          if ($output -match '12.5|[0-9a-f]{64}') { throw 'Private distance or SHA leaked' }
+          $m = Get-Content -LiteralPath (Join-Path $session 'shot-followup-manifest-PRIVATE.json') -Raw | ConvertFrom-Json
+          if ($m.human_displayed_result_distance.value -ne 12.5 -or $m.human_displayed_result_distance.unit -ne 'feet') { throw 'Private UI label missing' }
+          foreach ($phase in @('SETTLED','RESULT')) {
+            foreach ($bank in @('MEM1','MEM2')) {
+              $h=(Get-FileHash -LiteralPath (Join-Path $session "$phase-$bank.bin") -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($h -cne $m.checkpoints.$phase.sha256.$bank) { throw 'Private SHA mismatch' }
+            }
+          }
+          $script = "import sys,json;from pathlib import Path;sys.path.insert(0,'scripts');import audit_golf_postshot_followup_private as a;a.validate_followup(json.loads(Path(sys.argv[1]).read_text()));print('typed synthetic result manifest valid')"
+          python -c $script (Join-Path $session 'shot-followup-manifest-PRIVATE.json')
+          if ($LASTEXITCODE -ne 0) { throw 'Python follow-up type gate failed' }
+          $blocked=$false
+          try {
+            & ./scripts/preserve_golf_paused_pair_private.ps1 @stage -Phase RESULT -ConfirmSameDolphinProcess -ConfirmResultScreenVisible
+          } catch { $blocked=$true }
+          if (-not $blocked) { throw 'RESULT overwrite not rejected' }
+          Write-Output 'No-game optional result capture staging/manifest is sound'
