@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_BRIDGE = ROOT.parent / "tools" / "mcp_bridge_swing.py"
 SWING_V1 = "# WII_AI_GOLF_SWING_TRACE_V1"
 NEUTRAL_V2 = "# WII_AI_GOLF_SWING_NEUTRAL_BUTTON_ONLY_V2"
+ATOMIC_A45 = "# WII_AI_GOLF_ATOMIC_A45_BRIDGE_V1"
 ATOMIC = "# WII_AI_GOLF_ATOMIC_TRACE_V1"
 AUTOLOAD = "# WII_AI_GOLF_STARTUP_STATE_V1"
 MAX_SOURCE_BYTES = 2 * 1024 * 1024
@@ -39,6 +40,7 @@ def inspect_bridge_file(path: Path) -> dict[str, Any]:
         "autoload_marker": False,
         "swing_v1_marker": False,
         "neutral_v2_marker": False,
+        "atomic_a45_marker": False,
         "safe_for_isolated_legacy_copy": False,
     }
     if not path.is_file():
@@ -53,6 +55,7 @@ def inspect_bridge_file(path: Path) -> dict[str, Any]:
     v1 = SWING_V1 in decoded
     v2 = NEUTRAL_V2 in decoded
     autoload = AUTOLOAD in decoded
+    a45 = ATOMIC_A45 in decoded
     result.update({
         "sha256": hashlib.sha256(source).hexdigest(),
         "bytes": len(source),
@@ -60,8 +63,11 @@ def inspect_bridge_file(path: Path) -> dict[str, Any]:
         "autoload_marker": autoload,
         "swing_v1_marker": v1,
         "neutral_v2_marker": v2,
+        "atomic_a45_marker": a45,
     })
-    if atomic and v1 and v2:
+    if atomic and v1 and a45 and not v2 and not autoload:
+        result["revision"] = "V1-atomic-a45"
+    elif atomic and v1 and v2:
         result["revision"] = "V2-neutral-button-only"
     elif atomic and v1 and not v2:
         result["revision"] = "V1-neutral-swing-calls"
