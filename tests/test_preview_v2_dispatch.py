@@ -8,7 +8,8 @@ SHA = "a" * 40
 
 def row(name, role, state="COMPLETED", paths=None, task_id="old"):
     return {"instance": name, "role": role, "state": state,
-            "owned_paths": paths or [], "task_id": task_id,\n            "thread": "https://github.com/Nate27624/Wii-AI-Golf/issues/308"}
+            "owned_paths": paths or [], "task_id": task_id,
+            "thread": "https://github.com/Nate27624/Wii-AI-Golf/issues/308"}
 
 
 def task(name, role, paths, status="READY", priority="P0", dependencies=None):
@@ -105,9 +106,9 @@ class DispatchPreviewTests(unittest.TestCase):
         data = {"schema": "v2-dispatch-advisory-v1", "authority": "ADVISORY_ONLY_NOT_A_CLAIM",
                 "main_sha": SHA, "roster_comment_id": 123, "tasks": []}
         comment = {"user": {"login": "AI-Bott"},
-                   "body": "[S000-dispatcher-test] snapshot\\n"
-                           "<!-- V2_DISPATCH_ADVISORY_JSON_BEGIN -->\\n"
-                           + "```json\\n" + json.dumps(data) + "\\n```\\n"
+                   "body": "[S000-dispatcher-test] snapshot\n"
+                           "<!-- V2_DISPATCH_ADVISORY_JSON_BEGIN -->\n"
+                           + "```json\n" + json.dumps(data) + "\n```\n"
                            + "<!-- V2_DISPATCH_ADVISORY_JSON_END -->"}
         got = parse_advisory([comment], verified_main=SHA, roster_comment_id=123)
         self.assertEqual(got["tasks"], [])
