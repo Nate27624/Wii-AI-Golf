@@ -1,0 +1,24 @@
+{
+  "worker_id": "s002-native-stage-retry-20261028",
+  "role": "S002 support",
+  "study_id": "S002-NATIVE-STAGING-RECOVERY-01",
+  "claim_communication": "https://github.com/Nate27624/Wii-AI-Golf/pull/201#issuecomment-6460880469",
+  "branch": "agent/support/s002-native-stage-retry-20261028",
+  "owned_paths": [
+    "src/wii_ai_golf/audit/private_capture_staging.py",
+    "tests/test_s002_private_capture_staging.py",
+    ".github/workflows/s002-private-staging-retry.yml",
+    "research/studies/S002-NATIVE-STAGING-RECOVERY-01.md",
+    "research/claims/s002-native-stage-retry-20261028.json"
+  ],
+  "upstream": [
+    "#201 S002 paused DME reader",
+    "#184 S002 paused native bank keeper"
+  ],
+  "downstream": [
+    "S002 owner review and optional integration into #201",
+    "S000 operator CLI review"
+  ],
+  "status": "review-only; not wired to production capture or approved for live runs",
+  "data_classification": "code, synthetic tests and docs are public; native RAM always PRIVATE"
+}
