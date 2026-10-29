@@ -165,7 +165,8 @@ def main() -> int:
         print(f"ROLE={args.role}: {ROLES[args.role]}")
     print(f"BRANCH={git(root, 'branch', '--show-current')}")
     print(f"HEAD={git(root, 'rev-parse', 'HEAD')}")
-    print(f"WORKTREE_STATUS={git(root, 'status', '--porcelain') or 'clean'}")
+    worktree = git(root, "status", "--porcelain")
+    print(f"WORKTREE_STATUS={worktree if worktree == 'unavailable' else (worktree or 'clean')}")
     print(f"CHARTER={charter.relative_to(root)}")
     if args.role == "S000":
         manager = root / "docs" / "S000-manager-playbook.md"
