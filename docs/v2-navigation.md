@@ -9,6 +9,8 @@ This is the main entry point for agents. Review these in order:
 5. `docs/v2-evidence-gates.md`: verified observations, contradictions, and stop rules.
 6. `docs/v2-pr-triage.md`: backlog dispositions and safe closure criteria.
 
+Agent startup and continuing work are **priority-aware**: consult the latest authenticated [S000 manager priority board on #320](https://github.com/Nate27624/Wii-AI-Golf/pull/320), verify each current claim and blocked PR before selecting work. Recommendations are not reservations. For the local read-only helper, use `python scripts/agent_init.py --mode suggest --live` to see in-demand roles; use `--mode init` for a new distinct identity or `--mode continue` for the existing identity. Without an authenticated GitHub CLI, read #320 with your connected GitHub tools rather than trusting a frozen board.
+
 Startup command (change to your role and unique instance):
 
 ```powershell
@@ -30,7 +32,7 @@ Start from the latest `main`, review the live queue and existing CLAIM comments,
 | **Source-global ball receiver and four-slot roster (read-only)** | `scripts/audit_p0_cache_global_receiver_private.py`, `scripts/audit_p0_global_ball_roster_receiver_private.py`, and required `scripts/audit_p0_seven_source_trajectory_private.py` on `main` (merged PR #337) |
 | Source-only cache writer / PPC CFG provenance | `scripts/audit_ball_xyz_source_callers_private.py` and `scripts/audit_p0_cache_cfg_original_b0_adapter.py` on `main` (merged PR #329); **not** runtime writer execution |
 | Public observation output boundary | `scripts/research_cli.py::publish_summary` validates and allowlists direct-call publication on `main` (merged PR #341); does **not** approve training |
-| Additional global-ball exploratory source research | historical parent PR #240 remains a draft; its auxiliary source-XREF/PPC-review experiments are **not** all on `main` |
+| Additional global-ball exploratory source research | historical parent PR #240 **closed unmerged** with original source-XREF/PPC experiments retained on immutable historical branch; the selective global receiver core lives on `main` via #337 and #346 |
 | Agent initialization and successor transfer | `scripts/agent_init.py`, offline `scripts/agent_handoff.py`; [continuity and handoff contract](v2-agent-continuity.md) |
 | Manager procedure | `docs/S000-manager-playbook.md` |
 
