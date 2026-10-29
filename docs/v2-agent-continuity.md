@@ -36,6 +36,33 @@ If unanswered: <safe fallback and work that can proceed>
 ```
 The S000 manager consolidates other agents' questions. Resolve technical questions from code, sources, tests, or discussions before escalating. Ask the human only for priorities, consent, irreconcilable tradeoffs, or access to their local evidence.
 
+## Manager-issued exclusive assignments (V2)
+
+**The S000 Manager assigns work; individual agents no longer choose their next task from the priority board.** The newest `[S000-manager] PRIORITY BOARD V2` on PR #320 is a *candidate* queue, not permission to modify files. The same thread carries a separate manager-authored `[S000-manager] ASSIGNMENT ROSTER V2`, published as a **complete snapshot** after checking existing CLAIM/HANDOFF comments, changed-file overlaps, open PRs, and current main.
+
+The roster uses JSON version 1 between `<!-- V2_ASSIGNMENTS_JSON_BEGIN -->` and `<!-- V2_ASSIGNMENTS_JSON_END -->`, with `main_sha`, `manager_id`, and `assignments` (1–20 rows). Each row has an exact `instance` and matching `role` (S000–S005), unique active `task_id`, lifecycle `state` (`ASSIGNED`, `CLAIMED`, `IN_PROGRESS`, `BLOCKED`, `COMPLETED`, or `PARKED`), canonical `thread`, nonoverlapping concrete `owned_paths`, bounded `objective` and `acceptance` text. Identify the authenticated single manager in the GitHub comment header (`manager_id: S000-...`). The roster is NOT an atomic lock or a GitHub notification: an agent must still verify no competing owner PR and reference the roster permalink in its own CLAIM. Manager documents exact path delegation and gives one implementation owner per behavior.
+
+Lifecycle: **AVAILABLE on candidate board → manager ASSIGNED → agent CLAIMED → IN_PROGRESS → COMPLETED / BLOCKED / PARKED**. The manager alone publishes assignment revisions. A new agent without an exact roster entry posts `[INSTANCE] ASSIGNMENT REQUEST` on #320 and does not self-assign source files. A continuing agent finishes its existing verified CLAIM first; after HANDOFF it requests another manager assignment and **parks rather than inventing work**. The manager can reassign an explicitly released or superseded task and updates roster on meaningful changes. On succession the outgoing agent posts a SUCCESSION HANDOFF and releases old ownership; S000 changes the roster to the unique incoming instance before its new CLAIM. Source research and negative evidence remain preserved.
+
+The current local helper `scripts/agent_init.py` uses authenticated, read-only GitHub GETs. `--live` reads both advisory priorities and the authoritative named roster; `--roster-file` is **offline test input only**. A missing, malformed, stale-main, overlapping, or unmatched roster fails closed for **new** ownership. Existing work can continue only after independently verifying the original claim, current PR and main compatibility. Since all agents may share a GitHub account, the helper validates comment author + manager identity format but does NOT cryptographically prove which ChatGPT conversation posted a comment; manager resolves any apparent impersonation/collision from canonical evidence.
+
+**Oversight escalation:** Manager must explicitly print `OVERSIGHT ESCALATION: REQUIRED` if unresolved duplicate ownership, architectural/training eligibility disagreement, unsafe merge, or the same P0 stalls across two substantive attempts; operator-only gameplay/private consent is separately `ACTION REQUIRED`. After five significant merges since the last independent review, escalate to this oversight conversation **even if the manager believes everything is fine**. Otherwise print `OVERSIGHT ESCALATION: NOT REQUIRED`. GitHub comments do not deliver the request to the user; manager must put it into its actual chat response. Independent oversight is NOT an additional routine merge approval.
+
+**Every visible agent response including CONTINUE must identify its role**, not just status:
+
+```text
+OPERATOR STATUS: CONTINUE
+Role: S002 — Memory measurement / provenance
+Agent ID: S002-memory-a
+Assignment: S002-D1-ARCHIVE — IN_PROGRESS (link to manager roster)
+Completed: exact verified change/PR/tests or negative finding
+Next: one in-scope assigned action or PARKED
+Blockers: none or specific evidence/operator need
+OVERSIGHT ESCALATION: NOT REQUIRED
+```
+
+Managers use `Role: S000 — Manager / coordination` and include seven-agent roster health, significant-merge count, and explicit escalation status. This status contract applies to ACTION REQUIRED and DECISION REQUIRED as well. No extra agents, automatic background work, or live Dolphin authorization is created.
+
 ## Universal operator commands
 
 The **single canonical copy-and-paste prompt source** is
