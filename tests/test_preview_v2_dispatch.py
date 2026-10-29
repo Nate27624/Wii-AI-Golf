@@ -181,6 +181,25 @@ class DispatchPreviewTests(unittest.TestCase):
         self.assertIsNone(find_handoff(rr, [comment], verified_main=SHA,
                                        roster_created_at="2026-10-29T18:00:00Z"))
 
+
+    def test_other_completed_roster_task_not_proposed(self):
+        got = self.run_preview(
+            [row("s1", "S001", task_id="OLD-1"),
+             row("s2", "S001", task_id="OLD-2")],
+            [task("OLD-2", "S001", ["replay.py"]),
+             task("NEW", "S001", ["new.py"])])
+        self.assertEqual(len(got["proposals"]), 1)
+        self.assertEqual(got["proposals"][0]["task_id"], "NEW")
+
+    def test_unenriched_manager_board_fails_closed(self):
+        board_task = {"id": "S001-NEXT", "role": "S001",
+                      "status": "ready_offline", "thread": "https://github.com/Nate27624/Wii-AI-Golf/issues/308",
+                      "objective": "Read Golf accepted A callsite"}
+        with self.assertRaisesRegex(ValueError, "malformed task row"):
+            preview({"main_sha": SHA, "assignments": [row("s1", "S001")]},
+                    {"main_sha": SHA, "tasks": [board_task]},
+                    verified_main=SHA)
+
     def test_priority_order(self):
         got = self.run_preview([row("a", "S001")],
                                [task("low", "S001", ["l.py"], priority="P2"),
