@@ -595,7 +595,7 @@
           "B0–B3 single study",
           "D1-D2 / W5-W6-W7 human-labeled seven-pair source/SHA verified cohort, no machine timestamp linkage"
         ],
-        "observed_behavior": "Monotonic values 6048, 6410, 9012, 9591; no paired frame count proof | 2026-10-28 P0 SEVEN MAIN-COUNTER PR #238 STUDY-PENDING, no operator real result yet. An independent seven-capture full-14-bank SHA + source-selected owner/Rev1 scene/mode/geometry read-only auditor now targets this EXACT previously observed Golf scene Main+0x74 BE-u32 under a vtable/MEM2 guard and reports only numerical change categories across D1->D2 and W5->W6->W7. Hosted 14 synthetic tests pass on Windows and Ubuntu. **Do not conflate** source RPGolMain+0x74 with separate selected-player record+0x74; older B0-B3 idle/aim samples and 19/19 within-idle changes (PR #135) strongly confound any power/impact interpretation. Even a strictly increasing 7-phase value does not prove a game-accepted frame clock, time-rate, same boot or frame alignment. Await actual local operator output before adding empirical cohort claims; training remains false. | 2026-10-28 REAL OPERATOR SEVEN-PHASE MAIN+0x74 NUMERICAL ORDER, pinned #238 source commit 1475cb8f12a2f0a0f020493488eebf7f552204f3: 14/14 synthetic tests PASS on operator Windows, canonical 14-bank SHA/manifest and all seven Rev1 source scene/Main owner/ball/pin/tee/config gates PASS. Actual human same-shot transitions D1(driver airborne)->D2(settled), W5(near apex)->W6(descending), W6->W7(flag/result), and W5->W7 ALL show this untyped source RPGolMain+0x74 BE-u32 NUMERICALLY INCREASED and source-selected active ball+0x30 triplet 3/3 changed; object/geometry/selector controls stable. W5<W6<W7 and numeric (W6-W5)<(W7-W6), only relative ordinal order (NO numeric u32 values published). This corroborates active-scene monotonic background/counter-like behavior beyond B0-B3 idle/aim and #135 19/19 stationary tick activity; does NOT measure guest frames, same boot, rate, clock units, event/impact, ball velocity or swing power. Distinguish Main+0x74 from player record+0x74; selected record+0x74 had different causal confounds in #235. Game-accepted frame alignment, physical world XYZ, shot score and training remain UNVERIFIED.",
+        "observed_behavior": "Monotonic values 6048, 6410, 9012, 9591; no paired frame count proof | 2026-10-28 REAL OPERATOR SEVEN-PHASE MAIN+0x74 NUMERICAL ORDER, pinned #238 source commit 1475cb8f12a2f0a0f020493488eebf7f552204f3: 14/14 synthetic tests PASS on operator Windows, canonical 14-bank SHA/manifest and all seven Rev1 source scene/Main owner/ball/pin/tee/config gates PASS. Actual human same-shot transitions D1(driver airborne)->D2(settled), W5(near apex)->W6(descending), W6->W7(flag/result), and W5->W7 ALL show this untyped source RPGolMain+0x74 BE-u32 NUMERICALLY INCREASED and source-selected active ball+0x30 triplet 3/3 changed; object/geometry/selector controls stable. W5<W6<W7 and numeric (W6-W5)<(W7-W6), only relative ordinal order (NO numeric u32 values published). This corroborates active-scene monotonic background/counter-like behavior beyond B0-B3 idle/aim and #135 19/19 stationary tick activity; does NOT measure guest frames, same boot, rate, clock units, event/impact, ball velocity or swing power. Distinguish Main+0x74 from player record+0x74; selected record+0x74 had different causal confounds in #235. Game-accepted frame alignment, physical world XYZ, shot score and training remain UNVERIFIED.",
         "source_confidence": "offline_diff_only"
       },
       "limitations": [
@@ -606,7 +606,6 @@
       ],
       "required_controls": [
         "compare against exact emulated frame increments and fresh boots",
-        "run PR #238 on SHA-validated seven-pair archive, then independently trace source Main+0x74 writer and compare known guest-frame deltas across boot/pause/idle before classifying it as time",
         "trace bounded PPC writer(s) for RPGolMain+0x74 and validate actual update rate against independently instrumented game-applied frame ticks, including no-input idle/pause/reset and same-boot controls"
       ],
       "owner": "S002",
@@ -1972,11 +1971,11 @@
         "allowed_when": "Only after independent runtime source/semantic verification and S002 approved leakage-safe versioned dataset contract"
       },
       "id": "golf.config.standard_scores_table_4x9",
-      "name": "Standard RPGolConfig per-player nine-hole score-table words +0x04",
+      "name": "RPGolConfig +0x04 36-word score region (row orientation not fully verified)",
       "priority": "P0",
       "role": "score_table_source_candidate",
       "status": "snapshot_correlated",
-      "datatype": "be_u32_matrix_4x9",
+      "datatype": "be_u32_array_36_layout_unverified",
       "unit": "unknown",
       "memory_locator": {
         "kind": "pointer_chain_hypothesis",
@@ -1997,27 +1996,30 @@
             "type": "be_u32x36"
           }
         ],
-        "corroboration": "Source-defined field offset relative to guarded upstream owner; no process-specific guest heap pointer or boot-persistent global base baked in."
+        "corroboration": "Guarded source GolfConfig +0x04 36-word region; cannot derive a verified [player][hole] or [hole][player] selected-cell locator until runtime source/argument mapping. No session-specific heap base stored."
       },
       "evidence": {
         "source_urls": [
-          "https://github.com/Nate27624/Wii-AI-Golf/pull/239"
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/239",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/278"
         ],
         "capture_groups": [
           "Original seven human-labeled native MEM1/MEM2 pairs; operator phase mapping not machine verified"
         ],
-        "observed_behavior": "REAL local operator #239 SHA/source-gated all seven original pairs, standard GolfConfig::mPlayerScores[4][9] at +0x04: ZERO of 36 words changed in D1->D2, W5->W6, W6->W7, W5->W7; selected+hole candidate cell unchanged and all four player row change counts zero while selected ball+0x30 changes 3/3. This is a negative for an IMMEDIATE result delta in these sampled mode4 transitions ONLY. It does not disprove score updates at later frames or alternative result backing stores. Distinct SequenceMgr mGolfScores[9][4] +0x14 remains separate untested source field. | 2026-10-28 USER PROVENANCE: all current driver/wedge/putter captures were made on the FIRST HOLE ONLY. Source-defined score arrays remaining unchanged through these snapshots cannot rule out hole-completion, second-hole, delayed, or different-mode score updates; no second-hole comparison has been conducted or requested.",
-        "source_confidence": "source_selected_real_snapshot_correlation_not_physical"
+        "observed_behavior": "REAL #239 original seven private bank pairs SHA/source-gated: all 36 GolfConfig +0x04 u32 words unchanged (0/36) on numbered edges D1->D2, W5->W6, W6->W7, W5->W7 while selected ball +0x30 changed 3/3 components each edge. This aggregate result does NOT require any row orientation. Earlier [player][hole] selected-cell/row labels were provisional; #278 original Rev1 source getter study (code pinned 1dd88821a6ca7653956382a6b1349893a14e9d2f, 14-bank SHA before/after and six static syntax checks PASS) strongly favors a hole-major 9x4 candidate: GetNthHoleStrokes indexes hole*16 + inner*4 while a separate 36-byte path matches HoleInfo/par. Public Kokeshi [9][4] conflicts with ogws_info [4][9]. Exact runtime receiver/argument mapping and displayed score semantics remain UNVERIFIED, so do not treat a selected-cell offset, official score, mode4 result, or per-hole timing as validated. All historical first-hole captures are human labeled and not machine frame-synchronized. SequenceMgr +0x14 is an independent table whose real 0/36 negative was already completed in #245.",
+        "source_confidence": "source_selected_36word_real_stability_orientation_disputed"
       },
       "limitations": [
         "Source-defined standard scores may be unused in Hitting the Green mode4",
         "No verified score, feet/meter conversion, hit or reward semantics",
-        "All present shot-transition captures are operator-attested FIRST-HOLE ONLY; no independently source-gated hole-2+ shot control or cross-hole semantic generalization."
+        "All present shot-transition captures are operator-attested FIRST-HOLE ONLY; no independently source-gated hole-2+ shot control or cross-hole semantic generalization.",
+        "Stable legacy registry ID suffix _4x9 is NOT array-orientation proof; datatype intentionally neutral until documented schema migration.",
+        "Original Rev1 PPC getter syntax strongly suggests hole-major [9][4], but actual runtime root and caller argument mapping are not verified."
       ],
       "required_controls": [
         "independently source trace Hitting-the-Green mode4 score/result UI producer",
-        "test separate source SequenceMgr 9x4 table with its own source owner and selected sport/loop rules",
-        "confirm human 15.2ft readout against screen and per-shot time-linked result state"
+        "confirm human 15.2ft readout against screen and per-shot time-linked result state",
+        "Adjudicate original #278 PPC source evidence and runtime receiver/arguments against #239 before publishing an official selected score-cell index; never reinterpret the 0/36 aggregate negative as a typed result."
       ],
       "evidence_ledger_field_ids": []
     },
@@ -2225,11 +2227,11 @@
         "capture_groups": [
           "Seven operator-numbered source/SHA-gated native bank capture cohort, phase names human-only not machine-linked"
         ],
-        "observed_behavior": "2026-10-28 REAL OPERATOR #245 SCORE AND #235 AFFINE NEGATIVES: exact PR #245 pinned 102a84ab8b9e6e6ea8f399ae0ed4e57843de1364, 14/14 Windows synthetic tests and REAL 14-bank original manifest/Rev1/scene/source selected actor/ball/tee/pin/Config controls PASS. Separate SequenceMgr instance present and mSport Golf=2 in D1,D2,W5,W6,W7; 36 source score u32 values unchanged (0/36), selected hole/player cell changed=false, source training-game/golf-mode enums unchanged across D1->D2, W5->W6, W6->W7, W5->W7. Selected ball changed 3/3 each edge; GolfConfig independent [player][hole] score 0/36 also stable #239. This is a NEGATIVE immediate-score-change observation in mode4 human-numbered captures; no machine event aligned, W7 display result provenance may be mislabeled. No proof table contains live Hitting-the-Green outcome, no per-shot feet/meters scale, impact, reward, velocity/power or training. | 2026-10-28 USER PROVENANCE: all current driver/wedge/putter captures were made on the FIRST HOLE ONLY. Source-defined score arrays remaining unchanged through these snapshots cannot rule out hole-completion, second-hole, delayed, or different-mode score updates; no second-hole comparison has been conducted or requested.",
+        "observed_behavior": "2026-10-28 REAL OPERATOR #245 SCORE AND #235 AFFINE NEGATIVES: exact PR #245 pinned 102a84ab8b9e6e6ea8f399ae0ed4e57843de1364, 14/14 Windows synthetic tests and REAL 14-bank original manifest/Rev1/scene/source selected actor/ball/tee/pin/Config controls PASS. Separate SequenceMgr instance present and mSport Golf=2 in D1,D2,W5,W6,W7; 36 source score u32 values unchanged (0/36), selected hole/player cell changed=false, source training-game/golf-mode enums unchanged across D1->D2, W5->W6, W6->W7, W5->W7. Selected ball changed 3/3 each edge; Separate GolfConfig +0x04 36-word region 0/36 also stable #239, but its row orientation disputed by #278. This is a NEGATIVE immediate-score-change observation in mode4 human-numbered captures; no machine event aligned, W7 display result provenance may be mislabeled. No proof table contains live Hitting-the-Green outcome, no per-shot feet/meters scale, impact, reward, velocity/power or training. | 2026-10-28 USER PROVENANCE: all current driver/wedge/putter captures were made on the FIRST HOLE ONLY. Source-defined score arrays remaining unchanged through these snapshots cannot rule out hole-completion, second-hole, delayed, or different-mode score updates; no second-hole comparison has been conducted or requested.",
         "source_confidence": "source_named_runtime_present_real_snapshot_stability_not_result_semantic"
       },
       "limitations": [
-        "Source-defined hole-major 9x4 is distinct from Config's player-major 4x9; never exchange offsets/indices",
+        "Source-defined SequenceMgr 9x4 at +0x14 is distinct from Config +0x04 36-word region; Config row orientation remains disputed (#278). Never exchange offsets/indices.",
         "Score table present and sport Golf does not prove Hitting-the-Green mode4 live result or score event",
         "Stable 36 u32 does not rule out delayed update after W7, separate result UI backing, or operator phase label error",
         "All present shot-transition captures are operator-attested FIRST-HOLE ONLY; no independently source-gated hole-2+ shot control or cross-hole semantic generalization."
@@ -2604,6 +2606,78 @@
         "Compare two 9-word BSS arrays and Config hole source only through strict local privacy sanitization",
         "Do not train on this or apply physical interpretation until measured UI and gameplay/control evidence support the unit conversion"
       ],
+      "evidence_ledger_field_ids": []
+    },
+    {
+      "id": "golf.field_manager.kill_target_effect_emitter",
+      "name": "FieldManager source target-effect emitter kill flag",
+      "role": "visual_effect_negative_control",
+      "priority": "P1",
+      "status": "snapshot_correlated",
+      "datatype": "bool_u8",
+      "unit": "boolean",
+      "memory_locator": {
+        "kind": "pointer_chain",
+        "expression": "be_u8(be_u32(0x804BF868)+0xA4)",
+        "root_static_address": "0x804BF868",
+        "steps": [
+          {
+            "op": "read_ptr",
+            "type": "be_u32"
+          },
+          {
+            "op": "add",
+            "offset": "0xA4"
+          },
+          {
+            "op": "read",
+            "type": "be_u8"
+          }
+        ],
+        "corroboration": "Pinned Rev1 RPGolFieldManager.h mKillTargetEffEmitter first byte at +0xA4, strict boolean 0/1; associated mMapTargetEff pointer at +0xA0 and mShowMiniMap bool at +0x88 are separate UI controls."
+      },
+      "evidence": {
+        "source_urls": [
+          "https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RP/RPSports/RPGolScene/RPGolFieldManager.h",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/252",
+          "https://github.com/Nate27624/Wii-AI-Golf/pull/205#issuecomment-6487496216"
+        ],
+        "capture_groups": [
+          "Seven operator-numbered first-hole native MEM1/MEM2 paired captures, Rev1 source and original 14-bank SHA verified, human phase annotations unverified"
+        ],
+        "observed_behavior": "REAL #252 operator source-gated original archive run, pinned 28d7a6069e2a2cfabded7fb75d4da951a1df37fd: target emitter kill bool false 7/7; minimap show bool +0x88 true 7/7; target effect pointer +0xA0 nonnull 7/7. All three controls unchanged on numbered edges 1->2, 5->6, 6->7, 5->7, while source-selected +0x30 changes 3/3 each edge. 15/15 local synthetic PASS, original 14/14 bank SHA before/after PASS with scene, owner, Config, PIN/START geometry checks. This is a negative TEMPORAL control in this cohort; no evidence of visible blinking or ball hitting the target.",
+        "source_confidence": "rev1_source_field_and_sha_gated_first_hole_snapshot_stability_only"
+      },
+      "game": {
+        "game_id": "RSPE01",
+        "disc_revision": 1,
+        "region": "US",
+        "mode_context": "Golf (scene 5); Hitting the Green mode hypothesis only unless separately captured",
+        "endianness": "big"
+      },
+      "phase_provenance": "human_labeled_native_bank_archive_not_machine_guest_frame_aligned",
+      "limitations": [
+        "Bool false in all seven first-hole snapshots cannot establish absence of transient UI effects between captures.",
+        "Effect pointer nonnull is not visual blink/contact proof; this flag is NOT impact, score, projectile position, game time or shot completion.",
+        "D1 airborne/START contradiction and cross-bank/frame timing remain unresolved."
+      ],
+      "required_controls": [
+        "Only reinterpret as a UI effect when independently visually synchronized and source-writer matched to the same actor/shot.",
+        "Independent scene/mode/hole and boolean source checks required before any generalized effect behavior; no new capture requested for this historical negative."
+      ],
+      "owner": "S002",
+      "training": {
+        "approved": false,
+        "eligible_as_input": false,
+        "eligible_as_label": false,
+        "reason": "UI visual-effect control does not identify physical ball, impact, frame, score or mode4 outcome; snapshots human labeled.",
+        "allowed_when": "Only after source, independently synchronized visual and same-shot evidence plus separately approved dataset contract."
+      },
+      "review": {
+        "reviewer": null,
+        "approved_at": null
+      },
+      "last_evidence_date": "2026-10-28",
       "evidence_ledger_field_ids": []
     }
   ],
