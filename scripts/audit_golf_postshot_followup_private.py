@@ -101,6 +101,11 @@ def pin_words(read_u32):
     if roster._bank(pin_obj, 0x50) != "MEM2":
         raise ValueError("Selected PIN object outside MEM2")
     vec = read_u32(pin_obj + 0x4C)
+    # Source-backed RPGolMapObjBase constructor stores an inline +0x30
+    # translation self-reference at +0x4C. In-bounds alone is insufficient:
+    # an unrelated MEM2 vector must never be accepted as the current PIN.
+    if vec != pin_obj + 0x30:
+        raise ValueError("Selected PIN translation selfref mismatches source constructor")
     if roster._bank(vec, 12) != "MEM2":
         raise ValueError("Selected PIN translation outside MEM2")
     words = tuple(read_u32(vec + 4*i) for i in range(3))
