@@ -118,6 +118,27 @@ class AtomicA45BridgeTests(unittest.TestCase):
         self.assertEqual(calls[first_swing][0], 146)
         self.assertEqual(calls[first_swing - 1], (146, "buttons", 0, {"A": True}))
         self.assertEqual(len([x for x in calls if x[1] == "swing"]), 89)
+        # The generated bridge must preserve the COMPLETE legacy V1 schedule,
+        # not only the 45 A-true lead and its first swing callback. V1 calls
+        # set_wiimote_swing on neutral samples too (unlike the V2 bridge).
+        expected_events = [(101 + i, "buttons", 0, {"A": True})
+                           for i in range(45)]
+        for index, sample in enumerate(payload):
+            frame = 146 + index
+            expected_events.append((frame, "buttons", 0, {"A": sample[0]}))
+            expected_events.append((frame, "swing", 0, tuple(sample[1:])))
+        expected_events.append((235, "buttons", 0, {"A": False}))
+        self.assertEqual(calls, expected_events)
+        buttons = [event for event in calls if event[1] == "buttons"]
+        self.assertEqual(len(buttons), 135)
+        self.assertEqual([event[0] for event in buttons], list(range(101, 236)))
+        self.assertEqual([event[3]["A"] for event in buttons],
+                         [True] * (45 + 77) + [False] * (12 + 1))
+        swing_calls = [event for event in calls if event[1] == "swing"]
+        self.assertEqual(sum(any(value != 0 for value in event[3])
+                             for event in swing_calls), 35)
+        self.assertEqual(sum(all(value == 0 for value in event[3])
+                             for event in swing_calls), 54)
         self.assertEqual(ns["_wii_ai_trace_status"]["state"], "complete")
         self.assertEqual(ns["_wii_ai_trace_status"]["prehold_applied_frames"], 45)
         self.assertEqual(ns["_wii_ai_trace_status"]["applied_frames"], 89)
