@@ -36,7 +36,7 @@ def main() -> int:
     parser.add_argument("--successor", required=True, help="New, different instance in the same role")
     parser.add_argument(
         "--thread", required=True,
-        help=f"Existing canonical https://github.com/{REPO}/issues/N or /pull/N",
+        help=f"Canonical URL syntax for https://github.com/{REPO}/issues/N or /pull/N; existence must be checked in GitHub",
     )
     args = parser.parse_args()
     for label, value in (("instance", args.instance), ("successor", args.successor)):
@@ -56,7 +56,8 @@ def main() -> int:
     print("=== OUTGOING AGENT: POST THIS TO THE EXISTING CANONICAL GITHUB THREAD ===")
     print(f"[{args.instance}] SUCCESSION HANDOFF")
     print(f"Role: {args.role} | Outgoing: {args.instance} | Proposed successor: {args.successor}")
-    print(f"Canonical thread: {args.thread}")
+    print(f"Canonical thread URL (syntax verified; GitHub existence and ownership NOT verified): {args.thread}")
+    print("Before posting, verify the issue/PR exists and remains your assigned thread in GitHub.")
     print("Verified remote main SHA: <fetch latest main; DO NOT substitute local HEAD>")
     print(f"Local branch at generation: {branch}")
     print(f"Local HEAD at generation: {head}")
