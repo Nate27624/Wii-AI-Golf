@@ -222,7 +222,10 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 # One in-bridge scheduled action: A on 45 bridge callback ticks,
                 # followed immediately by the UNCHANGED 89-frame V1 swing.
                 # No client frame-count polling and no remote-button RPC gap.
-                stroke = AtomicA45SwingTraceClient(client, port=0).run(samples)
+                try:
+                    stroke = AtomicA45SwingTraceClient(client, port=0).run(samples)
+                finally:
+                    release_buttons(client, remote=0)
                 a_lead_report = {
                     'a_button_only_requests': 0,  # no host prehold RPCs
                     'observed_frame_delta': stroke['prehold_applied_frames'],
