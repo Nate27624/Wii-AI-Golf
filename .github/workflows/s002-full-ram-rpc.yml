@@ -1,0 +1,26 @@
+name: S002 full RAM binary stream offline tests
+on:
+  pull_request:
+    paths:
+      - 'scripts/capture_full_ram_private.py'
+      - 'tests/test_capture_full_ram_private.py'
+      - 'research/studies/S002-FULL-RAM-CLI-ROLLING-01.md'
+      - '.github/workflows/s002-full-ram-rpc.yml'
+  workflow_dispatch:
+jobs:
+  synthetic:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile and test (no Dolphin, game assets or RAM upload)
+        shell: bash
+        run: |
+          python -m compileall -q scripts/capture_full_ram_private.py tests/test_capture_full_ram_private.py
+          python -m unittest discover -s tests -p 'test_capture_full_ram_private.py' -v
