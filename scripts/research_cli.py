@@ -138,6 +138,17 @@ def _fresh_human_labels(start_time: datetime, *, run_token: str | None = None,
             and human.get("contact_human") in ("yes", "no", "unknown")
             and human.get("finished_on_green_human") in ("yes", "no", "unknown")):
         return {"capture_status": "unqualified_child_trace_or_controls"}
+    # A syntactically valid SHA is not proof that the child described the
+    # exact V1 waveform. Rebuild the same pure trace used by the collector.
+    # This verifies REQUESTED controls, not their execution in Dolphin/game.
+    from collect_outcome_transition import _build_v1_trace_and_digest
+    samples, expected_digest = _build_v1_trace_and_digest(
+        motion_scale=expected_controller["motion_scale"],
+        speed_scale=expected_controller["speed_scale"],
+        backswing_scale=expected_controller["backswing_scale"])
+    if (swing["generated_trace_frames"] != len(samples)
+            or swing["trace_sha256"] != expected_digest):
+        return {"capture_status": "unqualified_child_trace_digest"}
     timing = content.get("settled_screen_observation")
     if timing not in ("operator_confirmed_before_transition",
                       "screen_had_already_transitioned_before_settled_samples"):
