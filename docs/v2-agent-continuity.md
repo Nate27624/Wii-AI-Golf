@@ -88,8 +88,9 @@ head/CI, and blockers. A board pinned to older main is stale; never
 interpret it as automatic assignment or completed tests.
 
 Use the same **existing** role/instance ID for continuation. For a brand-new
-agent, the operator can choose a new role after inspecting S000's latest
-unclaimed work; a new distinct ID must be verified against GitHub claims.
+agent, S000 assigns one available role, distinct instance and task through the
+exclusive roster after reviewing actual claims; the operator need not manually
+allocate role-specific prompts. Agent cannot choose another task independently.
 No script reserves IDs or starts new ChatGPT conversations. The roles S000–S005
 remain governed by the charter, regardless of priority order.
 
@@ -97,7 +98,8 @@ remain governed by the charter, regardless of priority order.
 prompt from [v2-universal-prompts.md](v2-universal-prompts.md). An agent reads
 the latest manager board and its own active CLAIM on each invocation; the
 operator need not preselect a role or rewrite prompt text. Finish current
-claimed work before accepting a new recommended task.
+claimed work, then obtain a new explicitly manager-assigned task; no
+self-selection from priority suggestions.
 
 Optional local, **read-only** helper (requires already authenticated `gh`
 CLI for live reads; if missing, use the GitHub connector in ChatGPT):
@@ -108,15 +110,18 @@ python scripts/agent_init.py --mode init --role S002 --instance S002-memory-c --
 python scripts/agent_init.py --mode continue --role S002 --instance S002-memory-c --live
 ```
 
-The helper reads `main` and the latest board using **GET** only, validates
-task types, and prints ranked candidates for the selected role. It **cannot**
+The helper reads `main`, latest candidate board and latest manager roster via **GET**
+only, validates roles/tasks/nonoverlapping owned paths, and prints the exact
+matching assignment or a PARK / assignment-request instruction. It **cannot**
 inspect every overlapping claim or prove task availability: the agent must
 do that directly through GitHub before any CLAIM or edit. When authentication,
 network, schema or board freshness is uncertain, it explicitly abstains or
 warns and does not invent an assignment. Offline tests can pass a sanitized
 board via `--board-file`; such output is *not* live-verified.
 
-**S000 manager duty:** after major merges, evidence changes or parent PR
+**S000 manager duty:** publish/maintain the separate complete exclusive assignment roster
+as the one source of named task/owner/path allocations; after major merges,
+evidence changes or parent PR
 closures, post a new board on #320 with a fresh main SHA, exact owner threads,
 a small number of highest-impact in-role tasks and explicit `ready_offline`,
 `review_only`, or `blocked` statuses. Do not mass-edit repo files for each
