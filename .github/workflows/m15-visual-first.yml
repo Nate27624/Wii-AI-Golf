@@ -10,6 +10,8 @@ on:
       - "tests/test_research_cli.py"
       - "src/wii_ai_golf/evaluation.py"
       - "tests/test_evaluation_real_gate.py"
+      - "src/wii_ai_golf/emulator.py"
+      - "tests/test_emulator_scenario_gate.py"
       - ".github/workflows/m15-visual-first.yml"
   workflow_dispatch:
 
@@ -31,5 +33,6 @@ jobs:
           python -m unittest discover -s tests -p "test_outcome_capture_cli.py" -v
           python -m unittest discover -s tests -p "test_research_cli.py" -v
           python -m unittest discover -s tests -p "test_evaluation_real_gate.py" -v
+          python -m unittest discover -s tests -p "test_emulator_scenario_gate.py" -v
       - name: Full offline Python suite (Windows and Ubuntu)
         run: python -m unittest discover -s tests -v
