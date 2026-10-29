@@ -487,27 +487,27 @@ class VisualFirstJoinTests(unittest.TestCase):
             bridge = sandbox / "tools" / "mcp_bridge_swing_legacy_eval.py"
             bridge.parent.mkdir()
             original = (
-                "# WII_AI_GOLF_ATOMIC_TRACE_V1\\n"
-                "# WII_AI_GOLF_SWING_TRACE_V1\\n"
-                "print('before')\\n"
-            ).replace("\\\\n", "\\n")
+                "# WII_AI_GOLF_ATOMIC_TRACE_V1\n"
+                "# WII_AI_GOLF_SWING_TRACE_V1\n"
+                "print('before')\n"
+            ).replace("\\\n", "\n")
             bridge.write_text(original, encoding="utf-8")
             runner_calls = []
 
             def mutating_runner(argv, **_kwargs):
                 runner_calls.append(list(argv))
-                bridge.write_text(original + "# changed during action\\n",
+                bridge.write_text(original + "# changed during action\n",
                                   encoding="utf-8")
                 return 0
 
-            with patch.object(research_cli, "ROOT", checkout), \\
-                 patch.object(research_cli, "DATA", sandbox / "data"), \\
+            with patch.object(research_cli, "ROOT", checkout), \
+                 patch.object(research_cli, "DATA", sandbox / "data"), \
                  patch.object(research_cli, "sync_merged_main",
-                              return_value=SyncReport("up_to_date")), \\
+                              return_value=SyncReport("up_to_date")), \
                  patch.object(research_cli, "v1_clean_boot_args",
-                              return_value=["--dolphin", "MOCK_CLEAN"]), \\
-                 patch.object(research_cli, "_run", side_effect=mutating_runner), \\
-                 patch.object(research_cli, "_joined_visual_first") as join, \\
+                              return_value=["--dolphin", "MOCK_CLEAN"]), \
+                 patch.object(research_cli, "_run", side_effect=mutating_runner), \
+                 patch.object(research_cli, "_joined_visual_first") as join, \
                  patch.object(research_cli, "publish_summary") as publish:
                 code = research_cli.main([
                     "v1", "--live", "--visual-first", "--no-upload",
@@ -529,13 +529,13 @@ class VisualFirstJoinTests(unittest.TestCase):
 
     def test_missing_bridge_source_digest_prevents_b1_launch(self):
         from wii_ai_golf.lab.github_sync import SyncReport
-        with tempfile.TemporaryDirectory() as directory, \\
-             patch.object(research_cli, "DATA", Path(directory)), \\
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.object(research_cli, "DATA", Path(directory)), \
              patch.object(research_cli, "sync_merged_main",
-                          return_value=SyncReport("up_to_date")), \\
+                          return_value=SyncReport("up_to_date")), \
              patch("wii_ai_golf.shared.bridge_provenance.inspect_bridge_file",
                    return_value={"revision": "V1-neutral-swing-calls",
-                                 "safe_for_isolated_legacy_copy": True}), \\
+                                 "safe_for_isolated_legacy_copy": True}), \
              patch.object(research_cli, "_run") as runner:
             code = research_cli.main(["v1", "--live", "--visual-first",
                                       "--no-upload", "--a-lead", "45"])
