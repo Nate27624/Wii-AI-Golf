@@ -284,6 +284,20 @@ class ResearchCliTests(unittest.TestCase):
             self.assertFalse(expected["train_approved"])
             self.assertTrue(expected["outcome_is_censored_penalty"])
             child.assert_called_once()
+            # The CLI omits this when stable; explicit False is also valid.
+            stable = dict(record, bridge_source_changed_during_action=False)
+            self.assertEqual(research_cli._public_observation_record(stable),
+                             expected)
+            for bad in (
+                {"requested_motion_scale": True},
+                {"bridge_source_changed_during_action": 1},
+                {"bridge_source_changed_during_action": "changed"},
+                {"bridge_source_changed_during_action": None},
+            ):
+                with self.subTest(bad=bad):
+                    with self.assertRaisesRegex(
+                            ValueError, "unjoined or ineligible|unregistered V1"):
+                        research_cli.publish_summary(dict(record, **bad))
             # A changed child or bridge must refuse before opening a clone.
             with patch.object(research_cli, "_joined_visual_first",
                               return_value={"capture_status": "visual_first_join_refused"}):
