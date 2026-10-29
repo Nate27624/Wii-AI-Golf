@@ -16,7 +16,8 @@ REQUIRED_TASK = {"id", "role", "status", "owned_paths"}
 REQUIRED_ROW = {"instance", "role", "state", "owned_paths"}
 
 
-def preview(roster: dict, backlog: dict, *, verified_main: str) -> dict:
+def preview(roster: dict, backlog: dict, *, verified_main: str,
+            handoffs: list | None = None, reserves: dict | None = None) -> dict:
     """Produce advisory proposals only, abstaining on ambiguity or conflicts."""
     if not isinstance(verified_main, str) or len(verified_main) != 40 or any(c not in "0123456789abcdef" for c in verified_main):
         raise ValueError("verified main must be an exact 40-character SHA")
@@ -52,6 +53,30 @@ def preview(roster: dict, backlog: dict, *, verified_main: str) -> dict:
     if len(set(task_ids)) != len(task_ids):
         raise ValueError("duplicate backlog task ID")
 
+    # A handoff is evidence only if its exact instance and assigned task match
+    # the roster. It never releases the row or grants a new claim by itself.
+    receipts = handoffs or []
+    if not isinstance(receipts, list):
+        raise ValueError("handoffs must be a list")
+    verified_receipts = {}
+    for receipt in receipts:
+        if not isinstance(receipt, dict) or not all(k in receipt for k in ("instance", "task_id", "status", "url", "main_sha")):
+            raise ValueError("malformed handoff receipt")
+        if receipt["status"] != "COMPLETE_RELEASED" or receipt["main_sha"] != verified_main:
+            continue
+        if not isinstance(receipt["url"], str) or not receipt["url"].startswith("https://github.com/"):
+            raise ValueError("handoff missing canonical url")
+        matches = [r for r in rows if r["instance"] == receipt["instance"] and r.get("task_id") == receipt["task_id"]]
+        if len(matches) == 1:
+            verified_receipts[receipt["instance"]] = receipt
+
+    if reserves is None:
+        reserves = {}
+    if not isinstance(reserves, dict):
+        raise ValueError("reserves must map agent IDs to ordered task IDs")
+    if any(not isinstance(v, list) or any(not isinstance(t, str) for t in v) for v in reserves.values()):
+        raise ValueError("invalid reserves")
+
     eligible = {}
     for task in tasks:
         paths = task["owned_paths"]
@@ -67,13 +92,17 @@ def preview(roster: dict, backlog: dict, *, verified_main: str) -> dict:
     reserved = set(used)
     assigned_ids = {row.get("task_id") for row in rows if row["state"] in ACTIVE}
     for row in rows:
-        if row["state"] not in COMPLETED or row["role"] == "S000":
+        if row["role"] == "S000":
             continue
-        options = [t for t in eligible.get(row["role"], []) if t["id"] not in assigned_ids]
-        options.sort(key=lambda t: ({"P0": 0, "P1": 1, "P2": 2}.get(t.get("priority"), 3), t["id"]))
+        receipt = verified_receipts.get(row["instance"])
+        if row["state"] not in COMPLETED and receipt is None:
+            continue
+        options = [t for t in eligible.get(row["role"], []) if t["id"] not in assigned_ids or (receipt and t["id"] != row.get("task_id"))]
+        preferred = reserves.get(row["instance"], [])
+        options.sort(key=lambda t: (preferred.index(t["id"]) if t["id"] in preferred else len(preferred), {"P0": 0, "P1": 1, "P2": 2}.get(t.get("priority"), 3), t["id"]))
         selected = None
         for task in options:
-            if any(p in reserved for p in task["owned_paths"]):
+            if task["id"] == row.get("task_id") or any(p in reserved and used.get(p) != row["instance"] for p in task["owned_paths"]):
                 continue
             if task.get("dependencies") not in (None, []):
                 continue  # Dependency clearance requires separate manager evidence.
@@ -85,6 +114,8 @@ def preview(roster: dict, backlog: dict, *, verified_main: str) -> dict:
         reserved.update(selected["owned_paths"])
         assigned_ids.add(selected["id"])
         proposals.append({"instance": row["instance"], "role": row["role"],
+                          "requires_roster_reconciliation": row["state"] not in COMPLETED,
+                          "handoff": receipt["url"] if receipt else None,
                           "task_id": selected["id"], "proposed_paths": selected["owned_paths"],
                           "status": "MANAGER_REVIEW_REQUIRED"})
     return {"main_sha": verified_main, "proposals": proposals, "skipped": skipped,
@@ -96,10 +127,14 @@ def main() -> None:
     parser.add_argument("--roster", required=True, type=Path)
     parser.add_argument("--backlog", required=True, type=Path)
     parser.add_argument("--main-sha", required=True)
+    parser.add_argument("--handoffs", type=Path)
+    parser.add_argument("--reserves", type=Path)
     args = parser.parse_args()
     result = preview(json.loads(args.roster.read_text(encoding="utf-8")),
                      json.loads(args.backlog.read_text(encoding="utf-8")),
-                     verified_main=args.main_sha)
+                     verified_main=args.main_sha,
+                     handoffs=json.loads(args.handoffs.read_text(encoding="utf-8")) if args.handoffs else None,
+                     reserves=json.loads(args.reserves.read_text(encoding="utf-8")) if args.reserves else None)
     print(json.dumps(result, indent=2, sort_keys=True))
 
 
