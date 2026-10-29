@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'docs/v2-agent-charter.md'
+      - 'docs/S000-manager-playbook.md'
       - 'scripts/agent_init.py'
       - 'tests/test_agent_init.py'
       - '.github/workflows/v2-agent-init-checks.yml'

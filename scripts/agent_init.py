@@ -42,6 +42,11 @@ def main() -> int:
     print(f"HEAD={git('rev-parse', 'HEAD')}")
     print(f"WORKTREE_STATUS={git('status', '--porcelain') or 'clean'}")
     print(f"CHARTER={charter.relative_to(root)}")
+    if args.role == "S000":
+        manager = root / "docs" / "S000-manager-playbook.md"
+        if not manager.is_file():
+            parser.error("Missing S000 manager playbook")
+        print(f"MANAGER_PLAYBOOK={manager.relative_to(root).as_posix()}")
     print("READ root merging.md (canonical self-merge checklist) and docs/p0-pr-consolidation-lanes.md")
     print("READ current owner PR, inspect latest main and sibling overlaps.")
     print("POST: [AGENT_ID] CLAIM | owner PR | inputs | outputs | changed paths | test plan")
