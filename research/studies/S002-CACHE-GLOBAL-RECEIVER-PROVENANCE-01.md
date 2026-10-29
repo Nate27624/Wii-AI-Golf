@@ -288,3 +288,38 @@ New `source_global_own_CC_candidate_relation` reports **0..3 bitwise component e
 - Corrupt/unsupported relative field or object/geometry mismatch: ABSTAIN, not zero motion.
 
 **Verification:** 5 new fabricated/adversarial tests added in existing #240 (25 focused cases). [Exact parent CI 40810983641](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40810983641) completed SUCCESS on both Windows and Ubuntu; all nine #240 dedicated source workflows at docs HEAD `95174842813fc41cc9fbc7eb7b604b5432d1c55b` likewise completed SUCCESS. **NO real original archive result of this new field yet**. Source/test commit: `64a7fb3265d0b9eb9d2bdce0dc29b866f3e7335c`. The previously real D1/D2 0/3 result remains unchanged. Never promote renderer identity, actual physical XYZ/velocity, guest-physics step, power/contact/score, training or public raw memory. One read-only original seven-pair operator pass is needed only after CI qualifies the code; no Dolphin, no controller action, no new capture or new PR.
+
+## 2026-10-28/29 REAL OPERATOR GLOBAL-OWN-CC RESULT — source-qualified seven original pairs
+
+**Status: REAL OPERATOR RESULT, NOT SYNTHETIC-ONLY.** The human operator executed the exact #240 code commit `95174842813fc41cc9fbc7eb7b604b5432d1c55b` in a read-only temporary worktree on the previously preserved seven paired native RAM captures. The pasted terminal log states 25/25 focused fabricated tests `OK`, `source_global_qualified=true`, `global_CC_analysis.status=CATEGORICAL_RELATION_ONLY`, with no failed source/owner/geometry edge; source tests are independent of, and do not replace, the real offline memory comparison. This report is **operator-supplied sanitized evidence**, not native bytes accessed by the remote reviewer; no original float words, source pointer addresses, SHA hashes, paths or native RAM are included.
+
+### Exact per-phase bitwise equalities, out of three components
+
+| Human phase label (not machine-timestamped) | Global own +0xCC vs global current | Global own +0xCC vs selected +0xCC | Global own +0xCC vs selected current |
+| --- | ---: | ---: | ---: |
+| D1 (capture 1) | **3/3** | **0/3** | **0/3** |
+| D2 (capture 2) | **0/3** | **0/3** | **0/3** |
+| W5 (capture 5) | **0/3** | **0/3** | **0/3** |
+| W6 (capture 6) | **0/3** | **0/3** | **0/3** |
+| W7 (capture 7) | **0/3** | **0/3** | **0/3** |
+
+### Qualified within-pair word-change counts, out of three
+
+| Human-labeled edge | Global own +0xCC changed | Global current changed | Selected +0xCC changed | Selected current changed |
+| --- | ---: | ---: | ---: | ---: |
+| D1→D2 | **0/3** | **3/3** | **3/3** | **3/3** |
+| W5→W6 | **0/3** | **0/3** | **0/3** | **3/3** |
+| W6→W7 | **0/3** | **0/3** | **0/3** | **3/3** |
+
+Every edge in the operator output returned `BITWISE_COMPONENT_COUNTS_ONLY` rather than ABSTAIN. D1/D2 global pointer identity and stable selected owner/geometry were separately qualified by the previous operator test, and the new audit rejects inconsistent owner/geometry/global identity before reporting an edge.
+
+### New discriminating deductions
+
+1. **Exact retained source-global-current triplet across D1→D2:** D1 global own+CC equals D1 global current **3/3**, while that same global own+CC changes **0/3** between D1 and D2. By equality transitivity, **D2 global own+CC equals D1 global current 3/3**. Meanwhile current global changes 3/3. This is an exact **previous-snapshot bitpattern** relation across two operator-labeled driver captures, NOT a verified game-managed “previous position”, historical frame, velocity, writer call, or timing/lag.
+2. **Reject direct global-own-CC ↔ selected-CC alias at these phases:** the two +CC triples differ in all **3/3** components at **all five** checked captures. This refutes exact value equality in these snapshots, not alias/semantics across all code paths or every game frame. The global object's own +CC should NOT be collapsed into the selected player's +CC in any evidence registry or training feature.
+3. **Wedge own+CC is a distinct invariant:** W5→W6→W7 global own+CC remains bitwise stable, while its *current* source-global position also remains stable and the selected current changes. Nevertheless global own+CC differs **3/3** from global current, selected cache and selected current in each wedge phase. This rules out interpreting own+CC as a universal always-equal self-position copy.
+4. **No universal shared predictor/endpoint claim:** D1 own+CC == D1 global current, whereas D2 and all wedge samples lack that equality. A retained-value or conditionally refreshed cache-like **hypothesis** is supported by the comparison; its physical type and purpose remain **unverified**.
+
+**Explicit limits:** `global_plus_CC_same_class_layout_hypothesis_only=true`, `global_plus_CC_is_typed_cache_verified=false`, `cache_writer_executed_in_phase_verified=false`, `machine_guest_frame_timing_verified=false`, `rendered_ball_or_physical_xyz_verified=false`, `training_approved=false`. The +0xCC same-layout field on the distinct source-global object is a bounded memory candidate, not a source-typed or confirmed cache member. Human “airborne”, “descending”, and “on green” descriptions were not machine-aligned to atomic guest physics frames. Bitwise stability alone is not a measured position, predicted landing point, ball speed, impact, or game score.
+
+**Research disposition:** This **answers the queued existing-capture comparison**. Do not request it again or create a fourth near-identical cache-coordinate PR. The next valuable step is finding the source-typed **producer/conditional write path into source-global object's own +0xCC versus selected receiver +0xCC**, distinguishing object receiver at the already located `fn_80299C70` writer, or an owner-approved guest-frame/render join. This result itself cannot prove any source writer executed between captures, so static writer evidence and an independent live execution witness must stay separate. No new Dolphin, shot, RAM capture or script run was requested by this documentation update.
