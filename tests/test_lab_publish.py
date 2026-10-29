@@ -66,6 +66,45 @@ class PublisherTests(unittest.TestCase):
         self.assertEqual(publish_record(RECORD, token="fake", api=api)["status"], "already_published")
         self.assertNotIn("PUT", methods)
 
+    def test_existing_github_base64_with_wrapped_lines_remains_idempotent(self):
+        clean = public_record(RECORD)
+        serialized = (json.dumps(clean, sort_keys=True, indent=2) + "\n").encode()
+        encoded = base64.b64encode(serialized).decode("ascii")
+        wrapped = "\r\n".join(encoded[i:i + 48]
+                              for i in range(0, len(encoded), 48)) + "\n"
+        methods = []
+        def api(method, path, token, payload=None):
+            methods.append(method)
+            if path.startswith("/contents/"):
+                return {"type": "file", "encoding": "base64", "content": wrapped}
+            return {"object": {"sha": "abc"}}
+        result = publish_record(RECORD, token="fake", api=api)
+        self.assertEqual(result["status"], "already_published")
+        self.assertNotIn("PUT", methods)
+
+    def test_malformed_stored_base64_never_counts_as_published(self):
+        clean = public_record(RECORD)
+        encoded = base64.b64encode(
+            (json.dumps(clean, sort_keys=True, indent=2) + "\n").encode()
+        ).decode("ascii")
+        # Python's historical base64.b64decode(validate=False) silently
+        # discards these nonalphabet characters and returns the original
+        # bytes. Fail-closed comparison must reject the remote blob.
+        for malformed in (encoded + "#", encoded + "@@@",
+                          encoded[:16] + "#" + encoded[16:]):
+            with self.subTest(payload=malformed[-12:]):
+                calls = []
+                def api(method, path, token, payload=None):
+                    calls.append(method)
+                    if path.startswith("/contents/"):
+                        return {"type": "file", "encoding": "base64",
+                                "content": malformed}
+                    return {"object": {"sha": "abc"}}
+                with self.assertRaisesRegex(ValueError,
+                                            "invalid content encoding"):
+                    publish_record(RECORD, token="fake", api=api)
+                self.assertNotIn("PUT", calls)
+
     def test_existing_different_data_fails_closed(self):
         def api(method, path, token, payload=None):
             if path.startswith("/contents/"):

@@ -84,7 +84,13 @@ def publish_record(record: dict, *, token: str | None = None, api=_api) -> dict:
         if not isinstance(stored, str) or existing.get("encoding") != "base64":
             raise ValueError("Existing result cannot be verified")
         try:
-            old_bytes = base64.b64decode(stored, validate=False)
+            # GitHub's Contents API wraps base64 across CR/LF lines.
+            # Strip only this documented wrapping, then reject any other
+            # invalid character or trailing garbage. Permissive decoding
+            # can otherwise falsely treat a corrupted stored result as an
+            # identical, successfully published retry.
+            encoded = stored.replace("\r", "").replace("\n", "")
+            old_bytes = base64.b64decode(encoded, validate=True)
         except (ValueError, base64.binascii.Error) as exc:
             raise ValueError("Existing result has invalid content encoding") from exc
         if old_bytes != base64.b64decode(content):
