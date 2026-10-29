@@ -224,3 +224,20 @@ These results validate *corrected source decoders only*, not original user nativ
 
 **Stop/priority rule:** No need to ask operator to rerun these decoder tests alone; the corrected source issue is now synthetic-CI qualified. Highest-information next offline P0 is the separately owned [#268](https://github.com/Nate27624/Wii-AI-Golf/pull/268) first-use classification of 15 source-global pointer reads, *only* after it rebases/qualifies exact corrected parent #240 and has one reviewed immutable #231 fourteen-bank manifest SHA before/after operator wrapper. The other path is #248/S001 reviewed guest-physics-frame dual-object runtime and independent visual identification; bridge ticks and disputed W7 landing labels are NOT valid substitutes. Avoid another capture or shotgun heap scan until those decisions.
 
+
+
+## 2026-10-29 support analysis — unresolved D1/D2 cross-time equality on preserved memory
+
+The existing real seven-phase results identify a **specific untested relation**. Human D1 (operator-labeled airborne) has selected current = START = CC (3/3), but a *different* global-ball translation (0/3 equal). Human D2 (operator-labeled landed/still) has selected current = CC = global (3/3), distinct from START (0/3). Existing #233 measured within-phase equality and driver changes, while #240 established **source-global outside all four roster balls**. Neither establishes whether **D1's global translation bitpattern already equals D2's later selected current**. In contrast, W5→W7 already has such a same-shot equality at W7, so this driver relation is the missing independent shot-context discriminator rather than a fourth wedge endpoint study.
+
+Stacked review child [#318](https://github.com/Nate27624/Wii-AI-Golf/pull/318) changes only this #240 analyzer, its existing tests and study. It adds `driver_D1_global_to_D2_selected_existing_memory_relation` computed **in the existing seven-bank read**: D1-global vs D2-selected, D2-CC, D2-global; categorical 0–3 component counts only. No additional raw read, no new Dolphin session or RAM scan, no raw words/pointers/positions/hashes/paths in output.
+
+The reviewer **refuses** to report that cross-time comparison unless both exact source-qualified global loads succeeded, the selected source owner/hole/scene/pin/start object refs are unchanged across D1/D2, selected tee/pin triplet words are unchanged, the source-global pointer is the SAME object in both phases, and all compared vectors are validated native u32 triples. Failing any guard reports `ABSTAIN` with a public-safe reason and no equality counts. Config BC/C0/C4 equality and true same-boot/guest-time linkage are **NOT re-attested by this source-global reader**; those still depend on independent #231/owner evidence and remain insufficient for physical claims.
+
+**Decision rules, not physical claims:**
+- D1-global = D2-selected 3/3 and global pointer stable: stronger *exact bitpattern lookahead/terminal-cache candidate*, not predicted endpoint proof or renderer ownership.
+- D1-global ≠ D2-selected in any component: refutes that **specific exact cross-time equality**, not all simulation/cache/forecast behavior.
+- Different source-global pointer, source geometry, unsupported loads or malformed vectors: `ABSTAIN` instead of equating different objects.
+- All cases: no actual physics step, axes, velocity, observed-rendered object, training or publication approval.
+
+**Execution status:** [CI run 40809394503](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40809394503) completed SUCCESS with all focused synthetic tests on Windows and Ubuntu, at reviewed code SHA `570502019837a3fcf86da4c05f1e43b6799e8e7d` (doc-only follow-up excluded). The new **real D1/D2 cross-phase comparison has NOT been run** on the private archive until the reviewed owner explicitly chooses to incorporate and execute the changed summary against the same already preserved seven pairs. No new operator PowerShell request should be sent for this child; if owner reuses #240's canonical private analyzer later, the relation is included automatically.
