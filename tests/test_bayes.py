@@ -1,6 +1,7 @@
 """Synthetic and unit checks; these never assert real golf-game performance."""
 import unittest
 import importlib.util
+import math
 
 from wii_ai_golf.bayes import BayesianSearchPolicy, RandomBestPolicy
 from wii_ai_golf.protocol import Observation, ShotAction, ShotResult
@@ -50,6 +51,40 @@ class BayesianTests(unittest.TestCase):
         proposed = policy.act(state, explore=True)
         self.assertIsInstance(proposed, ShotAction)
         self.assertNotEqual(proposed, ShotAction(.0, .5))
+
+    def test_capped_history_does_not_repeat_archived_best_action(self):
+        # The GP fits only the most recent 2 points, but the proposal must
+        # avoid ALL previously sampled actions, including the old incumbent.
+        policy = BayesianSearchPolicy(seed=9, initial_random=2,
+                                      candidate_count=8, max_fit_samples=2)
+        state = Observation("capped-constant-targets", (.1,))
+        archived_best = ShotAction(-1.0, 0.0)
+        recent_duplicate = ShotAction(1.0, 1.0)
+        policy.observe(state, archived_best, ShotResult(0.0, False))
+        for _ in range(2):
+            policy.observe(state, recent_duplicate, ShotResult(10.0, False))
+        self.assertEqual(policy.act(state), archived_best)
+        # Force the global incumbent into the proposal pool, so this
+        # regression cannot pass by luck from random candidate selection.
+        policy._random_action = lambda: archived_best
+        suggested = policy.act(state, explore=True)
+        self.assertNotEqual(suggested, archived_best)
+        self.assertNotEqual(suggested, recent_duplicate)
+        self.assertTrue(-1.0 <= suggested.aim <= 1.0)
+        self.assertTrue(0.0 <= suggested.power <= 1.0)
+
+    def test_zero_variance_targets_at_distinct_actions_stay_finite(self):
+        policy = BayesianSearchPolicy(seed=13, initial_random=2,
+                                      candidate_count=16, max_fit_samples=3)
+        state = Observation("constant", (.1,))
+        measured_actions = (ShotAction(-0.8, 0.2), ShotAction(0.1, 0.5),
+                            ShotAction(0.8, 0.9))
+        for action in measured_actions:
+            policy.observe(state, action, ShotResult(5.0, False))
+        proposed = policy.act(state, explore=True)
+        self.assertTrue(math.isfinite(proposed.aim))
+        self.assertTrue(math.isfinite(proposed.power))
+        self.assertNotIn(proposed, measured_actions)
 
     def test_synthetic_learning_reduces_loss(self):
         policy = BayesianSearchPolicy(seed=2, initial_random=4, candidate_count=96)
