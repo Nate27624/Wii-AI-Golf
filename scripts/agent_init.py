@@ -212,10 +212,19 @@ def read_live_roster() -> tuple[dict, str]:
     raise ValueError("No manager assignment roster published; request allocation on #320")
 
 
-def print_assignment(roster: dict | None, instance: str | None, mode: str) -> None:
+def print_assignment(roster: dict | None, instance: str | None, mode: str,
+                     role: str | None = None) -> None:
     if roster is None:
         print("ASSIGNMENT_STATE=UNVERIFIED; do not self-assign new files")
-        print("ASSIGNMENT_NEXT=Ask S000 manager on #320 for a named exclusive assignment")
+        if (role == "S000" and isinstance(instance, str) and
+                (instance.startswith("S000-manager-") or instance == "S000-manager")):
+            # This is bootstrap guidance, not a grant of S000 authority.
+            # Verify the UNIQUE, operator-authorized manager CLAIM on GitHub.
+            print("MANAGER_BOOTSTRAP=VERIFY_UNIQUE_EXISTING_MANAGER_CLAIM")
+            print("MANAGER_BOOTSTRAP_NEXT=If verified, publish FIRST ASSIGNMENT ROSTER V2 on #320")
+            print("MANAGER_BOOTSTRAP_NOTE=Manager does not require its own roster entry before publishing first roster")
+        else:
+            print("ASSIGNMENT_NEXT=Ask S000 manager on #320 for a named exclusive assignment")
         return
     if mode == "suggest" or not instance:
         print("ASSIGNMENT_STATE=MANAGER_OWNED; new agents must request a slot from S000")
@@ -386,7 +395,7 @@ def main() -> int:
     except (OSError, ValueError) as exc:
         print(f"ROSTER_SOURCE=UNAVAILABLE; {exc}")
         roster = None
-    print_assignment(roster, args.instance, args.mode)
+    print_assignment(roster, args.instance, args.mode, args.role)
     print(f"CANONICAL_COORDINATION=https://github.com/{REPO}/pull/{BOARD_ISSUE}")
     print("ALWAYS: Read current main, root merging.md, v2-navigation, charter, continuity and latest S000 board.")
     print("ALWAYS: Inspect live parent issue CLAIM/HANDOFF, open PRs and changed-file overlaps.")
