@@ -3,6 +3,8 @@ import subprocess
 import json
 import tempfile
 import os
+import importlib.util
+from unittest.mock import patch
 import sys
 import unittest
 from pathlib import Path
@@ -122,6 +124,44 @@ class AgentInitTests(unittest.TestCase):
         self.assertNotIn("TASK_CANDIDATE_1", proc.stdout)
         self.assertIn("ALWAYS: Inspect live parent issue CLAIM/HANDOFF", proc.stdout)
         self.assertIn("NO LIVE DOLPHIN", proc.stdout)
+
+
+    def test_live_board_uses_latest_verified_owner_comment_and_main_sha(self):
+        spec = importlib.util.spec_from_file_location("v2_agent_init", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        board = self.board()
+        blob = (
+            "[S000-manager] PRIORITY BOARD V2\n"
+            + module.START + "\n" + json.dumps(board) + "\n" + module.END
+        )
+        link = ("https://github.com/Nate27624/Wii-AI-Golf/pull/320"
+                "#issuecomment-6489140049")
+        good = {"user": {"login": "Nate27624"}, "body": blob, "html_url": link}
+        forged = {"user": {"login": "untrusted_user"}, "body": blob, "html_url": link}
+        with patch.object(module, "github_json",
+                          side_effect=[{"sha": "a"*40}, [good, forged]]):
+            result, sha, url = module.read_live_board()
+        self.assertEqual(sha, "a"*40)
+        self.assertEqual(url, link)
+        self.assertEqual(len(result["tasks"]), 4)
+        self.assertEqual(module.choose_tasks(result, "S002")[0]["id"], "S002-D1-ARCHIVE")
+
+    def test_live_board_untrusted_author_cannot_assign_agent(self):
+        spec = importlib.util.spec_from_file_location("v2_agent_init", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        board = self.board()
+        comment = {
+            "user": {"login": "untrusted_user"},
+            "body": "[S000-manager] PRIORITY BOARD V2\n" + module.START +
+                    json.dumps(board) + module.END,
+            "html_url": "https://github.com/Nate27624/Wii-AI-Golf/pull/320#issuecomment-7",
+        }
+        with patch.object(module, "github_json",
+                          side_effect=[{"sha": "a"*40}, [comment]]):
+            with self.assertRaisesRegex(ValueError, "No S000-manager priority board"):
+                module.read_live_board()
 
     def test_bad_role_and_duplicate_board_task_rejected(self):
         board = self.board()
