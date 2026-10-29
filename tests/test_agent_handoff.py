@@ -58,6 +58,20 @@ class AgentHandoffTests(unittest.TestCase):
                                      "--successor", "S002-memory-b", "--thread", value)
                 self.assertNotEqual(result.returncode, 0)
 
+    def test_well_formed_unverified_issue_does_not_claim_verified_existence(self):
+        nonexistent_shape = "https://github.com/Nate27624/Wii-AI-Golf/issues/99999999"
+        result = self.invoke("--role", "S002", "--instance", "S002-memory-a",
+                             "--successor", "S002-memory-b", "--thread", nonexistent_shape)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(nonexistent_shape, result.stdout)
+        self.assertIn("syntax checked; existence and ownership NOT verified", result.stdout)
+        self.assertIn("Outgoing agent must check the thread exists", result.stdout)
+
+    def test_navigation_succession_row_is_not_escaped_linebreak(self):
+        navigation = (ROOT / "docs" / "v2-navigation.md").read_text(encoding="utf-8")
+        self.assertNotIn("\\n|", navigation)
+        self.assertIn("\n| Agent initialization and successor transfer |", navigation)
+
     def test_pull_thread_supported(self):
         result = self.invoke("--role", "S000", "--instance", "S000-manager",
                              "--successor", "S000-manager-b",
