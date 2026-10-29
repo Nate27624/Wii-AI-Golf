@@ -146,6 +146,43 @@ class VisualFirstCollectorTests(unittest.TestCase):
                 self.assertFalse(result["raw_data_created"])
                 self.assertFalse(raw.exists())
 
+    def test_a45_receipt_records_46_button_requests_not_one(self):
+        # The actual helper issues one initial A plus one per observed tick.
+        # A completed 89-sample trace does NOT prove A game-side recognition.
+        replies = iter(["", "", "U", "no"])
+        with tempfile.TemporaryDirectory() as folder:
+            private = Path(folder) / "RAW-PRIVATE.jsonl"
+            with patch("scripts.collect_outcome_transition.hold_a_for_observed_frames") as hold, \
+                 patch("scripts.collect_outcome_transition.SwingTraceClient") as trace, \
+                 patch("scripts.collect_outcome_transition.release_buttons") as release:
+                hold.return_value = {
+                    "a_button_only_requests": 46,
+                    "per_observed_frame_a_reasserted": True,
+                    "observed_frame_delta": 45,
+                    "start_frame_after_a_request": 100,
+                    "last_observed_frame": 145,
+                    "game_a_recognition_verified": False,
+                }
+                trace.return_value.run.return_value = {
+                    "state": "complete", "applied_frames": 89,
+                }
+                result = run_session(object(), raw_path=private,
+                    pre_samples=2, post_samples=2, settled_samples=2,
+                    interval=0, visual_first=True, a_lead_frames=45,
+                    input_fn=lambda _: next(replies),
+                    snapshot_fn=lambda *_: self.fail("visual-first must not sample RAM"))
+                hold.assert_called_once()
+                release.assert_called_once()
+                self.assertFalse(private.exists())
+        req = result["known_good_swing_request"]
+        self.assertEqual(req["a_lead_requested_frames"], 45)
+        self.assertEqual(req["a_lead_observed_frame_delta"], 45)
+        self.assertEqual(req["a_button_only_prime_requests"], 46)
+        self.assertTrue(req["a_lead_per_observed_frame_reasserted"])
+        self.assertIn("not_game_verified", req["a_priming_evidence"])
+        self.assertEqual(result["human_observation"]["contact_human"], "no")
+        self.assertFalse(result["raw_data_created"])
+
     def test_fixed_offgreen_display_is_censored_not_physical_distance(self):
         response = _visual_first_label(lambda _: "M:100ft")
         self.assertEqual(response["displayed_distance_human"], 100.0)
