@@ -346,8 +346,15 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 "generated_trace_frames": len(samples),
                 "trace_generator": "probe_swing.build_probe",
                 "trace_sha256": trace_sha256,
+                # With frame-scoped Felk A, requests != observed emulated
+                # frames. Persist the actual CLIENT RPC command count reported
+                # by the timing helper; never claim a game-side held-A latch.
                 "a_button_only_prime_requests": (
-                    (1 if a_lead_frames else a_prime_requests) if canonical_swing else None),
+                    a_lead_report["a_button_only_requests"] if a_lead_report
+                    else a_prime_requests if canonical_swing else None),
+                "a_lead_per_observed_frame_reasserted": (
+                    a_lead_report.get("per_observed_frame_a_reasserted") is True
+                    if a_lead_report else False if canonical_swing else None),
                 "a_button_prime_applied": (
                     bool(a_prime_requests or a_lead_frames) if canonical_swing else None),
                 "a_lead_requested_frames": a_lead_frames if canonical_swing else None,
