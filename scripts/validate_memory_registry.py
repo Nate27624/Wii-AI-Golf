@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import re
+import stat
 import sys
 
 REGISTRY = Path(__file__).resolve().parents[1] / "research/memory-variables/registry.json"
@@ -22,6 +24,39 @@ REQUIRED = ("id", "name", "role", "priority", "status", "datatype", "unit",
             "memory_locator", "evidence", "game", "phase_provenance",
             "limitations", "required_controls", "owner", "training",
             "review", "last_evidence_date")
+
+
+# Same bounded, symlink-rejecting local metadata admission as historical #154.
+# Allow growth beyond today's 35 entries, but never read unlimited user input.
+MAX_REGISTRY_BYTES = 512_000
+
+
+def load_registry(path: Path) -> object:
+    """Read reviewed local JSON metadata only, bound to the checked file descriptor.
+
+    This is a local file-integrity check, not proof of independent source/shot
+    identity, and cannot prevent every possible concurrent file mutation.
+    """
+    before = path.lstat()  # Never silently follow an attacker-selected symlink.
+    if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= MAX_REGISTRY_BYTES:
+        raise ValueError("registry must be a bounded regular file")
+    identity = (before.st_dev, before.st_ino, before.st_size)
+    with path.open("rb") as source:
+        opened = os.fstat(source.fileno())
+        if (not stat.S_ISREG(opened.st_mode)
+                or (opened.st_dev, opened.st_ino, opened.st_size) != identity):
+            raise ValueError("registry opened file does not match checked path")
+        content = source.read(MAX_REGISTRY_BYTES + 1)
+        closed_over = os.fstat(source.fileno())
+        after = path.lstat()
+        if (len(content) != before.st_size
+                or not stat.S_ISREG(closed_over.st_mode)
+                or not stat.S_ISREG(after.st_mode)
+                or (closed_over.st_dev, closed_over.st_ino, closed_over.st_size) != identity
+                or (after.st_dev, after.st_ino, after.st_size) != identity
+                or closed_over.st_mtime_ns != opened.st_mtime_ns):
+            raise ValueError("registry changed during bounded read")
+    return json.loads(content.decode("utf-8-sig"))
 
 
 def validate_registry(payload: object) -> list[str]:
@@ -132,9 +167,10 @@ def main(argv=None) -> int:
     parser.add_argument("--registry", type=Path, default=REGISTRY)
     args = parser.parse_args(argv)
     try:
-        payload = json.loads(args.registry.read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError) as exc:
-        print(f"INVALID: cannot read registry: {exc}", file=sys.stderr)
+        payload = load_registry(args.registry)
+    except (OSError, ValueError):
+        # No local/private path or supplied JSON content in public CI diagnostics.
+        print("INVALID: registry missing, linked, modified, oversized or malformed", file=sys.stderr)
         return 2
     errors = validate_registry(payload)
     if errors:
