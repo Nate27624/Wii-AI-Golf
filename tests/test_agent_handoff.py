@@ -32,6 +32,28 @@ class AgentHandoffTests(unittest.TestCase):
         self.assertIn("[S002-memory-b] CLAIM", result.stdout)
         self.assertIn("no agent was auto-created", result.stdout)
 
+    def test_valid_url_shape_does_not_pretend_github_thread_exists(self):
+        # A syntactically valid arbitrary number must not be presented
+        # as an independently confirmed issue or current owner claim.
+        missing = "https://github.com/Nate27624/Wii-AI-Golf/issues/99999999"
+        args = list(self.valid())
+        args[-1] = missing
+        result = self.invoke(*args)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "syntax verified; GitHub existence and ownership NOT verified",
+            result.stdout,
+        )
+        self.assertIn("verify the issue/PR exists", result.stdout)
+        self.assertIn(missing, result.stdout)
+        self.assertNotIn("Canonical thread: ", result.stdout)
+
+    def test_v2_navigation_successor_table_has_real_line_breaks(self):
+        text = (ROOT / "docs" / "v2-navigation.md").read_text(encoding="utf-8")
+        self.assertNotIn(r"\n|", text)
+        self.assertIn("\n| Agent initialization and successor transfer |", text)
+        self.assertIn("\n| Manager procedure |", text)
+
     def test_outgoing_and_successor_must_differ(self):
         result = self.invoke("--role", "S002", "--instance", "S002-memory-a",
                              "--successor", "S002-memory-a", "--thread", THREAD)
