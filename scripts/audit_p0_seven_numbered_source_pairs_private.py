@@ -223,6 +223,22 @@ def summarize(samples: dict[int, dict]) -> dict:
             "record_38_changed":x["whole_record"][0x38//4]!=y["whole_record"][0x38//4] if same else None,
             "record_74_changed":x["whole_record"][0x74//4]!=y["whole_record"][0x74//4] if same else None,
         })
+    try:
+        middle_candidate = middle_component_study(samples)
+    except ValueError:
+        # Preserve the original seven-phase diagnostic when this stricter
+        # *optional* scalar study abstains on confounded controls/data.
+        middle_candidate = {
+            "kind": "P0-SANITIZED-SOURCE-SELECTED-BALL-MIDDLE-F32-DIRECTION",
+            "status": "abstained",
+            "reason_code": "wedge_identity_controls_or_f32_unqualified",
+            "relative_ball_object_offset": "+0x34",
+            "middle_axis_as_world_y_verified": False,
+            "source_global_control_measured_in_this_reader": False,
+            "training_approved": False,
+            "allowed_to_publish": False,
+            "wedge_edges": [],
+        }
     return {
         "kind":"P0-SANITIZED-SEVEN-NUMBERED-SOURCE-PAIR-AUDIT",
         "capture_count":7,
@@ -239,7 +255,7 @@ def summarize(samples: dict[int, dict]) -> dict:
         "allowed_to_publish":False,
         "samples":records,
         "comparisons":comparisons,
-        "ball_middle_component_hypothesis":middle_component_study(samples)
+        "ball_middle_component_hypothesis":middle_candidate
     }
 
 def analyze(archive:Path):
