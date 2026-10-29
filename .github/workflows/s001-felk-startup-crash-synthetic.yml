@@ -1,0 +1,23 @@
+name: S001 Felk startup crash local event parser (synthetic)
+on:
+  push:
+    branches:
+      - agent/support/felk-startup-crash-event-triage
+  pull_request:
+    paths:
+      - scripts/audit_felk_startup_crash_events.ps1
+      - .github/workflows/s001-felk-startup-crash-synthetic.yml
+permissions:
+  contents: read
+jobs:
+  synthetic:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static local-event privacy test — no Windows log access
+        shell: pwsh
+        run: ./scripts/audit_felk_startup_crash_events.ps1 -SelfTest
