@@ -18,6 +18,9 @@ REPO = "Nate27624/Wii-AI-Golf"
 BOARD_ISSUE = 320
 START = "<!-- V2_PRIORITY_BOARD_JSON_BEGIN -->"
 END = "<!-- V2_PRIORITY_BOARD_JSON_END -->"
+ASSIGN_START = "<!-- V2_ASSIGNMENTS_JSON_BEGIN -->"
+ASSIGN_END = "<!-- V2_ASSIGNMENTS_JSON_END -->"
+ASSIGN_STATES = ("ASSIGNED", "CLAIMED", "IN_PROGRESS", "BLOCKED", "COMPLETED", "PARKED")
 ROLES = {
     "S000": "Integration / coordination",
     "S001": "Dolphin runtime / input",
@@ -96,6 +99,149 @@ def read_live_board() -> tuple[dict, str, str]:
     raise ValueError("No S000-manager priority board found in latest coordination comments")
 
 
+
+def validate_roster(roster: Any) -> None:
+    """Validate manager's advisory work allocations; never claim an atomic lock."""
+    if not isinstance(roster, dict) or roster.get("version") != 1:
+        raise ValueError("Assignment roster must have version=1")
+    if not isinstance(roster.get("main_sha"), str) or not re.fullmatch(
+        r"[0-9a-f]{40}", roster["main_sha"]
+    ):
+        raise ValueError("Assignment roster needs verified main SHA")
+    manager = roster.get("manager_id")
+    if not isinstance(manager, str) or not INSTANCE_PATTERN.fullmatch(manager):
+        raise ValueError("Assignment roster manager ID malformed")
+    if not manager.startswith("S000-"):
+        raise ValueError("Assignment roster manager must be S000")
+    assignments = roster.get("assignments")
+    if not isinstance(assignments, list) or not 1 <= len(assignments) <= 20:
+        raise ValueError("Assignment roster requires 1-20 entries")
+    ids: set[str] = set()
+    task_ids: set[str] = set()
+    paths: dict[str, str] = {}
+    for row in assignments:
+        if not isinstance(row, dict):
+            raise ValueError("Assignment entry must be an object")
+        instance = row.get("instance")
+        role = row.get("role")
+        task = row.get("task_id")
+        state = row.get("state")
+        objective = row.get("objective")
+        thread = row.get("thread")
+        owned_paths = row.get("owned_paths")
+        acceptance = row.get("acceptance")
+        if (not isinstance(instance, str) or
+            not INSTANCE_PATTERN.fullmatch(instance) or
+            not isinstance(role, str) or role not in ROLES or
+            not instance.startswith(role + "-")):
+            raise ValueError("Assignment has invalid agent ID/role")
+        if instance in ids:
+            raise ValueError("Assignment roster has duplicate instance")
+        ids.add(instance)
+        if not isinstance(task, str) or not re.fullmatch(r"[A-Z0-9-]{4,60}", task):
+            raise ValueError("Assignment has invalid task ID")
+        if state not in ASSIGN_STATES:
+            raise ValueError("Assignment has invalid lifecycle state")
+        if not isinstance(thread, str) or not THREAD_PATTERN.fullmatch(thread):
+            raise ValueError("Assignment requires canonical owner issue/PR")
+        if (not isinstance(objective, str) or
+            not 8 <= len(objective) <= 220 or
+            any(c in objective for c in "\r\n<>")):
+            raise ValueError("Assignment objective invalid")
+        if (not isinstance(acceptance, str) or
+            not 8 <= len(acceptance) <= 220 or
+            any(c in acceptance for c in "\r\n<>")):
+            raise ValueError("Assignment acceptance invalid")
+        if (not isinstance(owned_paths, list) or
+            not 1 <= len(owned_paths) <= 15 or
+            not all(isinstance(p, str) for p in owned_paths) or
+            len(owned_paths) != len(set(owned_paths))):
+            raise ValueError("Assignment needs distinct bounded paths")
+        for p in owned_paths:
+            if (not isinstance(p, str) or not 1 <= len(p) <= 180 or
+                p.startswith("/") or "\\" in p or
+                any(part in ("..", "") for part in p.split("/")) or
+                any(c in p for c in "\r\n<>*?{}")):
+                raise ValueError("Assignment has unsafe/unbounded path")
+            # Only active code-write owners are exclusive. Read-only audits
+            # must name non-overlapping evidence/issue paths or PARK.
+            if state in ("ASSIGNED", "CLAIMED", "IN_PROGRESS"):
+                for other_path, other_id in paths.items():
+                    if (p == other_path or p.startswith(other_path + "/") or
+                        other_path.startswith(p + "/")):
+                        raise ValueError(
+                            f"Assignment path overlaps between {other_id} and {instance}"
+                        )
+                paths[p] = instance
+        if state in ("ASSIGNED", "CLAIMED", "IN_PROGRESS"):
+            if task in task_ids:
+                raise ValueError("Assignment task has multiple active owners")
+            task_ids.add(task)
+
+
+def read_live_roster() -> tuple[dict, str]:
+    """GET-only. Match authorized GitHub author and manager identity explicitly."""
+    comments = github_json(f"repos/{REPO}/issues/{BOARD_ISSUE}/comments?per_page=100")
+    if not isinstance(comments, list):
+        raise ValueError("Unexpected assignment comments API schema")
+    for comment in reversed(comments):
+        if not isinstance(comment, dict) or not isinstance(comment.get("body"), str):
+            continue
+        author = comment.get("user")
+        if not isinstance(author, dict) or author.get("login") not in ("Nate27624", "AI-Bott"):
+            continue
+        body = comment["body"]
+        if not body.startswith("[S000-manager] ASSIGNMENT ROSTER V2"):
+            continue
+        if ASSIGN_START not in body or ASSIGN_END not in body:
+            raise ValueError("Latest manager assignment roster markers missing")
+        try:
+            roster = json.loads(body.split(ASSIGN_START, 1)[1].split(ASSIGN_END, 1)[0])
+        except (ValueError, TypeError):
+            raise ValueError("Latest manager assignment roster JSON malformed") from None
+        validate_roster(roster)
+        if roster["manager_id"] not in body.split(ASSIGN_START, 1)[0]:
+            raise ValueError("Assignment roster manager ID not identified in heading")
+        url = comment.get("html_url", "")
+        if not isinstance(url, str) or not re.fullmatch(
+            rf"https://github\.com/{re.escape(REPO)}/pull/{BOARD_ISSUE}#issuecomment-[1-9][0-9]*",
+            url,
+        ):
+            raise ValueError("Missing canonical manager assignment permalink")
+        return roster, url
+    raise ValueError("No manager assignment roster published; request allocation on #320")
+
+
+def print_assignment(roster: dict | None, instance: str | None, mode: str) -> None:
+    if roster is None:
+        print("ASSIGNMENT_STATE=UNVERIFIED; do not self-assign new files")
+        print("ASSIGNMENT_NEXT=Ask S000 manager on #320 for a named exclusive assignment")
+        return
+    if mode == "suggest" or not instance:
+        print("ASSIGNMENT_STATE=MANAGER_OWNED; new agents must request a slot from S000")
+        for row in roster["assignments"]:
+            print(f"ROSTER_SLOT={row['instance']} [{row['role']}] {row['state']} {row['task_id']}")
+        return
+    match = next((a for a in roster["assignments"] if a["instance"] == instance), None)
+    if match is None:
+        print("ASSIGNMENT_STATE=NOT_ASSIGNED; no automatic role or task selection")
+        print("ASSIGNMENT_NEXT=Post [INSTANCE] ASSIGNMENT REQUEST on #320; await S000 roster entry")
+        return
+    print(f"ASSIGNMENT_STATE={match['state']}")
+    print(f"ASSIGNMENT_TASK={match['task_id']}")
+    print(f"ASSIGNMENT_ROLE={match['role']}")
+    print(f"ASSIGNMENT_THREAD={match['thread']}")
+    print(f"ASSIGNMENT_PATHS={','.join(match['owned_paths'])}")
+    print(f"ASSIGNMENT_OBJECTIVE={match['objective']}")
+    print(f"ASSIGNMENT_ACCEPTANCE={match['acceptance']}")
+    if match["state"] in ("BLOCKED", "COMPLETED", "PARKED"):
+        print("ASSIGNMENT_NEXT=No new implementation; report status or ask manager for reallocation")
+    elif mode == "init":
+        print("ASSIGNMENT_NEXT=Verify latest issue/PR overlaps, then post [INSTANCE] CLAIM referencing roster permalink")
+    else:
+        print("ASSIGNMENT_NEXT=Finish existing CLAIM first; verify unchanged assignment and overlap before edits")
+
+
 def validate_board(board: Any) -> None:
     if not isinstance(board, dict) or board.get("version") != 1:
         raise ValueError("Priority board must have version=1")
@@ -146,6 +292,8 @@ def main() -> int:
     choice = parser.add_mutually_exclusive_group()
     choice.add_argument("--live", action="store_true",
                         help="Read authenticated current main + S000 priority board via gh api")
+    parser.add_argument("--roster-file", type=Path,
+                        help="Offline fixture; assignments NOT live/authorized")
     choice.add_argument("--board-file", type=Path,
                         help="Offline fixture/manual board; never claims live GitHub verification")
     args = parser.parse_args()
@@ -181,6 +329,7 @@ def main() -> int:
         print("MANAGER_DUTY=Keep roles focused, prevent duplicate implementations, and route answers back.")
 
     board = None
+    live_sha = None
     try:
         if args.live:
             board, live_sha, permalink = read_live_board()
@@ -215,23 +364,46 @@ def main() -> int:
                   f"{task['id']} [{task['role']}] {task['thread']}")
             print(f"TASK_OBJECTIVE_{idx}={task['objective']}")
         print("TASK_CANDIDATES_ARE_S000_SUGGESTIONS_NOT_OWNERSHIP_OR_MERGE_APPROVAL")
+    roster = None
+    try:
+        if args.live:
+            roster, roster_url = read_live_roster()
+            print("ROSTER_SOURCE=GITHUB_LIVE_READ")
+            print(f"ROSTER_URL={roster_url}")
+            if roster["main_sha"] != live_sha:
+                print("ROSTER_FRESHNESS=STALE_MAIN; do not take new assignments until manager refreshes")
+                roster = None
+            else:
+                print("ROSTER_FRESHNESS=MAIN_SHA_MATCH; still verify issue claims/PR overlaps")
+        elif args.roster_file:
+            if not args.roster_file.is_file() or args.roster_file.stat().st_size > 100_000:
+                raise ValueError("Offline roster unavailable or oversized")
+            roster = json.loads(args.roster_file.read_text(encoding="utf-8"))
+            validate_roster(roster)
+            print("ROSTER_SOURCE=OFFLINE_UNVERIFIED; never proof of exclusive ownership")
+        else:
+            print("ROSTER_SOURCE=NOT_FETCHED; use --live or connected GitHub")
+    except (OSError, ValueError) as exc:
+        print(f"ROSTER_SOURCE=UNAVAILABLE; {exc}")
+        roster = None
+    print_assignment(roster, args.instance, args.mode)
     print(f"CANONICAL_COORDINATION=https://github.com/{REPO}/pull/{BOARD_ISSUE}")
     print("ALWAYS: Read current main, root merging.md, v2-navigation, charter, continuity and latest S000 board.")
     print("ALWAYS: Inspect live parent issue CLAIM/HANDOFF, open PRs and changed-file overlaps.")
     if args.mode == "init":
-        print("INIT_ACTION=Pick highest-impact unclaimed and unblocked in-role task AFTER live checks.")
+        print("INIT_ACTION=Register or match manager-issued roster assignment; do not independently choose a task.")
         print("INIT_ACTION=Post [AGENT_ID] CLAIM with exact paths, evidence, tests and owner issue before edits.")
     elif args.mode == "continue":
         print("CONTINUE_ACTION=Preserve existing ID and active claim; finish/reconcile it before switching.")
-        print("CONTINUE_ACTION=Re-rank remaining in-role work using NEW main/manager board/handoffs.")
-        print("CONTINUE_ACTION=If a priority has merged/closed, do not replay it: post HANDOFF and claim next.")
+        print("CONTINUE_ACTION=After HANDOFF, request next exclusive roster assignment from S000 before changing scope.")
+        print("CONTINUE_ACTION=If work merged/closed, post HANDOFF; then PARK until the manager assigns new scope.")
     else:
-        print("SUGGEST_ACTION=Review live claims first; pick an in-demand role and NEW unclaimed ID.")
+        print("SUGGEST_ACTION=Request an available manager-issued identity/task from #320.")
         print("SUGGEST_ACTION=Do not start a duplicate agent on paths already under active CLAIM.")
     print("POST: [AGENT_ID] HANDOFF | branch/head | tests | evidence | blockers | next owner")
     print("POST: [AGENT_ID] QUESTION | blocker | evidence | options | suggested resolution")
-    print("FINAL STATUS=CONTINUE | ACTION REQUIRED | DECISION REQUIRED")
-    print("USER CONTINUATION=CONTINUE V2; check live S000 coordination and preserve same instance")
+    print("FINAL STATUS=ROLE + AGENT_ID + CONTINUE | ACTION REQUIRED | DECISION REQUIRED")
+    print("USER CONTINUATION=CONTINUE V2; always show role and instance; preserve same claim")
     print("CONTEXT LIMIT=HANDOFF V2; use scripts/agent_handoff.py and a distinct successor ID")
     print("NO LIVE DOLPHIN; NO RAW CAPTURE OR PRIVATE EVIDENCE PUBLICATION.")
     print("SELF-MERGE=Allowed only when all merging.md gates PASS; GitHub protections apply.")
