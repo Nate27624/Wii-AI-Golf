@@ -81,6 +81,50 @@ class TestMainPostcallCfg(unittest.TestCase):
         first = report["callsite_return_continuation_candidates"][0]
         self.assertTrue(first["continuation_can_recur_via_source_backedge"])
 
+    def test_unconditional_linked_indirect_call_may_return_before_B57C(self):
+        # bctrl and blrl are *calls* when LK=1. Both preserve a
+        # possible return into +0x164 and then the +0x168 direct BL.
+        # They are not evidence that the callee actually returned.
+        for word, exit_key in (
+                (0x4E800421, "source_CTR_indirect_exit_offsets"),
+                (0x4E800021, "source_LR_branch_possible_exit_offsets")):
+            report = m.review_source_words(fixture({0x160: word}))
+            third = report["callsite_return_continuation_candidates"][2]
+            with self.subTest(word=hex(word)):
+                self.assertTrue(third["callsite_may_be_reached_from_main_entry"])
+                self.assertIn("+0x0160", report[exit_key])
+                self.assertFalse(third[
+                    "continuation_is_unique_post_ball_update_witness_verified"])
+                self.assertFalse(report[
+                    "source_qualified_post_integrator_completion_site_verified"])
+
+    def test_unlinked_indirect_jump_does_not_invent_return_path(self):
+        # Exact unlinked blr/bctr at +0x160 have no local return edge;
+        # all paths from entry must stop before the third BL.
+        for word in (0x4E800020, 0x4E800420):
+            report = m.review_source_words(fixture({0x160: word}))
+            with self.subTest(word=hex(word)):
+                self.assertFalse(report[
+                    "callsite_return_continuation_candidates"][2][
+                        "callsite_may_be_reached_from_main_entry"])
+                self.assertFalse(report[
+                    "runtime_guest_physics_step_or_backend_execution_verified"])
+
+    def test_last_word_linked_indirect_can_return_to_nextshot_address(self):
+        for word in (0x4E800021, 0x4E800421):
+            report = m.review_source_words(fixture({0x190: word}))
+            with self.subTest(word=hex(word)):
+                self.assertTrue(report[
+                    "source_possible_fallthrough_into_distinct_next_function"])
+                self.assertFalse(report[
+                    "source_qualified_scene_completion_site_verified"])
+                self.assertFalse(report[
+                    "typed_ball_integrator_or_actual_store_receiver_verified"])
+        for word in (0x4E800020, 0x4E800420):
+            report = m.review_source_words(fixture({0x190: word}))
+            self.assertFalse(report[
+                "source_possible_fallthrough_into_distinct_next_function"])
+
     def test_call_cannot_be_trusted_if_link_bit_removed(self):
         with self.assertRaisesRegex(ValueError, "three direct BL"):
             m.review_source_words(fixture({
