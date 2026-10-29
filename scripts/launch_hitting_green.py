@@ -76,6 +76,8 @@ def main() -> None:
     p.add_argument("--game", type=Path, help="Legally owned Wii Sports disc-image path")
     p.add_argument("--bridge", type=Path, default=DEFAULT_BRIDGE,
                    help="Existing swing-enabled bridge; do not use a --startup-profile bridge")
+    p.add_argument("--dolphin-user", type=Path,
+                   help="Existing User folder used for controller preparation and native launch")
     p.add_argument("--attach-running", action="store_true",
                    help="Use existing responsive Dolphin instead of launching another instance")
     p.add_argument("--port", type=int, default=55355)
@@ -102,8 +104,10 @@ def main() -> None:
         p.error("--swing requires --send-live")
     if args.confirm_before_swing and not args.swing:
         p.error("--confirm-before-swing requires --swing")
-    if args.attach_running and (args.dolphin is not None or args.game is not None):
-        p.error("--attach-running must not be combined with --dolphin or --game")
+    if args.attach_running and (
+        args.dolphin is not None or args.game is not None or args.dolphin_user is not None
+    ):
+        p.error("--attach-running must not be combined with --dolphin, --game, or --dolphin-user")
 
     phases = planned_menu_phases(
         startup=args.startup_frames, a_press=args.first_a_frames,
