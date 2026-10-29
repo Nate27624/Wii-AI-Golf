@@ -126,6 +126,12 @@ def evaluate_settled(pre, moving, settled, ppre, pmoving, psettled):
             or len({s["slot"] for s in (pre, moving, settled)}) != 1
             or len({s["hole"] for s in (pre, moving, settled)}) != 1):
         raise ValueError("Selected actor identity or hole changed")
+    # An identical PIN coordinate triplet cannot establish the same PIN
+    # object: historical B0-to-flight comparisons observed pin pointer drift.
+    # Require source-validated object identity in all three same-shot phases.
+    pin_objects = tuple(s.get("pin_object") for s in (pre, moving, settled))
+    if any(type(x) is not int for x in pin_objects) or len(set(pin_objects)) != 1:
+        raise ValueError("Selected PIN object identity changed or unverified")
     start_stable = pre["start_words"] == moving["start_words"] == settled["start_words"]
     pin_stable = ppre == pmoving == psettled
     moved = pre["ball_words"] != settled["ball_words"]
@@ -235,8 +241,10 @@ def _phase_read(folder, phase, hashset, *, source):
             verified[name] = digest
         if source:
             reader = roster.TwoBankReader(*banks)
-            return (prepost.snapshot_candidate(reader.u32, reader.header()),
-                    pin_words(reader.u32), verified)
+            sample = prepost.snapshot_candidate(reader.u32, reader.header())
+            pin = pin_words(reader.u32)  # constructor selfref already validated
+            sample["pin_object"] = reader.u32(sample["owner"][3] + 0x44)
+            return sample, pin, verified
         return None, None, verified
 
 
