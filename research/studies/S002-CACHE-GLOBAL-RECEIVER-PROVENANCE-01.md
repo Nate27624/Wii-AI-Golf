@@ -240,4 +240,32 @@ The reviewer **refuses** to report that cross-time comparison unless both exact 
 - Different source-global pointer, source geometry, unsupported loads or malformed vectors: `ABSTAIN` instead of equating different objects.
 - All cases: no actual physics step, axes, velocity, observed-rendered object, training or publication approval.
 
-**Execution status:** [CI run 40809394503](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40809394503) completed SUCCESS with all focused synthetic tests on Windows and Ubuntu, at reviewed code SHA `570502019837a3fcf86da4c05f1e43b6799e8e7d` (doc-only follow-up excluded). The new **real D1/D2 cross-phase comparison has NOT been run** on the private archive until the reviewed owner explicitly chooses to incorporate and execute the changed summary against the same already preserved seven pairs. No new operator PowerShell request should be sent for this child; if owner reuses #240's canonical private analyzer later, the relation is included automatically.
+**Execution status:** [CI run 40809394503](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40809394503) completed SUCCESS with all focused synthetic tests on Windows and Ubuntu, at reviewed code SHA `570502019837a3fcf86da4c05f1e43b6799e8e7d` (doc-only follow-up excluded). At the time of that earlier synthetic-CI note the real driver cross-phase comparison had not yet been run; **the subsequent original-bank operator result and its limitations are documented in the next section**. No new operator PowerShell request should be sent for this child; if owner reuses #240's canonical private analyzer later, the relation is included automatically.
+
+
+## 2026-10-28/29 REAL OPERATOR DRIVER CROSS-PHASE RESULT — original seven native pairs, exact source commit
+
+The operator ran the already-consolidated #240 source commit \`5d4f5edd8073b1532ea959039233226d6a1749f9\` in a temporary **detached worktree** against the existing original seven MEM1/MEM2 paired private raw files, without starting Dolphin, taking a shot or creating new dumps. Console output was supplied directly by the operator, **not independently read from private native bytes by the remote agent**. The exact tested analyzer was \`scripts/audit_p0_cache_global_receiver_private.py --dump-directory <operator local existing seven-capture directory>\`. Local focused unittest completed **20 tests, OK**; analysis completed successfully with \`source_global_qualified=true\`, \`wedge_global_pointer_stable=true\` and a qualified \`CATEGORICAL_RELATION_ONLY\` driver cross-phase result. The code performs seven-pair source checks and read-only native bank hashes; no raw banks, memory words/values, pointers, paths or SHA digests were copied to GitHub.
+
+### Operator-reported source-qualified D1 / D2 comparison
+
+| Existing source-bitpattern equality (same-coordinate component indices) | Equal components out of 3 |
+| --- | ---: |
+| **D1 source-global translation** vs **later D2 selected ball translation** | **0 / 3** |
+| D1 source-global translation vs later D2 selected cache +0xCC | **0 / 3** |
+| D1 source-global translation vs later D2 source-global translation | **0 / 3** |
+| D2 source-global translation vs D2 selected ball translation | **3 / 3** |
+
+The **D1 and D2 source-global object pointer identity was equal** (\`global_pointer_identity_D1_D2_equal=true\`). Thus the *same pointer* refers to a global object whose observed translation changes all three BE-u32 float-shaped component bitpatterns across the driver pair. In D2 its translation exactly agrees with the selected current ball. All source/geometry guards required for this narrow comparison passed; \`status=CATEGORICAL_RELATION_ONLY\`, not \`ABSTAIN\`.
+
+### Adjudication / explicit falsification
+
+**Reject H-exact-lookahead:** “At human-labeled D1, the source-global ball already contains the exact later D2 selected ball triplet and does not change until D2.” Its cross-time equality is **0/3**, and its own triplet changes **3/3** despite pointer identity. This is a genuine informative negative result, not a failed experiment.
+
+The result is compatible with the global object being **phase-specific/dynamically updated**, rather than a universal immutable per-shot endpoint cache. It does **not** demonstrate why/when the updates occur, whether global is the actual rendered projectile, whether it forecasts an earlier or different endpoint, or whether D1/D2 are independently machine-confirmed aligned guest physics phases. The wedge comparison is importantly *different*: W5→W7 global translation and selected cache CC were stable while selected current moved to equal them at W7; a wedge-specific stable endpoint-like pattern is still only a correlation. Do not overgeneralize either pair.
+
+**All semantic gates remain NO-GO:** \`actual_predicted_endpoint_or_rendered_ball_verified=false\`, \`machine_verified_same_shot_timing=false\`, \`physical_xyz_verified=false\`, \`ball_velocity_verified=false\` (inherited research limitation), \`approved_for_training=false\`, \`training_approved=false\`, and no automatic publication or model fitting. D1 “airborne” and D2 “stationary” remain **human** annotations; numerical vector changes alone do not prove game-frame ball motion.
+
+### Next research consequence (no new operator job in this change)
+
+Do **not** spend more effort proving that D1 global is a static D2 endpoint; that specific hypothesis is disproven on this same source-selected capture pair. Reprioritize typed **global-object writer/update timing** or one approved guest-frame/rendered-object join, reusing #240/#248/#215 owners. Existing static constructor and cache writer source traces do not establish which code executed between D1 and D2. No new PR, capture, Dolphin run or further PowerShell requested by this evidence-only update.
