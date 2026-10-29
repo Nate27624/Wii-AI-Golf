@@ -65,6 +65,9 @@ CLAIM. Do not silently take a new role or adopt another agent's files.
    scripts/agent_init.py --mode continue, your canonical CLAIM/HANDOFF,
    open PRs and CI, latest S000 board and latest ASSIGNMENT ROSTER V2 on
    PR #320. Check whether your assignment still matches that roster.
+   If you are the verified SINGLE S000 Manager and no roster is published,
+   bootstrap the FIRST roster immediately from current claims and PRs;
+   do not PARK waiting for a nonexistent self-assignment. Other agents PARK.
 2. Finish or reconcile your existing verified claim first. For any older
    claim predating roster adoption, ask S000 to enter/confirm its ownership;
    do not use the stale candidate board to acquire competing files.
