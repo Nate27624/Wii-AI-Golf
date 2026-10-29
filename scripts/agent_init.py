@@ -72,6 +72,10 @@ def read_live_board() -> tuple[dict, str, str]:
     for comment in reversed(comments):
         if not isinstance(comment, dict) or not isinstance(comment.get("body"), str):
             continue
+        # The prefix is untrusted text. Require GitHub-authenticated author identity.
+        author = comment.get("user")
+        if not isinstance(author, dict) or author.get("login") not in ("Nate27624", "AI-Bott"):
+            continue
         body = comment["body"]
         if not body.startswith("[S000-manager] PRIORITY BOARD V2"):
             continue
