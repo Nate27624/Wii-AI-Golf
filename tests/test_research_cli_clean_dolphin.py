@@ -87,6 +87,7 @@ class P0CleanCliV1Tests(unittest.TestCase):
                                              return_value={
                                                  "revision": "V1-neutral-swing-calls",
                                                  "safe_for_isolated_legacy_copy": True,
+                                                 "sha256": "a" * 64,
                                                  "sha256": "a" * 64
                                              }))
             fake = stack.enter_context(patch.object(research_cli, "_run", return_value=0))
