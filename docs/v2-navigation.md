@@ -26,11 +26,11 @@ Start from the latest `main`, review the live queue and existing CLAIM comments,
 | Human outcome collection | `scripts/collect_outcome_transition.py` |
 | Atomic controller preparation | `scripts/prepare_atomic_a45_bridge.py` |
 | Seven-phase **read-only source-gated offline reader** | `scripts/audit_p0_seven_numbered_source_pairs_private.py` on `main` (merged PR #331) |
-| Additional seven-phase experimental research | parent PR #231 and stacked studies; **not** all merged into `main` |
-| Global-ball provenance research | parent PR #240, not yet integrated into `main` |
-| Manager procedure | `docs/S000-manager-playbook.md` |
+| Additional seven-phase experimental research | historical parent #231 **closed unmerged**; unique evidence/negative findings retained in linked history, not all experiments integrated |
+| Global-ball provenance research | minimal source-global receiver/roster core merged via #337; historical parent #240 remains a separate draft/research source, not wholly integrated |
+| Authenticated original-B0 source writer/CFG adapter | `scripts/audit_ball_xyz_source_callers_private.py`, `scripts/audit_p0_cache_cfg_original_b0_adapter.py` and pinned source map merged via #329; abstains on unresolved callers |\n| Final sanitized observation publication boundary | `scripts/research_cli.py` allowlist gate merged via #341; no unverified shot data published |\n| Agent initialization and successor transfer | `scripts/agent_init.py` and offline `scripts/agent_handoff.py`; [continuity and handoff contract](v2-agent-continuity.md) |\n| Manager procedure | `docs/S000-manager-playbook.md` |
 
-PR #331 integrated only the minimal seven-phase **offline** SHA/source-reader dependency closure and its synthetic tests; it did **not** import the remaining #231 experiments or independent #240 global-ball reader. None of these source comparisons verifies the rendered ball, a guest physics frame, physical XYZ or velocity, a shot outcome, or training eligibility. Continue to treat the human-labeled D1 airborne-versus-START equality as unresolved. Do not describe unmerged research-branch functionality as available on `main`.
+PR #331 integrated the minimal seven-phase **offline** SHA/source reader, #337 selectively integrated the separate global-ball receiver/roster reader, and #329 integrated the source caller/CFG adapter. Historical research branches contain additional work and remain evidence sources rather than assumed main functionality. These source comparisons **do not** establish the rendered ball, guest physics frame, physical XYZ/velocity, contact, game score, or training eligibility. The human-labeled D1 airborne-versus-START equality is still unresolved. Before claiming integration status, verify live main and the exact file/PR—this table is a map, **not** a dynamic CI/status dashboard.
 
 ## Functional milestones
 
@@ -46,4 +46,4 @@ Maintain one canonical implementation per behavior and prefer existing owner PRs
 
 ## Continue across agent chats
 
-Read [agent continuity protocol](v2-agent-continuity.md). Every agent ends with one actionable operator status: CONTINUE / ACTION REQUIRED / DECISION REQUIRED. The user can say `CONTINUE V2` to resume the most recent canonical handoff without repeating instructions. This does not grant live-shot permission or background execution.
+Read [agent continuity and **successor handoff** protocol](v2-agent-continuity.md). Every agent ends with one actionable operator status: CONTINUE / ACTION REQUIRED / DECISION REQUIRED. `CONTINUE V2` resumes the same instance; `HANDOFF V2` prepares a distinct successor at the conversation limit, using the **user's existing initiation prompt** plus a durable canonical GitHub handoff. Neither command creates a background agent, grants live-shot permission, or substitutes for source/CI verification.
