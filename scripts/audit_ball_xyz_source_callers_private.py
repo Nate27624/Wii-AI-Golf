@@ -72,6 +72,9 @@ PUBLIC_SPLITS_SHA = "df4085de5285b0d188fdfec8c097b301382263d3"
 PUBLIC_INDEX = (Path(__file__).resolve().parents[1] /
                 "research" / "source_maps" / "RSPE01_01_public_text_units.json")
 PUBLIC_UNIT_COUNT = 832
+# Exact committed Git blob for the public split index (not the upstream SHA
+# self-declared within that JSON). Reject source ownership label tampering.
+PUBLIC_INDEX_GIT_BLOB_SHA = "fe4ce9c3b69220945293b68c6026daf01cb6225e"
 
 
 class UntrustedInput(Exception):
@@ -202,7 +205,13 @@ def load_public_text_units(file: Path = PUBLIC_INDEX) -> tuple[tuple[int, int, s
     try:
         ensure(file.is_file() and not file.is_symlink() and
                0 < file.stat().st_size <= 128 * 1024)
-        payload = json.loads(file.read_text("utf-8"))
+        raw = file.read_bytes()
+        # Pin actual 832-row map bytes; normalize ordinary Windows CRLF checkouts.
+        canonical = raw.replace(b"\r\n", b"\n")
+        git_blob = (b"blob " + str(len(canonical)).encode("ascii")
+                    + b"\x00" + canonical)
+        ensure(hashlib.sha1(git_blob).hexdigest() == PUBLIC_INDEX_GIT_BLOB_SHA)
+        payload = json.loads(raw.decode("utf-8"))
         ensure(isinstance(payload, dict) and
                payload.get("kind") == "PUBLIC-RSPE01-REV1-TEXT-OBJECT-SPLITS" and
                payload.get("game_id") == "RSPE01" and
@@ -227,7 +236,7 @@ def load_public_text_units(file: Path = PUBLIC_INDEX) -> tuple[tuple[int, int, s
         for _name, start, end in UNITS:
             ensure(any(a <= start and end <= b for a, b, _n in tuples))
         return tuple(tuples)
-    except (OSError, TypeError, KeyError, ValueError, AttributeError):
+    except (OSError, UnicodeError, TypeError, KeyError, ValueError, AttributeError):
         raise UntrustedInput from None
 
 
