@@ -249,6 +249,90 @@ class GlobalReceiverAuditTests(unittest.TestCase):
         self.assertEqual(target.driver_global_crossphase_relation(samples,codes)[
             "reason"],"invalid_native_source_triplet")
 
+    @staticmethod
+    def _global_cc_fixture():
+        samples=source_fixture()
+        for i in samples:
+            samples[i]["triplets"]["source_selected_pin"]=(30,31,32)
+        samples[1]["triplets"]["ball_cache_0x0cc"]=(1,2,3)
+        samples[2]["triplets"]["ball_nested_plus_0x4c"]=(9,10,11)
+        codes={}
+        for i in samples:
+            cur=(20,21,22) if i==1 else (9,10,11)
+            cc=(1,2,3) if i==1 else (9,10,11)
+            codes[i]={
+                "static_source_global_slot_supported":True,
+                "runtime":{
+                    "supported":True,
+                    "_private_runtime_source_global_pointer":0x90005000,
+                    "_private_runtime_global_current_words":cur,
+                    "_private_global_cc_candidate_supported":True,
+                    "_private_runtime_global_cc_candidate_words":cc,
+                }
+            }
+        return samples,codes
+
+    def test_source_global_own_cc_candidate_reads_only_bounded_three_words(self):
+        source=source_fixture()[7]
+        ptr=0x90005000
+        mem={ptr+0xCC:9,ptr+0xD0:10,ptr+0xD4:11}
+        runtime={"supported":True,"_private_runtime_source_global_pointer":ptr}
+        result=target.source_global_own_cc_candidate(mem.__getitem__,runtime,source)
+        self.assertTrue(result["_private_global_cc_candidate_supported"])
+        self.assertEqual(result["_private_runtime_global_cc_candidate_words"],(9,10,11))
+        self.assertEqual(len(mem),3)
+
+    def test_source_global_own_cc_driver_and_wedge_change_patterns(self):
+        samples,codes=self._global_cc_fixture()
+        report=target.source_global_own_cc_relation(samples,codes)
+        self.assertEqual(report["status"],"CATEGORICAL_RELATION_ONLY")
+        self.assertEqual(report["per_phase"][0]["global_CC_equals_selected_CC_components"],3)
+        self.assertEqual(report["per_phase"][0]["global_CC_equals_global_current_components"],0)
+        self.assertEqual(report["per_phase"][1]["global_CC_equals_global_current_components"],3)
+        driver=report["within_operator_labeled_shot_edges"][0]
+        self.assertEqual(driver["status"],"BITWISE_COMPONENT_COUNTS_ONLY")
+        self.assertEqual(driver["global_CC_changed_components"],3)
+        self.assertEqual(driver["global_current_changed_components"],3)
+        self.assertEqual(driver["selected_CC_changed_components"],3)
+        wedge=report["within_operator_labeled_shot_edges"][1]
+        self.assertEqual(wedge["global_CC_changed_components"],0)
+        self.assertEqual(wedge["global_current_changed_components"],0)
+        self.assertFalse(report["global_plus_CC_is_typed_cache_verified"])
+        self.assertFalse(report["training_approved"])
+
+    def test_source_global_own_cc_unqualified_field_fails_closed(self):
+        samples,codes=self._global_cc_fixture()
+        codes[6]["runtime"]["_private_global_cc_candidate_supported"]=False
+        report=target.source_global_own_cc_relation(samples,codes)
+        self.assertEqual(report["status"],"ABSTAIN")
+        self.assertEqual(report["per_phase"],[])
+        self.assertEqual(report["within_operator_labeled_shot_edges"],[])
+
+    def test_source_global_own_cc_changing_identity_or_geometry_abstains_edge(self):
+        for change in ("global_pointer","pin","selected_object"):
+            samples,codes=self._global_cc_fixture()
+            if change=="global_pointer":
+                codes[2]["runtime"]["_private_runtime_source_global_pointer"]=0x90006000
+            elif change=="pin":
+                samples[6]["triplets"]["source_selected_pin"]=(30,31,33)
+            else:
+                samples[7]["refs"]["ball"]+=4
+            report=target.source_global_own_cc_relation(samples,codes)
+            edge=0 if change=="global_pointer" else (1 if change=="pin" else 2)
+            self.assertEqual(report["within_operator_labeled_shot_edges"][edge]["status"],
+                             "ABSTAIN")
+            self.assertFalse(report["training_approved"])
+
+    def test_source_global_own_cc_summary_never_exposes_private_words(self):
+        samples,codes=self._global_cc_fixture()
+        report=target.source_global_own_cc_relation(samples,codes)
+        payload=json.dumps(report)
+        for forbidden in ("_private","90005000","90006000",
+                          "raw_vector","runtime_pointer","0x9000"):
+            self.assertNotIn(forbidden,payload)
+        self.assertFalse(report["rendered_ball_or_physical_xyz_verified"])
+        self.assertFalse(report["machine_guest_frame_timing_verified"])
+
     def test_dform_signed_negative(self):
         self.assertEqual(target.dform(lwz(3,13,-100))["imm"],-100)
         self.assertEqual(target.dform(lwz(3,13,12))["imm"],12)
