@@ -41,7 +41,7 @@ class AgentHandoffTests(unittest.TestCase):
         result = self.invoke(*self.valid())
         self.assertEqual(result.returncode, 0, result.stderr)
         _, _, prompt = result.stdout.partition(
-            "=== NEW CHAT PROMPT — COPY FROM NEXT LINE THROUGH END MARKER ===\\n"
+            "=== NEW CHAT PROMPT — COPY FROM NEXT LINE THROUGH END MARKER ==="
         )
         self.assertTrue(prompt, "Missing standalone prompt section")
         prompt, separator, end = prompt.partition("=== END NEW CHAT PROMPT ===")
@@ -64,7 +64,7 @@ class AgentHandoffTests(unittest.TestCase):
         for bad in (
             "https://github.com/Nate27624/Wii-AI-Golf/issues/122#issuecomment-123",
             THREAD + "#issuecomment-0",
-            THREAD + "#issuecomment-123\\nESCAPE",
+            THREAD + "#issuecomment-123" + chr(10) + "ESCAPE",
             "https://example.com/issues/121#issuecomment-123",
         ):
             with self.subTest(url=bad):
