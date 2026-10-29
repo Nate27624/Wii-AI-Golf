@@ -1,0 +1,27 @@
+name: P0 upstream receiver-argument PPC source-only (synthetic)
+on:
+  push:
+    paths:
+      - 'scripts/review_p0_outer_receiver_argument_source.py'
+      - 'tests/test_p0_outer_receiver_argument_source.py'
+      - '.github/workflows/p0-outer-receiver-argument-source.yml'
+  pull_request:
+    paths:
+      - 'scripts/review_p0_outer_receiver_argument_source.py'
+      - 'tests/test_p0_outer_receiver_argument_source.py'
+      - '.github/workflows/p0-outer-receiver-argument-source.yml'
+  workflow_dispatch:
+jobs:
+  source-synthetic:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fabricated PPC callsite, GPR, branch and privacy tests only
+        run: python -m unittest discover -s tests -p test_p0_outer_receiver_argument_source.py -v
