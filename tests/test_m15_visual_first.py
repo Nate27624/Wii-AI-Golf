@@ -490,7 +490,7 @@ class VisualFirstJoinTests(unittest.TestCase):
                 "# WII_AI_GOLF_ATOMIC_TRACE_V1\n"
                 "# WII_AI_GOLF_SWING_TRACE_V1\n"
                 "print('before')\n"
-            ).replace("\\\n", "\n")
+            )
             bridge.write_text(original, encoding="utf-8")
             runner_calls = []
 
