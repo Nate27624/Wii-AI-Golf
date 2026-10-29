@@ -142,6 +142,8 @@ class OneCommandLauncherTests(unittest.TestCase):
             self.assertEqual(run.call_count, 1)
             self.assertIn("launch_hitting_green.py", run.call_args.args[0][1])
             self.assertIn("--send-live", run.call_args.args[0])
+            boot = run.call_args.args[0]
+            self.assertEqual(boot[boot.index("--dolphin-user") + 1], str(self.user))
 
         with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
             self.assertEqual(launch_golf.main(argv + ["--swing", "--preset", "reverse"]), 0)
@@ -315,13 +317,17 @@ class OneCommandLauncherTests(unittest.TestCase):
             "--catalog", str(self.catalog),
             "--dolphin-user", str(custom)
         ]
-        with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+        with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
             self.assertEqual(launch_golf.main(argv), 0)
+            boot = run.call_args.args[0]
+            self.assertEqual(boot[boot.index("--dolphin-user") + 1], str(custom))
         self.assertEqual(launch_golf.read_config(self.config)["dolphin_user"], str(custom))
         self.assertIn("Source = 1", ini.read_text())
         self.assertIn("Source = 2", self.ini.read_text())
-        with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+        with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
             self.assertEqual(launch_golf.main(argv[:-2]), 0)
+            boot = run.call_args.args[0]
+            self.assertEqual(boot[boot.index("--dolphin-user") + 1], str(custom))
         self.assertIn("Source = 2", self.ini.read_text())
         self.assertIn("Source = 1", ini.read_text())
 
