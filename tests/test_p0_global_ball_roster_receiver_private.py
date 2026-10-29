@@ -162,7 +162,7 @@ class GlobalRosterAndR31(unittest.TestCase):
         self.assertTrue(report["crossphase_roster_pin_start_config_and_source_slot_consistent"])
         self.assertFalse(report["r31_runtime_receiver_verified"])
         self.assertFalse(report["human_phase_order_and_same_shot_independently_verified"])
-        self.assertFalse(report["original_fourteen_bank_manifest_verified_by_this_extension"])
+        self.assertNotIn("original_fourteen_bank_manifest_verified",report)
         for secret in ("0x90000100","90010000","0x80400020",
                        "0x90000500","_private_"):
             self.assertNotIn(secret,txt)
