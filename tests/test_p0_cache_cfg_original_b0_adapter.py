@@ -194,15 +194,62 @@ class AdapterTests(unittest.TestCase):
             class LiteralBoolean(FakeCFG):
                 def inspect_known_callers(self, read):
                     report = super().inspect_known_callers(read)
-                    report["sources"][0][
-                        "known_exact_cache_writer_callsite_reached"
-                    ] = True
+                    row = report["sources"][0]
+                    row["status"] = "NOT_PROVEN_FOR_ALL_REACHING_PATHS"
+                    row["abstain_reason_category"] = None
+                    row["first_encountered_unresolved_source_relative_offset"] = None
+                    row["known_exact_cache_writer_callsite_reached"] = True
                     return report
 
             report = adapter.report_from_bytes(
                 bank, LiteralBoolean(), public_units=PUBLIC)
         self.assertIs(report["source_only_two_callers"][0][
             "exact_cache_writer_callsite_reached"], True)
+
+    def test_contradictory_cfg_proof_fields_rejected(self):
+        # Every status must agree with reached/must-flow/reason fields.
+        invalid = (
+            {"status": "STATIC_ENTRY_R3_MUST_FLOW",
+             "known_exact_cache_writer_callsite_reached": True,
+             "all_reaching_paths_pass_entry_r3_through_r31_to_call_r3": False,
+             "abstain_reason_category": None,
+             "first_encountered_unresolved_source_relative_offset": None},
+            {"status": "STATIC_ENTRY_R3_MUST_FLOW",
+             "known_exact_cache_writer_callsite_reached": False,
+             "all_reaching_paths_pass_entry_r3_through_r31_to_call_r3": True,
+             "abstain_reason_category": None,
+             "first_encountered_unresolved_source_relative_offset": None},
+            {"status": "NOT_PROVEN_FOR_ALL_REACHING_PATHS",
+             "known_exact_cache_writer_callsite_reached": False,
+             "abstain_reason_category": None,
+             "first_encountered_unresolved_source_relative_offset": None},
+            {"status": "ABSTAIN_TARGET_UNREACHABLE",
+             "known_exact_cache_writer_callsite_reached": True,
+             "abstain_reason_category": "NO_REACHABLE_TARGET_PATH",
+             "first_encountered_unresolved_source_relative_offset": None},
+            {"status": "ABSTAIN_SOURCE_UNRESOLVED",
+             "all_reaching_paths_pass_entry_r3_through_r31_to_call_r3": True},
+            {"status": "NOT_PROVEN_FOR_ALL_REACHING_PATHS",
+             "known_exact_cache_writer_callsite_reached": True,
+             "abstain_reason_category": "INTERVENING_CALL",
+             "first_encountered_unresolved_source_relative_offset": None},
+            {"status": "ABSTAIN_TARGET_UNREACHABLE",
+             "abstain_reason_category": None,
+             "first_encountered_unresolved_source_relative_offset": None},
+        )
+        for changes in invalid:
+            with self.subTest(changes=changes), tempfile.TemporaryDirectory() as td:
+                bank = synthetic_b0(Path(td))
+
+                class Contradictory(FakeCFG):
+                    def inspect_known_callers(self, read):
+                        report = super().inspect_known_callers(read)
+                        report["sources"][0].update(changes)
+                        return report
+
+                with self.assertRaises(adapter.QualificationError):
+                    adapter.report_from_bytes(
+                        bank, Contradictory(), public_units=PUBLIC)
 
     def test_invalid_helper_output_refused(self):
         with tempfile.TemporaryDirectory() as td:
