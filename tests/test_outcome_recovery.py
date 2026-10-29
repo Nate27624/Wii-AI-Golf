@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from wii_ai_golf.audit.outcome_recovery import (
-    parse_displayed_distance, recover_outcome_summary,
+    exploratory_ranking_target, parse_displayed_distance, recover_outcome_summary,
 )
 
 
@@ -51,6 +51,16 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(parse_displayed_distance("100.0"), (100.0, None))
         self.assertEqual(parse_displayed_distance("   "), (None, None))
 
+    def test_fixed_offgreen_100ft_is_censored_before_ram_matching(self):
+        self.assertIsNone(exploratory_ranking_target(
+            100.0, displayed_unit="ft", green="no"))
+        self.assertEqual(exploratory_ranking_target(
+            100.0, displayed_unit="ft", green="yes"), 100.0)
+        self.assertEqual(exploratory_ranking_target(
+            100.0, displayed_unit="yd", green="no"), 100.0)
+        self.assertEqual(exploratory_ranking_target(
+            99.0, displayed_unit="ft", green="no"), 99.0)
+
     def test_bad_or_nonfinite_distance_never_normalized_silently(self):
         for entry in ("NaN", "-1ft", "100.0fthuh", "inf", "1e600", "$100"):
             with self.subTest(entry=entry), self.assertRaises(ValueError):
@@ -66,6 +76,11 @@ class RecoveryTests(unittest.TestCase):
             self.assertEqual(result["human_observation"]["displayed_distance_human"], 100)
             self.assertEqual(result["human_observation"]["displayed_unit_human"], "ft")
             self.assertEqual(result["human_observation"]["finished_on_green_human"], "no")
+            self.assertIsNone(
+                result["candidate_ranking"]["human_displayed_distance_raw_unverified"])
+            self.assertEqual(
+                result["candidate_ranking"]["candidates"][0]
+                ["matches_displayed_numeric_label_as"], [])
             self.assertIsNone(result["swing_dispatch"]["applied_frames"])
             self.assertFalse(result["candidate_ranking"]["game_score_verified"])
             self.assertFalse(result["recovery"]["live_dispatch_metadata_recovered"])
