@@ -25,6 +25,29 @@ class AgentInitTests(unittest.TestCase):
         self.assertNotIn("NO AUTO MERGE/PUBLISH", proc.stdout)
         self.assertIn("FINAL STATUS=ROLE + AGENT_ID + CONTINUE | ACTION REQUIRED | DECISION REQUIRED", proc.stdout)
 
+    def test_manager_can_bootstrap_first_roster_but_cleanup_cannot(self):
+        manager = self.invoke("--mode", "continue", "--role", "S000",
+                              "--instance", "S000-manager-recovery-20261029-a")
+        self.assertEqual(manager.returncode, 0, manager.stderr)
+        self.assertIn("ROLE=S000:", manager.stdout)
+        self.assertIn("MANAGER_BOOTSTRAP=VERIFY_UNIQUE_EXISTING_MANAGER_CLAIM", manager.stdout)
+        self.assertIn("MANAGER_BOOTSTRAP_NEXT=If verified, publish FIRST ASSIGNMENT ROSTER V2", manager.stdout)
+        self.assertNotIn("ASSIGNMENT_TASK=", manager.stdout)
+        cleanup = self.invoke("--mode", "continue", "--role", "S000",
+                              "--instance", "S000-cleanup-recovery-20261029-a")
+        self.assertEqual(cleanup.returncode, 0, cleanup.stderr)
+        self.assertIn("ASSIGNMENT_STATE=UNVERIFIED", cleanup.stdout)
+        self.assertIn("Ask S000 manager", cleanup.stdout)
+        self.assertNotIn("MANAGER_BOOTSTRAP=", cleanup.stdout)
+
+    def test_continue_reports_role_and_instance_at_unassigned_bootstrap(self):
+        proc = self.invoke("--mode", "continue", "--role", "S005",
+                           "--instance", "S005-heldout-audit-1")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("ROLE=S005: Evaluation / censoring", proc.stdout)
+        self.assertIn("AGENT_ID=S005-heldout-audit-1", proc.stdout)
+        self.assertIn("FINAL STATUS=ROLE + AGENT_ID", proc.stdout)
+
     def test_manager_playbook_link(self):
         proc = self.invoke("--role", "S000", "--instance", "S000-manager")
         self.assertEqual(proc.returncode, 0, proc.stderr)
