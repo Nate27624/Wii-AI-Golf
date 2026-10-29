@@ -24,7 +24,7 @@ py -m unittest discover -s tests -v
 
 A local read-only research test can be performed with `py scripts/golf.py research test --local-only`. Other `research` commands may sync or publish **allowlisted** summaries; inspect the command and its permissions before running. The `research/observations` Git branch stores sanitized status—not physical shot evidence or a GitHub agent notification service.
 
-**No agent may start Dolphin, issue controller inputs, collect private captures, publish private material, or conduct unattended shots without separately explicit operator authorization.** Do not upload ROMs, raw RAM, savestates, credentials, per-boot heap addresses, personal paths/configuration, or unrestricted logs. Human-observed outcomes are not machine-verified scores. An off-green 100-foot penalty is **censored**, never measured ball carry.
+**No agent may start Dolphin, issue controller inputs, collect private captures, publish private material, or conduct unattended shots without separate explicit operator authorization.** Do not upload ROMs, raw RAM, savestates, credentials, per-boot heap addresses, personal paths/configuration, or unrestricted logs. Human-observed outcomes are not machine-verified scores. An off-green 100-foot penalty is **censored**, never measured ball carry.
 
 ## Agent workflow
 
