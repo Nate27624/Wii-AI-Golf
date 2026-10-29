@@ -33,13 +33,17 @@ def hold_a_for_observed_frames(
 ) -> dict[str, Any]:
     """Press A and wait for >= frames observed emulated frames, NO swing API.
 
-    On success, A remains requested as held so the next swing trace can take
-    over. Caller MUST release buttons after the trace. On every failure,
-    release_buttons is attempted by this helper (also safe if caller cleans up).
+    WARNING: Felk Preview 4's A button override uses ClearOn::NextFrame,
+    rather than a persistent hold. One A RPC does NOT establish continuous
+    A across these frames. Check the last INPUT value observed by Dolphin
+    BEFORE returning to the shot; an absent/false/malformed value aborts the
+    attempt, but even an observed True is not proof of sustained A, of a
+    game-internal button latch, or of ball contact.
 
-    Frame counting starts after the button RPC has returned. This yields a
-    lower bound on Dolphin frame progression while A is requested, NOT a
-    measured physical button edge or game-internal pressed-A latch.
+    Caller MUST release buttons after the trace. Every failed diagnostic
+    attempts release_buttons (safe even if caller also cleans up).
+    A robust multi-frame hold requires a future source-vetted frame-scheduled
+    A-only bridge path, not an assumption based on frame.get_count alone.
     """
     if type(frames) is not int or not 1 <= frames <= 90:
         raise ValueError("frames must be an integer 1..90")
@@ -51,9 +55,9 @@ def hold_a_for_observed_frames(
         raise ValueError("timeout_s must be finite, >0 and <=60")
     if not math.isfinite(poll_sleep_s) or not 0 <= poll_sleep_s <= 0.1:
         raise ValueError("poll_sleep_s must be finite and between 0 and 0.1")
-    # Only one A-button setter is needed; the persistent emulated input is
-    # then held while the frame counter advances. Do not confuse RPC calls
-    # with elapsed emulated frames.
+    # One setter cannot establish a persistent hold under Felk's frame-scoped
+    # override. Keep this source-compatible diagnostic fail-closed; do not
+    # equate elapsed frames with held-button frames or a game input latch.
     try:
         prime_a_button(rpc, remote=remote, requests=1)
         start = _count(rpc)
@@ -65,8 +69,20 @@ def hold_a_for_observed_frames(
             if latest < start:
                 raise RuntimeError("Dolphin frame counter went backwards during A lead")
             if latest - start >= frames:
+                # Source: Felk Python controller.get_wiimote_buttons returns
+                # BaseManip::Get(), the last input *observed by the emulator*,
+                # NOT the override currently queued or the game's own state.
+                # ClearOn::NextFrame can expire the single A=True prehold.
+                # Reject negative/unknown evidence before submitting motion.
+                observed = rpc.call("controller.get_wiimote_buttons", [remote])
+                if type(observed) is not dict or type(observed.get("A")) is not bool:
+                    raise RuntimeError("A lead unsafe: Dolphin last-seen A unavailable")
+                if observed["A"] is not True:
+                    raise RuntimeError("A lead unsafe: Dolphin last-seen A is not pressed")
                 return {
                     "a_button_only_requests": 1,
+                    "emulator_last_seen_a": True,
+                    "continuous_a_hold_verified": False,
                     "remote": remote,
                     "requested_lead_frames": frames,
                     "start_frame_after_a_request": start,
