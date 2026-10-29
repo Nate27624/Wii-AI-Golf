@@ -48,9 +48,9 @@ After responding to an ACTION REQUIRED or DECISION REQUIRED request, the user ma
 ## Adaptive INIT and CONTINUE — manager-coordinated priorities
 
 **Source of live task recommendations:** the newest authenticated
-\`[S000-manager] PRIORITY BOARD V2\` GitHub comment on
+`[S000-manager] PRIORITY BOARD V2` GitHub comment on
 [canonical coordination PR #320](https://github.com/Nate27624/Wii-AI-Golf/pull/320).
-It contains a validated, versioned JSON task board pinning the \`main\` SHA,
+It contains a validated, versioned JSON task board pinning the `main` SHA,
 role, priority, readiness, canonical issue/PR and a bounded objective.
 It is *advisory*: actual availability depends on checking the current
 CLAIM/HANDOFF on that owner thread, current PR state, changed-file overlaps,
@@ -65,35 +65,35 @@ remain governed by the charter, regardless of priority order.
 
 **New ChatGPT conversation — dynamic initiation message:**
 
-\`\`\`text
+```text
 INIT V2. Read latest main, AGENTS.md, docs/v2-navigation.md, docs/v2-agent-charter.md, docs/v2-agent-continuity.md and merging.md. Read the newest [S000-manager] PRIORITY BOARD V2 on coordination PR #320, then inspect live CLAIM/HANDOFF comments and current open PR overlaps. Recommend the highest-value UNCLAIMED and UNBLOCKED role-appropriate task according to S000 coordination; select a unique S00N-instance ID not already claimed. Post [INSTANCE] CLAIM on its EXISTING canonical issue/PR, preserving prior research and role ownership. Begin one bounded substantive source/code/test or evidence-preserving consolidation action immediately. Do not create duplicate implementations or research-only PRs. Follow exact-head Windows/Ubuntu CI and root merging.md; self-merge objective-qualified PRs, without requesting a manager approval ritual. No automatic live Dolphin actions, private captures, publication or training promotion. End with one OPERATOR STATUS.
-\`\`\`
+```
 
-**Same-chat dynamic continuation:** use the updated \`CONTINUE V2\` message above.
+**Same-chat dynamic continuation:** use the updated `CONTINUE V2` message above.
 Check fresh manager recommendations **after** completing the existing claim;
 never abandon in-flight ownership just because a priority number changed.
 
-Optional local, **read-only** helper (requires already authenticated \`gh\`
+Optional local, **read-only** helper (requires already authenticated `gh`
 CLI for live reads; if missing, use the GitHub connector in ChatGPT):
 
-\`\`\`powershell
+```powershell
 python scripts/agent_init.py --mode suggest --live
 python scripts/agent_init.py --mode init --role S002 --instance S002-memory-c --live
 python scripts/agent_init.py --mode continue --role S002 --instance S002-memory-c --live
-\`\`\`
+```
 
-The helper reads \`main\` and the latest board using **GET** only, validates
+The helper reads `main` and the latest board using **GET** only, validates
 task types, and prints ranked candidates for the selected role. It **cannot**
 inspect every overlapping claim or prove task availability: the agent must
 do that directly through GitHub before any CLAIM or edit. When authentication,
 network, schema or board freshness is uncertain, it explicitly abstains or
 warns and does not invent an assignment. Offline tests can pass a sanitized
-board via \`--board-file\`; such output is *not* live-verified.
+board via `--board-file`; such output is *not* live-verified.
 
 **S000 manager duty:** after major merges, evidence changes or parent PR
 closures, post a new board on #320 with a fresh main SHA, exact owner threads,
-a small number of highest-impact in-role tasks and explicit \`ready_offline\`,
-\`review_only\`, or \`blocked\` statuses. Do not mass-edit repo files for each
+a small number of highest-impact in-role tasks and explicit `ready_offline`,
+`review_only`, or `blocked` statuses. Do not mass-edit repo files for each
 board update; record changes as GitHub comments. Stale, blocked or claimed
 tasks are not instructions to create duplicate PRs.
 
