@@ -84,6 +84,22 @@ class V2DocumentationConsistencyTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertIn("v2-universal-prompts.md", self.read(path))
 
+    def test_manager_assignment_source_and_role_visible_continue(self):
+        doc = self.read("docs/v2-universal-prompts.md")
+        continuity = self.read("docs/v2-agent-continuity.md")
+        manager = self.read("docs/S000-manager-playbook.md")
+        charter = self.read("docs/v2-agent-charter.md")
+        for text in (doc, continuity, manager, charter):
+            self.assertIn("ASSIGNMENT ROSTER V2", text)
+        self.assertIn("Role: S00N", doc)
+        self.assertIn("Agent ID:", doc)
+        self.assertIn("OVERSIGHT ESCALATION", doc)
+        self.assertIn("OVERSIGHT ESCALATION: REQUIRED", continuity)
+        self.assertIn("OVERSIGHT ESCALATION: NOT REQUIRED", continuity)
+        self.assertIn("five significant merges", continuity)
+        self.assertIn("one owner", continuity.lower())
+        self.assertIn("PARK", doc)
+
     def test_current_relative_markdown_links_exist(self):
         for path in ("README.md", "AGENTS.md"):
             with self.subTest(path=path):
