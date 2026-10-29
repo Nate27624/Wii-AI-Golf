@@ -183,6 +183,60 @@ class VisualFirstCollectorTests(unittest.TestCase):
         self.assertEqual(result["human_observation"]["contact_human"], "no")
         self.assertFalse(result["raw_data_created"])
 
+    def test_atomic_a45_success_one_swing_and_bridge_receipt_no_ram(self):
+        replies = iter(["", "", "U", "no"])
+        with tempfile.TemporaryDirectory() as folder:
+            private = Path(folder) / "RAW-PRIVATE.jsonl"
+            with patch("scripts.collect_outcome_transition.AtomicA45SwingTraceClient") as client, \
+                 patch("scripts.collect_outcome_transition.hold_a_for_observed_frames") as poll, \
+                 patch("scripts.collect_outcome_transition.release_buttons") as release:
+                client.return_value.run.return_value = {
+                    "state": "complete", "id": 1, "kind": "atomic_a45_swing",
+                    "applied_frames": 89, "prehold_applied_frames": 45,
+                    "prehold_start_frame": 100,
+                    "last_prehold_frame": 144, "trace_start_frame": 145,
+                    "game_a_recognition_verified": False,
+                }
+                result = run_session(object(), raw_path=private,
+                    pre_samples=2, post_samples=2, settled_samples=2,
+                    interval=0, visual_first=True, atomic_a45=True,
+                    a_lead_frames=45, input_fn=lambda _: next(replies),
+                    snapshot_fn=lambda *_: self.fail("no RAM in M1.5"))
+                self.assertEqual(client.return_value.run.call_count, 1)
+                poll.assert_not_called()
+                release.assert_called_once()
+                self.assertFalse(private.exists())
+        req = result["known_good_swing_request"]
+        self.assertEqual(req["a_lead_requested_frames"], 45)
+        self.assertEqual(req["a_lead_observed_frame_delta"], 45)
+        self.assertEqual(req["a_button_only_prime_requests"], 0)
+        self.assertTrue(req["a_lead_atomic_bridge_callback"])
+        self.assertEqual(req["a_lead_bridge_button_dispatch_frames"], 45)
+        self.assertFalse(req["a_lead_per_observed_frame_reasserted"])
+        self.assertEqual(req["generated_trace_frames"], 89)
+        self.assertEqual(result["human_observation"]["contact_human"], "no")
+
+    def test_atomic_a45_preflight_failure_has_no_swing_and_releases(self):
+        replies = iter(["", ""])
+        with tempfile.TemporaryDirectory() as folder:
+            with patch("scripts.collect_outcome_transition.AtomicA45SwingTraceClient") as client, \
+                 patch("scripts.collect_outcome_transition.release_buttons") as release:
+                client.return_value.run.side_effect = RuntimeError("missing capability")
+                with self.assertRaisesRegex(RuntimeError, "missing capability"):
+                    run_session(object(), raw_path=Path(folder) / "RAW.jsonl",
+                        pre_samples=2, post_samples=2, settled_samples=2,
+                        interval=0, visual_first=True, atomic_a45=True,
+                        a_lead_frames=45, input_fn=lambda _: next(replies))
+                release.assert_called_once()
+
+    def test_atomic_a45_invalid_optin_rejected_before_any_controller_input(self):
+        with self.assertRaisesRegex(ValueError, "atomic A45 requires"):
+            run_session(object(), raw_path=Path("unused.jsonl"),
+                        pre_samples=2, post_samples=2, settled_samples=2,
+                        interval=0, atomic_a45=True, a_lead_frames=12,
+                        visual_first=True,
+                        input_fn=lambda _: self.fail("must not prompt"))
+
     def test_fixed_offgreen_display_is_censored_not_physical_distance(self):
         response = _visual_first_label(lambda _: "M:100ft")
         self.assertEqual(response["displayed_distance_human"], 100.0)
