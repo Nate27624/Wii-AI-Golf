@@ -23,7 +23,7 @@ class OneCommandLauncherTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
+        self.root = Path(self.tmp.name).resolve()
         self.game = self.root / "Wii Sports.rvz"
         self.game.write_bytes(b"stub for path test; not a ROM")
         self.config = self.root / "research" / "launch.local.json"

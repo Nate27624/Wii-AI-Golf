@@ -188,9 +188,11 @@ def rank_outcome_candidates(samples: list[dict[str, Any]], *,
             raise ValueError("missing/invalid/beyond-bound sample frame bracket")
         if last_end is not None and start < last_end:
             raise ValueError("overlapping or reversed sample frame brackets")
+        # A canonical sample always records this. Absence in legacy imports
+        # is unknown/non-qualifying, never evidence of an atomic snapshot.
         span = sample.get("non_atomic_frame_span")
-        if span is not None and (type(span) is not int or span != end - start):
-            raise ValueError("inconsistent non-atomic frame span")
+        if type(span) is not int or span != end - start:
+            raise ValueError("missing/inconsistent non-atomic frame span")
         last_end = end
     rows = [_words(sample) for sample in samples]
     masks = {phase: [r for sample, r in zip(samples, rows) if sample["phase"] == phase]
@@ -232,6 +234,7 @@ def rank_outcome_candidates(samples: list[dict[str, Any]], *,
         "human_label_tolerance_no_unit_conversion": tolerance,
         "ball_position_verified": False, "game_score_verified": False,
         "sample_rpc_frame_brackets_ordered": True,
+        "sample_rpc_non_atomic_spans_consistent": True,
         "same_boot_or_guest_physics_frame_verified": False,
         "warning": ("Big-endian u32/s32/f32 raw changes; a numeric match may be "
                     "coincidental. Multi-frame snapshots and unknown display units "

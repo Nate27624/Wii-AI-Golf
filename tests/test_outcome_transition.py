@@ -25,6 +25,8 @@ def snapshot(phase, words, base=0x91000000, *, frame=None, end=None, mode=4):
     payload = b"".join(struct.pack(">I", w) for w in words)
     return {"phase": phase, "game_id": "RSPE01", "disc_revision": 1,
             "game_mode_raw": mode, "frame_start": start, "frame_end": stop,
+            "non_atomic_frame_span": (
+                stop - start if type(start) is int and type(stop) is int else 1),
             "windows": {"golf_config": {
                 "address": f"0x{base:08X}", "bytes_hex": payload.hex()}}}
 
@@ -151,10 +153,16 @@ class OutcomeTransitionTests(unittest.TestCase):
         too_long[0]["frame_end"] = too_long[0]["frame_start"] + 121
         with self.assertRaisesRegex(ValueError, "beyond-bound"):
             rank_outcome_candidates(too_long)
-        changed = [dict(x) for x in rows]
-        changed[0]["non_atomic_frame_span"] = 99
-        with self.assertRaisesRegex(ValueError, "inconsistent"):
-            rank_outcome_candidates(changed)
+        for bad in (None, True, 1.0, 99):
+            with self.subTest(span=bad):
+                changed = [dict(x) for x in rows]
+                changed[0]["non_atomic_frame_span"] = bad
+                with self.assertRaisesRegex(ValueError, "non-atomic frame span"):
+                    rank_outcome_candidates(changed)
+        missing = [dict(x) for x in rows]
+        del missing[0]["non_atomic_frame_span"]
+        with self.assertRaisesRegex(ValueError, "missing/inconsistent"):
+            rank_outcome_candidates(missing)
 
     def test_wrong_mode_or_boolean_revision_rejected(self):
         rows = [snapshot("pre", [0]), snapshot("pre", [0]),
@@ -175,6 +183,7 @@ class OutcomeTransitionTests(unittest.TestCase):
         report = rank_outcome_candidates(rows)
         self.assertEqual(report["all_phase_stable_change_count"], 1)
         self.assertTrue(report["sample_rpc_frame_brackets_ordered"])
+        self.assertTrue(report["sample_rpc_non_atomic_spans_consistent"])
         self.assertFalse(report["same_boot_or_guest_physics_frame_verified"])
         self.assertFalse(report["game_score_verified"])
 

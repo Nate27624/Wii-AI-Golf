@@ -20,9 +20,10 @@ _FAKE_FRAMES = itertools.count(10, 3)
 
 
 def row(phase, value):
-    frame = next(_FAKE_FRAMES)  # fabricated increasing RPC counts, no game frames
+    frame = next(_FAKE_FRAMES)  # synthetic monotonic RPC brackets, not game ticks
     return {"game_id": "RSPE01", "disc_revision": 1, "game_mode_raw": 4,
             "phase": phase, "frame_start": frame, "frame_end": frame + 1,
+            "non_atomic_frame_span": 1,
             "windows": {"golf_config": {"address": "0x90010000",
                                        "bytes_hex": struct.pack(">I", value).hex()}}}
 
@@ -234,7 +235,8 @@ class OutcomeCaptureCliTests(unittest.TestCase):
                     self.assertEqual((frames, remote), (12, 0))
                     events.append("hold-a-observed-12")
                     return {"observed_frame_delta": 13, "start_frame_after_a_request": 120,
-                            "last_observed_frame": 133}
+                            "last_observed_frame": 133, "a_button_only_requests": 14,
+                            "per_observed_frame_a_reasserted": True}
                 hold.side_effect = hold_side_effect
                 def trace(samples):
                     events.append("trace-unchanged")
@@ -251,7 +253,8 @@ class OutcomeCaptureCliTests(unittest.TestCase):
             old_prime.assert_not_called()
             self.assertEqual(result["known_good_swing_request"]["a_lead_requested_frames"], 12)
             self.assertEqual(result["known_good_swing_request"]["a_lead_observed_frame_delta"], 13)
-            self.assertEqual(result["known_good_swing_request"]["a_button_only_prime_requests"], 1)
+            self.assertEqual(result["known_good_swing_request"]["a_button_only_prime_requests"], 14)
+            self.assertTrue(result["known_good_swing_request"]["a_lead_per_observed_frame_reasserted"])
             self.assertTrue(result["known_good_swing_request"]["a_button_prime_applied"])
             self.assertIn("not_game_verified", result["known_good_swing_request"]["a_priming_evidence"])
 

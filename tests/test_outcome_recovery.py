@@ -26,6 +26,7 @@ def shot_row(phase: str, value: int) -> dict:
     return {
         "schema_version": 1, "source": "Felk-read-only-US-Rev1-unverified-golf-windows",
         "phase": phase, "frame_start": frame, "frame_end": frame + 2,
+        "non_atomic_frame_span": 2,
         "game_id": "RSPE01", "disc_revision": 1, "game_mode_raw": 4,
         "windows": {"golf_config": {
             "address": "0x91000000",
