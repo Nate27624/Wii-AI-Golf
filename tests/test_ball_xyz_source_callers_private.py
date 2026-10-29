@@ -179,7 +179,7 @@ class PPCStaticTests(unittest.TestCase):
             for p in (bank, alternate):
                 with p.open("wb") as f:
                     f.truncate(m.MEM1_LEN)
-                    f.write(b"RSPE01\\x00\\x01")
+                    f.write(b"RSPE01\x00\x01")
             real_open = Path.open
             def switched(p, *args, **kwargs):
                 return real_open(alternate if p == bank else p,
@@ -195,7 +195,7 @@ class PPCStaticTests(unittest.TestCase):
             target = where / "ordinary-file.bin"
             with target.open("wb") as f:
                 f.truncate(m.MEM1_LEN)
-                f.write(b"RSPE01\\x00\\x01")
+                f.write(b"RSPE01\x00\x01")
             alias = where / "B0-linked.bin"
             try:
                 alias.symlink_to(target)
