@@ -5,6 +5,12 @@ These tests use fabricated objects only; they do not launch Dolphin.
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+import sys
+
+# Run as a standalone focused unittest without requiring an installed package.
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
 
 from wii_ai_golf.emulator import DolphinEnvironment
 from wii_ai_golf.protocol import Observation, ShotAction, ShotResult
