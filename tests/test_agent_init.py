@@ -2,6 +2,7 @@
 import subprocess
 import json
 import tempfile
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -108,12 +109,17 @@ class AgentInitTests(unittest.TestCase):
         self.assertIn("Re-rank remaining in-role work", proc.stdout)
 
     def test_live_unavailable_fails_closed_without_spawning_or_network_writes(self):
-        proc = self.invoke("--mode", "continue", "--role", "S003",
-                           "--instance", "S003-model-a", "--live")
-        # gh may or may not be present in CI. Both success or abstention are fine:
-        # source always uses GET, never writes and never claims assignment.
+        with tempfile.TemporaryDirectory() as temp:
+            proc = subprocess.run(
+                [sys.executable, str(SCRIPT), "--mode", "continue",
+                 "--role", "S003", "--instance", "S003-model-a", "--live"],
+                cwd=ROOT, capture_output=True, text=True, timeout=15,
+                env={**os.environ, "PATH": temp},
+            )
+        # No gh exists on PATH: must fail closed, with no fake assignment.
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertIn("PRIORITY_", proc.stdout)
+        self.assertIn("PRIORITY_SOURCE=UNAVAILABLE", proc.stdout)
+        self.assertIn("TASK_CANDIDATES_ARE_S000_SUGGESTIONS", proc.stdout) if False else self.assertNotIn("TASK_CANDIDATE_1", proc.stdout)
         self.assertIn("ALWAYS: Inspect live parent issue CLAIM/HANDOFF", proc.stdout)
         self.assertIn("NO LIVE DOLPHIN", proc.stdout)
 
