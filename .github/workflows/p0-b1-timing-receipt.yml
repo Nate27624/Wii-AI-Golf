@@ -1,0 +1,29 @@
+name: P0 B1 offline swing timing receipt audit
+
+on:
+  pull_request:
+    paths:
+      - 'src/wii_ai_golf/audit/swing_timing_receipt.py'
+      - 'tests/test_swing_timing_receipt.py'
+      - '.github/workflows/p0-b1-timing-receipt.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  timing-receipt:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Pure offline timing receipt synthetic checks (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_swing_timing_receipt.py -v
+      - name: Entire offline repository regression (NO Dolphin)
+        run: python -m unittest discover -s tests -v
