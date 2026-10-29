@@ -72,9 +72,9 @@ class AdapterTests(unittest.TestCase):
             adapter.CFG_SHA,
             "535eee90f2140b8b4682b2afb158a20e8553382a")
         raw = (ROOT / adapter.CFG_RELATIVE).read_bytes()
-        normalized = raw.replace(b"\\r\\n", b"\\n")
+        normalized = raw.replace(b"\r\n", b"\n")
         git_blob = (b"blob " + str(len(normalized)).encode("ascii")
-                    + b"\\x00" + normalized)
+                    + b"\x00" + normalized)
         self.assertEqual(
             hashlib.sha1(git_blob).hexdigest(),
             "843c7e5f8e47810a3544fabb10e5b928040e5559")
