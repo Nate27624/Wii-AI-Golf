@@ -8,6 +8,8 @@ on:
     paths:
       - 'scripts/audit_p0_cache_cfg_original_b0_adapter.py'
       - 'tests/test_p0_cache_cfg_original_b0_adapter.py'
+      - 'scripts/review_p0_cache_receiver_cfg_mustdef.py'
+      - 'tests/test_p0_cache_receiver_cfg_mustdef.py'
       - '.github/workflows/p0-cache-cfg-original-b0-adapter.yml'
   workflow_dispatch:
 
@@ -26,6 +28,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Pure CFG helper fabricated tests (no original RAM)
+        run: python -B -m unittest discover -s tests -p "test_p0_cache_receiver_cfg_mustdef.py" -v
       - name: Source adapter synthetics only (no original RAM)
         run: python -B -m unittest discover -s tests -p "test_p0_cache_cfg_original_b0_adapter.py" -v
       - name: Full offline regression suite (no original RAM)
