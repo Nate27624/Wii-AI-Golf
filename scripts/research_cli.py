@@ -208,6 +208,23 @@ def _joined_visual_first(run_token: str, start: datetime, *,
                 or human.get("hitting_green_first_ball_context_human_confirmed") is not True
                 or human.get("game_context_verified_by_memory") is not False):
             return invalid
+        # A lead and completed trace must describe one chronological bridge
+        # timeline, not just unrelated positive frame counters. These are
+        # bridge ticks (NOT proof of guest input, physics or ball contact).
+        lead_start = swing.get("a_lead_start_frame")
+        lead_last = swing.get("a_lead_last_observed_frame")
+        trace_start = dispatch.get("start_frame")
+        trace_completion = dispatch.get("completion_dispatch_frame")
+        if any(type(value) is not int or value < 0 for value in
+               (lead_start, lead_last, trace_start, trace_completion)):
+            return invalid
+        if (shot_start > lead_start
+                or lead_last - lead_start != swing["a_lead_observed_frame_delta"]
+                or trace_start <= lead_last
+                # The pinned Felk V1 scheduler completes at index len(samples).
+                # A later/missing completion cannot attest one 89-tick trace.
+                or trace_completion != trace_start + 89):
+            return invalid
         if (contact not in ("yes", "no", "unknown") or green not in ("yes", "no", "unknown")
                 or not (type(seen) is bool or seen is None) or type(kind) is not str
                 or kind not in ("green", "offgreen", "uncertain", "transitioned")
