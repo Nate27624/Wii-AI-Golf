@@ -158,6 +158,7 @@ def report_from_bytes(bank: Path, module, *, public_units):
         if (row.get("published_source_function") != expected[0]
                 or row.get("kind") != "P0-STATIC-PPC-R31-CALLSITE-MUSTDEF"
                 or row.get("status") not in ALLOWED_STATUS
+                or type(row.get("known_exact_cache_writer_callsite_reached")) is not bool
                 or type(row.get("all_reaching_paths_pass_entry_r3_through_r31_to_call_r3")) is not bool
                 or row.get("runtime_receiver_object_verified") is not False
                 or row.get("executed_cache_write_verified") is not False
@@ -183,9 +184,9 @@ def report_from_bytes(bank: Path, module, *, public_units):
             "first_abstain_reason_class": reason,
             "first_source_relative_unresolved_offset": relative,
             "diagnostic_witness_is_static_not_executed": True,
-            "exact_cache_writer_callsite_reached": bool(
-                row["known_exact_cache_writer_callsite_reached"]
-            ),
+            "exact_cache_writer_callsite_reached": row[
+                "known_exact_cache_writer_callsite_reached"
+            ],
             "all_reaching_paths_preserve_entry_receiver": row[
                 "all_reaching_paths_pass_entry_r3_through_r31_to_call_r3"
             ],
