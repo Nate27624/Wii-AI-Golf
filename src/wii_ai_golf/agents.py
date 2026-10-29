@@ -64,6 +64,14 @@ class EliteSearchPolicy:
         # Wii-game provenance or permission to train on actual Dolphin shots.
         if result.metadata.get("source") != "synthetic":
             raise ValueError("Elite search requires explicitly synthetic ShotResult data")
+        # Even a synthetic-tagged score may explicitly describe a censored
+        # display penalty. Such a label must not become a numeric training loss.
+        if (any(result.metadata.get(key) == "offgreen_100ft_penalty"
+                for key in ("measurement_type", "distance_label"))
+                or any(str(result.metadata.get(key, "")).strip().lower()
+                       in ("1", "true", "yes")
+                       for key in ("censored", "outcome_is_censored_penalty"))):
+            raise ValueError("Elite search rejects censored ShotResult penalties")
         samples = self.history[observation.scenario_id]
         samples.append((result.distance_m, action))
         if len(samples) < self.min_samples:
