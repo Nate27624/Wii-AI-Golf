@@ -18,7 +18,7 @@ REQUIRED_ROW = {"instance", "role", "state", "owned_paths"}
 
 def preview(roster: dict, backlog: dict, *, verified_main: str) -> dict:
     """Produce advisory proposals only, abstaining on ambiguity or conflicts."""
-    if not isinstance(verified_main, str) or len(verified_main) != 40:
+    if not isinstance(verified_main, str) or len(verified_main) != 40 or any(c not in "0123456789abcdef" for c in verified_main):
         raise ValueError("verified main must be an exact 40-character SHA")
     if not isinstance(roster, dict) or not isinstance(backlog, dict):
         raise ValueError("expected JSON objects")
@@ -46,6 +46,12 @@ def preview(roster: dict, backlog: dict, *, verified_main: str) -> dict:
                     raise ValueError("existing ownership collision")
                 used[p] = row["instance"]
 
+    task_ids = [task["id"] for task in tasks]
+    if any(not isinstance(task_id, str) or not task_id for task_id in task_ids):
+        raise ValueError("invalid task ID")
+    if len(set(task_ids)) != len(task_ids):
+        raise ValueError("duplicate backlog task ID")
+
     eligible = {}
     for task in tasks:
         paths = task["owned_paths"]
@@ -61,7 +67,7 @@ def preview(roster: dict, backlog: dict, *, verified_main: str) -> dict:
     reserved = set(used)
     assigned_ids = {row.get("task_id") for row in rows if row["state"] in ACTIVE}
     for row in rows:
-        if row["state"] not in COMPLETED:
+        if row["state"] not in COMPLETED or row["role"] == "S000":
             continue
         options = [t for t in eligible.get(row["role"], []) if t["id"] not in assigned_ids]
         options.sort(key=lambda t: ({"P0": 0, "P1": 1, "P2": 2}.get(t.get("priority"), 3), t["id"]))
