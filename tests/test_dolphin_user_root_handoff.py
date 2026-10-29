@@ -143,7 +143,7 @@ class DolphinUserRootHandoffTests(unittest.TestCase):
         # Regression: checking make_start_command only AFTER controller setup
         # changes an otherwise valid INI even though Dolphin cannot launch.
         ini = self.user_root / "Config" / "WiimoteNew.ini"
-        ini.write_text("[Wiimote1]\\nSource = 2\\nExtension = Nunchuk\\n", encoding="utf-8")
+        ini.write_text("[Wiimote1]\nSource = 2\nExtension = Nunchuk\n", encoding="utf-8")
         original = ini.read_bytes()
         config = self.base / "launch.local.json"
         config.write_text(json.dumps({
