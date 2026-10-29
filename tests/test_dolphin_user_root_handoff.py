@@ -56,6 +56,43 @@ class DolphinUserRootHandoffTests(unittest.TestCase):
                 savestate_session._launch(args, object())
         return popen.call_args
 
+    def test_deferred_native_access_violation_aborts_after_bridge_refusal(self):
+        # A startup may look alive on its first poll, fail to open the bridge,
+        # and only then report a native access violation. Never retry the
+        # process, request a savestate, or infer an unknown faulting module.
+        from unittest.mock import Mock
+
+        for returncode in (3221225477, -1073741819):
+            with self.subTest(returncode=returncode):
+                poll = Mock(side_effect=[None, returncode])
+                dead = SimpleNamespace(
+                    pid=4242, returncode=returncode, poll=poll,
+                )
+                with patch.object(savestate_session, "_connected",
+                                  return_value=False), \
+                     patch.object(savestate_session.subprocess, "Popen",
+                                  return_value=dead) as popen, \
+                     patch.object(savestate_session, "FelkRPC",
+                                  side_effect=OSError("bridge not ready")) as rpc, \
+                     patch.object(savestate_session, "StateManager") as state, \
+                     patch.object(savestate_session.time, "sleep") as sleep:
+                    with self.assertRaises(RuntimeError) as caught:
+                        savestate_session._launch(self._args(self.user_root),
+                                                  object())
+
+                message = str(caught.exception)
+                self.assertIn(f"code={returncode}", message)
+                self.assertIn("0xC0000005", message)
+                self.assertIn("before bridge preflight", message)
+                self.assertIn("for faulting module and offset", message)
+                self.assertNotIn("ntdll.dll", message.lower())
+                self.assertNotIn("qt5core.dll", message.lower())
+                self.assertEqual(poll.call_count, 2)
+                popen.assert_called_once()
+                rpc.assert_called_once_with(port=55355, timeout_s=1.0)
+                state.assert_not_called()
+                sleep.assert_called_once_with(0.25)
+
     def test_start_command_transmits_existing_explicit_root(self):
         cmd = launch_golf.make_start_command(
             game=self.game, dolphin=self.dolphin, bridge=self.bridge,
