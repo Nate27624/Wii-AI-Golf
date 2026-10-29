@@ -229,6 +229,22 @@ class PPCStaticTests(unittest.TestCase):
             self.assertEqual(m.load_public_text_units(candidate),
                              m.load_public_text_units())
 
+    def test_public_split_symlink_denied_even_when_blob_is_authentic(self):
+        # An indirect path is disallowed even when it resolves to the exactly
+        # pinned source index. Windows accounts may lack symlink privileges.
+        with tempfile.TemporaryDirectory() as root:
+            candidate = Path(root) / "authentic-index-symlink.json"
+            try:
+                candidate.symlink_to(m.PUBLIC_INDEX.resolve())
+            except (OSError, NotImplementedError):
+                from unittest.mock import patch
+                with patch.object(Path, "is_symlink", return_value=True):
+                    with self.assertRaises(m.UntrustedInput):
+                        m.load_public_text_units(m.PUBLIC_INDEX)
+            else:
+                with self.assertRaises(m.UntrustedInput):
+                    m.load_public_text_units(candidate)
+
     def test_public_rev1_entry_symbols_and_caller_crosswalk(self):
         # Mimics the OPERATOR'S source-unit-relative reported callsites.
         # Labels only: no operator ROM/RAM bytes or runtime addresses.
