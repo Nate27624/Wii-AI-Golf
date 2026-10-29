@@ -86,7 +86,10 @@ def review_source_words(words: tuple[int, ...]) -> dict:
             # other BO modes can fall through. Unknown register targets may
             # escape the source function. Never pretend LR == ball update.
             bo = (word >> 21) & 31
-            successors = [EXIT] if bo == 20 else [EXIT, nxt]
+            # LK=1 saves a return address: blrl/bctrl MAY resume at nxt.
+            # Keep EXIT too: a linked target might never return. Plain
+            # unlinked BO=20 blr/bctr is an exit, not a call continuation.
+            successors = [EXIT] if bo == 20 and not (word & 1) else [EXIT, nxt]
             (possible_lr_exits if ((word >> 1) & 1023) == 16
              else indirect_exits).append(i)
         elif op == 19 and ((word >> 1) & 1023) == 50:
@@ -100,12 +103,13 @@ def review_source_words(words: tuple[int, ...]) -> dict:
         # Explicitly distinguish ordinary last-word fallthrough from
         # branch exits. An I-form linked BL in the final word returns to
         # END (= the distinct NextShot entry) and is also a hazard.
-        # A normal BO=20 BLR exits through LR, NOT through END.
+        # A plain BO=20 BLR exits through LR. Linked indirect forms can
+        # call an external subroutine and MAY return to the next PC.
         is_indirect = op == 19 and ((word >> 1) & 1023) in (16, 528)
         has_sequential_fallthrough = (
             (op == 18 and bool(word & 1)) or
             op in (16, 17) or
-            (is_indirect and ((word >> 21) & 31) != 20) or
+            (is_indirect and (((word >> 21) & 31) != 20 or bool(word & 1))) or
             (op == 19 and not is_indirect and
              ((word >> 1) & 1023) != 50) or
             op not in (16, 17, 18, 19)
@@ -123,6 +127,8 @@ def review_source_words(words: tuple[int, ...]) -> dict:
             "call_function_relative_pc": f"+0x{offset:04X}",
             "callee_published_source_entry": f"0x{target:08X}",
             "return_continuation_function_relative_pc": f"+0x{offset + 4:04X}",
+            "callsite_may_be_reached_from_main_entry": _reachable(
+                graph, 0, at),
             "continuation_reachable_without_callsite": _reachable(
                 graph, 0, after, forbidden=at),
             "continuation_can_recur_via_source_backedge": _reachable(
