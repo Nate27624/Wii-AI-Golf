@@ -42,3 +42,7 @@ Do not treat callback counts as guest-frame verification. Do not classify a sour
 ## Working conventions
 
 Maintain one canonical implementation per behavior and prefer existing owner PRs. Keep small changes, test them, and use the root `merging.md` checklist for autonomous merging. Coordination does not impose an extra manager approval requirement. Preserve unique code, tests, and research history before closing PRs.
+
+## Continue across agent chats
+
+Read [agent continuity protocol](v2-agent-continuity.md). Every agent ends with one actionable operator status: CONTINUE / ACTION REQUIRED / DECISION REQUIRED. The user can say `CONTINUE V2` to resume the most recent canonical handoff without repeating instructions. This does not grant live-shot permission or background execution.
