@@ -11,7 +11,7 @@ This is the main entry point for agents. Review these in order:
 5. `docs/v2-evidence-gates.md`: verified observations, contradictions, and stop rules.
 6. `docs/v2-pr-triage.md`: backlog dispositions and safe closure criteria.
 
-Agent startup and continuing work are **priority-aware**: consult the latest authenticated [S000 manager priority board on #320](https://github.com/Nate27624/Wii-AI-Golf/pull/320), verify each current claim and blocked PR before selecting work. Recommendations are not reservations. For the local read-only helper, use `python scripts/agent_init.py --mode suggest --live` to see in-demand roles; use `--mode init` for a new distinct identity or `--mode continue` for the existing identity. Without an authenticated GitHub CLI, read #320 with your connected GitHub tools rather than trusting a frozen board.
+Agent startup and continuing work are **manager-assigned**: consult the latest S000 ASSIGNMENT ROSTER V2 and advisory [S000 manager priority board on #320](https://github.com/Nate27624/Wii-AI-Golf/pull/320), verify each current claim and blocked PR before selecting work. Priority suggestions are not reservations; S000's named roster is required before a new task can be claimed. Park agents lacking a current allocation. For the local read-only helper, use `python scripts/agent_init.py --mode suggest --live` to see in-demand roles; use `--mode init` for a new distinct identity or `--mode continue` for the existing identity. Without an authenticated GitHub CLI, read #320 with your connected GitHub tools rather than trusting a frozen board.
 
 Startup command (change to your role and unique instance):
 
