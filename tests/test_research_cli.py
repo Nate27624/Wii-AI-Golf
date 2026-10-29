@@ -343,7 +343,8 @@ class ResearchCliTests(unittest.TestCase):
                                       "displayed_distance_human": 100,
                                       "displayed_unit_human": "ft"},
                 "known_good_swing_request": {**expected,
-                    "generated_trace_frames": 89, "trace_sha256": _build_v1_trace_and_digest(
+                    "generated_trace_frames": 89, "a_lead_observed_frame_delta": 45,
+                    "trace_sha256": _build_v1_trace_and_digest(
                         motion_scale=1.0, speed_scale=1.0, backswing_scale=1.0)[1]},
                 "swing_dispatch": {"state": "complete", "applied_frames": 89},
                 "settled_screen_observation": "operator_confirmed_before_transition",
@@ -369,6 +370,19 @@ class ResearchCliTests(unittest.TestCase):
                 self.assertEqual(good["distance_interpretation"],
                                  "censored_offgreen_100ft_penalty")
                 self.assertNotIn("run_token", good)
+                for observed in (None, 44, True):
+                    with self.subTest(observed_a_lead_delta=observed):
+                        row["known_good_swing_request"]["a_lead_observed_frame_delta"] = observed
+                        file.write_text(json.dumps(row))
+                        rejected = research_cli._fresh_human_labels(
+                            start, run_token="d" * 32, expected_controller=expected)
+                        self.assertEqual(rejected["capture_status"],
+                                         "unqualified_child_a_lead_observation")
+                row["known_good_swing_request"]["a_lead_observed_frame_delta"] = 45
+                file.write_text(json.dumps(row))
+                restored = research_cli._fresh_human_labels(
+                    start, run_token="d" * 32, expected_controller=expected)
+                self.assertEqual(restored["capture_status"], "sanitized_human_annotation_only")
                 digest = row["known_good_swing_request"]["trace_sha256"]
                 row["known_good_swing_request"]["trace_sha256"] = "f" * 64
                 file.write_text(json.dumps(row))
