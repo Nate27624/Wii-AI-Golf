@@ -147,8 +147,14 @@ def _checked_row(row: object) -> dict[str, Any]:
         span = SOURCE_OBJECT_MEM2_MIN_SPANS[key]
         if not _qualified_mem2_object_span(row[key], min_bytes=span):
             raise ValueError("missing bounded canonical source-object identity")
-    for key in (*VECTORS, "config_bc_c0_c4_words"):
-        _vector(row[key])
+    # All five source-qualified triples are IEEE-754 f32 WORDS.
+    # NaN payload changes and infinities cannot qualify as ball motion.
+    # The GolfConfig BC/C0/C4 triple is intentionally opaque raw u32, NOT f32.
+    for key in VECTORS:
+        if any((word & 0x7F800000) == 0x7F800000
+               for word in _vector(row[key])):
+            raise ValueError("non-finite source candidate float32 vector")
+    _vector(row["config_bc_c0_c4_words"])
     return row
 
 
@@ -194,12 +200,27 @@ def summarize_private_samples(samples: list[dict]) -> dict:
     sel = [_vector(r[VECTORS[0]]) for r in rows]
     glob = [_vector(r[VECTORS[1]]) for r in rows]
     cc = [_vector(r[VECTORS[2]]) for r in rows]
-    # These are bitwise source-object words, NOT proven physical positions.
-    # A shot-labeled cohort with no source-object or cache change carries
-    # no movement evidence; do not silently accept it as a shot observation.
-    candidate_change_observed = any(
+    # Keep the raw u32 distinction for relationship diagnostics only.
+    # IEEE-754 +0/-0 differ bitwise but have exactly the SAME numeric value.
+    # Nonfinite f32 words have already been rejected by _checked_row.
+    # Thus a signed-zero-only or NaN-payload-only shot cohort must not pass
+    # the offline candidate-change precondition, much less imply motion.
+    candidate_bitwise_change_observed = any(
         a != b for series in (sel, glob, cc)
         for a, b in zip(series, series[1:])
+    )
+    def finite_f32_numeric_word_changed(a: int, b: int) -> bool:
+        if a == b:
+            return False
+        if (a & 0x7FFFFFFF) == 0 and (b & 0x7FFFFFFF) == 0:
+            return False
+        return True
+
+    candidate_change_observed = any(
+        finite_f32_numeric_word_changed(x, y)
+        for series in (sel, glob, cc)
+        for a, b in zip(series, series[1:])
+        for x, y in zip(a, b)
     )
     if first["stage"] == "idle_control":
         if (any(x != sel[0] for x in sel[1:])
@@ -214,6 +235,9 @@ def summarize_private_samples(samples: list[dict]) -> dict:
         "sample_count": len(rows),
         "declared_stage": first["stage"],
         "candidate_vector_change_observed": candidate_change_observed,
+        "candidate_vector_bitwise_change_observed": candidate_bitwise_change_observed,
+        "candidate_change_qualified_as_finite_f32_numeric_difference": (
+            candidate_change_observed),
         "candidate_change_proves_rendered_ball_motion": False,
         "max_observed_read_overhead_under_5ms": True,
         "selected_global_object_pointers_distinct": not alias[0],
