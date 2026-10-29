@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import subprocess
+import struct
 import sys
 import unittest
 from copy import deepcopy
@@ -28,7 +29,8 @@ def capture(n):
             "ball_cache_0x0f0":(1,3,4),
             "ball_cache_0x0fc":(1,3,4)
         },
-        "pin":(10,20,30),"pin_obj":1,"start_obj":2,"field":3,
+        "pin":(10,20,30),"selected_ball_obj":4,
+        "pin_obj":1,"start_obj":2,"field":3,
         "cfg_bc":5,"cfg_c0":6,"cfg_c4":7
     }
 
@@ -115,6 +117,86 @@ class TestSeven(unittest.TestCase):
         x=seven();x[2]["pin"]=(1,2)
         with self.assertRaisesRegex(ValueError,"Incompatible"):
             mod.summarize(x)
+
+    def test_single_selected_middle_direction_against_stationary_controls(self):
+        phases=seven()
+        for i, val in ((5,6.0), (6,3.0), (7,1.0)):
+            words=list(phases[i]["triplets"]["ball_object_0x030"])
+            words[1]=struct.unpack(">I",struct.pack(">f",val))[0]
+            phases[i]["triplets"]["ball_object_0x030"]=tuple(words)
+        output=mod.summarize(phases)["ball_middle_component_hypothesis"]
+        self.assertEqual(output["relative_ball_object_offset"],"+0x34")
+        self.assertEqual([row["transition"] for row in output["wedge_edges"]],
+                         ["5_to_6","6_to_7","5_to_7"])
+        for row in output["wedge_edges"]:
+            self.assertEqual(row["selected_ball_plus_0x34_direction"],"decreasing")
+            self.assertEqual(row["selected_cache_plus_0xD0_direction"],"unchanged")
+            self.assertEqual(row["start_middle_direction"],"unchanged")
+            self.assertEqual(row["pin_middle_direction"],"unchanged")
+        self.assertFalse(output["middle_axis_as_world_y_verified"])
+        self.assertFalse(output["source_global_control_measured_in_this_reader"])
+        self.assertFalse(output["allowed_to_publish"])
+        self.assertNotIn("6.0",str(output))
+        self.assertNotIn("3.0",str(output))
+
+    def test_middle_direction_numeric_not_float32_bitwise_signed_zero(self):
+        a=struct.unpack(">I",struct.pack(">f",-0.0))[0]
+        b=struct.unpack(">I",struct.pack(">f",0.0))[0]
+        self.assertEqual(mod._middle_direction(a,b),"unchanged")
+        self.assertEqual(mod._middle_direction(b,a),"unchanged")
+        self.assertEqual(mod._middle_direction(0x3f800000,0x40000000),"increasing")
+        self.assertEqual(mod._middle_direction(0x40000000,0x3f800000),"decreasing")
+
+    def test_nan_infinity_noninteger_and_bool_rejected_without_leakage(self):
+        for invalid in (0x7fc00001,0x7f800000,0xff800000,-1,2**32,
+                        True,False,"0x3f800000"):
+            with self.subTest(invalid=type(invalid).__name__):
+                with self.assertRaisesRegex(ValueError,"middle-component"):
+                    mod._middle_direction(0x3f800000,invalid)
+
+    def test_wedge_ball_identity_changed_abstains(self):
+        phases=seven()
+        phases[6]["selected_ball_obj"]=12
+        with self.assertRaisesRegex(ValueError,"owner or object identity"):
+            mod.middle_component_study(phases)
+
+    def test_wedge_owner_hole_changed_abstains(self):
+        phases=seven()
+        phases[7]["hole"]=3
+        with self.assertRaisesRegex(ValueError,"owner or object identity"):
+            mod.middle_component_study(phases)
+
+    def test_wedge_config_changed_abstains(self):
+        phases=seven()
+        phases[6]["cfg_c0"]=77
+        with self.assertRaisesRegex(ValueError,"Config selector"):
+            mod.middle_component_study(phases)
+
+    def test_wedge_start_or_pin_changed_abstains(self):
+        for key in ("source_current_start","pin"):
+            phases=seven()
+            if key=="pin":
+                phases[7]["pin"]=(10,999,30)
+            else:
+                phases[7]["triplets"][key]=(1,999,4)
+            with self.subTest(key=key):
+                with self.assertRaisesRegex(ValueError,"tee or pin changed"):
+                    mod.middle_component_study(phases)
+
+    def test_wedge_selected_middle_nonfinite_abstains(self):
+        phases=seven()
+        words=list(phases[6]["triplets"]["ball_object_0x030"])
+        words[1]=0x7fc00000
+        phases[6]["triplets"]["ball_object_0x030"]=tuple(words)
+        with self.assertRaisesRegex(ValueError,"Nonfinite"):
+            mod.middle_component_study(phases)
+
+    def test_other_club_pair_not_used_as_middle_height_evidence(self):
+        phases=seven()
+        phases[3]["triplets"]["ball_object_0x030"]=(999,999,999)
+        output=mod.middle_component_study(phases)
+        self.assertEqual([x["transition"] for x in output["wedge_edges"]],
+                         ["5_to_6","6_to_7","5_to_7"])
 
     def test_archive_wrong_kind_rejected_without_ram(self):
         from unittest.mock import patch
