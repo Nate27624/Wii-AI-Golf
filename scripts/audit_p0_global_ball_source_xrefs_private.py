@@ -162,8 +162,29 @@ def classify_known_writer_value(read, displacement:int) -> dict:
     }
 
 
+def _verify_original_pair_hashes(phase: int, pair: dict, originals: dict) -> None:
+    """Compare each bank to independently preserved SHA, never a new baseline.
+
+    The entire seven-phase canonical manifest is checked independently by
+    prev._canonical_archive_sha() before/after the source-only analysis.
+    """
+    expected=originals.get(phase)
+    if (type(expected) is not dict or set(expected)!={"MEM1","MEM2"}
+            or type(pair) is not dict or set(pair)!={"MEM1","MEM2"}):
+        raise ValueError("original archive bank identity not qualified")
+    for bank,path in pair.items():
+        digest=expected[bank]
+        if type(digest) is not bytes or len(digest)!=32:
+            raise ValueError("original archived bank digest invalid")
+        if seven._hash(path)!=digest:
+            raise ValueError("source xref bank differs from preserved original")
+
+
 def validate_and_read_three(directory:Path) -> dict:
     directory=seven._private_directory(directory)
+    # Reuse #240's single authoritative #231-schema adapter. Fail before
+    # touching any native bank if one of the original 14 hashes is wrong.
+    originals=prev._canonical_archive_sha(directory)
     observations=[]
     code_ref=None
     source_digest=None
@@ -172,7 +193,7 @@ def validate_and_read_three(directory:Path) -> dict:
         paths=seven._phase_banks(directory,phase)
         if paths is None:
             raise ValueError("wedge native MEM1/MEM2 pair absent")
-        before={bank:seven._hash(path) for bank,path in paths.items()}
+        _verify_original_pair_hashes(phase,paths,originals)
         with ExitStack() as stack:
             maps={}
             for bank,path in paths.items():
@@ -224,9 +245,10 @@ def validate_and_read_three(directory:Path) -> dict:
                 "_hole":sample["hole"],
                 "_slot":sample["selected_index"],
             })
-        for bank,path in paths.items():
-            if seven._hash(path)!=before[bank]:
-                raise ValueError("native bank modified during source read")
+        _verify_original_pair_hashes(phase,paths,originals)
+    # Recheck ALL seven source pairs (not just wedge) against the original
+    # manifest, catching changes to earlier captures or metadata mid-read.
+    prev._canonical_archive_sha(directory)
     root=observations[0]
     for observation in observations[1:]:
         if (observation["_identity"]!=root["_identity"]
@@ -238,6 +260,7 @@ def validate_and_read_three(directory:Path) -> dict:
     return {
         "kind":"P0-SANITIZED-R13-GLOBAL-BALL-DIRECT-SOURCE-XREFS",
         "wedge_phases_source_validated":3,
+        "original_fourteen_bank_manifest_verified":True,
         "source_global_slot_identical_across_wedge":True,
         "source_code_identical_across_wedge":True,
         "source_selected_geometry_stable_across_wedge":True,
