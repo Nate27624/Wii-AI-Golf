@@ -177,5 +177,16 @@ class TrainerPreactionGateTests(unittest.TestCase):
         self.assertEqual((policy.acts, len(policy.observations)), (3, 3))
 
 
+    def test_explicit_censored_distance_label_never_reaches_observer(self):
+        env = FakeResultEnvironment({
+            "source": "synthetic", "distance_label": "offgreen_100ft_penalty"
+        })
+        policy = TrackingPolicy()
+        with self.assertRaisesRegex(ValueError, "censored"):
+            train_elite_search(policy, env, ["scenario"], iterations=1)
+        self.assertEqual((env.loads, env.steps), (1, 1))
+        self.assertEqual(policy.observations, [])
+
+
 if __name__ == "__main__":
     unittest.main()
