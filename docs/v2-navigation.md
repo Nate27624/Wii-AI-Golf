@@ -31,6 +31,7 @@ Start from the latest `main`, review the live queue and existing CLAIM comments,
 | Source-only cache writer / PPC CFG provenance | `scripts/audit_ball_xyz_source_callers_private.py` and `scripts/audit_p0_cache_cfg_original_b0_adapter.py` on `main` (merged PR #329); **not** runtime writer execution |
 | Public observation output boundary | `scripts/research_cli.py::publish_summary` validates and allowlists direct-call publication on `main` (merged PR #341); does **not** approve training |
 | Additional global-ball exploratory source research | historical parent PR #240 remains a draft; its auxiliary source-XREF/PPC-review experiments are **not** all on `main` |
+| Agent initialization and successor transfer | `scripts/agent_init.py`, offline `scripts/agent_handoff.py`; [continuity and handoff contract](v2-agent-continuity.md) |
 | Manager procedure | `docs/S000-manager-playbook.md` |
 
 PR #331 integrated the minimal seven-phase **offline** SHA/source reader and synthetic tests, not the remainder of historical #231. PR #337 subsequently integrated a **separate, bounded** source-global/roster provenance core selectively from #240, not the entire #240 experiment stack. PR #329 added authenticated static source/CFG checks, not actual executed ball-write observations; PR #341 hardened the outbound research observation publication boundary, not data eligibility. These integrations do **not** verify a rendered ball, completed guest physics step, physical XYZ/velocity, real ball contact, game score or training eligibility. The original human-labeled D1 airborne-versus-START equality remains unresolved. Do not reimplement readers already on `main` or describe still-unmerged research-branch tools as deployed.
@@ -49,4 +50,4 @@ Maintain one canonical implementation per behavior and prefer existing owner PRs
 
 ## Continue across agent chats
 
-Read [agent continuity protocol](v2-agent-continuity.md). Every agent ends with one actionable operator status: CONTINUE / ACTION REQUIRED / DECISION REQUIRED. The user can say `CONTINUE V2` to resume the most recent canonical handoff without repeating instructions. This does not grant live-shot permission or background execution.
+Read [agent continuity and successor handoff protocol](v2-agent-continuity.md). Every agent ends with one actionable operator status: CONTINUE / ACTION REQUIRED / DECISION REQUIRED. `CONTINUE V2` resumes the same instance; `HANDOFF V2` prepares a distinct successor using the operator's **existing** initiation prompt and a durable GitHub handoff. Neither authorizes live gameplay, background work, or automatic new-chat creation.
