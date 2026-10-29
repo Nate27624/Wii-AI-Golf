@@ -19,6 +19,13 @@ Use a globally *distinct* `S00N-name` instance label in GitHub comments; an exis
 
 **Operator prompts:** use the three [universal V2 INIT, CONTINUE and HANDOFF prompts](docs/v2-universal-prompts.md), not separate instructions for each role. Same-chat continuation preserves the agent's identity; a successor gets a freshly generated complete prompt.
 
+**First manager roster:** An already authorized S000 Manager with a
+verified coordination CLAIM publishes the first exclusive assignment roster
+before agents begin new tasks; that manager is the bootstrap authority and
+does not wait for a roster entry assigning itself. All other agents PARK or
+continue only independently verified prior claims. See
+[continuity](docs/v2-agent-continuity.md) and manager playbook.
+
 ## Adaptive task selection
 
 Before a NEW agent begins, check the newest manager `[S000-manager] ASSIGNMENT ROSTER V2` AND the advisory `[S000-manager] PRIORITY BOARD V2` on [coordination PR #320](https://github.com/Nate27624/Wii-AI-Golf/pull/320), fresh `main`, live issue CLAIM/HANDOFF notes, and overlapping open PRs. The priority board is NOT an assignment. Only the S000 Manager issues a unique role/instance, task, owner thread and bounded file scope in the assignment roster. New agents without a matching roster entry request allocation on #320 and PARK; never self-assign competing code. Use `python scripts/agent_init.py --mode suggest --live` as an optional read-only CLI if authenticated `gh` exists. For the SAME chat, `--mode continue --role ROLE --instance EXISTING --live` retains identity, finishes the existing claim first, then requests a new exclusive manager assignment rather than selecting from the priority board. If live data are unavailable, abstain rather than invent a current priority or approval. See [dynamic workflow](docs/v2-agent-continuity.md).

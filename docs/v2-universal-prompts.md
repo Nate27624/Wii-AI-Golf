@@ -25,6 +25,10 @@ independently choose a task or implement files from the priority board.
    docs/v2-agent-continuity.md, root merging.md, scripts/agent_init.py,
    the latest S000 priority board AND latest [S000-manager] ASSIGNMENT
    ROSTER V2 comment on PR #320. Verify single manager and real CLAIMs.
+   BOOTSTRAP EXCEPTION: if you are the UNIQUE already operator-authorized
+   S000 Manager with a verified manager CLAIM but NO assignment roster yet,
+   publish the FIRST complete roster yourself. Never wait to assign yourself
+   before creating that first roster. S000 cleanup/support is NOT the manager.
 2. If the operator supplied a verified successor handoff, keep its SAME role
    and the distinct successor ID and task until the manager transfers the
    roster entry. Otherwise check whether S000 has already assigned you
@@ -61,6 +65,9 @@ CLAIM. Do not silently take a new role or adopt another agent's files.
    scripts/agent_init.py --mode continue, your canonical CLAIM/HANDOFF,
    open PRs and CI, latest S000 board and latest ASSIGNMENT ROSTER V2 on
    PR #320. Check whether your assignment still matches that roster.
+   If you are the verified SINGLE S000 Manager and no roster is published,
+   bootstrap the FIRST roster immediately from current claims and PRs;
+   do not PARK waiting for a nonexistent self-assignment. Other agents PARK.
 2. Finish or reconcile your existing verified claim first. For any older
    claim predating roster adoption, ask S000 to enter/confirm its ownership;
    do not use the stale candidate board to acquire competing files.

@@ -35,6 +35,25 @@ After an operator decision, record the answer in the originating canonical threa
 ## Focus enforcement
 Review whether each agent's latest changes materially advance its assigned acceptance criterion. Redirect repeated scans, duplicated launchers, PR-per-observation, excessive documentation, and speculative source spelunking without falsifiable next action. Require one measurable deliverable with existing owner thread, exact file boundaries and next test. A stuck agent should report one concrete blocker, not create a substitute parallel implementation. S000 should proactively answer their clarifying questions and escalate only what the operator must decide.
 
+## First-roster bootstrap — manager must not wait for self-assignment
+
+A verified, operator-authorized SINGLE S000 Manager already owns the coordination
+scope through its existing `[INSTANCE] MANAGER RESUMPTION / CLAIM` on #320.
+That manager **must publish the FIRST roster before specialists can work**;
+there is no previous roster to authorize this initial administrative action.
+Check the current single-manager claim, latest main, seven existing agent IDs,
+owner CLAIM/HANDOFF comments, PR overlap and changed paths. Publish a complete
+`[S000-manager] ASSIGNMENT ROSTER V2` snapshot using the validated schema
+below. It may include its own S000 manager slot but **must not require one to
+bootstrap**. Mark unassigned roles `PARKED` with empty owned paths rather
+than inventing code work. Never impersonate the manager using S000 cleanup.
+The local `scripts/agent_init.py --mode continue --role S000 --instance
+S000-manager-recovery-20261029-a --live` supplies first-roster guidance
+when no roster exists; it does not itself verify chat authorization, reserve
+files, create a roster, or write GitHub comments. The manager must do that
+from its active ChatGPT conversation. Once the first roster is published,
+all new specialist work requires its exact named allocation.
+
 ## Exclusive assignment ownership — manager controls the queue
 
 After this rollout, the priority board lists candidate tasks, but **no
