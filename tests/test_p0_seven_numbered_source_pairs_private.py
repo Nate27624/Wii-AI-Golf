@@ -264,7 +264,8 @@ class TestSeven(unittest.TestCase):
                 report=json.loads(output.getvalue())
                 self.assertEqual(report["status"],"abstained")
                 self.assertEqual(report["reason_code"],expected)
-                self.assertEqual(report["stage"],"archive_or_source_validation")
+                self.assertEqual(report["stage"],"unclassified_validation")
+                self.assertIsNone(report["capture_number"])
                 self.assertFalse(report["training_approved"])
                 self.assertFalse(report["allowed_to_publish"])
                 self.assertNotIn("PRIVATE",output.getvalue())
@@ -277,6 +278,64 @@ class TestSeven(unittest.TestCase):
         self.assertEqual(row["status"],"abstained")
         self.assertEqual(row["reason_code"],"scalar_wedge_config_changed")
         self.assertEqual(row["wedge_edges"],[])
+
+    def test_archive_precheck_is_distinct_from_source_sampling(self):
+        from unittest.mock import patch
+        with patch.object(mod, "_check_archive",
+                          side_effect=ValueError("Archived bank SHA mismatch")):
+            with self.assertRaises(mod._SafeStageFailure) as caught:
+                mod.analyze(Path("fake-private-archive"))
+        self.assertEqual(caught.exception.stage, "archive_precheck")
+        self.assertEqual(caught.exception.reason_code, "archive_bank_sha_mismatch")
+        self.assertIsNone(caught.exception.capture_number)
+
+    def test_fabricated_native_maps_tag_only_failing_capture_not_path(self):
+        # Two tiny synthetic zero files, not real game memory or archive.
+        from unittest.mock import patch
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as folder:
+            root=Path(folder)
+            a=root/"fake1.bin"
+            b=root/"fake2.bin"
+            a.write_bytes(b"\\0"*4096)
+            b.write_bytes(b"\\0"*4096)
+            def get_fake(_reader):
+                get_fake.calls+=1
+                if get_fake.calls == 5:
+                    raise mod._SafeStageFailure(
+                        "selected_source_reader", "selected_source_chain_unqualified")
+                return capture(get_fake.calls)
+            get_fake.calls=0
+            with patch.object(mod,"SIZE",(4096,4096)), \
+                 patch.object(mod,"_check_archive",
+                              return_value={i:root for i in range(1,8)}), \
+                 patch.object(mod.src,"_file",
+                              side_effect=lambda *_args: a if _args[1].endswith(".1.raw") else b), \
+                 patch.object(mod,"_get",side_effect=get_fake):
+                with self.assertRaises(mod._SafeStageFailure) as caught:
+                    mod.analyze(root)
+            self.assertEqual(caught.exception.stage, "selected_source_reader")
+            self.assertEqual(caught.exception.capture_number,5)
+            self.assertEqual(caught.exception.reason_code,"selected_source_chain_unqualified")
+            self.assertNotIn(str(root),str(caught.exception))
+
+    def test_middle_cli_reports_stage_and_phase_without_private_source(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        from unittest.mock import patch
+        from json import loads
+        out=StringIO()
+        error=mod._SafeStageFailure("source_ball_pin_config_reader",
+                                     "pin_start_config_source_gate_failed",7)
+        with patch.object(mod,"analyze",side_effect=error):
+            with redirect_stdout(out):
+                code=mod.main(["--archive","PRIVATE_LEAK","--middle-only"])
+        row=loads(out.getvalue())
+        self.assertEqual(code,2)
+        self.assertEqual(row["stage"],"source_ball_pin_config_reader")
+        self.assertEqual(row["capture_number"],7)
+        self.assertEqual(row["reason_code"],"pin_start_config_source_gate_failed")
+        self.assertNotIn("PRIVATE_LEAK",out.getvalue())
 
     def test_archive_wrong_kind_rejected_without_ram(self):
         from unittest.mock import patch
