@@ -69,8 +69,24 @@ def _check_archive(archive: Path) -> dict:
                 raise ValueError("Archived bank SHA mismatch")
     return {n: where for n in sorted(seen)}
 
+class _SafeStageFailure(ValueError):
+    """One fixed-enum stage/phase; never store the raw native exception."""
+    def __init__(self, stage: str, reason_code: str,
+                 capture_number: int | None = None):
+        super().__init__("private source qualification abstained")
+        self.stage = stage
+        self.reason_code = reason_code
+        self.capture_number = capture_number
+
+
 def _get(rd):
-    result = src._sample(rd)
+    try:
+        result = src._sample(rd)
+    except (ValueError, OSError, TypeError, KeyError, OverflowError):
+        # The nested Rev1 source reader has many messages, some including
+        # a private native offset/path. Report ONLY the static failing stage.
+        raise _SafeStageFailure("selected_source_reader",
+                                "selected_source_chain_unqualified") from None
     u = rd.u32
     field = u(roster.GOLF_FIELD_STATIC)
     config = u(roster.GOLF_CONFIG_STATIC)
@@ -288,21 +304,46 @@ def summarize(samples: dict[int, dict]) -> dict:
         "ball_middle_component_hypothesis":middle_candidate
     }
 
-def analyze(archive:Path):
-    folders=_check_archive(archive)
+def analyze(archive: Path):
+    # Stage labels deliberately carry no native path, pointer, hash, or value.
+    try:
+        folders = _check_archive(archive)
+    except (ValueError, OSError, TypeError, KeyError, OverflowError) as exc:
+        raise _SafeStageFailure("archive_precheck",
+                                _safe_reason_code(exc)) from None
     with ExitStack() as stack:
-        snapshots={}
-        for n in range(1,8):
-            mm=[]
-            for i,size in enumerate(SIZE):
-                p=src._file(folders[n],f"{n}.{i+1}.raw",size)
-                f=stack.enter_context(p.open("rb"))
-                mm.append(stack.enter_context(mmap.mmap(f.fileno(),0,access=mmap.ACCESS_READ)))
-            snapshots[n]=_get(roster.TwoBankReader(*mm))
-        report = summarize(snapshots)
-    # Re-check ORIGINAL archived bank SHA after read, not only before mmap.
-    # This catches a file changed during the audit without exposing a digest.
-    _check_archive(archive)
+        snapshots = {}
+        for n in range(1, 8):
+            mm = []
+            try:
+                for i, size in enumerate(SIZE):
+                    p = src._file(folders[n], f"{n}.{i+1}.raw", size)
+                    f = stack.enter_context(p.open("rb"))
+                    mm.append(stack.enter_context(
+                        mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)))
+            except (ValueError, OSError, TypeError, KeyError, OverflowError):
+                raise _SafeStageFailure("native_bank_open_read",
+                                        "native_bank_unreadable", n) from None
+            try:
+                snapshots[n] = _get(roster.TwoBankReader(*mm))
+            except _SafeStageFailure as exc:
+                raise _SafeStageFailure(
+                    exc.stage, exc.reason_code, n) from None
+            except (ValueError, OSError, TypeError, KeyError, OverflowError) as exc:
+                raise _SafeStageFailure(
+                    "source_ball_pin_config_reader",
+                    _safe_reason_code(exc), n) from None
+        try:
+            report = summarize(snapshots)
+        except (ValueError, OSError, TypeError, KeyError, OverflowError) as exc:
+            raise _SafeStageFailure(
+                "source_comparison", _safe_reason_code(exc)) from None
+    # Recheck original SHA *after* the memory maps close.
+    try:
+        _check_archive(archive)
+    except (ValueError, OSError, TypeError, KeyError, OverflowError) as exc:
+        raise _SafeStageFailure("archive_postcheck",
+                                _safe_reason_code(exc)) from None
     return report
 
 def main(argv=None):
@@ -315,11 +356,13 @@ def main(argv=None):
         report=analyze(args.archive)
     except (ValueError, OSError, TypeError, KeyError, OverflowError) as exc:
         if args.middle_only:
+            scoped_error = isinstance(exc, _SafeStageFailure)
             print(json.dumps({
                 "kind": "P0-SANITIZED-SOURCE-SELECTED-BALL-MIDDLE-F32-DIRECTION",
                 "status": "abstained",
-                "stage": "archive_or_source_validation",
-                "reason_code": _safe_reason_code(exc),
+                "stage": exc.stage if scoped_error else "unclassified_validation",
+                "capture_number": exc.capture_number if scoped_error else None,
+                "reason_code": exc.reason_code if scoped_error else _safe_reason_code(exc),
                 "relative_ball_object_offset": "+0x34",
                 "training_approved": False,
                 "allowed_to_publish": False,
