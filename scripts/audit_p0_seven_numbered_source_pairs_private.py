@@ -103,6 +103,35 @@ def _diff(a, b):
         raise ValueError("Incompatible source vectors")
     return sum(x != y for x, y in zip(a,b))
 
+# Deliberately never serialize exception strings from source/native input:
+# they may include private paths, source pointers or filenames.
+_SAFE_REASONS = {
+    "Only archived private captures permitted": "archive_not_in_private_capture_root",
+    "Invalid archive manifest": "archive_manifest_missing_or_invalid",
+    "Unexpected archived cohort identity or training claim": "archive_manifest_unqualified",
+    "Duplicate/missing capture number": "archive_capture_numbering_invalid",
+    "Incomplete paired native snapshot": "archive_native_pair_incomplete",
+    "Unexpected native pair metadata": "archive_bank_metadata_invalid",
+    "Invalid hash provenance": "archive_manifest_hash_invalid",
+    "Archived bank SHA mismatch": "archive_bank_sha_mismatch",
+    "Source-selected ball object/selfref invalid": "selected_ball_source_selfref_invalid",
+    "Source pin/start/config incomplete": "pin_start_config_source_gate_failed",
+    "Exactly seven source-gated samples required": "scalar_missing_seven_phases",
+    "Wedge source owner or object identity changed": "scalar_wedge_owner_or_object_changed",
+    "Wedge Config selector changed": "scalar_wedge_config_changed",
+    "Incomplete source selected triplet": "scalar_source_vector_incomplete",
+    "Incomplete source pin vector": "scalar_pin_vector_incomplete",
+    "Wedge tee or pin changed; cannot isolate ball scalar": "scalar_wedge_geometry_changed",
+    "Invalid private middle-component float32 word": "scalar_middle_word_invalid",
+    "Nonfinite middle-component source value": "scalar_middle_value_nonfinite",
+}
+
+
+def _safe_reason_code(exc: Exception) -> str:
+    # Exact whitelist match ONLY: never embed the exception's raw text.
+    return _SAFE_REASONS.get(str(exc), "archive_or_source_gate_unqualified")
+
+
 def _f32_numeric_middle(word: int) -> float:
     """Decode one source-backed, BE float32 component; never expose its value."""
     if type(word) is not int or not 0 <= word <= 0xFFFFFFFF:
@@ -226,13 +255,13 @@ def summarize(samples: dict[int, dict]) -> dict:
         })
     try:
         middle_candidate = middle_component_study(samples)
-    except ValueError:
+    except ValueError as exc:
         # Preserve the original seven-phase diagnostic when this stricter
         # *optional* scalar study abstains on confounded controls/data.
         middle_candidate = {
             "kind": "P0-SANITIZED-SOURCE-SELECTED-BALL-MIDDLE-F32-DIRECTION",
             "status": "abstained",
-            "reason_code": "wedge_identity_controls_or_f32_unqualified",
+            "reason_code": _safe_reason_code(exc),
             "relative_ball_object_offset": "+0x34",
             "middle_axis_as_world_y_verified": False,
             "source_global_control_measured_in_this_reader": False,
@@ -284,8 +313,20 @@ def main(argv=None):
     args=p.parse_args(argv)
     try:
         report=analyze(args.archive)
-    except (ValueError, OSError, TypeError, KeyError, OverflowError):
-        print("P0 seven-pair source audit ABSTAINED: invalid native pairing, SHA, source scene/ball/pin, or private archive",file=sys.stderr)
+    except (ValueError, OSError, TypeError, KeyError, OverflowError) as exc:
+        if args.middle_only:
+            print(json.dumps({
+                "kind": "P0-SANITIZED-SOURCE-SELECTED-BALL-MIDDLE-F32-DIRECTION",
+                "status": "abstained",
+                "stage": "archive_or_source_validation",
+                "reason_code": _safe_reason_code(exc),
+                "relative_ball_object_offset": "+0x34",
+                "training_approved": False,
+                "allowed_to_publish": False,
+                "wedge_edges": [],
+            }, sort_keys=True, allow_nan=False))
+        else:
+            print("P0 seven-pair source audit ABSTAINED: invalid native pairing, SHA, source scene/ball/pin, or private archive", file=sys.stderr)
         return 2
     scoped = report["ball_middle_component_hypothesis"] if args.middle_only else report
     print(json.dumps(scoped,indent=2,sort_keys=True,allow_nan=False))
