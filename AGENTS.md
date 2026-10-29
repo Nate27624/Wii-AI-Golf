@@ -17,6 +17,10 @@
 
 Use a globally *distinct* `S00N-name` instance label in GitHub comments; an existing GitHub login does not identify an agent. `scripts/agent_init.py` is a read-only local helper and **does not reserve** an identity. S000 may coordinate questions and collisions, but is not a discretionary approval requirement for an objectively merge-ready PR.
 
+## Adaptive task selection
+
+Before a NEW agent selects a role, check the newest `[S000-manager] PRIORITY BOARD V2` on [coordination PR #320](https://github.com/Nate27624/Wii-AI-Golf/pull/320), fresh `main`, live issue CLAIM/HANDOFF notes, and overlapping open PRs. A role recommendation is not an assignment; only post `[INSTANCE] CLAIM` after checking the work is unclaimed and in scope. Use `python scripts/agent_init.py --mode suggest --live` as an optional read-only CLI if authenticated `gh` exists. For the SAME chat, `--mode continue --role ROLE --instance EXISTING --live` retains identity, finishes the existing claim first, then uses the latest manager board to choose the next non-duplicate objective. If live data are unavailable, abstain rather than invent a current priority or approval. See [dynamic workflow](docs/v2-agent-continuity.md).
+
 ## Required agent procedure
 
 1. Read current main and `docs/v2-navigation.md`, `docs/v2-agent-charter.md`, `docs/v2-agent-continuity.md`, and `merging.md`; inspect the live issue/PR queue and existing role claims. For memory work also read `research/memory-variables/README.md` and `research/memory-variables/registry.json`.

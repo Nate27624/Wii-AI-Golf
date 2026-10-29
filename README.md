@@ -28,6 +28,8 @@ A local read-only research test can be performed with `py scripts/golf.py resear
 
 ## Agent workflow
 
+**Dynamic priority selection:** On each `INIT V2` or `CONTINUE V2`, inspect the newest [S000 manager priority board on coordination PR #320](https://github.com/Nate27624/Wii-AI-Golf/pull/320) and *live* claims/PR overlap rather than following a frozen task list. Suggestions do not reserve files or ID. The local read-only helper supports `python scripts/agent_init.py --mode suggest --live`, `--mode init --role S002 --instance S002-memory-c --live`, and `--mode continue --role S002 --instance S002-memory-c --live`; with no GitHub CLI connection, agents should use GitHub connector evidence and verify manually. Same-chat continuation must preserve the existing instance and active claim.
+
 | Workflow | What happens |
 | --- | --- |
 | New agent | Use the operator's existing V2 initiation prompt; pick an unclaimed role-specific instance ID; read canonical docs and GitHub claims; post `[INSTANCE] CLAIM`. If a local checkout exists, run `python scripts/agent_init.py --role S002 --instance S002-memory-a` with a *unique* ID. |
