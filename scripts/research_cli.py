@@ -218,6 +218,34 @@ def _joined_visual_first(run_token: str, start: datetime, *,
                 or human.get("hitting_green_first_ball_context_human_confirmed") is not True
                 or human.get("game_context_verified_by_memory") is not False):
             return invalid
+        # Bridge callback ticks constrain the chronology of one action, but
+        # are not guest physics frames or evidence of rendered ball contact.
+        lead_start = swing.get("a_lead_start_frame")
+        lead_last = swing.get("a_lead_last_observed_frame")
+        trace_start = dispatch.get("start_frame")
+        trace_completion = dispatch.get("completion_dispatch_frame")
+        if any(type(v) is not int or v < 0 for v in
+               (lead_start, lead_last, trace_start, trace_completion)):
+            return invalid
+        if (shot_start > lead_start
+                or lead_last - lead_start != swing["a_lead_observed_frame_delta"]
+                or trace_start <= lead_last
+                or trace_completion != trace_start + 89):
+            return invalid
+        if atomic_a45:
+            # The source-pinned atomic scheduler requires a contiguous
+            # 45-tick prehold followed immediately by 89 movement ticks.
+            # Independently cross-check both producer field representations.
+            prehold_start = dispatch.get("prehold_start_frame")
+            prehold_last = dispatch.get("last_prehold_frame")
+            atomic_trace_start = dispatch.get("trace_start_frame")
+            if (any(type(v) is not int or v < 0 for v in
+                    (prehold_start, prehold_last, atomic_trace_start))
+                    or prehold_start != lead_start + 1
+                    or prehold_last != lead_last
+                    or trace_start != lead_last + 1
+                    or atomic_trace_start != trace_start):
+                return invalid
         if (contact not in ("yes", "no", "unknown") or green not in ("yes", "no", "unknown")
                 or not (type(seen) is bool or seen is None) or type(kind) is not str
                 or kind not in ("green", "offgreen", "uncertain", "transitioned")
