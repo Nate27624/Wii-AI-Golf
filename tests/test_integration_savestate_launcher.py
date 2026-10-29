@@ -36,9 +36,10 @@ class SessionLaunchTests(unittest.TestCase):
     def setUp(self):
         self.temp = TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.exe = Path(self.temp.name) / "Dolphin.exe"
-        self.bridge = Path(self.temp.name) / "bridge.py"
-        self.game = Path(self.temp.name) / "game.rvz"
+        base = Path(self.temp.name).resolve()
+        self.exe = base / "Dolphin.exe"
+        self.bridge = base / "bridge.py"
+        self.game = base / "game.rvz"
         for x in (self.exe, self.bridge, self.game):
             x.write_bytes(b"fake")
         self.args = SimpleNamespace(dolphin=str(self.exe), bridge=str(self.bridge),
