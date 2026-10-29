@@ -42,7 +42,7 @@ def main() -> int:
     print(f"HEAD={git('rev-parse', 'HEAD')}")
     print(f"WORKTREE_STATUS={git('status', '--porcelain') or 'clean'}")
     print(f"CHARTER={charter.relative_to(root)}")
-    print("READ docs/merging-requirements.md and docs/p0-pr-consolidation-lanes.md")
+    print("READ root merging.md (canonical self-merge checklist) and docs/p0-pr-consolidation-lanes.md")
     print("READ current owner PR, inspect latest main and sibling overlaps.")
     print("POST: [AGENT_ID] CLAIM | owner PR | inputs | outputs | changed paths | test plan")
     print("POST: [AGENT_ID] HANDOFF | branch/head | tests | evidence | blockers | next owner")
