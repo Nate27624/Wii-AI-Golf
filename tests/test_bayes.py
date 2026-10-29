@@ -61,7 +61,9 @@ class BayesianTests(unittest.TestCase):
         archived_best = ShotAction(-1.0, 0.0)
         recent_duplicate = ShotAction(1.0, 1.0)
         policy.observe(state, archived_best, ShotResult(0.0, False))
-        for _ in range(2):
+        # More than 256 entries crosses the bounded duplicate-scan chunks.
+        # Only the final two entries enter the surrogate's fitted kernel.
+        for _ in range(258):
             policy.observe(state, recent_duplicate, ShotResult(10.0, False))
         self.assertEqual(policy.act(state), archived_best)
         # Force the global incumbent into the proposal pool, so this
