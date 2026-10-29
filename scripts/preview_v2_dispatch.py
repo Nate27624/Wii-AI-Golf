@@ -199,7 +199,7 @@ def find_handoff(row: dict, issue_comments: list, *, verified_main: str,
             continue
         url = comment.get("html_url", "")
         if not isinstance(url, str) or not re.fullmatch(
-                r"https://github\\.com/Nate27624/Wii-AI-Golf/(issues|pull)/[1-9][0-9]*#issuecomment-[1-9][0-9]*", url):
+                r"https://github\.com/Nate27624/Wii-AI-Golf/(issues|pull)/[1-9][0-9]*#issuecomment-[1-9][0-9]*", url):
             continue
         latest = {"instance": row["instance"], "task_id": row["task_id"],
                   "status": "COMPLETE_RELEASED", "main_sha": verified_main,
@@ -235,7 +235,7 @@ def load_live() -> tuple[dict, dict, str, list]:
         if row["role"] == "S000" or row["state"] not in ACTIVE:
             continue
         issue = re.fullmatch(
-            r"https://github\\.com/Nate27624/Wii-AI-Golf/(?:issues|pull)/([1-9][0-9]*)",
+            r"https://github\.com/Nate27624/Wii-AI-Golf/(?:issues|pull)/([1-9][0-9]*)",
             row["thread"])
         if issue is None:
             raise ValueError("Invalid owner issue")
