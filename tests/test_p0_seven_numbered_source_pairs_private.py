@@ -198,6 +198,21 @@ class TestSeven(unittest.TestCase):
         self.assertEqual([x["transition"] for x in output["wedge_edges"]],
                          ["5_to_6","6_to_7","5_to_7"])
 
+    def test_confounded_scalar_abstains_without_suppressing_original_audit(self):
+        for key in ("cfg_c4", "pin"):
+            phases=seven()
+            if key == "pin":
+                phases[6]["pin_obj"]=777
+            else:
+                phases[6]["cfg_c4"]=999
+            with self.subTest(key=key):
+                report=mod.summarize(phases)
+                self.assertEqual(report["ball_middle_component_hypothesis"]["status"],
+                                 "abstained")
+                self.assertEqual(report["ball_middle_component_hypothesis"]["wedge_edges"],[])
+                self.assertFalse(report["ball_middle_component_hypothesis"]["allowed_to_publish"])
+                self.assertEqual(len(report["comparisons"]),5)
+
     def test_archive_wrong_kind_rejected_without_ram(self):
         from unittest.mock import patch
         from tempfile import TemporaryDirectory
