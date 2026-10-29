@@ -229,7 +229,7 @@ class PostshotFollowupPrivateTests(unittest.TestCase):
                     p1.write_bytes(b"Z"*64)
                 return digest
 
-            with patch.dict(follow.SIZES,{"MEM1":64,"MEM2":96},clear=True), \\
+            with patch.dict(follow.SIZES,{"MEM1":64,"MEM2":96},clear=True), \
                     patch.object(follow,"_hash",side_effect=overwrite_after_initial_hash):
                 with self.assertRaisesRegex(ValueError, "changed during offline"):
                     follow._phase_read(folder,"RESULT",hashes,source=False)
@@ -261,10 +261,10 @@ class PostshotFollowupPrivateTests(unittest.TestCase):
                 (folder/"PRE-MEM1.bin").write_bytes(b"X"*64)
                 return None,None,hashset
 
-            with patch.dict(follow.SIZES,{"MEM1":64,"MEM2":96},clear=True), \\
-                    patch.object(follow.selected,"DATA_ROOT",root), \\
-                    patch.object(follow.prepost,"run_local",return_value=BASE), \\
-                    patch.object(follow.prepost,"_manifest",return_value=original), \\
+            with patch.dict(follow.SIZES,{"MEM1":64,"MEM2":96},clear=True), \
+                    patch.object(follow.selected,"DATA_ROOT",root), \
+                    patch.object(follow.prepost,"run_local",return_value=BASE), \
+                    patch.object(follow.prepost,"_manifest",return_value=original), \
                     patch.object(follow,"_phase_read",side_effect=fake_result_phase):
                 with self.assertRaisesRegex(ValueError,"changed during offline"):
                     follow.run_local(folder)
