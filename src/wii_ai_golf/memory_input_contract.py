@@ -12,6 +12,8 @@ from enum import Enum
 class Rejection(str, Enum):
     RUN_MISMATCH = "run_mismatch"
     SHOT_MISMATCH = "shot_mismatch"
+    SCENE_MISMATCH = "scene_mismatch"
+    HOLE_MISMATCH = "hole_mismatch"
     FRAME_MISMATCH = "guest_frame_mismatch"
     STALE_FRAME = "stale_frame"
     ACTOR_MISMATCH = "actor_mismatch"
@@ -32,6 +34,8 @@ class InputReceipt:
     callback_seen: bool
     game_side_a_accepted: bool
     contact_witness: bool
+    scene_id: str = ""
+    hole_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -47,6 +51,8 @@ class ActorReceipt:
     rendered_generation: str
     source_state: str
     human_label: str
+    scene_id: str = ""
+    hole_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -60,6 +66,8 @@ class OutcomeReceipt:
     measurement: str
     censored: bool
     distance_label: str = ""
+    scene_id: str = ""
+    hole_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -99,6 +107,13 @@ def join_memory_input_observation(
         reject(Rejection.RUN_MISMATCH)
     if not all(shots) or len(set(shots)) != 1:
         reject(Rejection.SHOT_MISMATCH)
+
+    scenes = (input_receipt.scene_id, actor.scene_id, outcome.scene_id)
+    holes = (input_receipt.hole_id, actor.hole_id, outcome.hole_id)
+    if not all(scenes) or len(set(scenes)) != 1:
+        reject(Rejection.SCENE_MISMATCH)
+    if not all(holes) or len(set(holes)) != 1:
+        reject(Rejection.HOLE_MISMATCH)
 
     frames = (input_receipt.guest_frame, actor.guest_frame, outcome.guest_frame)
     if any(type(f) is not int or f < 0 for f in frames):
