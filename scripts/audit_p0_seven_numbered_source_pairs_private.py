@@ -269,7 +269,11 @@ def analyze(archive:Path):
                 f=stack.enter_context(p.open("rb"))
                 mm.append(stack.enter_context(mmap.mmap(f.fileno(),0,access=mmap.ACCESS_READ)))
             snapshots[n]=_get(roster.TwoBankReader(*mm))
-        return summarize(snapshots)
+        report = summarize(snapshots)
+    # Re-check ORIGINAL archived bank SHA after read, not only before mmap.
+    # This catches a file changed during the audit without exposing a digest.
+    _check_archive(archive)
+    return report
 
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
