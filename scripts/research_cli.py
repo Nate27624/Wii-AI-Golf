@@ -362,12 +362,122 @@ def _git(args: list[str], *, cwd: Path) -> str:
     return p.stdout.strip()
 
 
+def _public_observation_record(summary: dict) -> dict:
+    """Re-authorize and project the ONLY two publishable record kinds.
+
+    The CLI gate is not a trust boundary: direct Python callers can invoke
+    publish_summary(). Never write the caller's dictionary to GitHub, even
+    when it contains a plausible capture status or private extra fields.
+    """
+    if type(summary) is not dict or summary.get("schema") != 1:
+        raise ValueError("invalid observation schema")
+    token, kind = summary.get("id"), summary.get("kind")
+    if type(token) is not str or re.fullmatch(
+            r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{10}", token) is None:
+        raise ValueError("unsafe observation id")
+    if kind not in ("test", "v1"):
+        raise ValueError("unpublishable observation kind")
+    if (type(summary.get("process_exit_code")) is not int
+            or summary["process_exit_code"] != 0
+            or summary.get("verified_game_score") is not False):
+        raise ValueError("failed or unverified observation")
+    try:
+        start = datetime.fromisoformat(summary["started_utc"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("invalid UTC timestamp") from exc
+    if start.tzinfo is None or start.utcoffset() is None:
+        raise ValueError("missing UTC offset")
+    commit = summary.get("git_commit")
+    if type(commit) is not str or not (
+            commit == "unavailable"
+            or re.fullmatch(r"[a-f0-9]{40}", commit)):
+        raise ValueError("invalid Git commit identity")
+    record = {
+        "schema": 1, "id": token, "kind": kind,
+        "started_utc": start.isoformat(), "git_commit": commit,
+        "process_exit_code": 0, "verified_game_score": False,
+    }
+    if kind == "test":
+        pattern = summary.get("test_pattern")
+        if (summary.get("outcome") != "pass"
+                or type(pattern) is not str or len(pattern) > 80
+                or not re.fullmatch(r"[A-Za-z0-9_.?*-]+", pattern)):
+            raise ValueError("invalid offline test status")
+        record.update({"outcome": "pass", "test_pattern": pattern})
+        return record
+
+    # The present, exactly named no-RAM child report must STILL validate at
+    # the publication boundary, not only when main() first joined it.
+    if (summary.get("visual_first") is not True
+            or summary.get("capture_status") != "visual_first_joined"
+            or summary.get("shot_dispatch_verified_by_collector") is not True
+            or summary.get("informative_action_outcome_trial") is not True
+            or summary.get("hitting_green_first_ball_context_human_confirmed") is not True
+            or summary.get("game_id_revision_mode_machine_verified") is not False
+            or summary.get("numeric_distance_target_eligible") is not False
+            or summary.get("train_approved") is not False
+            or summary.get("physical_distance_verified") is not False
+            or summary.get("bridge_source_changed_during_action") is True):
+        raise ValueError("unjoined or ineligible V1 observation")
+    controller = summary.get("controller")
+    if type(controller) is not dict:
+        raise ValueError("missing sanitized controller metadata")
+    lead = summary.get("requested_a_lead_frames")
+    speed = summary.get("requested_speed_scale")
+    backswing = summary.get("requested_backswing_scale")
+    atomic = controller.get("a_lead_atomic_bridge_callback") is True
+    if (type(lead) is not int or lead != 45
+            or type(speed) not in (float, int) or speed != 1.0
+            or type(backswing) not in (float, int) or backswing not in (1.0, 1.2)
+            or summary.get("requested_motion_scale") != 1.0):
+        raise ValueError("unregistered V1 settings")
+    joined = _joined_visual_first(token, start, a_lead=lead, speed=speed,
+                                  backswing=backswing, atomic_a45=atomic)
+    fields = (
+        "capture_status", "shot_dispatch_verified_by_collector",
+        "informative_action_outcome_trial",
+        "hitting_green_first_ball_context_human_confirmed",
+        "game_id_revision_mode_machine_verified", "controller", "human",
+        "settled_screen_observation", "outcome_is_censored_penalty",
+        "numeric_distance_target_eligible", "train_approved",
+        "verified_game_score", "physical_distance_verified",
+    )
+    if (joined.get("capture_status") != "visual_first_joined"
+            or joined.get("informative_action_outcome_trial") is not True
+            or any(summary.get(key) != joined.get(key) for key in fields)):
+        raise ValueError("V1 child identity or outcome changed before publication")
+    # Source SHA is another independently checked parent precondition. An
+    # externally constructed record must not skip the active bridge check.
+    from wii_ai_golf.shared.bridge_provenance import inspect_bridge_file
+    bridge = ROOT.parent / "tools" / (
+        "mcp_bridge_swing_atomic_a45.py" if atomic
+        else "mcp_bridge_swing_legacy_eval.py")
+    bridge_identity = inspect_bridge_file(bridge)
+    digest = summary.get("bridge_sha256")
+    if (type(digest) is not str or re.fullmatch(r"[a-f0-9]{64}", digest) is None
+            or bridge_identity.get("sha256") != digest
+            or bridge_identity.get("revision") != (
+                "V1-atomic-a45" if atomic else "V1-neutral-swing-calls")
+            or (not atomic and bridge_identity.get("safe_for_isolated_legacy_copy") is not True)):
+        raise ValueError("V1 bridge provenance unqualified")
+    record.update({
+        "visual_first": True, "bridge_sha256": digest,
+        "requested_a_lead_frames": lead,
+        "requested_motion_scale": 1.0,
+        "requested_speed_scale": speed,
+        "requested_backswing_scale": backswing,
+        **{key: joined[key] for key in fields},
+    })
+    return record
+
+
 def publish_summary(summary: dict) -> str:
     """Append a tiny allowlisted record to a separate branch, never main.
 
     Uses a temporary shallow clone to keep the operator's code working tree
     untouched. Refuses to create a new branch implicitly or force-push.
     """
+    public = _public_observation_record(summary)  # validate BEFORE any Git/network operation
     with tempfile.TemporaryDirectory(prefix="wii-golf-observation-") as tmp:
         work = Path(tmp)
         # Reuse configured origin URL only after sync_merged_main verified it.
@@ -380,15 +490,15 @@ def publish_summary(summary: dict) -> str:
         repo = work / "repo"
         target = repo / "research" / "observations"
         target.mkdir(parents=True, exist_ok=True)
-        name = summary["id"] + ".json"
+        name = public["id"] + ".json"
         file = target / name
         with file.open("x", encoding="utf-8") as out:
-            json.dump(summary, out, indent=2, sort_keys=True, allow_nan=False)
+            json.dump(public, out, indent=2, sort_keys=True, allow_nan=False)
             out.write("\n")
         _git(["add", "--", str(file.relative_to(repo))], cwd=repo)
         _git(["-c", "user.name=Wii Golf Research Worker",
               "-c", "user.email=research-worker@users.noreply.github.com",
-              "commit", "-m", "research: record sanitized " + summary["kind"] + " result"], cwd=repo)
+              "commit", "-m", "research: record sanitized " + public["kind"] + " result"], cwd=repo)
         # No force. Concurrent writers are never overwritten; operator can
         # retry publish from locally preserved summary if needed.
         _git(["push", "origin", "HEAD:" + OBS_BRANCH], cwd=repo)
