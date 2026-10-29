@@ -9,8 +9,8 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Baseline = 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\ball-study-20261027-212633',
-    [string]$Flight = 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures\in-flight-human-20261028-054537477',
+    [string]$Baseline,
+    [string]$Flight,
     [switch]$TestsOnly
 )
 
@@ -104,9 +104,14 @@ if (-not (Test-Path -LiteralPath $repo -PathType Container)) {
 if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
     throw 'Python launcher required'
 }
-$Baseline = Require-PrivateDirectory $Baseline
-$Flight = Require-PrivateDirectory $Flight
-if ($Baseline -ceq $Flight) { throw 'Baseline and flight cannot be identical directory' }
+if (-not $TestsOnly) {
+    if ([string]::IsNullOrWhiteSpace($Baseline) -or [string]::IsNullOrWhiteSpace($Flight)) {
+        throw 'Explicit private Baseline and Flight directories required for native analysis'
+    }
+    $Baseline = Require-PrivateDirectory $Baseline
+    $Flight = Require-PrivateDirectory $Flight
+    if ($Baseline -ceq $Flight) { throw 'Baseline and flight cannot be identical directory' }
+}
 
 Write-Host 'P0_MATRIX_OFFLINE_READ_ONLY=True'
 Ensure-PinnedWorktree 224 $pinSHA $pinWork
