@@ -15,7 +15,7 @@ Use stable **role IDs**, never GitHub login as identity (multiple agents can sha
 | S004 | Optimization/training | Baselines and fitting gated on eligible verified records | Declare unverified data trainable |
 | S005 | Evaluation | Held-out scenarios, ranking/censoring, acceptance tests | Change producer contract unreviewed |
 
-Only S000 integrates cross-domain contracts; domain owners review contract changes. One integration PR per shared module, at most two active per instance. No new research PR just to record one observation.
+S000 coordinates cross-domain contracts, but agents self-merge whenever every objective rule in `merging.md` passes. No routine external AI approval is required. Contract collisions must be resolved and tested, not bypassed. One integration PR per shared module, at most two active per instance. No new research PR just to record one observation.
 
 ## Initialization contract
 1. Run `python scripts/agent_init.py --role S002 --instance S002-memory-a` (substitute role/instance); read its printed charter and checks.
@@ -23,14 +23,14 @@ Only S000 integrates cross-domain contracts; domain owners review contract chang
 3. Post `[INSTANCE] CLAIM` on the existing owner PR/issue: specific input, output, paths, contract, overlap check and expected test.
 4. Do exactly one self-contained task. No competing UI, launcher, memory scanner or PowerShell replacement.
 5. Post `[INSTANCE] HANDOFF` containing branch/head, changed paths, tests and exact SHA, evidence confidence, blockers, and next owner.
-6. Do not merge without exact-head full offline tests, required reviews, clean ancestry, non-draft/branch protection. No force-push and no direct changes to main.
+6. Follow `merging.md` as the sole repository checklist: exact-head full offline tests, clean ancestry, non-draft, zero unresolved collisions, required GitHub protection checks. Self-merge when PASS; no discretionary AI signoff. No force-push and no direct changes to main.
  
 ## Consolidation stages
 - Stage A: Archive baseline commit/branches/PR references; classify each as integrated, reusable code, evidence-only, superseded, active. Preserve history.
 - Stage B: Extract minimal source readers, startup/controller and result-first handling *selectively* from current main and reviewed branches; avoid wholesale stacked merges.
 - Stage C: Establish one canonical shot identity & observation schema, typed finite coordinates with negative controls, terminal-result censoring.
 - Stage D: Validate focused and full offline suite, human-supervised single-run live test only with explicit separate operator authorization.
-- Stage E: Promote only after parity and safety review; close superseded PRs with evidence links, without deleting their branches.
+- Stage E: Promote only after objective parity and safety checks pass per `merging.md`; close superseded PRs with evidence links, without deleting their branches.
 
 ## Acceptance gates
 - Single known-clean Dolphin startup (not launched automatically by agent_init), atomic A45 callback + original waveform only when operator opts in, no duplicated launcher.
