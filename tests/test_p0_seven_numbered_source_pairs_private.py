@@ -338,6 +338,116 @@ class TestSeven(unittest.TestCase):
         self.assertEqual(row["reason_code"],"pin_start_config_source_gate_failed")
         self.assertNotIn("PRIVATE_LEAK",out.getvalue())
 
+    def test_manifest_object_shapes_fail_closed_with_only_sanitized_codes(self):
+        # All descriptors are fabricated metadata; native banks are never opened.
+        from contextlib import redirect_stdout
+        from io import StringIO
+        from json import dumps, loads
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+        valid = {
+            "kind": "p0-private-numbered-capture-inventory",
+            "training_approved": False,
+            "human_phase_file_mapping_verified": False,
+            "capture_count": 7,
+            "capture_numbers": list(range(1, 8)),
+            "captures": [
+                {"capture_number": n, "banks": [
+                    {"file": f"{n}.{i+1}.raw",
+                     "bank": ("MEM1", "MEM2")[i],
+                     "bytes": mod.SIZE[i],
+                     "copy_verified": True,
+                     "sha256": "a" * 64} for i in range(2)]
+                } for n in range(1, 8)],
+        }
+        wrong_shapes = [
+            ("root_list", [], "archive_manifest_object_invalid"),
+            ("root_null", None, "archive_manifest_object_invalid"),
+            ("capture_null", "capture", "archive_capture_descriptor_invalid"),
+            ("capture_list", "capture_list", "archive_capture_descriptor_invalid"),
+            ("bank_null", "bank", "archive_bank_descriptor_invalid"),
+            ("bank_integer", "bank_int", "archive_bank_descriptor_invalid"),
+        ]
+        with TemporaryDirectory() as t:
+            root = Path(t)
+            archive = root / "captures" / "cohort-private"
+            archive.mkdir(parents=True)
+            manifest_file = archive / "manifest-PRIVATE.json"
+            with patch.object(mod.src.selected, "DATA_ROOT", root), \
+                 patch.object(mod.src, "_file",
+                              side_effect=AssertionError("native file must not open")), \
+                 patch.object(mod.src, "_hash_file",
+                              side_effect=AssertionError("native hash must not run")):
+                for label, value, expected in wrong_shapes:
+                    with self.subTest(label=label):
+                        if value in ("capture", "capture_list", "bank", "bank_int"):
+                            bad = deepcopy(valid)
+                            if value == "capture":
+                                bad["captures"][0] = None
+                            elif value == "capture_list":
+                                bad["captures"][0] = []
+                            elif value == "bank":
+                                bad["captures"][0]["banks"][0] = None
+                            else:
+                                bad["captures"][0]["banks"][0] = 42
+                        else:
+                            bad = value
+                        manifest_file.write_text(dumps(bad), encoding="utf-8")
+                        output = StringIO()
+                        with redirect_stdout(output):
+                            rc = mod.main(["--archive", str(archive), "--middle-only"])
+                        self.assertEqual(rc, 2)
+                        row = loads(output.getvalue())
+                        self.assertEqual(row["status"], "abstained")
+                        self.assertEqual(row["stage"], "archive_precheck")
+                        self.assertEqual(row["reason_code"], expected)
+                        self.assertFalse(row["training_approved"])
+                        self.assertFalse(row["allowed_to_publish"])
+                        self.assertNotIn(str(root), output.getvalue())
+                        self.assertNotIn("Traceback", output.getvalue())
+                # The new type guards must not reject a well-formed manifest.
+                manifest_file.write_text(dumps(valid), encoding="utf-8")
+                with patch.object(mod.src, "_file", return_value=Path("synthetic")), \
+                     patch.object(mod.src, "_hash_file", return_value="a" * 64):
+                    self.assertEqual(set(mod._check_archive(archive)),
+                                     set(range(1, 8)))
+
+    def test_post_read_sha_failure_still_abstains_with_stage(self):
+        # Preserve the existing #231 postcheck, rather than duplicate #243's
+        # stale analyzer implementation. All mapped files are tiny synthetic.
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+        with TemporaryDirectory() as t:
+            root = Path(t)
+            mem1 = root / "fake1.bin"
+            mem2 = root / "fake2.bin"
+            mem1.write_bytes(b"\0" * 4096)
+            mem2.write_bytes(b"\0" * 4096)
+            folders = {n: root for n in range(1, 8)}
+            with patch.object(mod, "SIZE", (4096, 4096)), \
+                 patch.object(mod.src, "_file",
+                              side_effect=lambda _folder, filename, _size:
+                                  mem1 if filename.endswith(".1.raw") else mem2), \
+                 patch.object(mod.roster, "TwoBankReader",
+                              return_value=object()), \
+                 patch.object(mod, "_get", return_value={"synthetic": True}), \
+                 patch.object(mod, "summarize",
+                              return_value={"synthetic": True}):
+                with patch.object(mod, "_check_archive",
+                                  side_effect=[folders, ValueError(
+                                      "Archived bank SHA mismatch")]) as check:
+                    with self.assertRaises(mod._SafeStageFailure) as caught:
+                        mod.analyze(root)
+                    self.assertEqual(caught.exception.stage, "archive_postcheck")
+                    self.assertEqual(caught.exception.reason_code,
+                                     "archive_bank_sha_mismatch")
+                    self.assertEqual(check.call_count, 2)
+                    self.assertNotIn(str(root), str(caught.exception))
+                with patch.object(mod, "_check_archive",
+                                  side_effect=[folders, folders]) as check:
+                    self.assertEqual(mod.analyze(root), {"synthetic": True})
+                    self.assertEqual(check.call_count, 2)
+
     def test_archive_wrong_kind_rejected_without_ram(self):
         from unittest.mock import patch
         from tempfile import TemporaryDirectory

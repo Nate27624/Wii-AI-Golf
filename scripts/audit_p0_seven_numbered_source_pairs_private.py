@@ -38,6 +38,8 @@ def _check_archive(archive: Path) -> dict:
     if p.is_symlink() or not p.is_file() or p.stat().st_size > 65536:
         raise ValueError("Invalid archive manifest")
     m = json.loads(p.read_text(encoding="utf-8-sig"))
+    if type(m) is not dict:
+        raise ValueError("Invalid archive manifest object")
     if (m.get("kind") != "p0-private-numbered-capture-inventory"
             or m.get("training_approved") is not False
             or m.get("human_phase_file_mapping_verified") is not False
@@ -48,6 +50,8 @@ def _check_archive(archive: Path) -> dict:
         raise ValueError("Unexpected archived cohort identity or training claim")
     seen = set()
     for item in m["captures"]:
+        if type(item) is not dict:
+            raise ValueError("Invalid capture descriptor object")
         n = item.get("capture_number")
         if type(n) is not int or n not in range(1, 8) or n in seen:
             raise ValueError("Duplicate/missing capture number")
@@ -56,6 +60,8 @@ def _check_archive(archive: Path) -> dict:
         if not isinstance(banks, list) or len(banks) != 2:
             raise ValueError("Incomplete paired native snapshot")
         for i, desc in enumerate(banks):
+            if type(desc) is not dict:
+                raise ValueError("Invalid bank descriptor object")
             filename = f"{n}.{i+1}.raw"
             if (desc.get("file") != filename
                     or desc.get("bank") != ("MEM1", "MEM2")[i]
@@ -124,6 +130,9 @@ def _diff(a, b):
 _SAFE_REASONS = {
     "Only archived private captures permitted": "archive_not_in_private_capture_root",
     "Invalid archive manifest": "archive_manifest_missing_or_invalid",
+    "Invalid archive manifest object": "archive_manifest_object_invalid",
+    "Invalid capture descriptor object": "archive_capture_descriptor_invalid",
+    "Invalid bank descriptor object": "archive_bank_descriptor_invalid",
     "Unexpected archived cohort identity or training claim": "archive_manifest_unqualified",
     "Duplicate/missing capture number": "archive_capture_numbering_invalid",
     "Incomplete paired native snapshot": "archive_native_pair_incomplete",
