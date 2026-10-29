@@ -25,11 +25,12 @@ Start from the latest `main`, review the live queue and existing CLAIM comments,
 | Research / result-first orchestration | `scripts/research_cli.py` |
 | Human outcome collection | `scripts/collect_outcome_transition.py` |
 | Atomic controller preparation | `scripts/prepare_atomic_a45_bridge.py` |
-| Seven-phase source research | parent PR #231, not yet integrated into main |
-| Global-ball provenance research | parent PR #240, not yet integrated into main |
+| Seven-phase **read-only source-gated offline reader** | `scripts/audit_p0_seven_numbered_source_pairs_private.py` on `main` (merged PR #331) |
+| Additional seven-phase experimental research | parent PR #231 and stacked studies; **not** all merged into `main` |
+| Global-ball provenance research | parent PR #240, not yet integrated into `main` |
 | Manager procedure | `docs/S000-manager-playbook.md` |
 
-The source readers on those research branches must not be represented as merged functionality.
+PR #331 integrated only the minimal seven-phase **offline** SHA/source-reader dependency closure and its synthetic tests; it did **not** import the remaining #231 experiments or independent #240 global-ball reader. None of these source comparisons verifies the rendered ball, a guest physics frame, physical XYZ or velocity, a shot outcome, or training eligibility. Continue to treat the human-labeled D1 airborne-versus-START equality as unresolved. Do not describe unmerged research-branch functionality as available on `main`.
 
 ## Functional milestones
 

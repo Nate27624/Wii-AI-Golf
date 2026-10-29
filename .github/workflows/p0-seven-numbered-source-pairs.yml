@@ -6,7 +6,16 @@ on:
   pull_request:
     paths:
       - 'scripts/audit_p0_seven_numbered_source_pairs_private.py'
+      - 'scripts/audit_p0_inflight_vs_b0_private.py'
+      - 'scripts/audit_golf_two_bank_roster_private.py'
+      - 'scripts/audit_selected_ball_four_phase_private.py'
+      - 'scripts/audit_selected_ball_start_link_private.py'
       - 'tests/test_p0_seven_numbered_source_pairs_private.py'
+      - 'tests/test_p0_inflight_vs_b0_private.py'
+      - 'tests/test_golf_two_bank_roster_private.py'
+      - 'tests/test_selected_ball_four_phase_private.py'
+      - 'tests/test_selected_ball_start_link_private.py'
+      - 'docs/v2-navigation.md'
       - '.github/workflows/p0-seven-numbered-source-pairs.yml'
   workflow_dispatch:
 permissions:
