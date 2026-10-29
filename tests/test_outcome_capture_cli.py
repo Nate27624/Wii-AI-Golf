@@ -45,11 +45,16 @@ class OutcomeCaptureCliTests(unittest.TestCase):
         with patch("scripts.collect_outcome_transition.SwingTraceClient", Recorder):
             with tempfile.TemporaryDirectory() as folder:
                 inputs = iter(["", "", "", "yes", "no", "100ft"])
-                run_session(object(), raw_path=Path(folder) / "a.jsonl",
+                result = run_session(object(), raw_path=Path(folder) / "a.jsonl",
                             pre_samples=2, post_samples=2, settled_samples=2,
                             interval=0, backswing_scale=0.8,
                             input_fn=lambda _p: next(inputs),
                             snapshot_fn=lambda _r, phase: row(phase, 1))
+        self.assertEqual(result["human_observation"]["displayed_distance_human"], 100)
+        self.assertEqual(result["human_observation"]["displayed_unit_human"], "ft")
+        self.assertEqual(result["human_observation"]["finished_on_green_human"], "no")
+        self.assertIsNone(
+            result["candidate_ranking"]["human_displayed_distance_raw_unverified"])
         after = recorded["samples"]
         self.assertEqual(len(after), len(baseline))
         for old, new in zip(baseline, after):
@@ -83,6 +88,9 @@ class OutcomeCaptureCliTests(unittest.TestCase):
                 ["pre", "pre", "swing", "post", "post", "settled", "settled"])
             self.assertEqual(result["candidate_ranking"]["all_phase_stable_change_count"], 1)
             self.assertEqual(result["human_observation"]["displayed_distance_human"], 12.5)
+            self.assertEqual(
+                result["candidate_ranking"]["human_displayed_distance_raw_unverified"],
+                12.5)
             self.assertEqual(result["known_good_swing_request"]["generated_trace_frames"],
                              len(build_probe("forward", follow_through_frames=30)))
             self.assertFalse(result["candidate_ranking"]["game_score_verified"])
