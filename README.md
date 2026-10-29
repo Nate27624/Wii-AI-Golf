@@ -1,5 +1,7 @@
 # Wii AI Golf
 
+> **New agents / V2 source of truth:** Start with [V2 navigation](docs/v2-navigation.md), [role charter](docs/v2-agent-charter.md), [continuity and successor handoff](docs/v2-agent-continuity.md), and root [merging policy](merging.md). Verify current `main` and live PR ownership before coding. Some sections below document earlier GUI/launcher workflows and historical experiments; do **not** treat older descriptions as current V2 authority or as permission for a live shot.
+
 ## Persistent game-memory variable catalog (for all agents and future training)
 
 The canonical, versioned [game-memory variable registry](research/memory-variables/registry.json) tracks what each candidate means, its RSPE01 Rev1 static root/pointer offsets and read type, confidence, missing controls, and whether it is approved as a training input or label. Follow the [agent documentation and verification contract](research/memory-variables/README.md) before starting memory research. Agents **must update an existing variable ID or add a new one in their PR** when discovering, falsifying or validating RAM fields; findings do not live only in chat or unsearchable JSON dumps.
