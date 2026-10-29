@@ -100,6 +100,40 @@ class MemoryRegistryTests(unittest.TestCase):
         self.assertTrue(all(not v["training"]["approved"]
                             for v in self.payload["variables"]))
 
+
+    def test_main_counter_historical_real_result_not_still_pending(self):
+        v = next(x for x in self.payload["variables"]
+                 if x["id"] == "golf.unknown_main_counter")
+        self.assertIn("REAL OPERATOR SEVEN-PHASE", v["evidence"]["observed_behavior"])
+        self.assertNotIn("STUDY-PENDING", v["evidence"]["observed_behavior"])
+        self.assertFalse(any("run PR #238" in s for s in v["required_controls"]))
+        self.assertFalse(v["training"]["approved"])
+
+    def test_config_score_table_orientation_remains_unverified(self):
+        config = next(x for x in self.payload["variables"]
+                      if x["id"] == "golf.config.standard_scores_table_4x9")
+        seq = next(x for x in self.payload["variables"]
+                   if x["id"] == "golf.sequence_mgr.golf_scores_hole_major_9x4")
+        self.assertIn("layout_unverified", config["datatype"])
+        self.assertIn("0/36", config["evidence"]["observed_behavior"])
+        self.assertIn("#278", config["evidence"]["observed_behavior"])
+        self.assertNotEqual(config["memory_locator"]["expression"],
+                            seq["memory_locator"]["expression"])
+        self.assertFalse(config["training"]["approved"])
+        self.assertFalse(seq["training"]["approved"])
+
+    def test_target_effect_emitter_negative_control_not_trainable(self):
+        v = next(x for x in self.payload["variables"]
+                 if x["id"] == "golf.field_manager.kill_target_effect_emitter")
+        self.assertEqual(v["status"], "snapshot_correlated")
+        self.assertEqual(v["datatype"], "bool_u8")
+        self.assertIn("0xA4", v["memory_locator"]["expression"])
+        self.assertIn("false 7/7", v["evidence"]["observed_behavior"])
+        self.assertIn("14/14 bank SHA", v["evidence"]["observed_behavior"])
+        self.assertFalse(v["training"]["approved"])
+        self.assertFalse(v["training"]["eligible_as_input"])
+        self.assertFalse(v["training"]["eligible_as_label"])
+
     def test_duplicate_id_is_rejected(self):
         self.payload["variables"].append(copy.deepcopy(self.variable))
         self.assertTrue(any("duplicate id" in s for s in validator.validate_registry(self.payload)))
