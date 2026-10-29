@@ -160,6 +160,7 @@ def middle_component_study(samples: dict[int, dict]) -> dict:
         })
     return {
         "kind": "P0-SANITIZED-SOURCE-SELECTED-BALL-MIDDLE-F32-DIRECTION",
+        "status": "source_numeric_direction_only",
         "relative_ball_object_offset": "+0x34",
         "component_index_zero_based": 1,
         "candidate_role": "unverified_vertical_height_hypothesis",
@@ -278,14 +279,17 @@ def analyze(archive:Path):
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--archive",required=True,type=Path)
+    p.add_argument("--middle-only",action="store_true",
+                   help="Print only sanctioned ball+0x34 categorical hypothesis (no raw floats)")
     args=p.parse_args(argv)
     try:
         report=analyze(args.archive)
     except (ValueError, OSError, TypeError, KeyError, OverflowError):
         print("P0 seven-pair source audit ABSTAINED: invalid native pairing, SHA, source scene/ball/pin, or private archive",file=sys.stderr)
         return 2
-    print(json.dumps(report,indent=2,sort_keys=True,allow_nan=False))
-    return 0
+    scoped = report["ball_middle_component_hypothesis"] if args.middle_only else report
+    print(json.dumps(scoped,indent=2,sort_keys=True,allow_nan=False))
+    return 2 if args.middle_only and scoped.get("status") == "abstained" else 0
 
 if __name__=="__main__":
     raise SystemExit(main())
