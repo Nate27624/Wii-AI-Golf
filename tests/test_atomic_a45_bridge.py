@@ -2,6 +2,7 @@
 from __future__ import annotations
 import ast
 import unittest
+import tempfile
 from pathlib import Path
 import sys
 from unittest.mock import patch
@@ -15,6 +16,7 @@ from wii_ai_golf.integration.atomic_a45_client import AtomicA45SwingTraceClient
 from wii_ai_golf.integration.swing_client import SwingSample
 from scripts.probe_swing import build_probe
 from scripts.collect_outcome_transition import _build_v1_trace_and_digest
+from scripts.prepare_atomic_a45_bridge import prepare
 
 
 # A tiny simulated ORIGINAL V1 bridge. The test executes the actual injection,
@@ -138,6 +140,24 @@ class AtomicA45BridgeTests(unittest.TestCase):
         self.assertIsNone(ns["_wii_ai_trace"])
         self.assertFalse(any(x[1] == "swing" for x in ns["controller"].calls))
         self.assertEqual(ns["controller"].calls[-1][-1], {"A": False})
+
+    def test_local_preparation_never_overwrites_conflicting_output_or_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "legacy.py"
+            output = Path(tmp) / "atomic.py"
+            source.write_text(FAKE_V1, encoding="utf-8")
+            report = prepare(source, output)
+            self.assertTrue(output.is_file())
+            self.assertEqual(source.read_text(encoding="utf-8"), FAKE_V1)
+            self.assertFalse(report["dolphin_launched"])
+            self.assertFalse(report["bridge_loaded_in_runtime_verified"])
+            self.assertEqual(prepare(source, output)["sha256"], report["sha256"])
+            output.write_text("unrelated live bridge", encoding="utf-8")
+            with self.assertRaises(FileExistsError):
+                prepare(source, output)
+            self.assertEqual(output.read_text(), "unrelated live bridge")
+            with self.assertRaises(ValueError):
+                prepare(source, source)
 
     def test_original_handler_and_source_are_not_replaced(self):
         ns = self.make_bridge()
