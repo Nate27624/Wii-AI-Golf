@@ -11,6 +11,11 @@ from scripts.benchmark_bayes import benchmark
 HAVE_NUMPY = importlib.util.find_spec("numpy") is not None
 
 
+def _synthetic_result(distance_m, holed_out=False):
+    """Explicitly mark fabricated legacy test outcomes as toy-only data."""
+    return ShotResult(distance_m, holed_out, {"source": "synthetic"})
+
+
 @unittest.skipUnless(HAVE_NUMPY, "install optional extra: pip install -e '.[bayes]'")
 class BayesianTests(unittest.TestCase):
     def test_untrained_fallback_and_bounds(self):
@@ -21,15 +26,15 @@ class BayesianTests(unittest.TestCase):
             action = policy.act(observation, explore=True)
             self.assertTrue(-1 <= action.aim <= 1)
             self.assertTrue(0 <= action.power <= 1)
-            policy.observe(observation, action, ShotResult(abs(action.aim) + abs(action.power - .4), False))
+            policy.observe(observation, action, _synthetic_result(abs(action.aim) + abs(action.power - .4), False))
         self.assertEqual(len(policy.history["shot-1"]), 12)
 
     def test_best_observed_is_frozen_and_isolated_by_id(self):
         policy = BayesianSearchPolicy(seed=42, initial_random=3, candidate_count=16)
         a, b = Observation("one", (.5,)), Observation("two", (.3,))
         good = ShotAction(.2, .7)
-        policy.observe(a, ShotAction(-.5, .4), ShotResult(3, False))
-        policy.observe(a, good, ShotResult(.02, True))
+        policy.observe(a, ShotAction(-.5, .4), _synthetic_result(3, False))
+        policy.observe(a, good, _synthetic_result(.02, True))
         self.assertEqual(policy.act(a), good)
         self.assertEqual(policy.act(b), ShotAction(0, .5))
         self.assertNotIn("two", policy.history)
@@ -41,13 +46,13 @@ class BayesianTests(unittest.TestCase):
             moves = [p.act(a, explore=True) for p in policies]
             self.assertEqual(moves[0], moves[1])
             for policy, move in zip(policies, moves):
-                policy.observe(a, move, ShotResult(move.aim ** 2 + (move.power - .67) ** 2, False))
+                policy.observe(a, move, _synthetic_result(move.aim ** 2 + (move.power - .67) ** 2, False))
 
     def test_repeated_actions_are_numerically_stable(self):
         policy = BayesianSearchPolicy(seed=1, initial_random=3, candidate_count=16)
         state = Observation("repeat", (.1,))
         for _ in range(8):
-            policy.observe(state, ShotAction(.0, .5), ShotResult(2.0, False))
+            policy.observe(state, ShotAction(.0, .5), _synthetic_result(2.0, False))
         proposed = policy.act(state, explore=True)
         self.assertIsInstance(proposed, ShotAction)
         self.assertNotEqual(proposed, ShotAction(.0, .5))
@@ -60,11 +65,11 @@ class BayesianTests(unittest.TestCase):
         state = Observation("capped-constant-targets", (.1,))
         archived_best = ShotAction(-1.0, 0.0)
         recent_duplicate = ShotAction(1.0, 1.0)
-        policy.observe(state, archived_best, ShotResult(0.0, False))
+        policy.observe(state, archived_best, _synthetic_result(0.0, False))
         # More than 256 entries crosses the bounded duplicate-scan chunks.
         # Only the final two entries enter the surrogate's fitted kernel.
         for _ in range(258):
-            policy.observe(state, recent_duplicate, ShotResult(10.0, False))
+            policy.observe(state, recent_duplicate, _synthetic_result(10.0, False))
         self.assertEqual(policy.act(state), archived_best)
         # Force the global incumbent into the proposal pool, so this
         # regression cannot pass by luck from random candidate selection.
@@ -82,7 +87,7 @@ class BayesianTests(unittest.TestCase):
         measured_actions = (ShotAction(-0.8, 0.2), ShotAction(0.1, 0.5),
                             ShotAction(0.8, 0.9))
         for action in measured_actions:
-            policy.observe(state, action, ShotResult(5.0, False))
+            policy.observe(state, action, _synthetic_result(5.0, False))
         proposed = policy.act(state, explore=True)
         self.assertTrue(math.isfinite(proposed.aim))
         self.assertTrue(math.isfinite(proposed.power))
@@ -115,6 +120,78 @@ class BayesianTests(unittest.TestCase):
                        {"max_fit_samples": 3}):
             with self.assertRaises(ValueError):
                 BayesianSearchPolicy(**{"initial_random": 6, **kwargs})
+
+
+
+class DirectRewardEligibilityTests(unittest.TestCase):
+    """Both public observe APIs reject unsupported outcomes before mutation."""
+
+    @staticmethod
+    def _policies():
+        policies = [RandomBestPolicy(seed=7)]
+        if HAVE_NUMPY:
+            policies.append(BayesianSearchPolicy(seed=7, initial_random=2,
+                                                  candidate_count=8))
+        return policies
+
+    def test_no_history_key_for_unverified_or_censored_direct_outcomes(self):
+        observation = Observation("synthetic-reward-gate", (.2,))
+        action = ShotAction(-0.3, .6)
+        unsupported = (
+            ("missing-source", {}),
+            ("human", {"source": "human"}),
+            ("unjoined", {"source": "unverified"}),
+            ("human-100ft", {"source": "human",
+                             "measurement_type": "offgreen_100ft_penalty"}),
+            ("synthetic-100ft-measurement",
+             {"source": "synthetic", "measurement_type": "offgreen_100ft_penalty"}),
+            ("synthetic-100ft-distance-label",
+             {"source": "synthetic", "distance_label": "offgreen_100ft_penalty"}),
+            ("synthetic-explicit-censored",
+             {"source": "synthetic", "censored": "true"}),
+            ("synthetic-explicit-penalty",
+             {"source": "synthetic", "outcome_is_censored_penalty": "yes"}),
+        )
+        for policy in self._policies():
+            for name, metadata in unsupported:
+                with self.subTest(policy=type(policy).__name__, label=name):
+                    with self.assertRaises(ValueError):
+                        policy.observe(observation, action,
+                                       ShotResult(30.48, False, metadata))
+                    self.assertNotIn(observation.scenario_id, policy.history)
+                    self.assertEqual(policy.act(observation), ShotAction(0, .5))
+
+    def test_rejected_reward_does_not_change_existing_best(self):
+        observation = Observation("existing-synthetic-history", (.4,))
+        valid = ShotAction(.4, .7)
+        poison = ShotAction(-.4, .2)
+        for policy in self._policies():
+            policy.observe(observation, valid, _synthetic_result(4.0))
+            prior = list(policy.history[observation.scenario_id])
+            with self.subTest(policy=type(policy).__name__):
+                with self.assertRaises(ValueError):
+                    policy.observe(
+                        observation, poison,
+                        ShotResult(0.0, False, {"source": "synthetic",
+                                                "censored": "1"}))
+                self.assertEqual(policy.history[observation.scenario_id], prior)
+                self.assertEqual(policy.act(observation), valid)
+
+    def test_toy_source_and_explicit_false_censor_still_accepted(self):
+        for policy in self._policies():
+            env = ToyGolfEnvironment()
+            observation = env.reset("toy-01", seed=5)
+            action = ShotAction(.2, .7)
+            toy_result = env.step(action)
+            self.assertEqual(toy_result.metadata["source"], "synthetic")
+            policy.observe(observation, action, toy_result)
+            other = ShotAction(-.2, .5)
+            policy.observe(observation, other,
+                           ShotResult(toy_result.distance_m + 1., False,
+                                      {"source": "synthetic", "censored": "false"}))
+            with self.subTest(policy=type(policy).__name__):
+                self.assertEqual(len(policy.history[observation.scenario_id]), 2)
+                self.assertEqual(policy.act(observation), action)
 
 
 if __name__ == "__main__":

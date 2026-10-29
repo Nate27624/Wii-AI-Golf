@@ -21,6 +21,23 @@ except ImportError:  # Keep other policies usable without the optional extra.
 from .protocol import Observation, ShotAction, ShotResult
 
 
+def _require_synthetic_uncensored(result: ShotResult) -> None:
+    """Fail closed: direct policy learning only accepts explicit toy rewards.
+
+    A caller-supplied synthetic tag is NOT proof of real-game provenance.
+    """
+    metadata = result.metadata
+    if metadata.get("source") != "synthetic":
+        raise ValueError("Direct search policies require explicitly synthetic results")
+    if (any(str(metadata.get(key, "")).strip().lower()
+            == "offgreen_100ft_penalty"
+            for key in ("measurement_type", "distance_label"))
+            or any(str(metadata.get(key, "")).strip().lower()
+                   in ("1", "true", "yes")
+                   for key in ("censored", "outcome_is_censored_penalty"))):
+        raise ValueError("Direct search policies reject censored result penalties")
+
+
 def _encode(action: ShotAction) -> tuple[float, float]:
     """Map declared action bounds to [0, 1]^2 for the GP kernel."""
     return ((action.aim + 1.0) / 2.0, action.power)
@@ -124,7 +141,8 @@ class BayesianSearchPolicy:
         return ShotAction(float(2.0 * selected[0] - 1.0), float(selected[1]))
 
     def observe(self, observation: Observation, action: ShotAction, result: ShotResult) -> None:
-        """Store the actual outcome; the caller manages resets and failed shots."""
+        """Store only explicit synthetic, uncensored outcomes for this scenario."""
+        _require_synthetic_uncensored(result)
         self.history[observation.scenario_id].append((action, result.distance_m))
 
 
@@ -142,4 +160,5 @@ class RandomBestPolicy:
         return ShotAction(self.rng.uniform(-1.0, 1.0), self.rng.random())
 
     def observe(self, observation: Observation, action: ShotAction, result: ShotResult) -> None:
+        _require_synthetic_uncensored(result)
         self.history[observation.scenario_id].append((action, result.distance_m))
