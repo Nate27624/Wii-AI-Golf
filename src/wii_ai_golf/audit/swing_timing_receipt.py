@@ -59,10 +59,22 @@ def audit_b1_timing_receipt(child: Mapping[str, Any]) -> dict[str, Any]:
     if keys["lead_requested"] not in (45, 90):
         result["status"] = "abstain_unreviewed_A_lead"
         return result
-    if (request.get("a_button_only_prime_requests") != 1
+    # Felk button requests are frame-scoped. The previous helper sent one
+    # A=True RPC then merely polled 45 frames: a measurable lead but NOT
+    # continuous button coverage. The corrected helper reports one initial
+    # request plus one reassertion after each observed advancing frame.
+    requests = request.get("a_button_only_prime_requests")
+    reasserted = request.get("per_observed_frame_a_reasserted")
+    if requests == 1 and reasserted is not True:
+        result["status"] = "abstain_single_rpc_A_not_held_across_frames"
+        return result
+    if (type(requests) is not int
+            or requests != keys["lead_observed"] + 1
+            or reasserted is not True
             or request.get("a_button_prime_applied") is not True
             or request.get("a_priming_evidence") !=
             "frame_observed_A_requested_not_game_verified"):
+        result["status"] = "abstain_missing_or_inconsistent_A_reassertion_receipt"
         return result
     if (keys["lead_last"] - keys["lead_start"] != keys["lead_observed"]
             or keys["lead_observed"] < keys["lead_requested"]
@@ -75,6 +87,8 @@ def audit_b1_timing_receipt(child: Mapping[str, Any]) -> dict[str, Any]:
         "status": "bridge_counter_arithmetic_consistent_only",
         "requested_A_lead_bridge_frames": keys["lead_requested"],
         "observed_A_lead_bridge_frames": keys["lead_observed"],
+        "frame_scoped_A_reassertion_requests": requests,
+        "per_observed_frame_A_reasserted_reported": True,
         "unobserved_bridge_ticks_before_trace_start": gap,
         "trace_start_bridge_frame": keys["trace_start"],
         "trace_completion_bridge_frame": keys["trace_completion"],
