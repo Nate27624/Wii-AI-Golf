@@ -200,6 +200,79 @@ def sample_runtime(read_u32, source_snapshot:dict, code:dict) -> dict:
     }
 
 
+
+def driver_global_crossphase_relation(samples: dict, codes: dict) -> dict:
+    """Test D1 global -> D2 selected using ALREADY READ original source banks.
+
+    All comparisons use internal native u32 triples and expose ONLY 0..3
+    bitwise equality counts, NEVER words/coordinates/pointers. Driver D1/D2
+    are human labels, NOT a certified temporal join or rendered-ball witness.
+    An exact future-position coincidence is not proof of prediction.
+    """
+    no = {
+        "status": "ABSTAIN",
+        "global_pointer_identity_D1_D2_equal": None,
+        "global_D1_equals_selected_D2_components": None,
+        "global_D1_equals_CC_D2_components": None,
+        "global_D1_equals_global_D2_components": None,
+        "global_D2_equals_selected_D2_components": None,
+        "actual_predicted_endpoint_or_rendered_ball_verified": False,
+        "machine_verified_same_shot_timing": False,
+        "approved_for_training": False,
+    }
+    if not all(i in samples and i in codes for i in (1, 2)):
+        return {**no, "reason": "missing_original_driver_phase"}
+    if not all(codes[i].get("static_source_global_slot_supported") is True
+               and codes[i].get("runtime", {}).get("supported") is True
+               for i in (1, 2)):
+        return {**no, "reason": "source_global_not_qualified"}
+    a, b = samples[1], samples[2]
+    if (a.get("selected_index") != b.get("selected_index")
+            or a.get("hole") != b.get("hole")
+            or a.get("refs") != b.get("refs")):
+        return {**no, "reason": "source_owner_or_pointer_changed"}
+    vectors_a, vectors_b = a.get("triplets", {}), b.get("triplets", {})
+    for field in ("source_current_start", "source_selected_pin"):
+        if field not in vectors_a or field not in vectors_b:
+            return {**no, "reason": "missing_source_geometry"}
+        if vectors_a[field] != vectors_b[field]:
+            return {**no, "reason": "source_geometry_changed"}
+    if ("ball_nested_plus_0x4c" not in vectors_b
+            or "ball_cache_0x0cc" not in vectors_b):
+        return {**no, "reason": "selected_ball_or_cache_missing"}
+    x, y = codes[1]["runtime"], codes[2]["runtime"]
+    ptr_a = x.get("_private_runtime_source_global_pointer")
+    ptr_b = y.get("_private_runtime_source_global_pointer")
+    if type(ptr_a) is not int or type(ptr_b) is not int:
+        return {**no, "reason": "global_object_identity_unavailable"}
+    same_ptr = ptr_a == ptr_b
+    if not same_ptr:
+        return {**no, "reason": "global_object_identity_changed",
+                "global_pointer_identity_D1_D2_equal": False}
+    glob_a = x.get("_private_runtime_global_current_words")
+    glob_b = y.get("_private_runtime_global_current_words")
+    if glob_a is None or glob_b is None:
+        return {**no, "reason": "global_translation_unavailable"}
+    selected_b = vectors_b["ball_nested_plus_0x4c"]
+    cc_b = vectors_b["ball_cache_0x0cc"]
+    for v in (glob_a, glob_b, selected_b, cc_b):
+        if (type(v) not in (tuple, list) or len(v) != 3
+                or any(type(w) is not int or not 0 <= w <= 0xFFFFFFFF
+                       for w in v)):
+            return {**no, "reason": "invalid_native_source_triplet"}
+    return {
+        "status": "CATEGORICAL_RELATION_ONLY",
+        "global_pointer_identity_D1_D2_equal": True,
+        "global_D1_equals_selected_D2_components": _eq(glob_a, selected_b),
+        "global_D1_equals_CC_D2_components": _eq(glob_a, cc_b),
+        "global_D1_equals_global_D2_components": _eq(glob_a, glob_b),
+        "global_D2_equals_selected_D2_components": _eq(glob_b, selected_b),
+        "actual_predicted_endpoint_or_rendered_ball_verified": False,
+        "machine_verified_same_shot_timing": False,
+        "approved_for_training": False,
+    }
+
+
 def summarize(samples, codes, callers) -> dict:
     if set(samples)!=set(PHASES) or set(codes)!=set(PHASES):
         raise ValueError("seven phases required")
@@ -236,6 +309,8 @@ def summarize(samples, codes, callers) -> dict:
         "source_global_pointer_resolution_supported":codes[1]["static_source_global_slot_supported"],
         "source_global_ball_pointer_stable_W5_to_W7":global_identity_stable,
         "per_phase_source_global_vs_selected_ball_and_cache":rows,
+        "driver_D1_global_to_D2_selected_existing_memory_relation":
+            driver_global_crossphase_relation(samples, codes),
         "static_cache_writer_call_sites":callers,
         "cache_writer_receiver_saved_from_r3_into_r27_source_verified":True,
         "cache_writer_runtime_receiver_equals_selected_ball_verified":False,
