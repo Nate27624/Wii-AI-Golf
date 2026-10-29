@@ -27,3 +27,5 @@ jobs:
           python-version: '3.13'
       - name: Run private native-free source global xref tests
         run: python -m unittest discover -s tests -p 'test_p0_global_ball_source_xrefs_private.py' -v
+      - name: Full offline regression suite (no Dolphin)
+        run: python -m unittest discover -s tests -v
