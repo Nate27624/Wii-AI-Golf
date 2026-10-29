@@ -201,6 +201,107 @@ def sample_runtime(read_u32, source_snapshot:dict, code:dict) -> dict:
 
 
 
+
+def source_global_own_cc_candidate(read_u32, runtime: dict, source_snapshot: dict) -> dict:
+    """Bounded same-class-layout hypothesis; internal triplet NEVER published.
+
+    Both selected and source-global objects have a validated +0x4C -> +0x30
+    translation selfref. Whether source-global+0xCC has the selected ball's
+    cache field semantics is NOT independently runtime-proven.
+    """
+    if runtime.get("supported") is not True:
+        return {"_private_global_cc_candidate_supported": False}
+    ptr = runtime.get("_private_runtime_source_global_pointer")
+    if type(ptr) is not int or ROSTER._bank(ptr, 0xD8) != "MEM2":
+        return {"_private_global_cc_candidate_supported": False}
+    cc = tuple(read_u32(ptr + 0xCC + 4*i) for i in range(3))
+    if not _native_triplet(cc):
+        return {"_private_global_cc_candidate_supported": False}
+    return {
+        "_private_global_cc_candidate_supported": True,
+        "_private_runtime_global_cc_candidate_words": cc,
+    }
+
+
+def _native_triplet(v) -> bool:
+    return (type(v) in (tuple, list) and len(v) == 3
+            and all(type(w) is int and 0 <= w <= 0xFFFFFFFF for w in v))
+
+
+def source_global_own_cc_relation(samples: dict, codes: dict) -> dict:
+    """Only 7 already-read source-qualified snapshots; no new RAM scanning."""
+    result = {
+        "status": "CATEGORICAL_RELATION_ONLY",
+        "global_plus_CC_same_class_layout_hypothesis_only": True,
+        "global_plus_CC_is_typed_cache_verified": False,
+        "cache_writer_executed_in_phase_verified": False,
+        "rendered_ball_or_physical_xyz_verified": False,
+        "machine_guest_frame_timing_verified": False,
+        "training_approved": False,
+        "per_phase": [],
+        "within_operator_labeled_shot_edges": [],
+    }
+    phases = (1,2,5,6,7)
+    if any(i not in samples or i not in codes for i in phases):
+        return {**result, "status": "ABSTAIN", "reason": "missing_original_phase"}
+    for i in phases:
+        s, code = samples[i], codes[i]
+        rt = code.get("runtime", {})
+        g = rt.get("_private_runtime_global_current_words")
+        cc = rt.get("_private_runtime_global_cc_candidate_words")
+        sel = s.get("triplets", {})
+        required = (g,cc,sel.get("ball_nested_plus_0x4c"),
+                    sel.get("ball_cache_0x0cc"))
+        if (code.get("static_source_global_slot_supported") is not True
+                or rt.get("supported") is not True
+                or rt.get("_private_global_cc_candidate_supported") is not True
+                or not all(_native_triplet(v) for v in required)):
+            return {**result, "status": "ABSTAIN",
+                    "reason": "unqualified_global_CC_or_source_triplet",
+                    "per_phase": [], "within_operator_labeled_shot_edges": []}
+        result["per_phase"].append({
+            "phase": i,
+            "global_CC_equals_global_current_components": _eq(cc,g),
+            "global_CC_equals_selected_CC_components":
+                _eq(cc,sel["ball_cache_0x0cc"]),
+            "global_CC_equals_selected_current_components":
+                _eq(cc,sel["ball_nested_plus_0x4c"]),
+        })
+    for a,b in ((1,2),(5,6),(6,7)):
+        left,right=samples[a],samples[b]
+        lx,rx=codes[a]["runtime"],codes[b]["runtime"]
+        edge={"from_phase":a,"to_phase":b}
+        lt,rt=left.get("triplets",{}),right.get("triplets",{})
+        if (left.get("selected_index") != right.get("selected_index")
+                or left.get("hole") != right.get("hole")
+                or left.get("refs") != right.get("refs")
+                or lx.get("_private_runtime_source_global_pointer")
+                   != rx.get("_private_runtime_source_global_pointer")
+                or any(k not in lt or k not in rt or lt[k]!=rt[k]
+                       for k in ("source_current_start","source_selected_pin"))):
+            result["within_operator_labeled_shot_edges"].append({
+                **edge, "status":"ABSTAIN",
+                "reason":"owner_global_object_or_geometry_changed"})
+            continue
+        values=(
+            (lx["_private_runtime_global_cc_candidate_words"],
+             rx["_private_runtime_global_cc_candidate_words"]),
+            (lx["_private_runtime_global_current_words"],
+             rx["_private_runtime_global_current_words"]),
+            (lt["ball_cache_0x0cc"],rt["ball_cache_0x0cc"]),
+            (lt["ball_nested_plus_0x4c"],rt["ball_nested_plus_0x4c"])
+        )
+        result["within_operator_labeled_shot_edges"].append({
+            **edge,"status":"BITWISE_COMPONENT_COUNTS_ONLY",
+            "global_CC_changed_components":3-_eq(*values[0]),
+            "global_current_changed_components":3-_eq(*values[1]),
+            "selected_CC_changed_components":3-_eq(*values[2]),
+            "selected_current_changed_components":3-_eq(*values[3]),
+        })
+    return result
+
+
+
 def driver_global_crossphase_relation(samples: dict, codes: dict) -> dict:
     """Test D1 global -> D2 selected using ALREADY READ original source banks.
 
@@ -311,6 +412,8 @@ def summarize(samples, codes, callers) -> dict:
         "per_phase_source_global_vs_selected_ball_and_cache":rows,
         "driver_D1_global_to_D2_selected_existing_memory_relation":
             driver_global_crossphase_relation(samples, codes),
+        "source_global_own_CC_candidate_relation":
+            source_global_own_cc_relation(samples, codes),
         "static_cache_writer_call_sites":callers,
         "cache_writer_receiver_saved_from_r3_into_r27_source_verified":True,
         "cache_writer_runtime_receiver_equals_selected_ball_verified":False,
@@ -348,6 +451,8 @@ def run_local(directory:Path) -> dict:
             code=source_global_slot(rd.u32)
             codes[phase]={k:v for k,v in code.items() if k!="slot"}
             codes[phase]["runtime"]=sample_runtime(rd.u32,samples[phase],code)
+            codes[phase]["runtime"].update(source_global_own_cc_candidate(
+                rd.u32, codes[phase]["runtime"], samples[phase]))
             if callers is None:
                 callers=caller_input_probe(rd.u32)
         for bank,p in pair.items():
