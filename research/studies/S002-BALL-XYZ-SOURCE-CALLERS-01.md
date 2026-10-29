@@ -1,0 +1,120 @@
+# S002-BALL-XYZ-SOURCE-CALLERS-01 — which code can update the selected ball translation?
+
+**2026-10-28, draft source-only hypothesis and offline read-only audit.** Claim/handoff: [issue #121](https://github.com/Nate27624/Wii-AI-Golf/issues/121). No new Dolphin launch, swing, savestate edit, native read from running emulator or raw publication. This is additive to the prior S002 #162 + #183 actual Rev1 PPC reverse-engineering, not a competing live watcher.
+
+## Why this is the next P0 question
+
+The operator's actual SHA-gated B0–B3 no-shot RAM check of #217 showed 0/3 matches between historical v1.00 cheat-address coordinates and Rev1's source-selected ball translation in each phase. Rev1's selected ball position at object+0x4C -> +0x30 equals start/tee 3/3 and remains fixed across idle/aim, which is normal at rest but cannot establish in-flight motion. Source trace #162 proves a Player routine copying record+0x60/+64/+68 into record+0x54/+58/+5C and the selected ball object's +0x4C pointee as three floats, and another Player path reading that translation back. Source #183 proves a Ball-unit routine that copies a source-global current position into receiver+0xCC and conditionally refreshes +0xF0/+0xFC, but whether its receiver is the same selected ball object remains unproven. Thus the most valuable OFFLINE question is which direct executable callsites feed these routines and how to direct the existing S001 frame watcher.
+
+## Implementation and evidence
+
+New `scripts/audit_ball_xyz_source_callers_private.py`: using only original B0 24MiB MEM1 under ignored Wii-AI-Golf-Data, verifies saved manifest schema/idle phase and SHA256, exact RSPE01 Rev1 executable header, bounded nonzero PPC source code at three documented Rev1 routine neighborhoods. Scans only published Rev1 Golf object-file .text units from [doldecomp/ogws RSPE01_01 splits](https://github.com/doldecomp/ogws/blob/master/config/RSPE01_01/splits.txt) (MapObjBall, SimulateManager, Player, PlayerManager, FieldManager, Main), decodes unconditional PPC `b` and `bl` (opcode 18), and groups static direct calls **into bounded neighborhoods** around the known dataflow routines. Output is source-unit labels and source-relative callsite/target offsets and bounded branch counts; it never prints instruction words, raw memory, live heap addresses, floats, private hashes or local paths. Does not touch shared source registry or other S002 worktrees.
+
+**IMPORTANT**: source neighborhoods are *not* proven function entries or boundaries. A direct `bl` to a neighborhood may be a helper, thunk, or interior block. A zero caller count does **NOT** prove the function is unused: conditional branch, function-pointer/vtable/indirect calls, or calls outside scanned units remain uncounted. The original B0 is idle, so discovering a callsite is **not proof it executes in-flight**. The source routine's owner, dynamic physics state, physical XYZ, units, timing and training approval remain FALSE.
+
+Target contexts:
+- Player→Ball candidate translation stores (code `0x802A0388..0x802A03C8`, scanned around a broader neighborhood).
+- Ball→Player reverse position read (code `0x8029F300..0x8029F31C`, broader).
+- Ball-unit current-position refresh and conditional caches (code `0x80299C70..0x8029A030`).
+- FieldManager target/pin and start translation getters (existing stationary controls).
+
+Output is an allowlist-limited JSON object (source relative code offsets, hit counts, all scientific proof flags false) to terminal only, with `github_observation=NOT_UPLOADED_S000_S002_ADAPTER_MISSING`. No new uploader; the existing `research_cli.py` publisher still needs S000/S002 typed adapter review. The source PR and dated GitHub FINDING can store public sanitized callsite interpretations, not ROM/private memory bytes.
+
+## Reproduction and one-block PowerShell requirements
+
+The operator should use the exact tested PR head in a separate immutable offline worktree, never manually copy source or touch another agent's worktree. Run all targeted synthetic tests before the real existing B0 native scan. The final copy/paste-ready PowerShell is supplied by the agent after the exact tested head is confirmed and should print only sanitizer-safe JSON. This study does not authorize a live emulator shot and does not rely on Dolphin runtime startup, which #215 presently reported crashing before bridge preflight with Windows code 0xC0000005.
+
+## Scientific interpretation and next owner
+
+S002: interpret resulting direct callsite counts/relative offsets against the *real Rev1* PPC source and inspect receiver/argument chains only where actual calls exist. S001: once the separate Dolphin startup fault is resolved and S001/S002/S000 reviews/owner gate pass, reuse the original V1 45 **observed Dolphin A frames** and frozen 89-sample trace to instrument the selected source-owned ball object's current position, player copy and candidate caches during **human-observed contact plus actual flight**, with unchanged start/pin negative controls and sample-tick vs guest-frame distinctions. No implicit live opt-in. S000: no training and no private numeric vector publication until frame/axes/units/independent-boot controls pass.
+
+Focused Windows/Ubuntu synthetic CI covers signed relative PPC branches, direct/nonlink distinction, source unit classification, false promotion, output privacy, original native hash, wrong game/phase and invalid private roots. Full repository Windows suite and owner review remain merge gates. All new-only files:
+`scripts/audit_ball_xyz_source_callers_private.py`, `tests/test_ball_xyz_source_callers_private.py`, this study and `.github/workflows/s002-ball-xyz-callers.yml`.
+
+
+## 2026-10-28 actual operator run: corrections after exact public symbol map
+
+**Operator-confirmed**, exact original auditor SHA \`ff997b0cd6a599203c2bb30dd73456a49ed3bf31\`: all 11/11 local Windows synthetic tests PASS; B0 hash/revision/idle code gates PASS; source scanned 13,934 words. No additional Dolphin session or native data was captured. Sanitized result stored in GitHub #219 FINDING; original native words remain private.
+
+Original output:
+- PlayerManager +0x09F4 and +0x0F2C issue direct BL to **0x802A0318 / 0x802A0320**, not to the three \`stfs\` instructions themselves. Public \`doldecomp/ogws\` RSPE01_01 \`symbols.txt\` identifies \`fn_802A0318\` as an 8-byte function, \`fn_802A0320\` as 0x354-byte function that CONTAINS the previously source-proven Player→Ball \`stfs\` at 0x802A0388..0x802A03C8. The earlier target-window label implied callers of the three stores directly, which is inaccurate. The revised auditor uses symbol-level function bounds and explicitly distinguishes entrypoint calls from interior jumps; it **also checks whether the 8-byte stub actually branches to the longer function from ORIGINAL B0 PPC**. A symbol name alone does not prove a thunk redirects.
+- MapObjBall +0x2B8C and +0x2C80 issue direct BL to **0x80299C70**. Public symbol map gives \`fn_80299ACC\` (0x118 size), \`fn_80299C20\` (0x50 size) as the caller functions, and \`fn_80299C70\` (0x3C8) as the callee. The callee contains the source-identified current-position refresh +0xCC and conditional +0xF0/+0xFC cache-copy logic. This is stronger static *owner-local function-entry* evidence, still not dynamic flight execution, exact receiver identity, or physical axes.
+- The inverse Ball→Player read block 0x8029F300..0x8029F31C is **within** \`fn_8029F0A0\` of size 0x37C. The six nonlink branches observed in the old narrow block were internal PPC control flow, NOT six distinct caller functions. The revised source audit reports function-level calls into \`fn_8029F0A0\` separately from branches within its body.
+- The target/pin and start accessors are independent tiny public symbols \`fn_80292294\` size 0x20 and \`fn_802922EC\` size 0x0C. These source-getter callsites are controls, not a ball-flight locator.
+
+**Follow-up priority:** S002 determine from surrounding PPC the role and input conditions of \`fn_80299ACC\`, \`fn_80299C20\`, \`fn_802A28DC\`, \`fn_802A30F8\`, including whether the cache updater's receiver is the currently selected ball or a copied recording/cache instance. S001 capture only AFTER native Dolphin pre-bridge access violation and reviewed 51-word watcher permit safely observed same-shot A45/89 sample input. A source-confirmed function containing conditional position-copy code is not a verified current moving XYZ coordinate.
+
+
+## Updated B0 instruction-flow and upstream entry study (2026-10-28)
+
+Operator's actual B0 audit at source-head bfa7048 passed **14/14 focused Windows tests** and exact native source bank SHA; important negative: `short_player_writer_entry_thunk_branches_to_main_function=false`. This **only rules out the particular PPC direct unconditional b from the two-instruction 0x802A0318 entry to 0x802A0320**. Since those entries are adjacent, ordinary sequential execution could fall through; alternatively it may return or branch conditionally/indirectly. It would be wrong to claim the short function is independent, never calls the XYZ writer, or that its absence falsifies the longer writer.
+
+The follow-up source-only audit in the SAME owner PR therefore adds `short_writer_entry_control_flow_class`, which classifies the two PPC instructions categorically (unconditional branch destination, branch to LR/CTR, conditional, linked-call, or adjacent fall-through candidate). It also reports `upstream_function_entry_calls`: the *direct BL callers* of the four public-symbol-verified enclosing source functions that themselves call the selected position or cache updater: `fn_802A28DC`, `fn_802A30F8`, `fn_80299ACC`, and `fn_80299C20`. This supplies a potential two-hop callgraph (static only), helping distinguish initialization/update roots without private bytes or false dynamic-physics labels. Exact source entry PCs are source-document labels, not live RAM pointers.
+
+All source-link and physical claim controls remain explicit: no proof of conditional stores executing, source-global/receiver pointer identity, same guest frame, visible ball movement, velocity, coordinate axes, score or training; no Dolphin or new native capture. Raw file stays local. An S000/S002-reviewed typed adapter to existing publisher is still required before auto-upload. The archived real result is GitHub PR #219 operator FINDING; the new modified source must pass Windows/Ubuntu focused tests and operator real B0 before semantic conclusions.
+
+## Actual updated B0 two-hop result (2026-10-28)
+
+Operator confirmed 18 synthetic Windows tests PASS and original B0 native RAM source SHA/revision PASS, 13,934 executable PPC instruction words in bounded public Rev1 Golf source units. Source-only `short_writer_entry_control_flow_class=unconditional_branch_elsewhere`: the tiny 8-byte `fn_802A0318` takes a PPC unconditional branch NOT directly to adjacent `fn_802A0320`. No claim of fallthrough, equivalence or real ball trajectory. The destination was not in the older report.
+
+The operator-confirmed second-hop entry calls identify these function containers using `doldecomp/ogws` RSPE01_01 `symbols.txt`:
+- `RPGolMain+0x0114` lies in `fn_8028E158` and calls PlayerManager `fn_802A28DC`, which calls the short entry `fn_802A0318`.
+- `RPGolMain+0x02C4` lies in `fn_8028E2EC` and calls PlayerManager `fn_802A30F8`, which calls `fn_802A0320` containing the three Player-to-Ball position stores.
+- `RPGolSimulateManager+0x0234` lies in `fn_8029B43C` and calls Ball-unit `fn_80299ACC`, which calls `fn_80299C70` containing position-cache refresh.
+- `RPGolMapObjBall+0x32C8` lies in `fn_8029A204` and calls `fn_80299C20`, which also calls `fn_80299C70`.
+
+These are direct PPC source BLs in an idle native B0 image, NOT observed call executions. Even an actual call into `fn_802A0320` does not guarantee its conditional stores run. The original B0–B3 selected vector stayed tee-equal (3/3) through idle/aim; in-flight behavior unmeasured.
+
+**Additive next source-only discriminator:** the new read-only `short_entry_unconditional_destination` reports which **published Golf source code UNIT and relative source code offset** the 8-byte short entry directly branches to, and whether it targets the known main writer entry or its interior. It prints no native binary instruction bytes, absolute runtime pointer or float. Four synthetic negative/positive tests prevent treating a linked call, unrecognized unit or fallthrough as a verified direct branch. This preserves full private RAM local and still does not resolve current active ball receiver identity or true physics XYZ. S001 #215 pre-bridge access violation prohibits authorizing another live capture.
+
+
+## 2026-10-28 fourth operator result: branch target outside SIX selected units
+
+At the precise reviewed source code SHA `1fdf80ff5d04caab8b5a9deb6c989ac7ee373945`, the operator ran an identical no-emulator read-only B0 study. 22/22 local Windows synthetic tests PASS; original native B0 MEM1 SHA and Rev1 source checks pass, 13,934 Golf PPC instruction words. New result:
+
+`short_writer_entry_direct_branch_destination = {found:true, instruction_index:1, destination_in_scanned_golf_units:false, destination_source_unit:null, destination_source_relative_offset:null, is_main_writer_function_entry:false, is_main_writer_function_interior:false}`
+
+**Do not say the branch target is outside Wii Sports Golf**. The original lookup indexed only SIX object-file units (GolfMain, FieldManager, MapObjBall, SimulateManager, Player, PlayerManager). It makes no claim about all other RSPE01 Rev1 executable `.text` source units, startup/runtime or other sports.
+
+To discriminate, this PR pins the full **832 nonoverlapping PUBLIC .text object-file intervals** from `doldecomp/ogws/config/RSPE01_01/splits.txt` into `research/source_maps/RSPE01_01_public_text_units.json`, anchored by upstream Git blob `df4085de5285b0d188fdfec8c097b301382263d3`. These intervals are **public code provenance only**: not native ROM instructions, heap pointers, RAM banks, or Wii player data. Exact source-label metadata and interval coverage are fail-closed and tested with corrupted index and adversarial branch cases. The new read-only output key `short_writer_entry_public_source_destination` resolves the B0 native PPC branch against *all published units*, but prints only the public file label and **source-unit-relative offset**; if absent, explicitly reports `outside_all_832_published_rev1_text_units` rather than inventing a function. It does not fetch remote data on the operator's PC or ask for any new emulator action.
+
+**Scientific limits:** public source-unit ownership does not identify selected ball object receiver, whether the branch executes during a hit, real XYZ, physics timing, frame link or units. Once the operator produces a named public unit + offset, the agent can resolve the exact PUBLIC ogws function boundary, and assess this control transfer against the independent `fn_802A0320` writer path and `fn_80299C70` cache updater. No unconditional runtime promotion, training or auto-Git upload.
+
+
+## Independent typed source annotation: `RPGolMain::NextShot()` entry
+
+**New primary-source cross-reference, not another native PPC scan.** Public
+[PackProject/Kokeshi Wii Sports Rev1 symbol list](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/base/symbols_sports.txt),
+pinned repository commit `dfbdda61aadad423911d5345f67f8793aa92cd5f`
+and exact symbol-file Git blob `2b5da20929e51a991622e8793041163dcc5d9f6d`,
+contains **`NextShot__9RPGolMainFv=0x8028e2ec`**. Independent
+[Kokeshi `RPGolMain.h`](https://github.com/PackProject/Kokeshi/blob/dfbdda61aadad423911d5345f67f8793aa92cd5f/include/Pack/RPSports/RPGolScene/RPGolMain.h)
+declares `class RPGolMain { ... void NextShot(); }`.
+The preexisting **operator B0 SHA-verified** #219 source-call findings identified
+`fn_8028E2EC` as the GolfMain callsite into PlayerManager
+`fn_802A30F8`, in turn linking to the longer
+`fn_802A0320` containing three candidate Player-to-Ball position stores.
+This public name is an **independent typed method-entry hypothesis** for
+the previously anonymous GolfMain entry, and gives a concrete reason
+not to confuse those position writes with a periodically executed
+Golf physics integrator.
+
+Independent [ogws_info original Rev1 function map](https://github.com/kiwi515/ogws_info/blob/bcf62e22f9e7fc1d75acbb24bd8368b03cba1c81/RSPE_r1.dmap) (Git blob `544fc84752b66475c49641ddb5c2b415022e0970`) explicitly bounds `FUN_8028e2ec` at **0xB0 bytes** (entry 0x8028E2EC, end-exclusive 0x8028E39C); the neighboring `FUN_8028e158` has **0x194 bytes** and ends exactly at 0x8028E2EC. This independently demonstrates two **distinct, contiguous PPC function windows**, not one long main update loop. It does not prove either is executed at any given moment.
+
+**Research prioritization:** distinguish `NextShot` (a named shot-transition
+routine) from source `fn_8028E158` OnCalculate target (scene-update
+candidate). First establish whether the target stores occur only during
+a shot transition or each simulated ball step; *no callgraph-only scan
+establishes actual execution frequency*. S001 #272 should not place
+an `executed_site_id` hook or nominate `guest_ball_physics_step_id`
+from `NextShot` or its descendant writes without dynamic execution and
+post-update proof. #240 may investigate whether the actual rendered ball
+actor is source-global versus selected, only with a future visual join.
+
+**Limits:** Kokeshi is a published handwritten symbol/header annotation
+targeting NTSC-U Rev1. It strongly identifies a *public source name*
+but does not prove all runtime receiver aliases, that `NextShot`
+actually executes during the user's shots, the selected player's
+world position, source flight physics step, timestamps, contact,
+velocity, power or training. No original bank reread, Dolphin action,
+game input, hook, additional PowerShell or private data was needed.
