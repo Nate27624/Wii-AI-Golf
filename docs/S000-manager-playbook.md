@@ -72,3 +72,6 @@ Give agent the existing canonical PR link, role, task scope and tests. Require `
 ## Operator-facing continuity
 
 The manager follows [V2 agent continuity](v2-agent-continuity.md). Consolidate questions from all agents, answer technical questions directly, and bring only indispensable operator decisions/actions to the user. End each meaningful answer with a single operator status. A `CONTINUE V2` request resumes from latest source-backed handoffs; do substantive work rather than recycling a progress summary. No implied background monitoring.
+
+
+At each substantive handoff, follow `docs/v2-manager-feedback.md` to assess progress with concrete evidence and next steps.
