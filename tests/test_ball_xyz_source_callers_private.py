@@ -8,6 +8,7 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location(
@@ -159,6 +160,50 @@ class PPCStaticTests(unittest.TestCase):
             self.assertTrue(safe["native_source_b0_sha256_verified"])
             self.assertEqual(safe["targets"][0]["direct_bl_into_window_count"], 1)
             self.assertFalse(safe["real_inflight_ball_world_xyz_verified"])
+            # This standalone entrypoint must revalidate source SHA/manifest
+            # after inspecting the opened descriptor; an earlier PASS alone
+            # is insufficient. Do not claim a source-authenticated report.
+            with patch.object(m, "checked_private_b0",
+                              side_effect=[file, m.UntrustedInput("changed")]) as checked:
+                with self.assertRaises(m.UntrustedInput):
+                    m.audit(session, data)
+                self.assertEqual(checked.call_count, 2)
+
+    def test_original_b0_read_descriptor_must_match_qualified_path(self):
+        # The path seen at the SHA gate can still be genuine while Path.open
+        # returns an alternate, same-sized and byte-identical file object.
+        with tempfile.TemporaryDirectory() as root:
+            where = Path(root)
+            bank = where / "B0-MEM1.bin"
+            alternate = where / "other-B0-MEM1.bin"
+            for p in (bank, alternate):
+                with p.open("wb") as f:
+                    f.truncate(m.MEM1_LEN)
+                    f.write(b"RSPE01\x00\x01")
+            real_open = Path.open
+            def switched(p, *args, **kwargs):
+                return real_open(alternate if p == bank else p,
+                                 *args, **kwargs)
+            with patch.object(m, "checked_private_b0", return_value=bank):
+                with patch.object(Path, "open", new=switched):
+                    with self.assertRaises(m.UntrustedInput):
+                        m.audit(where, where)
+
+    def test_original_b0_read_symlink_alias_rejected(self):
+        with tempfile.TemporaryDirectory() as root:
+            where = Path(root)
+            target = where / "ordinary-file.bin"
+            with target.open("wb") as f:
+                f.truncate(m.MEM1_LEN)
+                f.write(b"RSPE01\x00\x01")
+            alias = where / "B0-linked.bin"
+            try:
+                alias.symlink_to(target)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlinks unavailable on this host")
+            with patch.object(m, "checked_private_b0", return_value=alias):
+                with self.assertRaises(m.UntrustedInput):
+                    m.audit(where, where)
 
     def test_wrong_game_revision_and_phase_rejected(self):
         with tempfile.TemporaryDirectory() as root:

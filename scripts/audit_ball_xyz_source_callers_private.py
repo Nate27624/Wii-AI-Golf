@@ -10,8 +10,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
+import stat
 import struct
 import sys
 
@@ -430,7 +432,16 @@ def checked_private_b0(session: Path, data_root: Path) -> Path:
 
 def audit(session: Path, data_root: Path) -> dict:
     file = checked_private_b0(session, data_root)
+    # A pathname hash authenticates only that pathname's contents at the
+    # instant of hashing. The separately opened *read descriptor* must refer
+    # to the same regular-file inode before any source bytes are interpreted.
+    before = file.lstat()
+    ensure(stat.S_ISREG(before.st_mode) and before.st_size == MEM1_LEN)
+    identity = (before.st_dev, before.st_ino, before.st_size)
     with file.open("rb") as f:
+        opened = os.fstat(f.fileno())
+        ensure(stat.S_ISREG(opened.st_mode)
+               and (opened.st_dev, opened.st_ino, opened.st_size) == identity)
         ensure(f.read(8)[:6] == GAME_ID)
         f.seek(7)
         ensure(f.read(1) == b"\x01")
@@ -456,6 +467,14 @@ def audit(session: Path, data_root: Path) -> dict:
             "text_unit_count": len(source_units),
             "private_native_data_in_public_index": False,
         }
+        after = file.lstat()
+        final_fd = os.fstat(f.fileno())
+        ensure(stat.S_ISREG(after.st_mode) and stat.S_ISREG(final_fd.st_mode)
+               and (after.st_dev, after.st_ino, after.st_size) == identity
+               and (final_fd.st_dev, final_fd.st_ino, final_fd.st_size)
+                   == identity)
+    # Also requalify the original SHA/manifest *after* code inspection.
+    ensure(checked_private_b0(session, data_root) == file)
     result["native_source_b0_sha256_verified"] = True
     result["capture_phase_is_idle_not_flight"] = True
     return result
