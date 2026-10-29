@@ -199,15 +199,24 @@ class PPCStaticTests(unittest.TestCase):
 
 
     def test_public_split_index_uses_exact_committed_blob_not_claimed_sha(self):
-        # A locally modified unit name with intact metadata must fail closed.
+        # A SAME-BYTE-LENGTH edit with unchanged claimed upstream SHA, interval
+        # counts and bounds must fail. A naive length check must not pass.
         expected = m.load_public_text_units()
         self.assertEqual(len(expected), m.PUBLIC_UNIT_COUNT)
         with tempfile.TemporaryDirectory() as root:
-            modified = json.loads(m.PUBLIC_INDEX.read_text("utf-8"))
-            self.assertEqual(modified["source_blob_sha"], m.PUBLIC_SPLITS_SHA)
-            modified["intervals"][0][2] = "ForgedSource.cpp"
+            original = m.PUBLIC_INDEX.read_bytes()
+            old_name = expected[0][2]
+            fake_name = ("Z" if old_name[0] != "Z" else "Y") + old_name[1:]
+            self.assertEqual(len(old_name.encode("utf-8")),
+                             len(fake_name.encode("utf-8")))
+            self.assertIn(old_name.encode("utf-8"), original)
+            forged = original.replace(old_name.encode("utf-8"),
+                                      fake_name.encode("utf-8"), 1)
+            self.assertEqual(len(forged), len(original))
+            self.assertEqual(json.loads(forged)["source_blob_sha"],
+                             m.PUBLIC_SPLITS_SHA)
             candidate = Path(root) / "source-index.json"
-            candidate.write_text(json.dumps(modified), encoding="utf-8")
+            candidate.write_bytes(forged)
             with self.assertRaises(m.UntrustedInput):
                 m.load_public_text_units(candidate)
 
