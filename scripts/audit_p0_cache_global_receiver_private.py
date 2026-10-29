@@ -12,9 +12,12 @@ from __future__ import annotations
 
 import argparse
 from contextlib import ExitStack
+import hashlib
 import json
 import mmap
+import os
 import re
+import stat
 from pathlib import Path
 import sys
 
@@ -522,6 +525,42 @@ def _canonical_archive_sha(directory: Path) -> dict[int, dict[str, bytes]]:
     return expected
 
 
+
+def _regular_bank_identity(metadata) -> tuple[int, int, int]:
+    """Source-bank path and opened descriptor must refer to one regular file."""
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ValueError("original bank is not a regular file")
+    return metadata.st_dev, metadata.st_ino, metadata.st_size
+
+
+def _open_original_bank(stack: ExitStack, path: Path, expected: bytes):
+    """Open/map only the exact preserved bank; never trust a pathname hash alone.
+
+    The canonical original 14-bank manifest is separately SHA-checked before
+    run_local. Checking the opened mmap as well prevents a same-size substituted
+    descriptor being mistaken for the independently preserved archive.
+    """
+    if type(expected) is not bytes or len(expected) != 32:
+        raise ValueError("invalid original bank digest")
+    identity = _regular_bank_identity(path.lstat())
+    fh = stack.enter_context(path.open("rb"))
+    if _regular_bank_identity(os.fstat(fh.fileno())) != identity:
+        raise ValueError("opened source bank differs from canonical pathname")
+    mapped = stack.enter_context(mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ))
+    if hashlib.sha256(mapped).digest() != expected:
+        raise ValueError("opened source bank differs from original bank SHA")
+    return mapped, fh, identity
+
+
+def _recheck_open_original_bank(path: Path, expected: bytes, mapped, fh, identity):
+    """Check the actual mapped bytes, descriptor and pathname after inspection."""
+    if (identity != _regular_bank_identity(os.fstat(fh.fileno()))
+            or identity != _regular_bank_identity(path.lstat())):
+        raise ValueError("source bank identity changed while inspected")
+    if hashlib.sha256(mapped).digest() != expected:
+        raise ValueError("source bank mmap bytes changed while inspected")
+
+
 def run_local(directory:Path) -> dict:
     directory=seven._private_directory(directory)
     expected=_canonical_archive_sha(directory)
@@ -535,10 +574,12 @@ def run_local(directory:Path) -> dict:
         pair=pairs[phase]
         with ExitStack() as stack:
             mm={}
+            opened=[]
             for bank,p in pair.items():
-                fh=stack.enter_context(p.open("rb"))
-                mm[bank]=stack.enter_context(mmap.mmap(
-                    fh.fileno(),0,access=mmap.ACCESS_READ))
+                mapped,fh,identity=_open_original_bank(
+                    stack,p,expected[phase][bank])
+                mm[bank]=mapped
+                opened.append((p,expected[phase][bank],mapped,fh,identity))
             rd=ROSTER.TwoBankReader(mm["MEM1"],mm["MEM2"])
             samples[phase]=seven._source_sample(mm["MEM1"],mm["MEM2"])
             config=rd.u32(ROSTER.GOLF_CONFIG_STATIC)
@@ -552,6 +593,8 @@ def run_local(directory:Path) -> dict:
             codes[phase]["runtime"].update(source_global_own_cc_candidate(
                 rd.u32, codes[phase]["runtime"], samples[phase]))
             callers=verify_caller_snapshot(callers,rd.u32)
+            for p,digest,mapped,fh,identity in opened:
+                _recheck_open_original_bank(p,digest,mapped,fh,identity)
         for bank,p in pair.items():
             if seven._hash(p)!=expected[phase][bank]:
                 raise ValueError("bank differs from canonical archive after inspection")
