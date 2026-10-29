@@ -446,6 +446,14 @@ def main(argv: list[str] | None = None) -> int:
             identity = inspect_bridge_file(bridge)
             if identity["revision"] != "V1-neutral-swing-calls" or not identity["safe_for_isolated_legacy_copy"]:
                 raise RuntimeError("Verified isolated V1 bridge missing; will not launch Dolphin")
+            # The bridge is a local source artifact, not authenticated in-process
+            # code. Require a stable, typed preflight SHA for result-first shots.
+            preflight_bridge_sha = identity.get("sha256")
+            if args.visual_first and not (
+                type(preflight_bridge_sha) is str and
+                re.fullmatch(r"[a-f0-9]{64}", preflight_bridge_sha)
+            ):
+                raise RuntimeError("V1 bridge source SHA missing; no Dolphin launch")
             clean_boot = v1_clean_boot_args(ROOT)
             print("Close existing Dolphin before this ONE live trial.", flush=True)
             action = [sys.executable, str(ROOT / "scripts" / "run_golf_experiment.py"),
@@ -460,6 +468,19 @@ def main(argv: list[str] | None = None) -> int:
             if args.visual_first:
                 action.extend(["--visual-first", "--run-token", run_token])
             exit_code = _run(action)
+            bridge_source_changed = False
+            if args.visual_first:
+                # Inspect once more even if the child failed. A changed source
+                # disqualifies the trial regardless of its outcome annotation.
+                try:
+                    post_identity = inspect_bridge_file(bridge)
+                    bridge_source_changed = not (
+                        post_identity.get("revision") == "V1-neutral-swing-calls"
+                        and post_identity.get("safe_for_isolated_legacy_copy") is True
+                        and post_identity.get("sha256") == preflight_bridge_sha
+                    )
+                except (OSError, ValueError, UnicodeError, KeyError, TypeError):
+                    bridge_source_changed = True
         summary = {"schema": 1,
                    "id": run_token,
                    "kind": args.command, "started_utc": begin.isoformat(),
@@ -477,10 +498,20 @@ def main(argv: list[str] | None = None) -> int:
                 summary["study_id"] = args.study_id
                 summary["trial_index"] = args.trial_index
                 summary["trial_count"] = len(POWER_MAP_STUDY)
-            summary["bridge_sha256"] = _sha_file(bridge)
+            summary["bridge_sha256"] = (
+                preflight_bridge_sha if args.visual_first else _sha_file(bridge)
+            )
             if args.visual_first:
                 summary["visual_first"] = True
-                if exit_code == 0:
+                if bridge_source_changed:
+                    summary.update({
+                        "bridge_source_changed_during_action": True,
+                        "capture_status": "unqualified_bridge_source_change",
+                        "shot_dispatch_verified_by_collector": False,
+                        "informative_action_outcome_trial": False,
+                        "train_approved": False,
+                    })
+                elif exit_code == 0:
                     summary.update(_joined_visual_first(
                         run_token, begin, a_lead=args.a_lead,
                         speed=args.speed_scale, backswing=args.backswing_scale))
