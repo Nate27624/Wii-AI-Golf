@@ -18,7 +18,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import audit_ball_xyz_source_callers_private as source
 
-CFG_SHA = "abd875dc83f3cf8e773c1790272ffb4759f37ef7"
+CFG_SHA = "535eee90f2140b8b4682b2afb158a20e8553382a"
 CFG_RELATIVE = Path("scripts/review_p0_cache_receiver_cfg_mustdef.py")
 EXPECTED_SOURCE_OWNER = "Pack/RPSports/RPGolScene/RPGolMapObjBall.cpp"
 EXPECTED_CALLERS = (
