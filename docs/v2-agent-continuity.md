@@ -36,11 +36,14 @@ If unanswered: <safe fallback and work that can proceed>
 ```
 The S000 manager consolidates other agents' questions. Resolve technical questions from code, sources, tests, or discussions before escalating. Ask the human only for priorities, consent, irreconcilable tradeoffs, or access to their local evidence.
 
-## Reusable user continuation message
+## Universal operator commands
 
-```text
-CONTINUE V2. Keep your existing role, instance ID and in-flight CLAIM. Fetch current main, latest [S000-manager] PRIORITY BOARD V2 on PR #320, canonical issue/PR handoffs, active overlapping claims, and merging.md. Finish or reconcile already claimed work first; then select the highest-value in-role unclaimed, unblocked task based on current evidence rather than a frozen older instruction. If an assigned task merged or was retired, do not repeat it: publish a handoff and coordinate a replacement claim. Perform substantive source/code/test/PR work now, self-merge only when all merging.md gates pass, and end with one OPERATOR STATUS: CONTINUE, ACTION REQUIRED, or DECISION REQUIRED. Never treat board suggestions as live consent or automatic ownership.
-```
+The **single canonical copy-and-paste prompt source** is
+[Universal INIT, CONTINUE and HANDOFF](v2-universal-prompts.md).
+It applies to every S000–S005 instance; do not publish separate role-specific
+versions or make the operator select a numbered prompt. Agents must read
+this continuity policy, their current role/claim, the S000 board and root
+`merging.md` to interpret the same universal command correctly.
 
 After responding to an ACTION REQUIRED or DECISION REQUIRED request, the user may simply say: `<answer or sanitized output>. CONTINUE V2.` The agent must incorporate the answer, record the decision in its canonical thread as appropriate, and proceed immediately.
 
@@ -63,15 +66,11 @@ unclaimed work; a new distinct ID must be verified against GitHub claims.
 No script reserves IDs or starts new ChatGPT conversations. The roles S000–S005
 remain governed by the charter, regardless of priority order.
 
-**New ChatGPT conversation — dynamic initiation message:**
-
-```text
-INIT V2. Read latest main, AGENTS.md, docs/v2-navigation.md, docs/v2-agent-charter.md, docs/v2-agent-continuity.md and merging.md. Read the newest [S000-manager] PRIORITY BOARD V2 on coordination PR #320, then inspect live CLAIM/HANDOFF comments and current open PR overlaps. Recommend the highest-value UNCLAIMED and UNBLOCKED role-appropriate task according to S000 coordination; select a unique S00N-instance ID not already claimed. Post [INSTANCE] CLAIM on its EXISTING canonical issue/PR, preserving prior research and role ownership. Begin one bounded substantive source/code/test or evidence-preserving consolidation action immediately. Do not create duplicate implementations or research-only PRs. Follow exact-head Windows/Ubuntu CI and root merging.md; self-merge objective-qualified PRs, without requesting a manager approval ritual. No automatic live Dolphin actions, private captures, publication or training promotion. End with one OPERATOR STATUS.
-```
-
-**Same-chat dynamic continuation:** use the updated `CONTINUE V2` message above.
-Check fresh manager recommendations **after** completing the existing claim;
-never abandon in-flight ownership just because a priority number changed.
+**Universal dynamic INIT/CONTINUE/HANDOFF:** copy the corresponding single
+prompt from [v2-universal-prompts.md](v2-universal-prompts.md). An agent reads
+the latest manager board and its own active CLAIM on each invocation; the
+operator need not preselect a role or rewrite prompt text. Finish current
+claimed work before accepting a new recommended task.
 
 Optional local, **read-only** helper (requires already authenticated `gh`
 CLI for live reads; if missing, use the GitHub connector in ChatGPT):

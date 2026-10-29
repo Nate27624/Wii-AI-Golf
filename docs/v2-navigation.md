@@ -1,5 +1,7 @@
 # V2 — Start Here
 
+For the operator, the canonical [three universal copy/paste prompts](v2-universal-prompts.md) cover all S000–S005 roles: new agent = INIT, same chat = CONTINUE, replacement chat = HANDOFF. No per-role prompt list is needed.
+
 This is the main entry point for agents. Review these in order:
 
 1. Root `merging.md`: objective checklist for self-merging.

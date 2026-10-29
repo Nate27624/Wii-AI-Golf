@@ -64,6 +64,26 @@ class V2DocumentationConsistencyTests(unittest.TestCase):
                 self.assertIn(old_heading, body)
                 self.assertGreater(len(body), 15000)
 
+    def test_only_three_universal_role_neutral_copy_prompts(self):
+        doc = self.read("docs/v2-universal-prompts.md")
+        self.assertEqual(doc.count("```text"), 3)
+        for title in ("Universal INIT V2", "Universal CONTINUE V2", "Universal HANDOFF V2"):
+            self.assertIn(title, doc)
+        for token in ("INIT V2 — UNIVERSAL AGENT",
+                      "CONTINUE V2 — UNIVERSAL AGENT",
+                      "HANDOFF V2 — UNIVERSAL AGENT",
+                      "scripts/agent_init.py", "scripts/agent_handoff.py",
+                      "S000–S005", "PR #320"):
+            self.assertIn(token, doc)
+        self.assertIn("S00N-name", doc)
+        self.assertIn("same", doc.lower())
+        self.assertIn("STANDALONE", doc)
+        self.assertIn("No placeholders", doc)
+        for path in ("README.md", "AGENTS.md", "docs/v2-navigation.md",
+                     "docs/v2-agent-continuity.md"):
+            with self.subTest(path=path):
+                self.assertIn("v2-universal-prompts.md", self.read(path))
+
     def test_current_relative_markdown_links_exist(self):
         for path in ("README.md", "AGENTS.md"):
             with self.subTest(path=path):

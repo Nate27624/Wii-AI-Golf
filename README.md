@@ -2,6 +2,8 @@
 
 Build a reproducible Wii Sports Golf research pipeline from **Dolphin control → verified shot identity → provenance-gated observation → outcome → eligible training evidence**. **The full real-game pipeline and trainable ball coordinates are not yet verified.** Passing offline tests does not establish a real strike, game score, physical ball XYZ/velocity, or learning success.
 
+**Operator copy/paste:** [Three universal prompts — INIT, CONTINUE, HANDOFF](docs/v2-universal-prompts.md). Use the *same* prompt for every role; each agent checks S000’s current coordination board and its own claims.
+
 > **New agent?** Start at [V2 navigation](docs/v2-navigation.md), then read the [role charter](docs/v2-agent-charter.md), [agent continuity / successor handoff](docs/v2-agent-continuity.md), and root [self-merge policy](merging.md). These are the current V2 operating rules. Always check live `main`, GitHub claims, and CI; documentation is not a live PR dashboard.
 
 ## Current V2 operator contract

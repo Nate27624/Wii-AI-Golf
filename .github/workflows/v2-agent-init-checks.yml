@@ -8,6 +8,7 @@ on:
       - 'docs/v2-agent-charter.md'
       - 'docs/S000-manager-playbook.md'
       - 'docs/v2-agent-continuity.md'
+      - 'docs/v2-universal-prompts.md'
       - 'docs/v2-navigation.md'
       - 'scripts/agent_init.py'
       - 'scripts/agent_handoff.py'
