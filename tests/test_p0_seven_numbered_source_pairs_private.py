@@ -243,6 +243,41 @@ class TestSeven(unittest.TestCase):
         self.assertIn('"status": "abstained"',output.getvalue())
         self.assertNotIn("whole_record",output.getvalue())
 
+    def test_scoped_abstentions_use_fixed_privacy_safe_reason_codes(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        from unittest.mock import patch
+        import json
+        cases=(
+            ("Archived bank SHA mismatch","archive_bank_sha_mismatch"),
+            ("Source-selected ball object/selfref invalid","selected_ball_source_selfref_invalid"),
+            ("Source pin/start/config incomplete","pin_start_config_source_gate_failed"),
+            ("C:\\\\PRIVATE\\\\USER\\\\MEM2.BIN is missing","archive_or_source_gate_unqualified"),
+        )
+        for message, expected in cases:
+            with self.subTest(expected=expected):
+                output=StringIO()
+                with patch.object(mod,"analyze",side_effect=ValueError(message)):
+                    with redirect_stdout(output):
+                        code=mod.main(["--archive","fake-private-folder","--middle-only"])
+                self.assertEqual(code,2)
+                report=json.loads(output.getvalue())
+                self.assertEqual(report["status"],"abstained")
+                self.assertEqual(report["reason_code"],expected)
+                self.assertEqual(report["stage"],"archive_or_source_validation")
+                self.assertFalse(report["training_approved"])
+                self.assertFalse(report["allowed_to_publish"])
+                self.assertNotIn("PRIVATE",output.getvalue())
+                self.assertNotIn("MEM2.BIN",output.getvalue())
+
+    def test_scoped_confound_has_specific_whitelisted_abstain_reason(self):
+        phases=seven()
+        phases[6]["cfg_c4"]=999
+        row=mod.summarize(phases)["ball_middle_component_hypothesis"]
+        self.assertEqual(row["status"],"abstained")
+        self.assertEqual(row["reason_code"],"scalar_wedge_config_changed")
+        self.assertEqual(row["wedge_edges"],[])
+
     def test_archive_wrong_kind_rejected_without_ram(self):
         from unittest.mock import patch
         from tempfile import TemporaryDirectory
