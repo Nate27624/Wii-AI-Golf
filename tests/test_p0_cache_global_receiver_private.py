@@ -172,6 +172,83 @@ class GlobalReceiverAuditTests(unittest.TestCase):
                                         "static_source_global_slot_supported":False,
                                         "runtime":{"supported":False}} for i in range(1,8)},[])
 
+    @staticmethod
+    def _driver_global_crossphase_inputs():
+        samples=source_fixture()
+        # Existing source-qualified selected object/geometry placeholders:
+        # only fabricated u32 patterns here, never original memory bytes.
+        for i in (1,2):
+            samples[i]["triplets"]["source_selected_pin"]=(21,22,23)
+        samples[2]["triplets"]["ball_nested_plus_0x4c"]=(9,10,11)
+        samples[2]["triplets"]["ball_cache_0x0cc"]=(9,10,11)
+        codes={
+            1:{"static_source_global_slot_supported":True,
+               "runtime":{"supported":True,
+                          "_private_runtime_source_global_pointer":0x90005000,
+                          "_private_runtime_global_current_words":(9,10,11)}},
+            2:{"static_source_global_slot_supported":True,
+               "runtime":{"supported":True,
+                          "_private_runtime_source_global_pointer":0x90005000,
+                          "_private_runtime_global_current_words":(9,10,11)}},
+        }
+        return samples,codes
+
+    def test_driver_existing_memory_future_match_is_only_categorical(self):
+        samples,codes=self._driver_global_crossphase_inputs()
+        report=target.driver_global_crossphase_relation(samples,codes)
+        self.assertEqual(report["status"],"CATEGORICAL_RELATION_ONLY")
+        self.assertTrue(report["global_pointer_identity_D1_D2_equal"])
+        for key in ("global_D1_equals_selected_D2_components",
+                    "global_D1_equals_CC_D2_components",
+                    "global_D1_equals_global_D2_components"):
+            self.assertEqual(report[key],3)
+        self.assertFalse(report["actual_predicted_endpoint_or_rendered_ball_verified"])
+        self.assertFalse(report["machine_verified_same_shot_timing"])
+        self.assertFalse(report["approved_for_training"])
+        payload=json.dumps(report)
+        self.assertNotIn("90005000",payload)
+        self.assertNotIn("_private_",payload)
+
+    def test_driver_global_crossphase_nonmatch_is_not_semantic_falsification(self):
+        samples,codes=self._driver_global_crossphase_inputs()
+        codes[1]["runtime"]["_private_runtime_global_current_words"]=(8,10,11)
+        report=target.driver_global_crossphase_relation(samples,codes)
+        self.assertEqual(report["global_D1_equals_selected_D2_components"],2)
+        self.assertEqual(report["global_D1_equals_global_D2_components"],2)
+        self.assertFalse(report["actual_predicted_endpoint_or_rendered_ball_verified"])
+
+    def test_driver_global_pointer_change_abstains_without_exposing_pointer(self):
+        samples,codes=self._driver_global_crossphase_inputs()
+        codes[2]["runtime"]["_private_runtime_source_global_pointer"]=0x90006000
+        report=target.driver_global_crossphase_relation(samples,codes)
+        self.assertEqual(report["status"],"ABSTAIN")
+        self.assertEqual(report["reason"],"global_object_identity_changed")
+        self.assertIs(report["global_pointer_identity_D1_D2_equal"],False)
+        self.assertIsNone(report["global_D1_equals_selected_D2_components"])
+        self.assertNotIn("90006000",json.dumps(report))
+
+    def test_driver_mismatched_source_geometry_abstains(self):
+        samples,codes=self._driver_global_crossphase_inputs()
+        samples[2]["triplets"]["source_selected_pin"]=(21,22,24)
+        report=target.driver_global_crossphase_relation(samples,codes)
+        self.assertEqual(report["status"],"ABSTAIN")
+        self.assertEqual(report["reason"],"source_geometry_changed")
+        self.assertIsNone(report["global_D1_equals_selected_D2_components"])
+
+    def test_driver_missing_geometry_source_or_untyped_triplet_abstains(self):
+        samples,codes=self._driver_global_crossphase_inputs()
+        del samples[1]["triplets"]["source_selected_pin"]
+        report=target.driver_global_crossphase_relation(samples,codes)
+        self.assertEqual(report["reason"],"missing_source_geometry")
+        samples,codes=self._driver_global_crossphase_inputs()
+        codes[2]["static_source_global_slot_supported"]=False
+        self.assertEqual(target.driver_global_crossphase_relation(samples,codes)[
+            "reason"],"source_global_not_qualified")
+        samples,codes=self._driver_global_crossphase_inputs()
+        codes[1]["runtime"]["_private_runtime_global_current_words"]=(1,2,float("nan"))
+        self.assertEqual(target.driver_global_crossphase_relation(samples,codes)[
+            "reason"],"invalid_native_source_triplet")
+
     def test_dform_signed_negative(self):
         self.assertEqual(target.dform(lwz(3,13,-100))["imm"],-100)
         self.assertEqual(target.dform(lwz(3,13,12))["imm"],12)
