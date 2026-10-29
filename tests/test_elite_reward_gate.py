@@ -45,6 +45,26 @@ class S005EliteDirectRewardGateTests(unittest.TestCase):
             with self.subTest(metadata=metadata):
                 self.assert_refused_without_history(metadata)
 
+    def test_explicit_censor_flags_rejected_even_if_synthetic_labeled(self):
+        # Training helper checks censoring too; direct policy calls must not
+        # bypass that boundary by claiming source='synthetic'.
+        for metadata in (
+            {"source": "synthetic",
+             "measurement_type": "offgreen_100ft_penalty"},
+            {"source": "synthetic",
+             "distance_label": "offgreen_100ft_penalty"},
+            {"source": "synthetic", "censored": "TRUE"},
+            {"source": "synthetic", "outcome_is_censored_penalty": "yes"},
+        ):
+            with self.subTest(metadata=metadata):
+                with self.assertRaisesRegex(ValueError, "censored"):
+                    self.policy.observe(
+                        self.observation, self.action,
+                        ShotResult(30.48, False, metadata=metadata),
+                    )
+                self.assertEqual(dict(self.policy.history), {})
+                self.assertEqual(self.policy.estimates, {})
+
     def test_rejection_preserves_existing_synthetic_learning(self):
         first = ShotAction(-0.1, 0.4)
         second = ShotAction(0.2, 0.7)
