@@ -11,8 +11,9 @@
 Offline PowerShell JSON index after this PR is available locally:
 
 ```powershell
-Set-Location -LiteralPath 'D:\Projects\Wii Golf AI\Wii-AI-Golf'
-py -I scripts/inventory_private_golf_json_motion.py --data-root 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data' --top 20
+$repo = (git rev-parse --show-toplevel).Trim()
+$dataRoot = Join-Path (Split-Path -Parent $repo) 'Wii-AI-Golf-Data'
+py -I (Join-Path $repo 'scripts/inventory_private_golf_json_motion.py') --data-root "$dataRoot" --top 20
 ```
 
 This scans bounded local `.json`/`.jsonl` only and writes `json-motion-inventory-PRIVATE-*.json` **inside the ignored sibling private data directory**; stdout prints anonymized file IDs, field counts and phase annotations, no raw ball values, world-space coordinates or local file paths. Review the local index to locate the relevant file, then correlate via actual shot/frame IDs. An apparent velocity field or changing pair of floats is still **not a measured vertical velocity or verified ball XYZ**.
@@ -41,7 +42,7 @@ Use **literal source-backed offsets** in `memory_locator` so later extractors ca
 
 ## The important current distinctions
 
-There are now seventeen seeded entries including the source-derived selected ball translation and position caches, selected player-record start/position copies, and angle-like aim candidate. **All seventeen are research candidates and zero are training-approved.**
+As of the current #205 registry integration, **35 candidate entries are recorded and zero are training-approved**. The catalog includes source-derived selected-ball translations and caches, separate player records, source-only UI controls and unresolved physical game variables; a source label does not by itself establish a rendered-ball or training interpretation.
 
 
 | Registry ID | What we know | Missing before training |
@@ -64,8 +65,8 @@ A later approved feature extractor may load `research/memory-variables/registry.
 For a PowerShell-only catalog view after merging, run:
 
 ```powershell
-Set-Location -LiteralPath 'D:\Projects\Wii Golf AI\Wii-AI-Golf'
-$registry = Get-Content -Raw 'research\memory-variables\registry.json' | ConvertFrom-Json
+$repo = (git rev-parse --show-toplevel).Trim()
+$registry = Get-Content -Raw (Join-Path $repo 'research/memory-variables/registry.json') | ConvertFrom-Json
 $registry.variables | Select-Object id,status,datatype,unit,
   @{Name='Trainable';Expression={$_.training.approved}} | Format-Table -AutoSize
 ```
