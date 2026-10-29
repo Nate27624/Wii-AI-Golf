@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from scripts import savestate_session as session
+from scripts import launch_hitting_green as child
 from wii_ai_golf.integration.savestates import StateProfile
 
 
@@ -56,6 +57,58 @@ class SessionLaunchTests(unittest.TestCase):
         self.assertEqual(result["pid"], 1234)
         self.assertEqual(popen.call_args.args[0],
                          [str(self.exe), "--script", str(self.bridge), "--exec", str(self.game)])
+
+    def test_explicit_userroot_is_forwarded_to_native_dolphin(self):
+        user_dir = self.exe.parent / "isolated-user"
+        ini = user_dir / "Config" / "WiimoteNew.ini"
+        ini.parent.mkdir(parents=True)
+        ini.write_text("[Wiimote1]\\nSource = 1\\n", encoding="utf-8")
+        self.args.dolphin_user = user_dir
+        with patch.object(session, "_connected", return_value=False), \
+             patch.object(session.subprocess, "Popen", side_effect=MockPopen) as popen, \
+             patch.object(session, "FelkRPC", FakeRPC):
+            result = session._launch(self.args, self.profile)
+        self.assertEqual(result["action"], "launched_and_load_requested")
+        self.assertEqual(popen.call_args.args[0], [
+            str(self.exe), "-u", str(user_dir), "--script", str(self.bridge),
+            "--exec", str(self.game),
+        ])
+
+    def test_missing_explicit_userroot_refuses_process_start(self):
+        self.args.dolphin_user = self.exe.parent / "missing-user"
+        with patch.object(session, "_connected", return_value=False), \
+             patch.object(session.subprocess, "Popen") as popen, \
+             patch.object(session, "FelkRPC") as rpc:
+            with self.assertRaisesRegex(ValueError, "no launch"):
+                session._launch(self.args, self.profile)
+        popen.assert_not_called()
+        rpc.assert_not_called()
+
+    def test_child_parse_forwards_userroot_without_real_launch(self):
+        user_dir = self.exe.parent / "User"
+        argv = [
+            "launch_hitting_green.py", "--catalog", str(self.exe.parent / "catalog.json"),
+            "--profile", self.profile.name, "--dolphin", str(self.exe),
+            "--dolphin-user", str(user_dir), "--bridge", str(self.bridge),
+            "--game", str(self.game), "--send-live",
+        ]
+        with patch.object(child.sys, "argv", argv), \
+             patch.object(child, "StateCatalog") as catalog, \
+             patch.object(child, "_launch", return_value={"action": "fake"}) as launch, \
+             patch.object(child, "_healthy_connection") as healthy, \
+             patch.object(child, "execute_menu_phases", return_value=[]) as menu:
+            catalog.return_value.get.return_value = self.profile
+            child.main()
+        self.assertEqual(launch.call_args.args[0].dolphin_user, user_dir)
+        menu.assert_called_once()
+        healthy.return_value.close.assert_called_once()
+
+    def test_child_rejects_userroot_with_attach_running(self):
+        argv = ["launch_hitting_green.py", "--attach-running", "--dolphin-user", "unused"]
+        with patch.object(child.sys, "argv", argv), patch.object(child, "_launch") as launch:
+            with self.assertRaises(SystemExit):
+                child.main()
+        launch.assert_not_called()
 
     def test_windows_access_violation_is_classified_before_bridge_use(self):
         # Two Python/Windows representations of the same native NTSTATUS.
