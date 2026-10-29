@@ -8,7 +8,9 @@ on:
       - 'docs/v2-agent-continuity.md'
       - 'docs/v2-navigation.md'
       - 'scripts/agent_init.py'
+      - 'scripts/agent_handoff.py'
       - 'tests/test_agent_init.py'
+      - 'tests/test_agent_handoff.py'
       - '.github/workflows/v2-agent-init-checks.yml'
   workflow_dispatch:
 
@@ -26,5 +28,7 @@ jobs:
           python-version: '3.11'
       - name: Focused agent-init tests
         run: python -m unittest discover -s tests -p 'test_agent_init.py' -v
+      - name: Focused agent-succession tests
+        run: python -m unittest discover -s tests -p 'test_agent_handoff.py' -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
