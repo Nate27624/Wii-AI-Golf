@@ -4,6 +4,8 @@ on:
     paths:
       - 'docs/v2-agent-charter.md'
       - 'docs/S000-manager-playbook.md'
+      - 'docs/v2-agent-continuity.md'
+      - 'docs/v2-navigation.md'
       - 'scripts/agent_init.py'
       - 'tests/test_agent_init.py'
       - '.github/workflows/v2-agent-init-checks.yml'

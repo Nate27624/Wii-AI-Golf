@@ -49,11 +49,13 @@ def main() -> int:
         print(f"MANAGER_PLAYBOOK={manager.relative_to(root).as_posix()}")
         print("MANAGER_DUTY=Collect agent questions; resolve from evidence; escalate operator-only decisions.")
         print("MANAGER_DUTY=Keep roles focused, prevent duplicate implementations, and route answers back.")
-    print("READ root merging.md (canonical self-merge checklist) and docs/p0-pr-consolidation-lanes.md")
+    print("READ root merging.md, docs/v2-agent-continuity.md, and docs/p0-pr-consolidation-lanes.md")
     print("READ current owner PR, inspect latest main and sibling overlaps.")
     print("POST: [AGENT_ID] CLAIM | owner PR | inputs | outputs | changed paths | test plan")
     print("POST: [AGENT_ID] HANDOFF | branch/head | tests | evidence | blockers | next owner")
     print("POST: [AGENT_ID] QUESTION | blocker | evidence | options | suggested resolution")
+    print("FINAL STATUS=CONTINUE | ACTION REQUIRED | DECISION REQUIRED")
+    print("USER CONTINUATION=CONTINUE V2; resume latest canonical HANDOFF")
     print("NO LIVE DOLPHIN; NO RAW CAPTURE; NO AUTO MERGE/PUBLISH.")
     return 0
 

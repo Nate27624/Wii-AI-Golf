@@ -68,3 +68,7 @@ Operator needed: <none or a specific action>
 Give agent the existing canonical PR link, role, task scope and tests. Require `[INSTANCE] CLAIM` before edits and `[INSTANCE] HANDOFF` afterward. The manager coordinates via GitHub; comments do not guarantee another chat agent will read them until prompted to do so.
 
 **Hard stop:** Never autonomously run Dolphin, generate a shot, release private evidence, claim training-ready coordinates, or bypass `merging.md` to reduce the backlog.
+
+## Operator-facing continuity
+
+The manager follows [V2 agent continuity](v2-agent-continuity.md). Consolidate questions from all agents, answer technical questions directly, and bring only indispensable operator decisions/actions to the user. End each meaningful answer with a single operator status. A `CONTINUE V2` request resumes from latest source-backed handoffs; do substantive work rather than recycling a progress summary. No implied background monitoring.

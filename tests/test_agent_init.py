@@ -16,6 +16,7 @@ class AgentInitTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("AGENT_ID=S002-memory-a", proc.stdout)
         self.assertIn("NO LIVE DOLPHIN", proc.stdout)
+        self.assertIn("FINAL STATUS=CONTINUE | ACTION REQUIRED | DECISION REQUIRED", proc.stdout)
 
     def test_manager_playbook_link(self):
         proc = self.invoke("--role", "S000", "--instance", "S000-manager")
@@ -25,7 +26,7 @@ class AgentInitTests(unittest.TestCase):
         self.assertIn("MANAGER_DUTY=Keep roles focused", proc.stdout)
 
     def test_v2_navigation_targets_exist(self):
-        for path in ('docs/v2-navigation.md', 'docs/v2-evidence-gates.md', 'docs/v2-pr-triage.md', 'docs/S000-manager-playbook.md', 'merging.md'):
+        for path in ('docs/v2-navigation.md', 'docs/v2-agent-continuity.md', 'docs/v2-evidence-gates.md', 'docs/v2-pr-triage.md', 'docs/S000-manager-playbook.md', 'merging.md'):
             with self.subTest(path=path):
                 self.assertTrue((ROOT / path).is_file())
 
