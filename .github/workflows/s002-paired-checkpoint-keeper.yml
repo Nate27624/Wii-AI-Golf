@@ -1,0 +1,26 @@
+name: S002 paired checkpoint preservation tests
+on:
+  pull_request:
+    paths:
+      - 'scripts/preserve_golf_checkpoint_pair.py'
+      - 'tests/test_preserve_golf_checkpoint_pair.py'
+      - '.github/workflows/s002-paired-checkpoint-keeper.yml'
+  workflow_dispatch:
+jobs:
+  paired-keeper-tests:
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-latest, windows-latest]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile private checkpoint keeper
+        run: python -m compileall -q scripts/preserve_golf_checkpoint_pair.py src/wii_ai_golf/audit/golf_cross_bank_state.py tests/test_preserve_golf_checkpoint_pair.py
+      - name: Run synthetic private checkpoint keeper tests
+        run: python -m unittest discover -s tests -p 'test_preserve_golf_checkpoint_pair.py' -v
