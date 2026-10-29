@@ -58,3 +58,37 @@ Next OWNER-SPECIFIC fix requested in [#254](https://github.com/Nate27624/Wii-AI-
 The adapter's source-only CFG is **unchanged**. It now pins #254's new exact reviewed immutable SHA, requires its clean Git worktree/committed blob hash, and strictly allowlists diagnostics with `+0xNNNN` source-function-relative offsets bounded to each original caller window. The adapter rejects malformed/private-formatted offsets or unrecognized reason strings, and it does not assert authenticated B0 source until the complete original B0 SHA/manifest pre/post and published exact MapObjBall source-unit gate. New tests cover missing reason, spoofed text, relative-offset escapes and valid redacted unknown offsets. Hosted [#257 CI 40652473848](https://github.com/Nate27624/Wii-AI-Golf/actions/runs/40652473848) **19/19 Windows + 19/19 Ubuntu fabricated tests PASS** on exact code/test commit `e877030244386542da596344f4413558a62332b7`. **Real operator upgraded diagnostic not run yet.**
 
 Previous original B0 audit on old #254 helper (15 +22 tests passed) returned `ABSTAIN_SOURCE_UNRESOLVED` for both known cache-writer callers, with no first witness. That result remains formally valid but strictly *inconclusive*. New diagnostic may explain why it abstained; it cannot turn unsupported opcodes/branches into a permitted must-flow path or establish runtime receiver, actual physics, shot, score, velocity, XYZ or training eligibility.
+
+
+## V2 consolidated in-tree helper and reviewed opcode4 safety pin (2026-10-29)
+
+The earlier paragraphs above are historical evidence tied to their original source
+and tested SHAs; they do **not** describe the *current* integrated helper pin.
+
+The current V2 source/CFG integration in draft PR #329 selectively contains the
+#219 B0/source-index reader, the #257 adapter with strict boolean/status/proof
+consistency checks, and the unchanged source-only pure CFG helper taken **byte
+for byte** from [#332](https://github.com/Nate27624/Wii-AI-Golf/pull/332).
+The adapter's current reviewed helper Git worktree pin is
+`535eee90f2140b8b4682b2afb158a20e8553382a`, whose
+`scripts/review_p0_cache_receiver_cfg_mustdef.py` committed Git blob is
+`843c7e5f8e47810a3544fabb10e5b928040e5559`.
+The adapter's in-tree test independently verifies both the exact pin and the
+content-addressed helper file. The helper remains loaded at runtime only from
+a separate, clean, exact-commit Git worktree, with strict SHA/blob validation.
+
+The new helper **removes PPC opcode 4 from the broad GPR-preserving whitelist**,
+abstaining on unclassified Gekko paired-single instructions, including indexed
+update-base `psq_lux` and `psq_stux` that could overwrite tracked r3 or r31.
+The same patch's native-free negative cases exercise rA=3 and rA=31,
+and previous benign CFG proofs remain covered. This fixes a **synthetic
+static-analysis soundness risk**; there is no evidence that either original B0
+caller actually executed these instructions. The original operator B0 result
+remains two `ABSTAIN_SOURCE_UNRESOLVED` verdicts from `INTERVENING_CALL`
+and is not reclassified by source-only safety hardening.
+
+These tests do not certify dynamic source execution, a rendered-ball receiver,
+world XYZ, velocity, impact, score, guest physics frame, shot identity or
+training/publication eligibility. None of those claims is promoted. Off-green
+100-foot penalties must remain censored outcomes. PR #329 is not merge-ready
+until root `merging.md` checks pass for its final exact head and current main.
