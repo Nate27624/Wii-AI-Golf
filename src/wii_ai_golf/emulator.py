@@ -27,7 +27,12 @@ class DolphinEnvironment:
         self._ready = False
 
     def reset(self, scenario_id: str, *, seed: int) -> Observation:
+        self._ready = False
         observation = self.bridge.load_scenario(scenario_id, seed)
+        if not isinstance(observation, Observation):
+            raise ValueError("Bridge reset did not return a validated Observation")
+        if observation.scenario_id != scenario_id:
+            raise ValueError("Bridge reset scenario does not match requested scenario")
         self._ready = True
         return observation
 
