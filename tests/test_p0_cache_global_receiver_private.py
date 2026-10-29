@@ -5,6 +5,7 @@ No RAM image is required, no network, no Dolphin and no private source bytes.
 from __future__ import annotations
 
 import copy
+from contextlib import ExitStack
 import hashlib
 import json
 import tempfile
@@ -463,6 +464,94 @@ class GlobalReceiverAuditTests(unittest.TestCase):
             with a,b,c:
                 with self.assertRaisesRegex(ValueError,"noncanonical"):
                     target._canonical_archive_sha(folder)
+
+    def test_original_bank_mmap_descriptor_positive_and_postcheck(self):
+        data=b"verified-source-bank" * 4
+        with tempfile.TemporaryDirectory() as dirname:
+            path=Path(dirname)/"original.raw"
+            path.write_bytes(data)
+            digest=hashlib.sha256(data).digest()
+            with ExitStack() as stack:
+                mapped,fh,identity=target._open_original_bank(stack,path,digest)
+                self.assertEqual(mapped[:],data)
+                self.assertEqual(identity[2],len(data))
+                target._recheck_open_original_bank(
+                    path,digest,mapped,fh,identity)
+
+    def test_same_size_same_bytes_swapped_opened_inode_abstains(self):
+        # The named archive passes original-path SHA, but its open() returns
+        # a byte-identical DIFFERENT file. Path-only hashing was insufficient.
+        data=b"identical-private-bank" * 4
+        with tempfile.TemporaryDirectory() as dirname:
+            path=Path(dirname)/"original.raw"
+            substituted=Path(dirname)/"substituted.raw"
+            path.write_bytes(data)
+            substituted.write_bytes(data)
+            original_open=Path.open
+
+            def substituted_open(obj,*args,**kwargs):
+                return original_open(
+                    substituted if obj==path else obj,*args,**kwargs)
+
+            with mock.patch.object(
+                    Path,"open",autospec=True,side_effect=substituted_open):
+                with ExitStack() as stack:
+                    with self.assertRaisesRegex(ValueError,"canonical pathname"):
+                        target._open_original_bank(
+                            stack,path,hashlib.sha256(data).digest())
+
+    def test_actual_opened_mmap_sha_mismatch_abstains(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            path=Path(dirname)/"original.raw"
+            path.write_bytes(b"A"*64)
+            with ExitStack() as stack:
+                with self.assertRaisesRegex(ValueError,"original bank SHA"):
+                    target._open_original_bank(
+                        stack,path,hashlib.sha256(b"B"*64).digest())
+
+    def test_post_map_path_identity_drift_abstains(self):
+        data=b"original-source-bank" * 4
+        with tempfile.TemporaryDirectory() as dirname:
+            path=Path(dirname)/"original.raw"
+            other=Path(dirname)/"replacement.raw"
+            path.write_bytes(data)
+            other.write_bytes(data)
+            digest=hashlib.sha256(data).digest()
+            with ExitStack() as stack:
+                mapped,fh,identity=target._open_original_bank(stack,path,digest)
+                # The adversarial same-byte replacement has a distinct inode;
+                # the mapped source FD and a substituted path must not match.
+                with self.assertRaisesRegex(ValueError,"identity changed"):
+                    target._recheck_open_original_bank(
+                        other,digest,mapped,fh,identity)
+
+    def test_original_bank_rejects_symlink_or_invalid_digest(self):
+        data=b"safe-bank" * 8
+        with tempfile.TemporaryDirectory() as dirname:
+            path=Path(dirname)/"original.raw"
+            path.write_bytes(data)
+            with ExitStack() as stack:
+                with self.assertRaisesRegex(ValueError,"invalid original bank"):
+                    target._open_original_bank(stack,path,b"not-a-sha")
+            # Avoid platform-dependent Windows symlink privileges by injecting
+            # a synthetic lstat symlink identity at this exact source path.
+            actual_lstat=Path.lstat
+            def symlink_lstat(obj,*args,**kwargs):
+                if obj==path:
+                    base=actual_lstat(obj,*args,**kwargs)
+                    return type("SymlinkStat",(),{
+                        "st_mode":0o120777,
+                        "st_dev":base.st_dev,
+                        "st_ino":base.st_ino,
+                        "st_size":base.st_size,
+                    })()
+                return actual_lstat(obj,*args,**kwargs)
+            with mock.patch.object(
+                    Path,"lstat",autospec=True,side_effect=symlink_lstat):
+                with ExitStack() as stack:
+                    with self.assertRaisesRegex(ValueError,"not a regular"):
+                        target._open_original_bank(
+                            stack,path,hashlib.sha256(data).digest())
 
     def test_dform_signed_negative(self):
         self.assertEqual(target.dform(lwz(3,13,-100))["imm"],-100)
