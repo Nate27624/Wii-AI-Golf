@@ -22,7 +22,7 @@ class DolphinControllerStartupTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.base = Path(self.tmp.name)
+        self.base = Path(self.tmp.name).resolve()
         self.exe = self.base / "FelkDolphin" / "Dolphin.exe"
         self.exe.parent.mkdir()
         self.exe.write_bytes(b"")
@@ -82,7 +82,7 @@ class DolphinControllerStartupTests(unittest.TestCase):
         other = self.ini(self.roaming / "Dolphin Emulator", "[Wiimote1]\nSource = 2\n")
         located = locate_controller_ini(
             self.exe, environ={"APPDATA": str(self.roaming)}, home=self.home)
-        self.assertEqual(located.resolve(), expected.resolve())
+        self.assertEqual(located, expected)
         self.assertNotEqual(located, other)
 
     def test_ambiguous_user_directories_error_until_explicit(self):
@@ -92,8 +92,7 @@ class DolphinControllerStartupTests(unittest.TestCase):
         with self.assertRaisesRegex(ControllerConfigError, "Multiple"):
             locate_controller_ini(self.exe, environ=env, home=self.home)
         self.assertEqual(locate_controller_ini(
-            self.exe, user_dir=second.parent.parent, environ=env, home=self.home).resolve(),
-            second.resolve())
+            self.exe, user_dir=second.parent.parent, environ=env, home=self.home), second)
         self.assertEqual(first.read_text(), "[Wiimote1]\nSource = 2\n")
 
     def test_no_existing_config_refuses_creation(self):

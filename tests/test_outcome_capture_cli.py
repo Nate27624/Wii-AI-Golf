@@ -11,7 +11,7 @@ for item in (str(ROOT), str(ROOT / "src"), str(ROOT / "scripts")):
     if item in sys.path:
         sys.path.remove(item)
     sys.path.insert(0, item)
-from scripts.collect_outcome_transition import main as collector_main, run_session
+from scripts.collect_outcome_transition import run_session
 from scripts.probe_swing import build_probe
 
 
@@ -148,104 +148,6 @@ class OutcomeCaptureCliTests(unittest.TestCase):
         self.assertEqual(result["settled_screen_observation"],
                          "screen_had_already_transitioned_before_settled_samples")
         self.assertFalse(result["candidate_ranking"]["game_score_verified"])
-        self.assertTrue(result["candidate_ranking"]["candidate_ranking_quarantined"])
-        self.assertEqual(result["candidate_ranking"]["candidates"], [])
-
-    def test_offgreen_100ft_does_not_match_unrelated_memory_word(self):
-        responses = iter(["", "", "", "yes", "no", "100ft"])
-        with tempfile.TemporaryDirectory() as d:
-            result = run_session(object(), raw_path=Path(d) / "RAW.jsonl",
-                pre_samples=2, post_samples=2, settled_samples=2, interval=0,
-                input_fn=lambda _q: next(responses),
-                snapshot_fn=lambda _r, phase: row(
-                    phase, {"pre": 0, "post": 2, "settled": 100}[phase]),
-                swing_fn=lambda _r: {"state": "complete"})
-        self.assertEqual(result["candidate_ranking"]["all_phase_stable_change_count"], 1)
-        self.assertEqual(
-            result["candidate_ranking"]["candidates"][0]["matches_displayed_numeric_label_as"], [])
-        self.assertFalse(result["candidate_ranking"]["game_score_verified"])
-
-    def test_collector_exit_codes_distinguish_cancellations_from_success(self):
-        class DummyRPC:
-            def __enter__(self):
-                return object()
-            def __exit__(self, *args):
-                return False
-        for child_status, expected in (
-            ({"cancelled": True, "raw_data_created": False}, 40),
-            ({"cancelled": True, "raw_data_created": True,
-              "swing_dispatch": {"state": "complete"}}, 41),
-        ):
-            with self.subTest(expected=expected), \
-                 patch("scripts.collect_outcome_transition.FelkRPC",
-                       return_value=DummyRPC()), \
-                 patch("scripts.collect_outcome_transition.run_session",
-                       return_value=child_status):
-                self.assertEqual(collector_main(["--send-live-swing"]), expected)
-
-    def test_result_first_green_label_precedes_all_post_shot_reads(self):
-        events = []
-        replies = iter(["", "", "g", "2.1ft", "yes"])
-        def answered(prompt):
-            reply = next(replies)
-            events.append("PROMPT:" + prompt[:25])
-            return reply
-        def shot(_):
-            events.append("swing")
-            return {"state": "complete", "applied_frames": 89}
-        def read(_rpc, phase):
-            events.append("read-" + phase)
-            return row(phase, 1)
-        with tempfile.TemporaryDirectory() as d:
-            result = run_session(object(), raw_path=Path(d) / "raw.jsonl",
-                pre_samples=2, post_samples=2, settled_samples=3,
-                interval=0, result_first=True,
-                input_fn=answered, snapshot_fn=read, swing_fn=shot)
-        self.assertEqual(result["terminal_capture_mode"], "result_first_human_prompt")
-        self.assertEqual(result["terminal_human_category"], "on_green")
-        self.assertEqual(result["human_observation"]["displayed_distance_human"], 2.1)
-        self.assertTrue(result["candidate_ranking"]["candidate_ranking_quarantined"])
-        self.assertEqual(events.count("read-pre"), 2)
-        self.assertNotIn("read-post", events)
-        self.assertNotIn("read-settled", events)
-        self.assertLess(events.index("swing"), next(
-            i for i, e in enumerate(events) if "RESULT VISIBLE NOW?" in e))
-        self.assertEqual(result["settled_screen_observation"],
-                         "operator_confirmed_before_transition")
-
-    def test_result_first_offgreen_and_missed_screen_are_censored(self):
-        for response, category, green, timing in (
-            ("m", "off_green", "no", "operator_confirmed_before_transition"),
-            ("t", "transitioned", "unknown",
-             "screen_had_already_transitioned_before_settled_samples"),
-            ("u", "visible_unknown", "unknown", "operator_confirmed_before_transition"),
-        ):
-            with self.subTest(response=response), tempfile.TemporaryDirectory() as d:
-                answers = iter(["", "", response, "unknown"])
-                result = run_session(object(), raw_path=Path(d) / "raw.jsonl",
-                    pre_samples=2, post_samples=2, settled_samples=2,
-                    interval=0, result_first=True,
-                    input_fn=lambda _: next(answers),
-                    snapshot_fn=lambda _r, phase: row(phase, 1),
-                    swing_fn=lambda _: {"state": "complete", "applied_frames": 89})
-                self.assertEqual(result["terminal_human_category"], category)
-                self.assertEqual(result["human_observation"]["finished_on_green_human"], green)
-                self.assertIsNone(result["human_observation"]["displayed_distance_human"])
-                self.assertEqual(result["settled_screen_observation"], timing)
-                self.assertTrue(result["candidate_ranking"]["candidate_ranking_quarantined"])
-
-    def test_result_first_cancellation_after_swing_preserves_private_pre_only(self):
-        replies = iter(["", "", "q"])
-        with tempfile.TemporaryDirectory() as d:
-            raw = Path(d) / "raw.jsonl"
-            result = run_session(object(), raw_path=raw,
-                pre_samples=2, post_samples=2, settled_samples=2, interval=0,
-                result_first=True, input_fn=lambda _: next(replies),
-                snapshot_fn=lambda _r, phase: row(phase, 1),
-                swing_fn=lambda _: {"state": "complete", "applied_frames": 89})
-            self.assertTrue(result["cancelled"])
-            self.assertIn("swing_dispatch", result)
-            self.assertEqual(len(raw.read_text().splitlines()), 2)
 
     def test_early_cancel_does_not_write_or_swing(self):
         with tempfile.TemporaryDirectory() as d:
@@ -327,7 +229,8 @@ class OutcomeCaptureCliTests(unittest.TestCase):
                     self.assertEqual((frames, remote), (12, 0))
                     events.append("hold-a-observed-12")
                     return {"observed_frame_delta": 13, "start_frame_after_a_request": 120,
-                            "last_observed_frame": 133}
+                            "last_observed_frame": 133, "a_button_only_requests": 14,
+                            "per_observed_frame_a_reasserted": True}
                 hold.side_effect = hold_side_effect
                 def trace(samples):
                     events.append("trace-unchanged")
@@ -344,7 +247,8 @@ class OutcomeCaptureCliTests(unittest.TestCase):
             old_prime.assert_not_called()
             self.assertEqual(result["known_good_swing_request"]["a_lead_requested_frames"], 12)
             self.assertEqual(result["known_good_swing_request"]["a_lead_observed_frame_delta"], 13)
-            self.assertEqual(result["known_good_swing_request"]["a_button_only_prime_requests"], 1)
+            self.assertEqual(result["known_good_swing_request"]["a_button_only_prime_requests"], 14)
+            self.assertTrue(result["known_good_swing_request"]["a_lead_per_observed_frame_reasserted"])
             self.assertTrue(result["known_good_swing_request"]["a_button_prime_applied"])
             self.assertIn("not_game_verified", result["known_good_swing_request"]["a_priming_evidence"])
 

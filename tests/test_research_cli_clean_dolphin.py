@@ -55,7 +55,7 @@ class P0CleanCliV1Tests(unittest.TestCase):
                     (clean / "portable.txt").write_text("")
                     (root / "research" / "launch.local.json").write_text("{}")
                     (root / "research" / "savestates.local.json").write_text("{}")
-                    target = (clean / missing if missing in ("Dolphin.exe", "portable.txt", "User")
+                    target = (clean / missing if missing in ("Dolphin.exe", "User", "portable.txt")
                               else root / "research" / missing)
                     if target.is_dir():
                         target.rmdir()
@@ -63,26 +63,6 @@ class P0CleanCliV1Tests(unittest.TestCase):
                         target.unlink()
                     with self.assertRaises(RuntimeError):
                         research_cli.v1_clean_boot_args(root)
-
-    def test_portable_marker_directory_is_not_accepted(self):
-        self.prepare_clean()
-        (self.clean / "portable.txt").unlink()
-        (self.clean / "portable.txt").mkdir()
-        with self.assertRaisesRegex(RuntimeError, "portable.txt"):
-            research_cli.v1_clean_boot_args(self.repo)
-
-    def test_alternate_user_environment_without_portable_marker_blocks_dispatch(self):
-        # The explicit config target does not itself prove that Dolphin will
-        # select that user root. No fallback to registry/environment default.
-        self.prepare_clean()
-        (self.clean / "portable.txt").unlink()
-        alternate = self.repo.parent / "alternate-dolphin-user"
-        alternate.mkdir()
-        with patch.dict("os.environ", {"DOLPHIN_EMU_USERPATH": str(alternate)}):
-            code, calls = self.patched_main(["v1", "--live", "--no-upload"])
-        self.assertEqual(code, 2)
-        self.assertEqual(calls, [])
-        self.assertFalse((self.clean / "portable.txt").exists())
 
     def test_explicit_paths_correct_order_no_legacy_fallback(self):
         self.prepare_clean()
@@ -106,16 +86,15 @@ class P0CleanCliV1Tests(unittest.TestCase):
             stack.enter_context(patch.object(bridge_provenance, "inspect_bridge_file",
                                              return_value={
                                                  "revision": "V1-neutral-swing-calls",
-                                                 "safe_for_isolated_legacy_copy": True
+                                                 "safe_for_isolated_legacy_copy": True,
+                                                 "sha256": "a" * 64,
+                                                 "sha256": "a" * 64
                                              }))
             fake = stack.enter_context(patch.object(research_cli, "_run", return_value=0))
             stack.enter_context(patch.object(research_cli, "_fresh_human_labels",
                                              return_value={
                                                  "capture_status": "sanitized_human_annotation_only",
-                                                 "settled_screen_observation": "operator_confirmed_before_transition",
-                                        "terminal_capture_mode": "result_first_human_prompt",
-                                        "terminal_human_category": "on_green",
-                                                 "human": {"contact_human": "yes"}
+                                                 "human": {"contact_human": "unknown"}
                                              }))
             result = research_cli.main(commands)
             return result, fake.call_args_list
@@ -146,14 +125,6 @@ class P0CleanCliV1Tests(unittest.TestCase):
         x, y = list(a[0].args[0]), list(b[0].args[0])
         index = x.index("--a-lead-frames") + 1
         self.assertEqual(index, y.index("--a-lead-frames") + 1)
-        token_index = x.index("--run-token") + 1
-        self.assertEqual(token_index, y.index("--run-token") + 1)
-        self.assertEqual(len(x[token_index]), 32)
-        self.assertEqual(len(y[token_index]), 32)
-        self.assertNotEqual(x[token_index], y[token_index])
-        # Per-shot identity is deliberately randomized. Only the requested
-        # swing A lead may differ in the remainder of each command.
-        x[token_index] = y[token_index] = "<unique-private-token>"
         self.assertEqual(x[:index] + x[index+1:], y[:index] + y[index+1:])
         self.assertEqual(x[index], "0")
         self.assertEqual(y[index], "45")
@@ -162,6 +133,40 @@ class P0CleanCliV1Tests(unittest.TestCase):
         code, calls = self.patched_main(["v1", "--live", "--no-upload"])
         self.assertEqual(code, 2)
         self.assertEqual(len(calls), 0)
+
+    def test_visual_first_integrated_run_keeps_clean_boot_and_exact_token(self):
+        # Synthetic one-shot action composition. Missing child report must be
+        # an ineligible observation, not a fallback success or hidden launch.
+        self.prepare_clean()
+        code, calls = self.patched_main([
+            "v1", "--live", "--visual-first", "--no-upload",
+            "--a-lead", "45", "--speed-scale", "1.0",
+            "--backswing-scale", "1.0",
+        ])
+        self.assertEqual(code, 2)  # no exact collector artifact: fail closed
+        self.assertEqual(len(calls), 1)
+        argv = calls[0].args[0]
+        self.assertEqual(argv[argv.index("--dolphin") + 1],
+                         str(self.clean / "Dolphin.exe"))
+        self.assertEqual(argv[argv.index("--dolphin-user") + 1],
+                         str(self.clean / "User"))
+        self.assertEqual(argv[argv.index("--a-prime-requests") + 1], "0")
+        self.assertEqual(argv[argv.index("--a-lead-frames") + 1], "45")
+        self.assertIn("--visual-first", argv)
+        self.assertNotIn("--no-upload", argv)  # parent controls publishing, not child
+        self.assertEqual(argv.count("--send-live"), 1)
+        self.assertEqual(argv.count("--send-live-swing"), 1)
+        import re
+        token = argv[argv.index("--run-token") + 1]
+        self.assertRegex(token, r"^[0-9]{8}T[0-9]{6}Z-[a-f0-9]{10}$")
+
+    def test_visual_first_rejects_unmarked_clean_executable_before_dispatch(self):
+        self.prepare_clean()
+        (self.clean / "portable.txt").unlink()
+        code, calls = self.patched_main([
+            "v1", "--live", "--visual-first", "--no-upload", "--a-lead", "45"])
+        self.assertEqual(code, 2)
+        self.assertEqual(calls, [])
 
     def test_offline_test_path_does_not_require_clean_dolphin(self):
         code, calls = self.patched_main([

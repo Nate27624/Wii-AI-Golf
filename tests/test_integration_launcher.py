@@ -23,7 +23,7 @@ class OneCommandLauncherTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
+        self.root = Path(self.tmp.name).resolve()
         self.game = self.root / "Wii Sports.rvz"
         self.game.write_bytes(b"stub for path test; not a ROM")
         self.config = self.root / "research" / "launch.local.json"
@@ -52,7 +52,7 @@ class OneCommandLauncherTests(unittest.TestCase):
             None, self.config, prompt=lambda question: asked.append(question) or str(self.game)
         )
         self.assertEqual(game, self.game.resolve())
-        self.assertEqual(Path(json.loads(self.config.read_text())["game"]).resolve(), self.game.resolve())
+        self.assertEqual(json.loads(self.config.read_text())["game"], str(self.game))
         again = launch_golf.resolve_game(
             None, self.config, prompt=lambda _: self.fail("unexpected second prompt")
         )
@@ -317,7 +317,7 @@ class OneCommandLauncherTests(unittest.TestCase):
         ]
         with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
             self.assertEqual(launch_golf.main(argv), 0)
-        self.assertEqual(Path(launch_golf.read_config(self.config)["dolphin_user"]).resolve(), custom.resolve())
+        self.assertEqual(launch_golf.read_config(self.config)["dolphin_user"], str(custom))
         self.assertIn("Source = 1", ini.read_text())
         self.assertIn("Source = 2", self.ini.read_text())
         with patch.object(launch_golf.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
