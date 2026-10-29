@@ -154,11 +154,12 @@ def validate_roster(roster: Any) -> None:
             raise ValueError("Assignment acceptance invalid")
         if (not isinstance(owned_paths, list) or
             not 1 <= len(owned_paths) <= 15 or
+            not all(isinstance(p, str) for p in owned_paths) or
             len(owned_paths) != len(set(owned_paths))):
             raise ValueError("Assignment needs distinct bounded paths")
         for p in owned_paths:
             if (not isinstance(p, str) or not 1 <= len(p) <= 180 or
-                p.startswith("/") or p.startswith(".") or "\\" in p or
+                p.startswith("/") or "\\" in p or
                 any(part in ("..", "") for part in p.split("/")) or
                 any(c in p for c in "\r\n<>*?{}")):
                 raise ValueError("Assignment has unsafe/unbounded path")
