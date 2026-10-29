@@ -327,7 +327,7 @@ class OneCommandLauncherTests(unittest.TestCase):
         custom = self.root / "custom-user"
         ini = custom / "Config" / "WiimoteNew.ini"
         ini.parent.mkdir(parents=True)
-        ini.write_text("[Wiimote1]\\nSource = 2\\nExtension = Nunchuk\\n")
+        ini.write_text("[Wiimote1]\nSource = 2\nExtension = Nunchuk\n")
         original_portable = self.ini.read_bytes()
         original_custom = ini.read_bytes()
         argv = [
@@ -351,7 +351,7 @@ class OneCommandLauncherTests(unittest.TestCase):
         custom = self.root / "remembered-user"
         ini = custom / "Config" / "WiimoteNew.ini"
         ini.parent.mkdir(parents=True)
-        ini.write_text("[Wiimote1]\\nSource = 2\\nExtension = Nunchuk\\n")
+        ini.write_text("[Wiimote1]\nSource = 2\nExtension = Nunchuk\n")
         launch_golf.resolve_game(str(self.game), self.config)
         launch_golf.remember_dolphin_user(self.config, str(custom))
         argv = [
