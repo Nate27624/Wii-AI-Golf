@@ -27,3 +27,5 @@ jobs:
           python-version: '3.13'
       - name: Run source-global receiver fake PPC tests
         run: python -m unittest discover -s tests -p 'test_p0_cache_global_receiver_private.py' -v
+      - name: Full offline regression suite (no Dolphin)
+        run: python -m unittest discover -s tests -v
