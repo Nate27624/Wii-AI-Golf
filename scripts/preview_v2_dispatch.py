@@ -197,7 +197,7 @@ def find_handoff(row: dict, issue_comments: list, *, verified_main: str,
         lowered = body.lower()
         if (row["task_id"] not in body or verified_main not in body
                 or "releas" not in lowered
-                or re.search(r"\\b(?:not|never)\\s+releas(?:e|ed)\\b", lowered)):
+                or re.search(r"\b(?:not|never)\s+releas(?:e|ed)\b", lowered)):
             continue
         url = comment.get("html_url", "")
         if (not isinstance(url, str) or not re.fullmatch(
