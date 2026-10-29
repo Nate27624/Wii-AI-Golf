@@ -424,8 +424,12 @@ def main(argv: list[str] | None = None) -> int:
     run_id = args.run_token or (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8])
     raw_file = args.data_dir / f"outcome-{run_id}-RAW-PRIVATE.jsonl"
     summary_file = args.data_dir / f"outcome-{run_id}-candidates.json"
-    print("Private raw RAM output:", raw_file)
-    print("Never upload the RAW file. Only share the summary after inspection.")
+    if args.visual_first:
+        print("M1.5 human result-first: NO raw RAM capture file will be created.")
+        print("Human result summary stays local unless separately reviewed for publication.")
+    else:
+        print("Private raw RAM output:", raw_file)
+        print("Never upload the RAW file. Only share the summary after inspection.")
     print("Outer command must already have launched Dolphin and run A/A+B/A.")
     with FelkRPC(port=args.port, timeout_s=15) as rpc:
         result = run_session(rpc, raw_path=raw_file, pre_samples=args.pre_samples,
