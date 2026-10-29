@@ -285,6 +285,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Selected checkpoint: {profile.name} (Dolphin slot {profile.slot})")
         if profile.description:
             print(f"Checkpoint description: {profile.description}")
+        # Validate the existing executable, bridge and catalog BEFORE any
+        # controller INI rewrite. The verified user root is appended below.
+        launch = make_start_command(
+            game=game, dolphin=args.dolphin, bridge=args.bridge,
+            profile=profile.name, catalog=args.catalog, port=args.port,
+        )
         if is_bridge_port_open(args.port):
             raise ValueError(
                 "Felk bridge port is already occupied. Close Dolphin before "
@@ -303,13 +309,9 @@ def main(argv: list[str] | None = None) -> int:
             print("Original controller backup:", controller["backup"])
         if args.dolphin_user:
             remember_dolphin_user(args.config, controller["user_dir"])
-        # Pin the child Dolphin root to the SAME directory whose Wiimote INI
-        # was checked/updated. Explicit --user overrides portable/registry/env.
-        launch = make_start_command(
-            game=game, dolphin=args.dolphin, bridge=args.bridge,
-            profile=profile.name, catalog=args.catalog, port=args.port,
-            dolphin_user=Path(controller["user_dir"]),
-        )
+        # The INI was prepared for this root; forward it through the *already
+        # validated* child command. Never delay file preflight until after INI edit.
+        launch.extend(["--dolphin-user", str(Path(controller["user_dir"]).resolve())])
         print("Starting Felk Dolphin, restoring green-pre-start, and dispatching calibrated A / A+B / A intro...")
         print("Keep Wii Remote 1: Emulated Wii Remote; Extension: None.")
         print("Close any existing Dolphin instance before launching. This never overwrites a savestate.")
