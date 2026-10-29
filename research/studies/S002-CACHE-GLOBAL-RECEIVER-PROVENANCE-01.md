@@ -269,3 +269,22 @@ The result is compatible with the global object being **phase-specific/dynamical
 ### Next research consequence (no new operator job in this change)
 
 Do **not** spend more effort proving that D1 global is a static D2 endpoint; that specific hypothesis is disproven on this same source-selected capture pair. Reprioritize typed **global-object writer/update timing** or one approved guest-frame/rendered-object join, reusing #240/#248/#215 owners. Existing static constructor and cache writer source traces do not establish which code executed between D1 and D2. No new PR, capture, Dolphin run or further PowerShell requested by this evidence-only update.
+
+
+## Next pre-registered test: global object's own +0xCC candidate versus selected +0xCC
+
+**Scope and decision value, before any real run.** The operator's successful D1→D2 source-global result disproved exact lookahead: D1-global != D2 selected (0/3), even though D1/D2 source-global pointer identity matches and D2 global == selected (3/3). D1 global also differs from the selected ball's +0xCC, whereas D2 agrees. W5/W6/W7 source-global=current and selected+0xCC equivalence is not universal. We can now test a narrower cause without new captures: does the **global object itself** have a +0xCC word triple tracking its own current translation, or the selected player's +0xCC, or neither?
+
+In existing `scripts/audit_p0_cache_global_receiver_private.py`, `source_global_own_cc_candidate` reads precisely **three more BE-u32 words at global_object+0xCC/+0xD0/+0xD4** using the already-source-gated global pointer, only if its native MEM2 range safely covers +0xD8. It does NOT make this a proven runtime class member. The selected source-linked ball has that cache-like relative field from #183; similar offsets on the distinct global MapObjBall-like object are **same-class-layout HYPOTHESES** until independent vtable/class typing. The internal raw triple is held solely in-process. No float/position bits, heap addresses, private paths or hashes are added to the sanitized report.
+
+New `source_global_own_CC_candidate_relation` reports **0..3 bitwise component equalities** for global+CC versus global current / selected+CC / selected current in D1, D2, W5, W6 and W7, plus **0..3 changed-component counts** for same-owner/geometry-and-global-pointer-stable D1→D2, W5→W6 and W6→W7. If the relative cache cannot be read or qualified, all rows ABSTAIN. If an individual edge changes selected owner, source global pointer, PIN or START source triplets, that edge ABSTAINS; it does not infer a new shot. Existing original bank hashing and source reader are preserved; no new generic memory scan.
+
+**Predeclared distinctions**:
+- At D1, global+CC equals **selected CC** but NOT global current: supports *a common cache-like bitpattern with a diverged global current*, not its update timing or receiver.
+- At D1, global+CC equals **global current** but NOT selected CC: supports *selected CC stale relative to the global's same-layout candidate*, not physical lookahead.
+- Global+CC neither equals global current nor selected CC: the triple does **not** resolve the two observed caches; avoid inventing its semantics.
+- D1→D2 global+CC changes along with global current: proves two candidate triplets changed between human labels, **not** which writer ran or whether both followed the same physics step.
+- Stable wedge global+CC while selected current moves: bolsters a phase-specific invariant hypothesis, not predicted landing.
+- Corrupt/unsupported relative field or object/geometry mismatch: ABSTAIN, not zero motion.
+
+**Status at implementation:** 5 new fabricated/adversarial tests were added in the existing #240 branch (total 25 focused test cases), pending verified Windows+Ubuntu Actions; **NO real original archive result yet**. Parent commit after source/test write: `64a7fb3265d0b9eb9d2bdce0dc29b866f3e7335c`. The previously real D1/D2 0/3 result remains unchanged. Never promote renderer identity, actual physical XYZ/velocity, guest-physics step, power/contact/score, training or public raw memory. One read-only original seven-pair operator pass is needed only after CI qualifies the code; no Dolphin, no controller action, no new capture or new PR.
