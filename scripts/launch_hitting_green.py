@@ -73,6 +73,8 @@ def main() -> None:
                    help="Existing profile name from savestates.local.json; never overwritten")
     p.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
     p.add_argument("--dolphin", type=Path, help="Felk Dolphin.exe path (for a fresh launch)")
+    p.add_argument("--dolphin-user", type=Path,
+                   help="Existing Dolphin User directory selected by the parent launcher")
     p.add_argument("--game", type=Path, help="Legally owned Wii Sports disc-image path")
     p.add_argument("--bridge", type=Path, default=DEFAULT_BRIDGE,
                    help="Existing swing-enabled bridge; do not use a --startup-profile bridge")
@@ -102,8 +104,9 @@ def main() -> None:
         p.error("--swing requires --send-live")
     if args.confirm_before_swing and not args.swing:
         p.error("--confirm-before-swing requires --swing")
-    if args.attach_running and (args.dolphin is not None or args.game is not None):
-        p.error("--attach-running must not be combined with --dolphin or --game")
+    if args.attach_running and (args.dolphin is not None or args.game is not None
+                                or args.dolphin_user is not None):
+        p.error("--attach-running must not be combined with fresh-boot paths or --dolphin-user")
 
     phases = planned_menu_phases(
         startup=args.startup_frames, a_press=args.first_a_frames,
