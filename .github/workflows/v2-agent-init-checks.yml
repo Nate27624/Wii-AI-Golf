@@ -15,6 +15,8 @@ on:
       - 'tests/test_agent_init.py'
       - 'tests/test_agent_handoff.py'
       - 'tests/test_v2_docs_consistency.py'
+      - 'research/power-map-ten-shot.md'
+      - 'tests/test_s003_study_contract.py'
       - '.github/workflows/v2-agent-init-checks.yml'
   workflow_dispatch:
 
@@ -36,5 +38,7 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_agent_handoff.py' -v
       - name: Focused V2 onboarding consistency tests
         run: python -m unittest discover -s tests -p 'test_v2_docs_consistency.py' -v
+      - name: Focused S003 preregistered study-contract tests (offline)
+        run: python -m unittest discover -s tests -p 'test_s003_study_contract.py' -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
