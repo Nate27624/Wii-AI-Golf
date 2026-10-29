@@ -23,7 +23,7 @@ class AgentInitTests(unittest.TestCase):
         self.assertIn("NO LIVE DOLPHIN", proc.stdout)
         self.assertIn("SELF-MERGE=Allowed only when all merging.md gates PASS", proc.stdout)
         self.assertNotIn("NO AUTO MERGE/PUBLISH", proc.stdout)
-        self.assertIn("FINAL STATUS=CONTINUE | ACTION REQUIRED | DECISION REQUIRED", proc.stdout)
+        self.assertIn("FINAL STATUS=ROLE + AGENT_ID + CONTINUE | ACTION REQUIRED | DECISION REQUIRED", proc.stdout)
 
     def test_manager_playbook_link(self):
         proc = self.invoke("--role", "S000", "--instance", "S000-manager")
@@ -100,7 +100,8 @@ class AgentInitTests(unittest.TestCase):
         self.assertLess(proc.stdout.index("S002-D1-ARCHIVE"),
                         proc.stdout.index("S002-NEW-LIVE"))
         self.assertIn("PRIORITY_FRESHNESS=UNKNOWN", proc.stdout)
-        self.assertIn("INIT_ACTION=Pick highest-impact unclaimed", proc.stdout)
+        self.assertIn("INIT_ACTION=Register or match manager-issued roster assignment", proc.stdout)
+        self.assertIn("ASSIGNMENT_STATE=UNVERIFIED", proc.stdout)
 
     def test_continue_retains_same_id_and_claim(self):
         proc = self.invoke_with_board(self.board(), "--mode", "continue",
@@ -108,7 +109,7 @@ class AgentInitTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("AGENT_ID=S002-memory-a", proc.stdout)
         self.assertIn("CONTINUE_ACTION=Preserve existing ID and active claim", proc.stdout)
-        self.assertIn("Re-rank remaining in-role work", proc.stdout)
+        self.assertIn("After HANDOFF, request next exclusive roster assignment", proc.stdout)
 
     def test_live_unavailable_fails_closed_without_spawning_or_network_writes(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -184,6 +185,115 @@ class AgentInitTests(unittest.TestCase):
         board["tasks"][1]["objective"] = "<run unreviewed command>"
         proc = self.invoke_with_board(board, "--role", "S002", "--instance", "S002-memory-a")
         self.assertIn("PRIORITY_SOURCE=UNAVAILABLE", proc.stdout)
+
+
+    def roster(self):
+        return {
+            "version": 1, "main_sha": "a" * 40,
+            "manager_id": "S000-manager-recovery-20261029-a",
+            "assignments": [
+                {"instance": "S001-runtime-a", "role": "S001",
+                 "task_id": "S001-STARTUP-ROOT", "state": "ASSIGNED",
+                 "thread": "https://github.com/Nate27624/Wii-AI-Golf/issues/308",
+                 "owned_paths": ["scripts/launch_golf.py", "tests/test_integration_launcher.py"],
+                 "objective": "Reconcile one canonical runtime user root across launcher components.",
+                 "acceptance": "No conflicting edits, full exact-head two-platform offline tests."},
+                {"instance": "S002-memory-a", "role": "S002",
+                 "task_id": "S002-D1-ARCHIVE", "state": "IN_PROGRESS",
+                 "thread": "https://github.com/Nate27624/Wii-AI-Golf/issues/121",
+                 "owned_paths": ["scripts/audit_p0_seven_source_trajectory_private.py"],
+                 "objective": "Compare D1 global versus selected source candidate controls.",
+                 "acceptance": "Sanitized categorical source evidence, no physical ball label."},
+            ],
+        }
+
+    def invoke_with_roster(self, roster, *extra):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "roster.json"
+            path.write_text(json.dumps(roster), encoding="utf-8")
+            return self.invoke(*extra, "--roster-file", str(path))
+
+    def test_manager_roster_for_init_requires_named_assignment(self):
+        ok = self.invoke_with_roster(self.roster(), "--mode", "init",
+                                     "--role", "S001", "--instance", "S001-runtime-a")
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        self.assertIn("ASSIGNMENT_STATE=ASSIGNED", ok.stdout)
+        self.assertIn("ASSIGNMENT_TASK=S001-STARTUP-ROOT", ok.stdout)
+        self.assertIn("ASSIGNMENT_THREAD=https://github.com/", ok.stdout)
+        self.assertIn("ASSIGNMENT_NEXT=Verify latest issue/PR overlaps", ok.stdout)
+        unknown = self.invoke_with_roster(self.roster(), "--mode", "init",
+                                          "--role", "S003", "--instance", "S003-new-a")
+        self.assertEqual(unknown.returncode, 0, unknown.stderr)
+        self.assertIn("ASSIGNMENT_STATE=NOT_ASSIGNED", unknown.stdout)
+        self.assertNotIn("ASSIGNMENT_TASK=", unknown.stdout)
+        self.assertIn("await S000 roster entry", unknown.stdout)
+
+    def test_continue_retains_identity_and_manager_slot(self):
+        result = self.invoke_with_roster(self.roster(), "--mode", "continue",
+                                         "--role", "S002", "--instance", "S002-memory-a")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("ROLE=S002:", result.stdout)
+        self.assertIn("ASSIGNMENT_STATE=IN_PROGRESS", result.stdout)
+        self.assertIn("ASSIGNMENT_NEXT=Finish existing CLAIM first", result.stdout)
+        self.assertIn("FINAL STATUS=ROLE + AGENT_ID", result.stdout)
+
+    def test_roster_duplicates_overlapping_paths_and_spoofing_rejected(self):
+        spec = importlib.util.spec_from_file_location("v2_assign_test", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        roster = self.roster()
+        module.validate_roster(roster)
+        for changed in ("instance", "task_id"):
+            clone = json.loads(json.dumps(roster))
+            clone["assignments"][1][changed] = clone["assignments"][0][changed]
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                module.validate_roster(clone)
+        clone = json.loads(json.dumps(roster))
+        clone["assignments"][1]["owned_paths"] = ["scripts/launch_golf.py"]
+        with self.assertRaisesRegex(ValueError, "path overlaps"):
+            module.validate_roster(clone)
+        for path in ("../outside", "/tmp/private", "scripts/../x", "scripts/*.py"):
+            clone = json.loads(json.dumps(roster))
+            clone["assignments"][1]["owned_paths"] = [path]
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                module.validate_roster(clone)
+        clone = json.loads(json.dumps(roster))
+        clone["assignments"][1]["owned_paths"] = [{"dict": "bad"}]
+        with self.assertRaises(ValueError):
+            module.validate_roster(clone)
+
+    def test_live_assignment_roster_authentic_comment_and_author(self):
+        spec = importlib.util.spec_from_file_location("v2_assign_test", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        roster = self.roster()
+        prefix = "[S000-manager] ASSIGNMENT ROSTER V2\nmanager_id: S000-manager-recovery-20261029-a\n"
+        body = prefix + module.ASSIGN_START + json.dumps(roster) + module.ASSIGN_END
+        url = "https://github.com/Nate27624/Wii-AI-Golf/pull/320#issuecomment-100"
+        trusted = {"body": body, "user": {"login": "Nate27624"}, "html_url": url}
+        spoofed = {"body": body, "user": {"login": "other_user"}, "html_url": url}
+        with patch.object(module, "github_json", return_value=[trusted, spoofed]):
+            found, link = module.read_live_roster()
+        self.assertEqual(found["manager_id"], roster["manager_id"])
+        self.assertEqual(link, url)
+        with patch.object(module, "github_json", return_value=[spoofed]):
+            with self.assertRaisesRegex(ValueError, "No manager assignment roster"):
+                module.read_live_roster()
+        forged = dict(trusted)
+        forged["body"] = body.replace("manager_id: S000-manager-recovery-20261029-a", "manager_id: S000-unrelated-a")
+        with patch.object(module, "github_json", return_value=[forged]):
+            with self.assertRaisesRegex(ValueError, "manager ID"):
+                module.read_live_roster()
+
+    def test_parked_and_complete_assignments_are_not_work_grants(self):
+        for state in ("BLOCKED", "COMPLETED", "PARKED"):
+            with self.subTest(state=state):
+                roster = self.roster()
+                roster["assignments"][0]["state"] = state
+                result = self.invoke_with_roster(roster, "--mode", "continue",
+                                                 "--role", "S001", "--instance", "S001-runtime-a")
+                self.assertIn(f"ASSIGNMENT_STATE={state}", result.stdout)
+                self.assertIn("No new implementation", result.stdout)
 
     def test_init_requires_identity_but_suggest_does_not(self):
         self.assertNotEqual(self.invoke("--mode", "continue", "--role", "S002").returncode, 0)
