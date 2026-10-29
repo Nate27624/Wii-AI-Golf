@@ -180,11 +180,21 @@ def _verify_original_pair_hashes(phase: int, pair: dict, originals: dict) -> Non
             raise ValueError("source xref bank differs from preserved original")
 
 
+def _require_same_manifest(manifest: Path, expected: bytes) -> None:
+    """A rewritten manifest must not silently replace original archive claims."""
+    if type(expected) is not bytes or len(expected)!=32:
+        raise ValueError("original manifest identity invalid")
+    if seven._hash(manifest)!=expected:
+        raise ValueError("original seven-phase archive manifest changed")
+
+
 def validate_and_read_three(directory:Path) -> dict:
     directory=seven._private_directory(directory)
     # Reuse #240's single authoritative #231-schema adapter. Fail before
     # touching any native bank if one of the original 14 hashes is wrong.
     originals=prev._canonical_archive_sha(directory)
+    manifest=directory / "manifest-PRIVATE.json"
+    manifest_sha=seven._hash(manifest)
     observations=[]
     code_ref=None
     source_digest=None
@@ -249,6 +259,7 @@ def validate_and_read_three(directory:Path) -> dict:
     # Recheck ALL seven source pairs (not just wedge) against the original
     # manifest, catching changes to earlier captures or metadata mid-read.
     prev._canonical_archive_sha(directory)
+    _require_same_manifest(manifest,manifest_sha)
     root=observations[0]
     for observation in observations[1:]:
         if (observation["_identity"]!=root["_identity"]
