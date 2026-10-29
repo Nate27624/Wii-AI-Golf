@@ -21,7 +21,8 @@ def receipt():
             "a_lead_observed_frame_delta": 45,
             "a_lead_start_frame": 100,
             "a_lead_last_observed_frame": 145,
-            "a_button_only_prime_requests": 1,
+            "a_button_only_prime_requests": 46,
+            "per_observed_frame_a_reasserted": True,
             "a_button_prime_applied": True,
             "a_priming_evidence": "frame_observed_A_requested_not_game_verified",
         },
@@ -48,6 +49,7 @@ class B1BridgeTimingReceiptTests(unittest.TestCase):
         self.assertEqual(tuple(x[2] - x[1] for x in V1_PHASES),
                          (12, 15, 20, 30, 12))
         self.assertEqual(got["trace_A_requested_samples"], 77)
+        self.assertEqual(got["frame_scoped_A_reassertion_requests"], 46)
         self.assertEqual(got["trace_A_released_samples"], 12)
         for field in ("game_a_latch_verified", "guest_physics_frame_join_verified",
                       "ball_contact_verified", "training_allowed"):
@@ -59,6 +61,7 @@ class B1BridgeTimingReceiptTests(unittest.TestCase):
         child = receipt()
         req = child["known_good_swing_request"]
         req["a_lead_requested_frames"] = 90
+        req["a_button_only_prime_requests"] = 91
         req["a_lead_observed_frame_delta"] = 90
         req["a_lead_last_observed_frame"] = 190
         child["swing_dispatch"]["start_frame"] = 191
@@ -68,6 +71,30 @@ class B1BridgeTimingReceiptTests(unittest.TestCase):
         self.assertEqual(got["requested_A_lead_bridge_frames"], 90)
         self.assertEqual(got["unobserved_bridge_ticks_before_trace_start"], 0)
         self.assertEqual(got["phase_start_bridge_frames"]["forward_A"], 218)
+
+    def test_legacy_single_rpc_prehold_abstains_despite_45_frame_counter(self):
+        child = receipt()
+        request = child["known_good_swing_request"]
+        request["a_button_only_prime_requests"] = 1
+        request.pop("per_observed_frame_a_reasserted")
+        out = audit_b1_timing_receipt(child)
+        self.assertEqual(out["status"], "abstain_single_rpc_A_not_held_across_frames")
+        self.assertFalse(out["game_a_latch_verified"])
+        self.assertNotIn("unobserved_bridge_ticks_before_trace_start", out)
+
+    def test_new_helper_old_collector_one_request_claim_abstains(self):
+        child = receipt()
+        child["known_good_swing_request"]["a_button_only_prime_requests"] = 1
+        got = audit_b1_timing_receipt(child)
+        self.assertEqual(got["status"],
+                         "abstain_missing_or_inconsistent_A_reassertion_receipt")
+
+    def test_unverified_frame_refresh_marker_abstains(self):
+        child = receipt()
+        child["known_good_swing_request"]["per_observed_frame_a_reasserted"] = False
+        got = audit_b1_timing_receipt(child)
+        self.assertEqual(got["status"],
+                         "abstain_missing_or_inconsistent_A_reassertion_receipt")
 
     def test_missing_or_malformed_counters_fail_closed(self):
         for name in ("lead_requested", "lead_observed", "lead_start",
