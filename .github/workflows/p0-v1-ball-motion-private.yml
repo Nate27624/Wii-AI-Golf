@@ -1,0 +1,29 @@
+name: P0 V1 private source-ball trajectory evidence
+on:
+  push:
+    branches:
+      - agent/research/p0-v1-ball-motion-audit-20261028
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_v1_ball_motion_private.py'
+      - 'tests/test_p0_v1_ball_motion_private.py'
+      - '.github/workflows/p0-v1-ball-motion-private.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-private-validator:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Source-only private data checks (all synthetic)
+        run: python -m unittest discover -s tests -p test_p0_v1_ball_motion_private.py -v
+      - name: Compile read-only validator
+        run: python -m compileall -q scripts/audit_p0_v1_ball_motion_private.py tests/test_p0_v1_ball_motion_private.py
