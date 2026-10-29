@@ -119,7 +119,7 @@ class AgentInitTests(unittest.TestCase):
         # No gh exists on PATH: must fail closed, with no fake assignment.
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("PRIORITY_SOURCE=UNAVAILABLE", proc.stdout)
-        self.assertIn("TASK_CANDIDATES_ARE_S000_SUGGESTIONS", proc.stdout) if False else self.assertNotIn("TASK_CANDIDATE_1", proc.stdout)
+        self.assertNotIn("TASK_CANDIDATE_1", proc.stdout)
         self.assertIn("ALWAYS: Inspect live parent issue CLAIM/HANDOFF", proc.stdout)
         self.assertIn("NO LIVE DOLPHIN", proc.stdout)
 
