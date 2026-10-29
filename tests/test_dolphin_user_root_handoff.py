@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from contextlib import redirect_stderr, redirect_stdout
 import io
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -136,6 +137,37 @@ class DolphinUserRootHandoffTests(unittest.TestCase):
         self.assertEqual(code, 0)
         command = run.call_args.args[0]
         self.assertEqual(command[-2:], ["--dolphin-user", str(self.user_root.resolve())])
+
+
+    def test_invalid_start_paths_refuse_before_any_controller_ini_edit(self):
+        # Regression: checking make_start_command only AFTER controller setup
+        # changes an otherwise valid INI even though Dolphin cannot launch.
+        ini = self.user_root / "Config" / "WiimoteNew.ini"
+        ini.write_text("[Wiimote1]\\nSource = 2\\nExtension = Nunchuk\\n", encoding="utf-8")
+        original = ini.read_bytes()
+        config = self.base / "launch.local.json"
+        config.write_text(json.dumps({
+            "schema_version": 1, "game": str(self.game),
+            "dolphin_user": str(self.user_root),
+        }), encoding="utf-8")
+        backup = ini.with_name(ini.name + ".wii-ai-golf.original.bak")
+        profile = SimpleNamespace(name="green-pre-start", slot=2, description="")
+        for invalid in ("bridge", "executable"):
+            with self.subTest(invalid=invalid):
+                args = ["--config", str(config), "--catalog", str(self.catalog),
+                        "--dolphin", str(self.dolphin), "--bridge", str(self.bridge)]
+                if invalid == "bridge":
+                    args[-1] = str(self.base / "missing-bridge.py")
+                else:
+                    args[args.index("--dolphin") + 1] = str(self.base / "missing-Dolphin.exe")
+                with patch.object(launch_golf, "resolve_profile", return_value=profile), \
+                     patch.object(launch_golf, "is_bridge_port_open", return_value=False), \
+                     patch.object(launch_golf.subprocess, "run") as run, \
+                     redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    self.assertEqual(launch_golf.main(args), 1)
+                run.assert_not_called()
+                self.assertEqual(ini.read_bytes(), original)
+                self.assertFalse(backup.exists())
 
 
 if __name__ == "__main__":
