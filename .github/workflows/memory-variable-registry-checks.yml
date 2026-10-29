@@ -43,6 +43,8 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_hit_signatures_private.py -v
       - name: Run P0 independent-source flight evidence matrix synthetic tests
         run: python -m unittest discover -s tests -p test_p0_airborne_study_matrix.py -v
+      - name: Full offline regression suite (no Dolphin)
+        run: python -m unittest discover -s tests -v
       - name: Parse Windows PowerShell P0 flight matrix runner
         if: runner.os == 'Windows'
         shell: pwsh
