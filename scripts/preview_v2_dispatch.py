@@ -91,7 +91,7 @@ def preview(roster: dict, backlog: dict, *, verified_main: str,
         eligible.setdefault(role, []).append(task)
     proposals, skipped = [], []
     reserved = set(used)
-    assigned_ids = {row.get("task_id") for row in rows if row["state"] in ACTIVE}
+    # Never suggest a task named by ANY roster row, including completed history.\n    assigned_ids = {row.get("task_id") for row in rows}
     for row in rows:
         if row["role"] == "S000":
             continue
