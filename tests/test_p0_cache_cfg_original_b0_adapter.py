@@ -1,6 +1,7 @@
 """Native-free synthetic tests for original B0-to-existing-CFG adapter."""
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import struct
@@ -62,6 +63,22 @@ def synthetic_b0(tmp: Path) -> Path:
 
 
 class AdapterTests(unittest.TestCase):
+    def test_pinned_helper_matches_reviewed_op4_safe_git_blob(self):
+        # Exact Git content pin: the in-tree #332 helper must match the
+        # immutable implementation audited by native-free adversarial tests.
+        # CRLF normalization allows normal Windows checkout while preserving
+        # the committed Git blob content guarantee.
+        self.assertEqual(
+            adapter.CFG_SHA,
+            "535eee90f2140b8b4682b2afb158a20e8553382a")
+        raw = (ROOT / adapter.CFG_RELATIVE).read_bytes()
+        normalized = raw.replace(b"\\r\\n", b"\\n")
+        git_blob = (b"blob " + str(len(normalized)).encode("ascii")
+                    + b"\\x00" + normalized)
+        self.assertEqual(
+            hashlib.sha1(git_blob).hexdigest(),
+            "843c7e5f8e47810a3544fabb10e5b928040e5559")
+
     def test_two_authentic_source_windows_are_bounded(self):
         with tempfile.TemporaryDirectory() as td:
             bank = synthetic_b0(Path(td))
