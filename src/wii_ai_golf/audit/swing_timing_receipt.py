@@ -59,6 +59,12 @@ def audit_b1_timing_receipt(child: Mapping[str, Any]) -> dict[str, Any]:
     if keys["lead_requested"] not in (45, 90):
         result["status"] = "abstain_unreviewed_A_lead"
         return result
+    if (keys["lead_last"] - keys["lead_start"] != keys["lead_observed"]
+            or keys["lead_observed"] < keys["lead_requested"]
+            or keys["trace_start"] <= keys["lead_last"]
+            or keys["trace_completion"] < keys["trace_start"] + 89):
+        result["status"] = "abstain_contradictory_bridge_counters"
+        return result
     # Felk button requests are frame-scoped. The previous helper sent one
     # A=True RPC then merely polled 45 frames: a measurable lead but NOT
     # continuous button coverage. The corrected helper reports one initial
@@ -75,12 +81,6 @@ def audit_b1_timing_receipt(child: Mapping[str, Any]) -> dict[str, Any]:
             or request.get("a_priming_evidence") !=
             "frame_observed_A_requested_not_game_verified"):
         result["status"] = "abstain_missing_or_inconsistent_A_reassertion_receipt"
-        return result
-    if (keys["lead_last"] - keys["lead_start"] != keys["lead_observed"]
-            or keys["lead_observed"] < keys["lead_requested"]
-            or keys["trace_start"] <= keys["lead_last"]
-            or keys["trace_completion"] < keys["trace_start"] + 89):
-        result["status"] = "abstain_contradictory_bridge_counters"
         return result
     gap = keys["trace_start"] - keys["lead_last"] - 1
     result.update({
