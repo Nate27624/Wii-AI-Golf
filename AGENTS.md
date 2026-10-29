@@ -10,7 +10,6 @@ For each candidate/confirmed/rejected game RAM variable, add or update a stable-
 
 Run `py scripts/validate_memory_registry.py` and `py -m unittest discover -s tests -p test_memory_registry.py -v` on PR changes; full-suite/merge requirements still apply. Include the registry ID in each related GitHub issue/PR handoff. A variable discovery without a corresponding reviewed registry update is unfinished work.
 
-
 ## Delegated self-merging
 
 **Agents may merge their own PRs** when every gate in [merging requirements](docs/merging-requirements.md) is met and posted as a `MERGE READY` checklist. S000 is not a routine approval bottleneck; shared interface changes require acknowledgment by canonical owners and S000 before the author self-merges. Draft/conflicted/untested PRs cannot self-merge. Preserve GitHub protection rules and exact test evidence.
