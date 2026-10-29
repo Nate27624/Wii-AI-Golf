@@ -131,3 +131,38 @@ actor rendering, guest physics frame, real ball XYZ/velocity/impact/power/score
 or model training proof. No Dolphin, native archive, shot, hook or operator
 PowerShell is required. Owner S001/S002/S000 review and repository checks
 still gate any merge.
+
+## P0 finite float32 numeric-change qualification (draft review)
+
+The source-qualified `selected_ball_translation_words`, `source_global_translation_words`,
+`selected_ball_cache_cc_words`, `pin_translation_words` and `start_translation_words`
+are **IEEE-754 float32 bit patterns**, not arbitrary integer coordinates. A change
+between `0x00000000` (+0) and `0x80000000` (-0) is a **bitwise change but
+not a numeric change**. Different NaN payloads or infinities likewise cannot
+support a finite physical-coordinate observation. The prior synthetic reviewer
+accepted a `shot_observation` cohort with no other candidate change when only
+a signed-zero bit flipped. This new gate rejects that false acceptance:
+
+- Reject exponent-all-ones float words (infinity or NaN) in **any of the five
+  typed float32 triples**, for all stages. Preserve `config_bc_c0_c4_words`
+  as **opaque raw u32**; config values are not source-proven floats.
+- For a shot-labeled cohort, require at least one **finite numeric candidate
+  component difference**, considering signed zeros equal. Continue to reject
+  completely stationary candidate triples. The separately reported
+  `candidate_vector_bitwise_change_observed` captures source bit changes
+  without promoting them to numeric/physical movement.
+- Keep `idle_control` strict **bitwise stationarity**: signed-zero drift in
+  a source object is still an observable memory change and is not qualified
+  as stable control by this reviewer.
+- Return only booleans and existing 0–3 per-vector **bitwise component counts**;
+  do not report raw f32 words, source addresses or guest frame IDs. Existing
+  `candidate_vector_change_observed` now means numeric finite candidate
+  difference rather than arbitrary u32 delta, but still **does not prove**
+  actual movement, rendered ball identity, effective `mpTrans` dereference,
+  source-to-physics step association or machine authenticity of the externally
+  supplied frame/boot/shot flags.
+
+Synthetic adversarial tests use fabricated patterns only. This reviewer still
+has **no file input, no Dolphin/bridge, no private captures, no training and no
+publication approval**. The S001/S002/S000 owners must review this changed
+field meaning and the eventual source producer before any integration.
