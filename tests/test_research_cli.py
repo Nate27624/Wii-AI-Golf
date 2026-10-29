@@ -185,6 +185,7 @@ class ResearchCliTests(unittest.TestCase):
             "test_pattern": "test_*.py",
         }
         invalid = (
+            {"schema": True},
             {"kind": "v1_attempt"},
             {"kind": "v1", "visual_first": True},
             {"kind": "v1", "visual_first": True,

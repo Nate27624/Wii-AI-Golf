@@ -369,7 +369,8 @@ def _public_observation_record(summary: dict) -> dict:
     publish_summary(). Never write the caller's dictionary to GitHub, even
     when it contains a plausible capture status or private extra fields.
     """
-    if type(summary) is not dict or summary.get("schema") != 1:
+    if (type(summary) is not dict or type(summary.get("schema")) is not int
+            or summary["schema"] != 1):
         raise ValueError("invalid observation schema")
     token, kind = summary.get("id"), summary.get("kind")
     if type(token) is not str or re.fullmatch(
