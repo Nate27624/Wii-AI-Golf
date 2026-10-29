@@ -1,4 +1,4 @@
-# V2 Consolidation Charter (proposal — not yet merged)
+# V2 Consolidation Charter (coordination foundation merged; runtime migration pending)
  
 ## Mission and boundaries
 Recover a minimal CLI-only shot → source-validated observation → result → eligible training record pipeline. Keep existing main unchanged until all acceptance gates pass. No ROM, raw RAM, savestate, private path, secrets, or captured data in Git. Existing original captures stay local; do not solicit repeat captures unless a precise falsification gap is proven. No unattended live swing or publication.
@@ -16,6 +16,8 @@ Use stable **role IDs**, never GitHub login as identity (multiple agents can sha
 | S005 | Evaluation | Held-out scenarios, ranking/censoring, acceptance tests | Change producer contract unreviewed |
 
 S000 coordinates cross-domain contracts, but agents self-merge whenever every objective rule in `merging.md` passes. No routine external AI approval is required. Contract collisions must be resolved and tested, not bypassed. One integration PR per shared module, at most two active per instance. No new research PR just to record one observation.
+
+S000 manager agents must additionally read [`docs/S000-manager-playbook.md`](S000-manager-playbook.md); S000 coordination is not a routine PR approval gate.
 
 ## Initialization contract
 1. Run `python scripts/agent_init.py --role S002 --instance S002-memory-a` (substitute role/instance); read its printed charter and checks.
