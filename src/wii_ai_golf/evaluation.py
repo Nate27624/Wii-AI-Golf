@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from statistics import mean, median
+from types import MemberDescriptorType
 from typing import Iterable
 
 from .agents import EliteSearchPolicy, Policy
@@ -23,6 +24,53 @@ class Evaluation:
         return asdict(self)
 
 
+
+def _refuse_visible_dolphin_adapter(env: ShotEnvironment, *, purpose: str) -> None:
+    """Refuse direct or transparently wrapped Dolphin adapters before any action.
+
+    This checks ordinary instance attributes and native slot attributes in
+    nested environment wrappers without calling their reset/step methods.
+    Arbitrary opaque Python adapters or computed delegates are not verifiable
+    by a generic ShotEnvironment interface; this is defense in depth, NOT a
+    trust or authorization contract for real shots.
+    """
+    pending = [env]
+    seen: set[int] = set()
+    while pending:
+        candidate = pending.pop()
+        if id(candidate) in seen:
+            continue
+        seen.add(id(candidate))
+        if len(seen) > 64:
+            raise ValueError("Cannot validate deeply nested environment wrappers")
+        if isinstance(candidate, DolphinEnvironment):
+            raise ValueError(f"Dolphin {purpose} requires a verified real-shot outcome contract")
+
+        try:
+            children = list(vars(candidate).values())
+        except TypeError:
+            children = []
+        # A transparent proxy may use __slots__ instead of __dict__. Read
+        # only native slot descriptors, never arbitrary properties/getters.
+        for owner in type(candidate).__mro__:
+            slots = owner.__dict__.get("__slots__", ())
+            if isinstance(slots, str):
+                slots = (slots,)
+            for slot in slots:
+                descriptor = owner.__dict__.get(slot)
+                if isinstance(descriptor, MemberDescriptorType):
+                    try:
+                        children.append(descriptor.__get__(candidate, type(candidate)))
+                    except AttributeError:
+                        pass
+        for child in children:
+            if isinstance(child, DolphinEnvironment) or (
+                callable(getattr(type(child), "reset", None))
+                and callable(getattr(type(child), "step", None))
+            ):
+                pending.append(child)
+
+
 def train_elite_search(policy: EliteSearchPolicy, env: ShotEnvironment,
                        scenario_ids: Iterable[str], *, iterations: int = 800,
                        seed: int = 0) -> None:
@@ -31,8 +79,7 @@ def train_elite_search(policy: EliteSearchPolicy, env: ShotEnvironment,
         raise ValueError("Training needs scenarios and positive iterations")
     # No independently verified real-game action/outcome join exists. Refuse
     # the direct Dolphin adapter *before* reset, which can begin gameplay.
-    if isinstance(env, DolphinEnvironment):
-        raise ValueError("Dolphin training requires a verified real-shot outcome contract")
+    _refuse_visible_dolphin_adapter(env, purpose="training")
     for i in range(iterations):
         scenario_id = ids[i % len(ids)]
         observation = env.reset(scenario_id, seed=seed + i)
@@ -44,7 +91,8 @@ def train_elite_search(policy: EliteSearchPolicy, env: ShotEnvironment,
         # Caller-controlled metadata is NOT verified real-game provenance.
         if result.metadata.get("source") != "synthetic":
             raise ValueError("Training requires explicitly synthetic ShotResult data")
-        if (result.metadata.get("measurement_type") == "offgreen_100ft_penalty"
+        if (any(result.metadata.get(key) == "offgreen_100ft_penalty"
+                for key in ("measurement_type", "distance_label"))
                 or any(str(result.metadata.get(key, "")).strip().lower()
                        in ("1", "true", "yes")
                        for key in ("censored", "outcome_is_censored_penalty"))):
@@ -64,8 +112,7 @@ def evaluate(policy: Policy, env: ShotEnvironment, scenario_ids: Iterable[str],
     # No approved real-game result reader/shot-identity join exists yet. A
     # DolphinEnvironment.step() can issue an actual swing, so refuse it BEFORE
     # even resetting the bridge; a post-step eligibility check is too late.
-    if isinstance(env, DolphinEnvironment):
-        raise ValueError("Dolphin evaluation requires a verified real-shot outcome contract")
+    _refuse_visible_dolphin_adapter(env, purpose="evaluation")
     distances: list[float] = []
     per_scenario: dict[str, list[float]] = {k: [] for k in ids}
     holes = 0
