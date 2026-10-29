@@ -1,212 +1,62 @@
-# Wii AI Golf
+# Wii AI Golf — V2 agent research and consolidation
 
-> **New agents / V2 source of truth:** Start with [V2 navigation](docs/v2-navigation.md), [role charter](docs/v2-agent-charter.md), [continuity and successor handoff](docs/v2-agent-continuity.md), and root [merging policy](merging.md). Verify current `main` and live PR ownership before coding. Some sections below document earlier GUI/launcher workflows and historical experiments; do **not** treat older descriptions as current V2 authority or as permission for a live shot.
+Build a reproducible Wii Sports Golf research pipeline from **Dolphin control → verified shot identity → provenance-gated observation → outcome → eligible training evidence**. **The full real-game pipeline and trainable ball coordinates are not yet verified.** Passing offline tests does not establish a real strike, game score, physical ball XYZ/velocity, or learning success.
 
-## Persistent game-memory variable catalog (for all agents and future training)
+> **New agent?** Start at [V2 navigation](docs/v2-navigation.md), then read the [role charter](docs/v2-agent-charter.md), [agent continuity / successor handoff](docs/v2-agent-continuity.md), and root [self-merge policy](merging.md). These are the current V2 operating rules. Always check live `main`, GitHub claims, and CI; documentation is not a live PR dashboard.
 
-The canonical, versioned [game-memory variable registry](research/memory-variables/registry.json) tracks what each candidate means, its RSPE01 Rev1 static root/pointer offsets and read type, confidence, missing controls, and whether it is approved as a training input or label. Follow the [agent documentation and verification contract](research/memory-variables/README.md) before starting memory research. Agents **must update an existing variable ID or add a new one in their PR** when discovering, falsifying or validating RAM fields; findings do not live only in chat or unsearchable JSON dumps.
+## Current V2 operator contract
 
-No field is training-approved yet: scene ID, tee/pin/cup translations are snapshot-corroborated only; the changing two-float candidate is unidentified and real ball XYZ/velocity remain unverified. Keep raw RAM and per-boot heap pointers private. Agent-only lint: `py scripts/validate_memory_registry.py`. This does not start Dolphin or alter the canonical user CLI.
+**V2 work is CLI-first and has one maintained implementation per behavior.** The canonical public CLI is `scripts/golf.py`; `scripts/research_cli.py` is the reviewed result-first research orchestration entry point. Legacy Python scripts are implementation details, source-review utilities, or historical experiments—not interchangeable user-facing launchers. A prior Lab GUI exists in repository history, but it is **not the V2 agent onboarding path or a requirement for new features**. Do not rebuild its retired workflow merely because historical documentation mentions it.
 
-## One-command research status sharing (existing Git authentication)
+The authoritative operating rules are:
+- Root [`merging.md`](merging.md): objective self-merge gates; current-main ancestry, exact-head full offline CI on configured platforms, compatibility, evidence/privacy, non-draft, no actionable overlap. No arbitrary extra manager approval.
+- [`docs/v2-agent-charter.md`](docs/v2-agent-charter.md): S000–S005 roles and ownership. A GitHub CLAIM is a coordination record, not a daemon or lock.
+- [`docs/v2-evidence-gates.md`](docs/v2-evidence-gates.md) and [memory registry](research/memory-variables/README.md): what has been shown, what is still uncertain, and what is *not* trainable.
+- [`docs/v2-pr-triage.md`](docs/v2-pr-triage.md): historical PR families and evidence-preserving retirement policy; verify live state first.
 
-```powershell
-py scripts/golf.py research test
-```
-
-This delegates to the **existing** `scripts/research_cli.py test` workflow:
-safely sync reviewed main, run offline tests, write a small allowlisted test
-result, then publish it using Git's existing authenticated remote to the
-`research/observations` branch. No new GitHub personal access token,
-manual JSON transfer, Dolphin startup, or duplicate publisher. Run it from
-a clean `main` checkout; detached audit branches cannot safely auto-sync.
-
-For a dry local run with **no upload**:
-`py scripts/golf.py research test --local-only`.
-
-`py scripts/golf.py lab export` and `lab verify-export` are **optional,
-offline-only backup/inspection commands** for Lab execution statuses.
-Exporting does NOT notify agents. A passing process is **not** proof of a
-ball hit or verified golf score. See
-[Token-free CLI usage](docs/token-free-research-export.md).
-
-## Active workflow: automatic GitHub pull → local research → sanitized GitHub push
-
-The **desktop UI is retired**. The Windows operator runs ONE central script against the existing codebase:
+## Safe local entry points (from your checkout)
 
 ```powershell
-cd "D:\Projects\Wii Golf AI\Wii-AI-Golf"
-py scripts/research_cli.py sync
-py scripts/research_cli.py test --pattern test_research_cli.py
-py scripts/research_cli.py v1 --live --a-lead 0
-```
-
-Each `test` or `v1` run first safely fast-forwards trusted `main`, executes locally (live shots require `--live`), saves a tiny allowlisted JSON result under private `Wii-AI-Golf-Data/research-cli`, and **automatically commits/pushes only that sanitized result** to the separate `research/observations` branch for agents to inspect. No ROM, RAW RAM, savestate, generated bridge source or unrestricted file is uploaded. Add `--no-upload` to keep a result local. Results publication is separate from the agent PR/code-merge path and never force-pushes or alters local `main`.
-
-The existing Git Bash wrapper `bash scripts/golf.sh` remains an alternative for `lab list|plan|run|sync`; all commands use the same underlying Python packages and Dolphin launch sequence. See [Script-first workflow and safety](docs/cli-only-workflow.md). The sections further below describe historical experiments and retired GUI behavior.
-
----
-
-
-## Current workflow: One Lab, desktop and Git Bash
-
-The Windows Research Lab GUI is supported, with Git Bash and PowerShell as optional interfaces to the SAME reviewed Python runner. Choose a game study from the GUI's list and use its right-hand Show/details pane. Agents commit code/tests and open reviewed GitHub pull requests; merged tests are discovered from the one `main` checkout. The shell wrapper never auto-uploads private game files or runs new tests without a user command.
-
-```bash
-cd "/d/Projects/Wii Golf AI/Wii-AI-Golf"  # Git Bash; adjust to your checkout
-bash scripts/golf.sh sync
-bash scripts/golf.sh list
-bash scripts/golf.sh plan core.tests
-bash scripts/golf.sh run core.tests
-bash scripts/golf.sh history
-```
-
-To run a live, registered trial only after reviewing its plan: `bash scripts/golf.sh run integration.swing --live`. This still uses canonical Dolphin startup and asks for human confirmation. On Windows PowerShell, use the same underlying `py scripts/golf.py lab ...` commands. No duplicate control or evaluation implementation is introduced.
-
-**One guided V1 trial:** select **Game tests → Historical V1 contact comparison** in `py scripts/golf.py lab gui`, then **Prepare and run one V1 shot** in the Show/details pane. A valid old V1 bridge is prepared separately with permission if needed, then a single canonical live trial asks for consent. An old `run-session.lock` from a crashed process is recovered using OS-managed locking and legacy PID checks; active jobs remain protected.
-
-**GitHub publishing:** Agents push feature branches and PRs; the merge coordinator integrates approved work. Never publish local ROMs, savestates, raw RAM, secrets, personal configuration, or unrestricted run logs. See [script workflow](docs/script-workflow.md). The GUI and CLI both remain supported.
-
----
-
-
-## Game Testing UI result visibility
-
-The **Inspect bridges** button writes the actual V1/V2 inspection into the permanent Game Testing results area. **Prepare historical V1** runs the reviewed recorded Lab preparation in the background and displays progress/errors there. Neither opens a separate terminal or a generic missing-log popup. The one-shot Dolphin swing retains its interactive console and explicit consent. A historical V1 trial can only be enabled if the isolated copy exactly matches the verified pre-V2 backup. See [Research Lab UI guide](docs/research-lab.md).
-
-## New: one shared Research Lab (S000–S005)
-
-**Instead of chasing agent-specific scripts, launch the Windows app:**
-
-~~~powershell
-cd "D:\Projects\Wii Golf AI\Wii-AI-Golf"
-py scripts/golf.py lab gui
-~~~
-
-**Game testing is now directly in the UI:** Look for the always-visible **Game Testing — historical V1 versus installed V2** panel above the experiment table. Click **1 Inspect bridges** (read-only), **2 Prepare historical V1** (copies a verified backup to a separate file after asking), then **3 Run ONE V1 shot** (fresh Dolphin and a separate explicit consent). These steps are no longer hidden in PowerShell. If no safe V1 backup exists, the Lab explains why and disables steps 2–3. Use the **Game tests** filter to see the same experiments. After a GitHub update changes Lab code, click **Restart Lab (updated)** to load it.
-
-Or run `py scripts/golf.py lab list`, `lab plan EXPERIMENT_ID`, `lab run EXPERIMENT_ID`, `lab history` and `lab reports` from a terminal. The Lab catalogs S001 control, S002 read-only evaluation, pending S003 modeling, S004 synthetic learning and pending S005 generalization behind **one reviewed experiment registry**. A live run needs explicit `--live` and performs the **canonical single fresh Dolphin/Slot2/A–A+B–A startup**, with human authorization. Execution metadata and offline logs are local, human observations remain distinct from verified scores, and raw RAM is never uploaded.
-
-**Latest observed shot:** the unprimed outcome-collector trial under generated bridge V2 failed to strike with adequate strength; the Lab does **not** label its profile reliable yet. We are standardizing experiments before further uncontrolled A-timing changes.
-
-See [Research Lab user guide](docs/research-lab.md), the registry `research/experiments.json`, and [agent contract](AGENTS.md). Older `scripts/*.py` commands remain supported for their domain owners.
-
-
-**Reproducible AI control and learning for Wii Sports Golf — Hitting the Green.**
-
-One research pipeline: **emulator control → observed outcomes → swing calibration → optimization → held-out evaluation**. Different agents own different modules, but they share one study plan, one controller protocol, one local evidence directory and one public CLI.
-
-## Current evidence (2026-10-24)
-
-**Working:** Python starts Felk Dolphin with Emulated Wii Remote 1, no Nunchuk, a registered pre-start checkpoint, and the verified A → wait → A+B → wait → A intro. One human-observed forward swing is logged with **89/89 dispatched frames**, **ball visibly moved = yes**, **on green = no**, and a visual meter estimate of **about 75%**.
-
-**Not yet established:** calibrated game power percentage, automatic landing-distance/score extraction, repeated-shot precision, 100 unattended scored trials, or a trained policy that improves Wii Sports performance. The 75% is a visual gauge estimate, *not a machine-verified power measurement*. Synthetic examples never count as Wii Sports outcomes.
-
-## One interface
-
-From the canonical Windows checkout, use Python 3.10+. **No editable install is required** for the source-local CLI.
-
-~~~powershell
-cd "D:\Projects\Wii Golf AI\Wii-AI-Golf"
-git pull --ff-only
 py scripts/golf.py --help
 py scripts/golf.py doctor
-~~~
+py -m unittest discover -s tests -v
+```
 
-### Everyday commands
+A local read-only research test can be performed with `py scripts/golf.py research test --local-only`. Other `research` commands may sync or publish **allowlisted** summaries; inspect the command and its permissions before running. The `research/observations` Git branch stores sanitized status—not physical shot evidence or a GitHub agent notification service.
 
-| Goal | Command | Dolphin effect |
-| --- | --- | --- |
-| Check local setup | `py scripts/golf.py doctor` | Read-only |
-| Boot to first ball | `py scripts/golf.py play --slot 2` | **Fresh full intro** |
-| Guarded swing (longer A pre-hold, experimental) | `py scripts/golf.py swing --slot 2` | **Fresh intro + human confirmation** |
-| Test A release timing | `py scripts/golf.py swing --slot 2 --follow-through-frames 45` | Fresh intro + one guarded shot |
-| List named checkpoints | `py scripts/golf.py state list` | Read-only |
-| View study plan | `py scripts/golf.py research studies` | Read-only |
-| Summarize local swing logs | `py scripts/golf.py research evidence` | Read-only |
-| Run unit tests | `py scripts/golf.py test` | Offline |
-| Try synthetic demo | `py scripts/golf.py demo` | Offline, **not Wii Sports** |
+**No agent may start Dolphin, issue controller inputs, collect private captures, publish private material, or conduct unattended shots without separate explicit operator authorization.** Do not upload ROMs, raw RAM, savestates, credentials, per-boot heap addresses, personal paths/configuration, or unrestricted logs. Human-observed outcomes are not machine-verified scores. An off-green 100-foot penalty is **censored**, never measured ball carry.
 
-**Close Dolphin before `play` or `swing`.** Both use `launch_golf.py → launch_hitting_green.py → menu_sequence.py`, not copied or guessed intro delays. The game image and local controller preferences are remembered from your verified setup. Slot 2 must map to `green-pre-start` in the ignored local savestate catalog; no commands create or overwrite state bytes. The actual swing requires visual confirmation and post-shot human labeling.
+## Agent workflow
 
-Advanced experiments: `py scripts/golf.py experiment --script probe_swing.py --send-live -- --preset forward --send-live-swing`. The existing coordinator wrapper launches just one session and attaches its approved child without booting a second Dolphin.
+| Workflow | What happens |
+| --- | --- |
+| New agent | Use the operator's existing V2 initiation prompt; pick an unclaimed role-specific instance ID; read canonical docs and GitHub claims; post `[INSTANCE] CLAIM`. If a local checkout exists, run `python scripts/agent_init.py --role S002 --instance S002-memory-a` with a *unique* ID. |
+| Continue same chat | Operator sends `CONTINUE V2`; agent keeps its ID/scope, checks current `main` and handoffs, and does substantive work. |
+| Context-limit replacement | Operator sends `HANDOFF V2`; outgoing agent posts a complete `[OLD] SUCCESSION HANDOFF` in its existing canonical GitHub thread. `scripts/agent_handoff.py` can produce a **complete standalone new-chat prompt** using a distinct successor ID and optional posted-comment permalink. Only the operator opens the new conversation; successor posts `[NEW] CLAIM`. |
 
-See **[the CLI guide](docs/cli.md)** for command reference, flags and safety.
+Read [full continuity rules](docs/v2-agent-continuity.md). Never assume a posted GitHub comment automatically awakens another chat.
 
 ## Repository map
 
-~~~text
-Wii-AI-Golf/
-├── scripts/
-│   ├── golf.py                    # Public source-local CLI
-│   ├── launch_golf.py             # Canonical Dolphin/controller/state startup
-│   ├── launch_hitting_green.py    # Canonical A / A+B / A intro
-│   ├── probe_swing.py             # One guarded shot and human observations
-│   └── ...                        # Advanced adapters and diagnostics
-├── src/wii_ai_golf/
-│   ├── cli.py                     # One CLI, delegates to existing scripts
-│   ├── integration/               # Felk RPC, savestates, swing/bridge
-│   ├── audit/                     # Read-only RAM candidate audit
-│   ├── research_catalog.py        # Read-only research/evidence summaries
-│   ├── protocol.py                # Future ShotEnvironment contracts
-│   ├── agents.py, evaluation.py   # Synthetic baseline code
-│   └── toy_env.py                 # Synthetic physics only
-├── research/
-│   ├── README.md                  # Study lifecycle and evidence rules
-│   ├── queue.jsonl                # S001–S005 proposals, not live jobs
-│   ├── ledger.md                  # Historical evidence and limitations
-│   ├── claims/                    # Agent ownership
-│   └── worker*/                   # Role-specific notes
-├── tests/                         # Unit/integration/CLI regression checks
-├── docs/                          # Detailed workflows, design and measurements
-└── AGENTS.md                      # Ownership/startup/evidence contract
-~~~
+| Location | Purpose |
+| --- | --- |
+| `scripts/golf.py` | Public source-local CLI |
+| `scripts/research_cli.py` | Result-first offline/live research orchestration with publication gate |
+| `scripts/agent_init.py`, `scripts/agent_handoff.py` | Read-only initialization and successor prompt generation |
+| `src/wii_ai_golf/` | Core package, runtime integrations, audits, models, evaluation |
+| `research/memory-variables/registry.json` | Stable, source-backed memory field registry and training-eligibility flags |
+| `research/studies/`, `research/ledger.md` | Provenance-limited findings and historical negative results |
+| `docs/v2-*.md`, `docs/S000-manager-playbook.md` | Canonical V2 navigation, evidence, coordination and retention rules |
+| `tests/`, `.github/workflows/` | Offline regression tests and platform validation |
 
-The sibling `Wii-AI-Golf-Data/` holds local shot JSONL, screenshots and other artifacts. ROMs, emulator executables, savestates and personal configurations do **not** go into Git. Worktrees are for coding; the canonical runtime checkout contains the live state mappings.
+## Verified limits and current dependencies
 
-## A shared research program
+The original seven-phase SHA-gated **offline** reader was selectively merged via #331; the distinct source-global/roster reader via #337; original B0 source/CFG adapter via #329. Observation publisher guards were integrated via #341 and follow-up hardening. These integrations are *not* proof of a rendered ball, guest physics-frame alignment, score or trainable data. The D1 human-airborne-versus-START contradiction remains part of the research record. The current registry contains no approved real-game training fields.
 
-| Study | Role | Current gate |
-| --- | --- | --- |
-| **S001** | Integration/control | **First user-confirmed ball contact; next three-shot repeatability** |
-| **S002** | Evaluation | Validate distance, landing and score against real game evidence |
-| **S003** | Modeling | One-factor motion/power calibration after outcomes are measurable |
-| **S004** | Learning | Fair, equal-attempt search; synthetic results stay synthetic |
-| **S005** | Generalization | Test unseen shot layouts after S002–S004 |
+Research and runtime owners should reuse on-main code, not fork another renderer, memory scanner, launch path, or publisher. New live tests must be individually authorized and correctly joined to their action/observation/outcome identities.
 
-`research/queue.jsonl` holds **proposals**, not a live scheduler. Actual agent work is tracked in GitHub issues and PRs, with S002/S003/S004 still owned separately. See [research workflow](research/README.md), [AGENTS.md](AGENTS.md), [architecture](docs/architecture.md) and [milestones](docs/milestones.md).
+## Historical documents and preserved work
 
-## Contribute and test
+Older guidance described several incompatible GUI, Lab, legacy launcher, and research workflows. Its text is preserved in [the complete pre-V2 README snapshot](docs/archive/README-pre-v2-20261029.md) and [pre-V2 AGENTS snapshot](docs/archive/AGENTS-pre-v2-20261029.md), with original Git blob SHAs and branch history. **Those are research history, not current operating instructions.** Do not delete historical PR branches merely to lower the open count. Follow [evidence-preserving PR retirement](docs/v2-pr-triage.md).
 
-~~~powershell
-py scripts/golf.py test
-py scripts/golf.py test --pattern "test_unified_cli.py"
-py scripts/golf.py demo
-~~~
-
-Optional installation: `py -m pip install -e .` then `wii-golf --help` or `py -m wii_ai_golf --help`. Prefer `py scripts/golf.py` across multiple worktrees; it loads that checkout's source rather than a stale editable package.
-
-The historical `scripts/*.py` commands remain functional for advanced users and the other agents. This is an **additive** consolidation, not a breaking rename. See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-
-## Current swing ordering experiment
-
-**Observed failure (2026-10-24):** After a good full Dolphin launch and A/A+B/A menu intro, the operator reported that motion happened before A visibly engaged, **no ball contact**, even with 45 A-held neutral samples in the swing trace. Investigation found that those so-called A-only samples **still invoked Dolphin's swing API with zero motion**. That is not equivalent to button-only input.
-
-The current command now sends **60 separate `controller.set_wiimote_buttons(A=True)` RPC requests with NO swing API calls**, then replays the **unchanged 89-frame forward trace** from the first user-confirmed hit (12 neutral samples inside trace, 15 back, 20 forward, 30 A-held follow-through, 12 release). This is a new **untested** ordering hypothesis, not another confirmed hit.
-
-~~~powershell
-# Close Dolphin entirely; then this command handles everything.
-py scripts/golf.py swing --slot 2 --a-prime-frames 60
-
-# To compare against the original swing trace WITHOUT additional button-only priming:
-py scripts/golf.py swing --slot 2 --a-prime-frames 0
-~~~
-
-The standard CLI uses `--a-prime-frames 60`, `--a-setup-frames 12`, and `--follow-through-frames 30`. Both normal commands retain the canonical fresh Felk startup, Emulated Wii Remote 1/Extension None, Slot 2 restore, A/A+B/A intro and human ready-screen confirmation. See [timing experiment](docs/first-swing-experiment.md) and [CLI guide](docs/cli.md). In-game button acceptance is still human-observed, not automatically verified.
-
-## Agent tests automatically appear from GitHub
-
-The Windows Research Lab GUI now checks the approved repository's **merged `main`** when it opens and every **two minutes**, safely fast-forwarding a clean local checkout and discovering new `tests/test_*.py` files. In the UI choose **Agent tests**, select a newly merged **NEW** test, preview, and **Run offline**; or press **Sync GitHub** for an immediate check. No tests or live golf actions run without your approval. Unmerged agent PRs remain pending and are not automatically executed.
-
-CLI equivalents: `py scripts/golf.py lab sync`, `lab list`, `lab plan agent-tests.test_lab_core`, `lab run agent-tests.test_lab_core`. Local changes, unexpected Git remotes and parallel Lab jobs stop the sync instead of being overwritten. See [Lab guide](docs/research-lab.md) for details.
+For implementation contributions: claim one bounded task, preserve unique source-backed findings, add relevant focused tests, run the full offline suite on the exact proposed head, and follow [`merging.md`](merging.md).

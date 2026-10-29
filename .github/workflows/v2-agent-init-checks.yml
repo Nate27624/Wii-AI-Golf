@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'AGENTS.md'
+      - 'README.md'
+      - 'docs/archive/**'
       - 'docs/v2-agent-charter.md'
       - 'docs/S000-manager-playbook.md'
       - 'docs/v2-agent-continuity.md'
@@ -11,6 +13,7 @@ on:
       - 'scripts/agent_handoff.py'
       - 'tests/test_agent_init.py'
       - 'tests/test_agent_handoff.py'
+      - 'tests/test_v2_docs_consistency.py'
       - '.github/workflows/v2-agent-init-checks.yml'
   workflow_dispatch:
 
@@ -30,5 +33,7 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_agent_init.py' -v
       - name: Focused agent-succession tests
         run: python -m unittest discover -s tests -p 'test_agent_handoff.py' -v
+      - name: Focused V2 onboarding consistency tests
+        run: python -m unittest discover -s tests -p 'test_v2_docs_consistency.py' -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
