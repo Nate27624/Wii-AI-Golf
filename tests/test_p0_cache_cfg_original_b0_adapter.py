@@ -169,6 +169,41 @@ class AdapterTests(unittest.TestCase):
             with self.assertRaises(adapter.QualificationError):
                 adapter.report_from_bytes(bank, FakeCFG(), public_units=PUBLIC)
 
+    def test_callsite_reached_requires_literal_bool(self):
+        # bool("false") is True; never promote an untrusted helper string
+        # or integer to an affirmative source-reachability conclusion.
+        for invalid in ("false", "true", 0, 1, None, [], {}):
+            with self.subTest(invalid=repr(invalid)), tempfile.TemporaryDirectory() as td:
+                bank = synthetic_b0(Path(td))
+
+                class Unsafe(FakeCFG):
+                    def inspect_known_callers(self, read):
+                        report = super().inspect_known_callers(read)
+                        report["sources"][0][
+                            "known_exact_cache_writer_callsite_reached"
+                        ] = invalid
+                        return report
+
+                with self.assertRaises(adapter.QualificationError):
+                    adapter.report_from_bytes(bank, Unsafe(), public_units=PUBLIC)
+
+    def test_explicit_true_callsite_flag_not_coerced(self):
+        with tempfile.TemporaryDirectory() as td:
+            bank = synthetic_b0(Path(td))
+
+            class LiteralBoolean(FakeCFG):
+                def inspect_known_callers(self, read):
+                    report = super().inspect_known_callers(read)
+                    report["sources"][0][
+                        "known_exact_cache_writer_callsite_reached"
+                    ] = True
+                    return report
+
+            report = adapter.report_from_bytes(
+                bank, LiteralBoolean(), public_units=PUBLIC)
+        self.assertIs(report["source_only_two_callers"][0][
+            "exact_cache_writer_callsite_reached"], True)
+
     def test_invalid_helper_output_refused(self):
         with tempfile.TemporaryDirectory() as td:
             bank = synthetic_b0(Path(td))
