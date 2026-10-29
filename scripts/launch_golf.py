@@ -158,7 +158,8 @@ def is_bridge_port_open(port: int) -> bool:
 
 
 def make_start_command(*, game: Path, dolphin: Path, bridge: Path,
-                       profile: str, catalog: Path, port: int) -> list[str]:
+                       profile: str, catalog: Path, port: int,
+                       dolphin_user: Path | None = None) -> list[str]:
     if not 1 <= port <= 65535:
         raise ValueError("port must be in 1..65535")
     if profile != "green-pre-start":
@@ -168,13 +169,18 @@ def make_start_command(*, game: Path, dolphin: Path, bridge: Path,
     for label, p in (("Dolphin", dolphin), ("swing bridge", bridge), ("state catalog", catalog)):
         if not p.is_file():
             raise ValueError(f"{label} not found: {p}")
-    return [
+    command = [
         sys.executable, str(ROOT / "scripts" / "launch_hitting_green.py"),
         "--catalog", str(catalog), "--port", str(port),
         "--profile", profile, "--dolphin", str(dolphin),
         "--bridge", str(bridge), "--game", str(game),
         "--send-live",
     ]
+    # The INI prepared by ensure_emulated_controller MUST belong to the
+    # user directory that the native Dolphin child actually loads.
+    if dolphin_user is not None:
+        command.extend(["--dolphin-user", str(Path(dolphin_user).expanduser().resolve())])
+    return command
 
 
 def make_swing_command(*, preset: str, port: int,
@@ -258,10 +264,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Selected checkpoint: {profile.name} (Dolphin slot {profile.slot})")
         if profile.description:
             print(f"Checkpoint description: {profile.description}")
-        launch = make_start_command(
-            game=game, dolphin=args.dolphin, bridge=args.bridge,
-            profile=profile.name, catalog=args.catalog, port=args.port,
-        )
         if is_bridge_port_open(args.port):
             raise ValueError(
                 "Felk bridge port is already occupied. Close Dolphin before "
@@ -278,6 +280,13 @@ def main(argv: list[str] | None = None) -> int:
             print("Original controller backup:", controller["backup"])
         if args.dolphin_user:
             remember_dolphin_user(args.config, controller["user_dir"])
+        # Pin the child Dolphin root to the SAME directory whose Wiimote INI
+        # was checked/updated. Explicit --user overrides portable/registry/env.
+        launch = make_start_command(
+            game=game, dolphin=args.dolphin, bridge=args.bridge,
+            profile=profile.name, catalog=args.catalog, port=args.port,
+            dolphin_user=Path(controller["user_dir"]),
+        )
         print("Starting Felk Dolphin, restoring green-pre-start, and dispatching calibrated A / A+B / A intro...")
         print("Keep Wii Remote 1: Emulated Wii Remote; Extension: None.")
         print("Close any existing Dolphin instance before launching. This never overwrites a savestate.")
