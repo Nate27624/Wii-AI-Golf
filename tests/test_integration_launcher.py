@@ -327,7 +327,7 @@ class OneCommandLauncherTests(unittest.TestCase):
         custom = self.root / "custom-user"
         custom_ini = custom / "Config" / "WiimoteNew.ini"
         custom_ini.parent.mkdir(parents=True)
-        custom_ini.write_text("[Wiimote1]\\nSource = 2\\nExtension = Nunchuk\\n")
+        custom_ini.write_text("[Wiimote1]\nSource = 2\nExtension = Nunchuk\n")
         original_portable = self.ini.read_bytes()
         original_custom = custom_ini.read_bytes()
         argv = [
@@ -336,8 +336,8 @@ class OneCommandLauncherTests(unittest.TestCase):
             "--catalog", str(self.catalog),
             "--dolphin-user", str(custom)
         ]
-        with patch.object(launch_golf.subprocess, "run") as run, \\
-             patch.object(launch_golf, "ensure_emulated_controller") as configure, \\
+        with patch.object(launch_golf.subprocess, "run") as run, \
+             patch.object(launch_golf, "ensure_emulated_controller") as configure, \
              patch("sys.stderr", new_callable=io.StringIO) as errors:
             self.assertEqual(launch_golf.main(argv), 1)
             run.assert_not_called()
@@ -355,7 +355,7 @@ class OneCommandLauncherTests(unittest.TestCase):
         custom = self.root / "stale-user"
         custom_ini = custom / "Config" / "WiimoteNew.ini"
         custom_ini.parent.mkdir(parents=True)
-        custom_ini.write_text("[Wiimote1]\\nSource = 2\\nExtension = Nunchuk\\n")
+        custom_ini.write_text("[Wiimote1]\nSource = 2\nExtension = Nunchuk\n")
         launch_golf.resolve_game(str(self.game), self.config)
         launch_golf.remember_dolphin_user(self.config, str(custom))
         before_portable = self.ini.read_bytes()
@@ -365,7 +365,7 @@ class OneCommandLauncherTests(unittest.TestCase):
             "--bridge", str(self.bridge), "--dolphin", str(self.exe),
             "--catalog", str(self.catalog)
         ]
-        with patch.object(launch_golf.subprocess, "run") as run, \\
+        with patch.object(launch_golf.subprocess, "run") as run, \
              patch.object(launch_golf, "ensure_emulated_controller") as configure:
             self.assertEqual(launch_golf.main(argv), 1)
             run.assert_not_called()
