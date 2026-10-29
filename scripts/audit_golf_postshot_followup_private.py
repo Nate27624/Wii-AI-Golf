@@ -225,6 +225,16 @@ def _approved_private_session(folder):
     return path
 
 
+def _recheck_phase(folder, phase, hashset):
+    """Recheck immutable original SHA after maps close; no private data printed."""
+    for name in ("MEM1", "MEM2"):
+        path = folder / f"{phase}-{name}.bin"
+        if (path.is_symlink() or not path.is_file()
+                or path.stat().st_size != SIZES[name]
+                or _hash(path) != hashset[name]):
+            raise ValueError("Native private bank changed during offline analysis")
+
+
 def _phase_read(folder, phase, hashset, *, source):
     with ExitStack() as stack:
         banks, verified = [], {}
@@ -244,8 +254,13 @@ def _phase_read(folder, phase, hashset, *, source):
             sample = prepost.snapshot_candidate(reader.u32, reader.header())
             pin = pin_words(reader.u32)  # constructor selfref already validated
             sample["pin_object"] = reader.u32(sample["owner"][3] + 0x44)
-            return sample, pin, verified
-        return None, None, verified
+            result = (sample, pin, verified)
+        else:
+            result = (None, None, verified)
+    # mmap + file descriptors are closed. A post-read hash is necessary:
+    # a matching pre-read SHA alone cannot rule out a concurrent overwrite.
+    _recheck_phase(folder, phase, hashset)
+    return result
 
 
 def run_local(folder):
@@ -270,7 +285,24 @@ def run_local(folder):
         _, _, result_sha = _phase_read(folder, "RESULT", doc["checkpoints"]["RESULT"]["sha256"], source=False)
         result_changed = (result_sha["MEM2"] != canonical["POST"]["sha256"]["MEM2"]
                           or result_sha["MEM1"] != canonical["POST"]["sha256"]["MEM1"])
-    return assemble(base, doc, settled, pins, result_changed)
+    report = assemble(base, doc, settled, pins, result_changed)
+    # Preserve the original, operator-attested manifest contract for the
+    # entire analysis, not just one phase's pre-mmap check. Recheck every
+    # bank AFTER all source reads, including PRE/POST initially read by
+    # the inherited audit and RESULT banks never decoded as live ball.
+    if prepost._manifest(folder) != canonical:
+        raise ValueError("Private PRE/POST manifest changed during analysis")
+    if (follow_path.is_symlink() or not follow_path.is_file()
+            or not 1 <= follow_path.stat().st_size <= 16384):
+        raise ValueError("Private follow-up manifest changed during analysis")
+    with follow_path.open("r", encoding="utf-8") as f:
+        if validate_followup(json.load(f)) != doc:
+            raise ValueError("Private follow-up manifest changed during analysis")
+    for phase in ("PRE", "POST"):
+        _recheck_phase(folder, phase, canonical[phase]["sha256"])
+    for phase, metadata in doc["checkpoints"].items():
+        _recheck_phase(folder, phase, metadata["sha256"])
+    return report
 
 
 def main(argv=None):
