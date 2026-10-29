@@ -11,6 +11,8 @@ on:
       - "src/wii_ai_golf/evaluation.py"
       - "tests/test_evaluation_real_gate.py"
       - "tests/test_training_real_gate.py"
+      - "src/wii_ai_golf/memory_input_contract.py"
+      - "tests/test_memory_input_contract.py"
       - "src/wii_ai_golf/bayes.py"
       - "tests/test_bayes.py"
       - "src/wii_ai_golf/agents.py"
@@ -44,6 +46,7 @@ jobs:
           python -m unittest discover -s tests -p "test_evaluation_real_gate.py" -v
           python -m unittest discover -s tests -p "test_emulator_scenario_gate.py" -v
           python -m unittest discover -s tests -p "test_training_real_gate.py" -v
+          python -m unittest discover -s tests -p "test_memory_input_contract.py" -v
           python -m unittest discover -s tests -p "test_bayes.py" -v
           # The S005 test file is present on PR #370, not this workflow-only PR.
           # Running discovery here will be zero tests until that PR is rebased.
