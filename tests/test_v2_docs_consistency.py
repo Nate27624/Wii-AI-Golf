@@ -25,7 +25,7 @@ class V2DocumentationConsistencyTests(unittest.TestCase):
     def test_canonical_roles_and_transfers_not_ambiguous(self):
         body = self.read("AGENTS.md")
         for role in ("S000", "S001", "S002", "S003", "S004", "S005"):
-            self.assertRegex(body, rf"(?m)^\\| {role} \\|")
+            self.assertRegex(body, rf"(?m)^\| {role} \|")
         self.assertIn("CONTINUE V2", body)
         self.assertIn("HANDOFF V2", body)
         self.assertIn("SUCCESSION HANDOFF", body)
@@ -68,7 +68,7 @@ class V2DocumentationConsistencyTests(unittest.TestCase):
         for path in ("README.md", "AGENTS.md"):
             with self.subTest(path=path):
                 body = self.read(path)
-                for target in re.findall(r"\\]\(([^)#]+)(?:#[^)]+)?\\)", body):
+                for target in re.findall(r"\]\(([^)#]+)(?:#[^)]+)?\)", body):
                     if "://" in target:
                         continue
                     referenced = (ROOT / path).parent / target
