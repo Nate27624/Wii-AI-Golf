@@ -157,6 +157,27 @@ def is_bridge_port_open(port: int) -> bool:
         return False
 
 
+def require_portable_user_root_match(dolphin: Path, user_dir: Path | None) -> None:
+    """Reject config edits that portable Dolphin cannot use.
+
+    portable.txt selects <Dolphin executable folder>/User independently of
+    an explicit or remembered --dolphin-user path. This is a pre-boot
+    consistency check, NOT proof that a native Dolphin process started.
+    """
+    if user_dir is None:
+        return
+    exe = Path(dolphin).expanduser().resolve()
+    if not (exe.parent / "portable.txt").exists():
+        return
+    if Path(user_dir).expanduser().resolve() != (exe.parent / "User").resolve():
+        raise ControllerConfigError(
+            "Portable Dolphin user-root mismatch: the selected --dolphin-user "
+            "(or remembered folder) differs from the executable's portable "
+            "User folder. No controller INI was changed and Dolphin was not "
+            "launched. Select that portable User folder before retrying."
+        )
+
+
 def make_start_command(*, game: Path, dolphin: Path, bridge: Path,
                        profile: str, catalog: Path, port: int) -> list[str]:
     if not 1 <= port <= 65535:
@@ -269,6 +290,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         remembered = read_config(args.config).get("dolphin_user")
         selected_user = args.dolphin_user or (Path(remembered) if remembered else None)
+        # Do not modify a different INI than portable Dolphin will actually read.
+        require_portable_user_root_match(args.dolphin, selected_user)
         controller = ensure_emulated_controller(args.dolphin, user_dir=selected_user)
         print("Controller ready BEFORE boot:", controller["source"],
               "| Extension:", controller["extension"])
