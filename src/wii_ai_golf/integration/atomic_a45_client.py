@@ -6,11 +6,19 @@ The loaded bridge must acknowledge this exact opt-in capability *before* input.
 from __future__ import annotations
 
 from typing import Any, Sequence
+from time import sleep
 
 from .swing_client import SwingSample, SwingTraceClient
 
 
 class AtomicA45SwingTraceClient(SwingTraceClient):
+    def status(self) -> dict[str, Any]:
+        # The atomic action is 45+89 callback ticks, not just the old 89.
+        # Bound status polling by emulator time as well as RPC count: 900
+        # immediate polls can expire before a 134-frame action finishes.
+        sleep(0.008)
+        return super().status()
+
     @staticmethod
     def require_capability(rpc: Any) -> None:
         try:
