@@ -323,5 +323,146 @@ class AgentInitTests(unittest.TestCase):
         self.assertEqual(self.invoke("--mode", "suggest").returncode, 0)
         self.assertNotEqual(self.invoke("--mode", "suggest", "--instance", "S002-memory-a").returncode, 0)
 
+
+    def test_live_board_paginates_past_one_hundred_to_latest_signed_board(self):
+        spec = importlib.util.spec_from_file_location("v2_page_board", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        old = self.board()
+        newer = json.loads(json.dumps(old))
+        newer["tasks"][0]["id"] = "S001-NEW-PAGE-TWO"
+        url = "https://github.com/Nate27624/Wii-AI-Golf/pull/320#issuecomment-102"
+        def comment(board, author="AI-Bott", link=url):
+            return {"user": {"login": author},
+                    "body": "[S000-manager] PRIORITY BOARD V2\n"
+                            + module.START + json.dumps(board) + module.END,
+                    "html_url": link}
+        first = [comment(old)] + [{} for _ in range(99)]
+        second = [comment(newer), comment(old, author="forged-user")]
+        with patch.object(module, "github_json",
+                          side_effect=[{"sha": "a"*40}, first, second]) as api:
+            board, sha, link = module.read_live_board()
+        self.assertEqual((sha, link), ("a"*40, url))
+        self.assertEqual(board["tasks"][0]["id"], "S001-NEW-PAGE-TWO")
+        self.assertIn("page=2", api.call_args_list[2].args[0])
+        self.assertEqual(api.call_count, 3)
+
+    def test_live_roster_paginates_past_one_hundred_to_latest_signed_roster(self):
+        spec = importlib.util.spec_from_file_location("v2_page_roster", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        old = self.roster()
+        newer = json.loads(json.dumps(old))
+        newer["assignments"][0]["task_id"] = "S001-NEW-PAGE-TWO"
+        url = "https://github.com/Nate27624/Wii-AI-Golf/pull/320#issuecomment-103"
+        def comment(roster, author="AI-Bott", link=url):
+            return {"user": {"login": author},
+                    "body": "[S000-manager] ASSIGNMENT ROSTER V2\nmanager_id: "
+                            + roster["manager_id"] + "\n" + module.ASSIGN_START
+                            + json.dumps(roster) + module.ASSIGN_END,
+                    "html_url": link}
+        first = [comment(old)] + [{} for _ in range(99)]
+        second = [comment(newer), comment(old, author="forged-user")]
+        with patch.object(module, "github_json", side_effect=[first, second]) as api:
+            roster, link = module.read_live_roster()
+        self.assertEqual(link, url)
+        self.assertEqual(roster["assignments"][0]["task_id"], "S001-NEW-PAGE-TWO")
+        self.assertIn("page=2", api.call_args_list[1].args[0])
+        self.assertEqual(api.call_count, 2)
+
+    def test_latest_signed_manager_malformed_must_not_fall_back_to_page_one(self):
+        spec = importlib.util.spec_from_file_location("v2_bad_new_page", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        link = "https://github.com/Nate27624/Wii-AI-Golf/pull/320#issuecomment-99"
+        old_board = {"body": "[S000-manager] PRIORITY BOARD V2"
+                              + module.START + json.dumps(self.board()) + module.END,
+                     "user": {"login": "Nate27624"}, "html_url": link}
+        newer_bad_board = {"body": "[S000-manager] PRIORITY BOARD V2\nmissing markers",
+                           "user": {"login": "AI-Bott"}, "html_url": link}
+        first = [old_board] + [{} for _ in range(99)]
+        with patch.object(module, "github_json",
+                          side_effect=[{"sha": "a"*40}, first, [newer_bad_board]]):
+            with self.assertRaisesRegex(ValueError, "markers missing"):
+                module.read_live_board()
+        old_roster = {"body": "[S000-manager] ASSIGNMENT ROSTER V2\nmanager_id: "
+                              + self.roster()["manager_id"] + "\n" + module.ASSIGN_START
+                              + json.dumps(self.roster()) + module.ASSIGN_END,
+                      "user": {"login": "Nate27624"}, "html_url": link}
+        newer_bad_roster = {"body": "[S000-manager] ASSIGNMENT ROSTER V2\nmanager_id: "
+                                    + self.roster()["manager_id"] + "\n"
+                                    + module.ASSIGN_START + "{malformed"
+                                    + module.ASSIGN_END,
+                            "user": {"login": "AI-Bott"}, "html_url": link}
+        with patch.object(module, "github_json",
+                          side_effect=[[old_roster] + [{} for _ in range(99)],
+                                       [newer_bad_roster]]):
+            with self.assertRaisesRegex(ValueError, "JSON malformed"):
+                module.read_live_roster()
+
+    def test_broken_second_page_does_not_grant_stale_assignment(self):
+        spec = importlib.util.spec_from_file_location("v2_fail_page", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        old = {"user": {"login": "AI-Bott"}, "html_url":
+               "https://github.com/Nate27624/Wii-AI-Golf/pull/320#issuecomment-99",
+               "body": "[S000-manager] ASSIGNMENT ROSTER V2\nmanager_id: "
+                       + self.roster()["manager_id"] + "\n" + module.ASSIGN_START
+                       + json.dumps(self.roster()) + module.ASSIGN_END}
+        for bad in ("bad-schema", ValueError("GitHub page two read unavailable")):
+            with self.subTest(bad=str(bad)):
+                with patch.object(module, "github_json",
+                                  side_effect=[[old] + [{} for _ in range(99)], bad]):
+                    with self.assertRaises(ValueError):
+                        module.read_live_roster()
+
+    def test_no_authorized_roster_after_pagination_stays_unassigned(self):
+        spec = importlib.util.spec_from_file_location("v2_no_page_roster", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        forged = {"user": {"login": "forged-user"},
+                  "body": "[S000-manager] ASSIGNMENT ROSTER V2\n"
+                          + module.ASSIGN_START + json.dumps(self.roster())
+                          + module.ASSIGN_END}
+        with patch.object(module, "github_json",
+                          side_effect=[[{} for _ in range(100)], [forged]]):
+            with self.assertRaisesRegex(ValueError, "No manager assignment roster"):
+                module.read_live_roster()
+
+    def test_pagination_budget_exhaustion_fails_closed(self):
+        spec = importlib.util.spec_from_file_location("v2_many_pages", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with patch.object(module, "github_json",
+                          side_effect=[[{} for _ in range(100)] for _ in range(20)]) as api:
+            with self.assertRaisesRegex(ValueError, "pagination limit exceeded"):
+                module.read_live_roster()
+        self.assertEqual(api.call_count, 20)
+
+    def test_stale_live_roster_main_remains_unverified(self):
+        import io
+        from contextlib import redirect_stdout
+        spec = importlib.util.spec_from_file_location("v2_page_stale_main", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        stale = self.roster()
+        stale["main_sha"] = "b"*40
+        url = "https://github.com/Nate27624/Wii-AI-Golf/pull/320#issuecomment-200"
+        output = io.StringIO()
+        with patch.object(module, "read_live_board",
+                          return_value=(self.board(), "a"*40, url)), \
+             patch.object(module, "read_live_roster", return_value=(stale, url)), \
+             patch.object(module, "git", return_value="clean"), \
+             patch.object(sys, "argv", ["agent_init.py", "--mode", "continue",
+                                       "--role", "S002", "--instance",
+                                       "S002-memory-a", "--live"]), \
+             redirect_stdout(output):
+            self.assertEqual(module.main(), 0)
+        text = output.getvalue()
+        self.assertIn("ROSTER_FRESHNESS=STALE_MAIN", text)
+        self.assertIn("ASSIGNMENT_STATE=UNVERIFIED", text)
+        self.assertNotIn("ASSIGNMENT_TASK=", text)
+
+
 if __name__ == "__main__":
     unittest.main()

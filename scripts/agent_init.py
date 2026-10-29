@@ -64,12 +64,32 @@ def github_json(endpoint: str) -> Any:
         raise ValueError("GitHub API supplied invalid JSON") from None
 
 
+def read_coordination_comments() -> list:
+    """Read all canonical PR comments in oldest-to-newest order, bounded.
+
+    GitHub's per_page=100 returns the *oldest* page first. A single-page
+    fetch silently misses the current roster once PR #320 has 101 comments.
+    Refuse partial/malformed later pages rather than reuse a stale assignment.
+    """
+    comments = []
+    for page in range(1, 21):
+        batch = github_json(
+            f"repos/{REPO}/issues/{BOARD_ISSUE}/comments?per_page=100&page={page}"
+        )
+        if not isinstance(batch, list) or len(batch) > 100:
+            raise ValueError("Unexpected coordination comments API schema")
+        comments.extend(batch)
+        if len(batch) < 100:
+            return comments
+    raise ValueError("Coordination comment pagination limit exceeded; no stale roster")
+
+
 def read_live_board() -> tuple[dict, str, str]:
     latest = github_json(f"repos/{REPO}/commits/main")
     main_sha = latest.get("sha")
     if not isinstance(main_sha, str) or not re.fullmatch("[0-9a-f]{40}", main_sha):
         raise ValueError("Could not authenticate remote main SHA")
-    comments = github_json(f"repos/{REPO}/issues/{BOARD_ISSUE}/comments?per_page=100")
+    comments = read_coordination_comments()
     if not isinstance(comments, list):
         raise ValueError("Unexpected coordination comments API schema")
     for comment in reversed(comments):
@@ -83,7 +103,7 @@ def read_live_board() -> tuple[dict, str, str]:
         if not body.startswith("[S000-manager] PRIORITY BOARD V2"):
             continue
         if START not in body or END not in body:
-            continue
+            raise ValueError("Latest manager priority board markers missing")
         raw = body.split(START, 1)[1].split(END, 1)[0].strip()
         try:
             board = json.loads(raw)
@@ -181,7 +201,7 @@ def validate_roster(roster: Any) -> None:
 
 def read_live_roster() -> tuple[dict, str]:
     """GET-only. Match authorized GitHub author and manager identity explicitly."""
-    comments = github_json(f"repos/{REPO}/issues/{BOARD_ISSUE}/comments?per_page=100")
+    comments = read_coordination_comments()
     if not isinstance(comments, list):
         raise ValueError("Unexpected assignment comments API schema")
     for comment in reversed(comments):
