@@ -38,7 +38,8 @@ from wii_ai_golf.shared.controller_timing import hold_a_for_observed_frames
 from wii_ai_golf.integration.atomic_a45_client import AtomicA45SwingTraceClient
 from wii_ai_golf.audit.outcome_transition import (
     capture_outcome_windows, rank_outcome_candidates)
-from wii_ai_golf.audit.outcome_recovery import parse_displayed_distance
+from wii_ai_golf.audit.outcome_recovery import (
+    exploratory_ranking_target, parse_displayed_distance)
 from probe_swing import build_probe
 
 DATA_DIR = ROOT.parent / "Wii-AI-Golf-Data" / "captures"
@@ -350,7 +351,10 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         annotation["hitting_green_first_ball_context_human_confirmed"] = True
         annotation["game_context_verified_by_memory"] = False
     ranked = None if visual_first else rank_outcome_candidates(
-        rows, human_distance=annotation["displayed_distance_human"])
+        rows, human_distance=exploratory_ranking_target(
+            annotation["displayed_distance_human"],
+            displayed_unit=annotation["displayed_unit_human"],
+            green=annotation["finished_on_green_human"]))
     return {"schema_version": 1,
             "source": ("human-terminal-result-no-ram-game-context-unverified"
                        if visual_first else "live-emulator-read-only-US-Rev1+human-result-label"),
