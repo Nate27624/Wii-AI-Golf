@@ -96,6 +96,56 @@ class VisualFirstCollectorTests(unittest.TestCase):
         self.assertEqual(report["source"],
                          "human-terminal-result-no-ram-game-context-unverified")
 
+    def test_setup_narrative_reprompts_and_only_explicit_enter_dispatches(self):
+        # Reproduces the operator's aborted B1: a descriptive setup sentence
+        # must not be silently interpreted as q or as permission to swing.
+        replies = iter([
+            "We are at the starting position, with 0 wind and aligned aim",
+            "",  # explicit ready confirmation
+            "The club is around halfway back",
+            "",  # separate explicit swing permission
+            "M:100ft", "yes",
+        ])
+        prompts = []
+        swings = []
+        def answer(prompt):
+            prompts.append(prompt)
+            return next(replies)
+        def swing(_rpc):
+            swings.append("one")
+            return {"state": "complete", "applied_frames": 89}
+        with tempfile.TemporaryDirectory() as folder:
+            private = Path(folder) / "RAW-PRIVATE.jsonl"
+            result = run_session(object(), raw_path=private, pre_samples=2,
+                post_samples=2, settled_samples=2, interval=0,
+                input_fn=answer, swing_fn=swing, visual_first=True,
+                snapshot_fn=lambda *_: self.fail("visual-first may not sample RAM"))
+            self.assertFalse(private.exists())
+        self.assertEqual(swings, ["one"])
+        self.assertEqual(len(prompts), 6)
+        self.assertEqual(prompts[0], prompts[1])
+        self.assertEqual(prompts[2], prompts[3])
+        self.assertFalse(result.get("cancelled", False))
+        self.assertTrue(result["human_observation"]["terminal_screen_seen_before_transition_human"])
+        self.assertEqual(result["human_observation"]["contact_human"], "yes")
+
+    def test_invalid_setup_text_then_q_never_dispatches(self):
+        for replies in (
+            ["A is not pressed; pin appears far away", "Q"],
+            ["", "A is not pressed; pin appears far away", " q "],
+        ):
+            with self.subTest(replies=replies), tempfile.TemporaryDirectory() as folder:
+                raw = Path(folder) / "RAW-PRIVATE.jsonl"
+                answers = iter(replies)
+                result = run_session(object(), raw_path=raw, pre_samples=2,
+                    post_samples=2, settled_samples=2, interval=0,
+                    visual_first=True, input_fn=lambda _: next(answers),
+                    swing_fn=lambda _: self.fail("no explicit swing approval"),
+                    snapshot_fn=lambda *_: self.fail("no RAM sampling"))
+                self.assertTrue(result["cancelled"])
+                self.assertFalse(result["raw_data_created"])
+                self.assertFalse(raw.exists())
+
     def test_fixed_offgreen_display_is_censored_not_physical_distance(self):
         response = _visual_first_label(lambda _: "M:100ft")
         self.assertEqual(response["displayed_distance_human"], 100.0)

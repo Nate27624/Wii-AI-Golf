@@ -43,6 +43,23 @@ from probe_swing import build_probe
 DATA_DIR = ROOT.parent / "Wii-AI-Golf-Data" / "captures"
 
 
+def _confirm_enter_or_q(prompt: str, *, input_fn: Callable[[str], str]) -> bool:
+    """Only an explicit empty ENTER consents; only q cancels.
+
+    Other text is not consent and must never silently cancel a ready shot.
+    It is not written into experiment artifacts; the operator can clarify and
+    explicitly confirm or cancel on the next prompt.
+    """
+    while True:
+        response = input_fn(prompt).strip().lower()
+        if response == "":
+            return True
+        if response == "q":
+            return False
+        print("Text was not treated as confirmation or cancellation. "
+              "Press ENTER alone to continue or type q to cancel.", flush=True)
+
+
 def _answer(prompt: str, *, allowed: set[str],
             input_fn: Callable[[str], str]) -> str:
     while True:
@@ -216,12 +233,13 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 return SwingTraceClient(client, port=0).run(samples)
             finally:
                 release_buttons(client, remote=0)
-    ready = input_fn(
+    ready = _confirm_enter_or_q(
         "Visually confirm Hitting the Green FIRST BALL, expected tee/hole, club, "
-        "pin, wind and aim; ENTER confirms this HUMAN check; q cancels: "
+        "pin, wind and aim; press ENTER ALONE to confirm; q cancels: "
         if visual_first else
-        "Visually verify golfer is ready. ENTER starts capture; type q to cancel: ")
-    if ready.strip():
+        "Visually verify golfer is ready. Press ENTER ALONE to start capture; q cancels: ",
+        input_fn=input_fn)
+    if not ready:
         return {"cancelled": True, "raw_data_created": False}
     start_pose = None
     if observe_start_pose:
@@ -246,8 +264,10 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                     sleep_fn(interval)
         if not visual_first:
             capture_stage("pre", pre_samples)
-        approval = input_fn(f"Press ENTER to execute ONE {len(samples)}-frame forward swing; q cancels: ")
-        if approval.strip():
+        approval = _confirm_enter_or_q(
+            f"Press ENTER ALONE to execute ONE {len(samples)}-frame forward swing; q cancels: ",
+            input_fn=input_fn)
+        if not approval:
             return {"cancelled": True, "raw_data_created": not visual_first,
                     "partial_samples": len(rows), "shot_dispatched": False}
         shot_start_frame = None
@@ -404,8 +424,12 @@ def main(argv: list[str] | None = None) -> int:
     run_id = args.run_token or (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8])
     raw_file = args.data_dir / f"outcome-{run_id}-RAW-PRIVATE.jsonl"
     summary_file = args.data_dir / f"outcome-{run_id}-candidates.json"
-    print("Private raw RAM output:", raw_file)
-    print("Never upload the RAW file. Only share the summary after inspection.")
+    if args.visual_first:
+        print("M1.5 human result-first: NO raw RAM capture file will be created.")
+        print("Human result summary stays local unless separately reviewed for publication.")
+    else:
+        print("Private raw RAM output:", raw_file)
+        print("Never upload the RAW file. Only share the summary after inspection.")
     print("Outer command must already have launched Dolphin and run A/A+B/A.")
     with FelkRPC(port=args.port, timeout_s=15) as rpc:
         result = run_session(rpc, raw_path=raw_file, pre_samples=args.pre_samples,
