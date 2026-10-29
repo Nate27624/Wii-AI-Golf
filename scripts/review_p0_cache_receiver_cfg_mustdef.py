@@ -98,9 +98,11 @@ def _effect(word: int, entry_r3: bool, entry_r31: bool) -> tuple[bool, bool]:
         if xo in (0, 32):
             return entry_r3, entry_r31
         raise Unresolved("other X-form instruction could clobber tracked GPR")
-    # Comparison, floating arithmetic, 'nop' ori, and ordinary rlwimi etc
-    # must not be allowed to smuggle writes to tracked r3/r31.
-    if op in (10, 11, 4, 59, 63):
+    # Comparison and scalar floating arithmetic do not write tracked GPRs.
+    # Gekko primary opcode 4 must NOT be treated as GPR-preserving: indexed
+    # paired-single update forms (psq_lux/psq_stux) write base rA, which may
+    # be tracked r3 or r31. Abstain on *all* op4 pending exhaustive decoding.
+    if op in (10, 11, 59, 63):
         return entry_r3, entry_r31
     # D-format integer immediate and load GPR (rt is destination).
     if op in (12, 13, 14, 15, 32, 33, 34, 35, 40, 41, 42, 43):
