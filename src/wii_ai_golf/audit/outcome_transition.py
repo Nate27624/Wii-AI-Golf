@@ -26,6 +26,8 @@ EFFECT_POINTER_OFFSETS = {
 EFFECT_BYTES = 0x200
 MAX_SAMPLE_BYTES = 12 * 1024
 CHUNK_BYTES = 1024
+# Conservative per-read guard for RPC-count spans, NOT a Golf physics-frame clock.
+MAX_RANK_SAMPLE_FRAME_SPAN = 120
 
 
 def _ram(address: int, length: int) -> bool:
@@ -110,8 +112,12 @@ def capture_outcome_windows(rpc: Any, phase: str) -> dict[str, Any]:
 
 def _words(sample: dict[str, Any]) -> dict[int, tuple[int, set[str]]]:
     """Big-endian word-aligned addresses, deduplicated across overlapping windows."""
-    if sample.get("game_id") != "RSPE01" or sample.get("disc_revision") != 1:
-        raise ValueError("invalid game identification in snapshot")
+    if (sample.get("game_id") != "RSPE01"
+            or type(sample.get("disc_revision")) is not int
+            or sample["disc_revision"] != 1
+            or type(sample.get("game_mode_raw")) is not int
+            or sample["game_mode_raw"] != 4):
+        raise ValueError("invalid game/revision/mode identification in snapshot")
     result: dict[int, tuple[int, set[str]]] = {}
     conflicting: set[int] = set()
     for window, data in sample.get("windows", {}).items():
@@ -169,6 +175,25 @@ def rank_outcome_candidates(samples: list[dict[str, Any]], *,
         raise ValueError("require >=2 pre and >=2 settled observations")
     if phases != sorted(phases, key={"pre": 0, "post": 1, "settled": 2}.get):
         raise ValueError("observations must be chronological pre/post/settled")
+    # Sample name order alone cannot attest temporal order. Require each bounded
+    # read to finish no later than the next one begins. These are only Dolphin
+    # RPC frame.get_count brackets: they do NOT prove one boot, guest physics
+    # steps, rendered-ball identity, or an authoritative score.
+    last_end = None
+    for sample in samples:
+        start, end = sample.get("frame_start"), sample.get("frame_end")
+        if (type(start) is not int or type(end) is not int
+                or start < 0 or end < start
+                or end - start > MAX_RANK_SAMPLE_FRAME_SPAN):
+            raise ValueError("missing/invalid/beyond-bound sample frame bracket")
+        if last_end is not None and start < last_end:
+            raise ValueError("overlapping or reversed sample frame brackets")
+        # A canonical sample always records this. Absence in legacy imports
+        # is unknown/non-qualifying, never evidence of an atomic snapshot.
+        span = sample.get("non_atomic_frame_span")
+        if type(span) is not int or span != end - start:
+            raise ValueError("missing/inconsistent non-atomic frame span")
+        last_end = end
     rows = [_words(sample) for sample in samples]
     masks = {phase: [r for sample, r in zip(samples, rows) if sample["phase"] == phase]
              for phase in ("pre", "post", "settled")}
@@ -208,6 +233,9 @@ def rank_outcome_candidates(samples: list[dict[str, Any]], *,
         "human_displayed_distance_raw_unverified": human_distance,
         "human_label_tolerance_no_unit_conversion": tolerance,
         "ball_position_verified": False, "game_score_verified": False,
+        "sample_rpc_frame_brackets_ordered": True,
+        "sample_rpc_non_atomic_spans_consistent": True,
+        "same_boot_or_guest_physics_frame_verified": False,
         "warning": ("Big-endian u32/s32/f32 raw changes; a numeric match may be "
                     "coincidental. Multi-frame snapshots and unknown display units "
                     "prevent inferring exact landing, true power or game score."),
