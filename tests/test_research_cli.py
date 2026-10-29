@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 import research_cli
+from collect_outcome_transition import _build_v1_trace_and_digest
 
 
 class ResearchCliTests(unittest.TestCase):
@@ -172,7 +173,8 @@ class ResearchCliTests(unittest.TestCase):
                     "a_lead_requested_frames": 0,
                     "motion_scale": 1.0, "speed_scale": 1.0,
                     "backswing_scale": 1.0, "generated_trace_frames": 89,
-                    "trace_sha256": "a" * 64,
+                    "trace_sha256": _build_v1_trace_and_digest(
+                        motion_scale=1.0, speed_scale=1.0, backswing_scale=1.0)[1],
                     "private_ram_hex": "SECRET_BYTES",
                 },
                 "run_token": "b" * 32,
@@ -341,7 +343,8 @@ class ResearchCliTests(unittest.TestCase):
                                       "displayed_distance_human": 100,
                                       "displayed_unit_human": "ft"},
                 "known_good_swing_request": {**expected,
-                    "generated_trace_frames": 89, "trace_sha256": "a" * 64},
+                    "generated_trace_frames": 89, "trace_sha256": _build_v1_trace_and_digest(
+                        motion_scale=1.0, speed_scale=1.0, backswing_scale=1.0)[1]},
                 "swing_dispatch": {"state": "complete", "applied_frames": 89},
                 "settled_screen_observation": "operator_confirmed_before_transition",
                 "terminal_capture_mode": "result_first_human_prompt",
@@ -366,6 +369,24 @@ class ResearchCliTests(unittest.TestCase):
                 self.assertEqual(good["distance_interpretation"],
                                  "censored_offgreen_100ft_penalty")
                 self.assertNotIn("run_token", good)
+                digest = row["known_good_swing_request"]["trace_sha256"]
+                row["known_good_swing_request"]["trace_sha256"] = "f" * 64
+                file.write_text(json.dumps(row))
+                wrong_hash = research_cli._fresh_human_labels(
+                    start, run_token="d" * 32, expected_controller=expected)
+                self.assertEqual(wrong_hash["capture_status"],
+                                 "unqualified_child_trace_digest")
+                self.assertNotIn("human", wrong_hash)
+                row["known_good_swing_request"]["trace_sha256"] = digest
+                row["known_good_swing_request"]["generated_trace_frames"] = 88
+                row["swing_dispatch"]["applied_frames"] = 88
+                file.write_text(json.dumps(row))
+                wrong_length = research_cli._fresh_human_labels(
+                    start, run_token="d" * 32, expected_controller=expected)
+                self.assertEqual(wrong_length["capture_status"],
+                                 "unqualified_child_trace_digest")
+                row["known_good_swing_request"]["generated_trace_frames"] = 89
+                row["swing_dispatch"]["applied_frames"] = 89
                 row["settled_screen_observation"] = {"private_ram": "SECRET"}
                 file.write_text(json.dumps(row))
                 leak = research_cli._fresh_human_labels(
