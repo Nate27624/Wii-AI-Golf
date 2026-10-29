@@ -213,6 +213,36 @@ class TestSeven(unittest.TestCase):
                 self.assertFalse(report["ball_middle_component_hypothesis"]["allowed_to_publish"])
                 self.assertEqual(len(report["comparisons"]),5)
 
+    def test_middle_only_cli_prints_categorical_report_without_raw_values(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        from unittest.mock import patch
+        output=StringIO()
+        with patch.object(mod,"analyze",return_value=mod.summarize(seven())):
+            with redirect_stdout(output):
+                code=mod.main(["--archive","fake-local-only","--middle-only"])
+        self.assertEqual(code,0)
+        payload=__import__("json").loads(output.getvalue())
+        self.assertEqual(payload["status"],"source_numeric_direction_only")
+        self.assertEqual(payload["relative_ball_object_offset"],"+0x34")
+        self.assertNotIn("whole_record",output.getvalue())
+        self.assertNotIn('"samples"',output.getvalue())
+        self.assertNotIn('"comparisons"',output.getvalue())
+
+    def test_middle_only_cli_abstention_is_nonzero(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        from unittest.mock import patch
+        x=seven()
+        x[6]["cfg_bc"]=9
+        output=StringIO()
+        with patch.object(mod,"analyze",return_value=mod.summarize(x)):
+            with redirect_stdout(output):
+                code=mod.main(["--archive","fake-local-only","--middle-only"])
+        self.assertEqual(code,2)
+        self.assertIn('"status": "abstained"',output.getvalue())
+        self.assertNotIn("whole_record",output.getvalue())
+
     def test_archive_wrong_kind_rejected_without_ram(self):
         from unittest.mock import patch
         from tempfile import TemporaryDirectory
