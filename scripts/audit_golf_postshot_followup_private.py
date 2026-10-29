@@ -14,8 +14,10 @@ import hashlib
 import json
 import math
 import mmap
+import os
 from pathlib import Path
 import re
+import stat
 import struct
 import sys
 
@@ -225,29 +227,60 @@ def _approved_private_session(folder):
     return path
 
 
-def _recheck_phase(folder, phase, hashset):
-    """Recheck immutable original SHA after maps close; no private data printed."""
+def _file_identity(path, expected_size):
+    """Identity of a regular native file, rejecting symlink path substitution."""
+    info = os.stat(path, follow_symlinks=False)
+    if (not stat.S_ISREG(info.st_mode) or info.st_size != expected_size
+            or not info.st_ino):
+        raise ValueError("Native private bank changed during offline analysis")
+    return (info.st_dev, info.st_ino, info.st_size)
+
+
+def _hash_open_file(fh):
+    """Hash the SAME file descriptor used for mmap, not a reopened pathname."""
+    digest = hashlib.sha256()
+    fh.seek(0)
+    for block in iter(lambda: fh.read(1 << 20), b""):
+        digest.update(block)
+    fh.seek(0)
+    return digest.hexdigest()
+
+
+def _recheck_phase(folder, phase, hashset, *, identities=None):
+    """Post-map original SHA and path identity; never print private metadata."""
     for name in ("MEM1", "MEM2"):
         path = folder / f"{phase}-{name}.bin"
-        if (path.is_symlink() or not path.is_file()
-                or path.stat().st_size != SIZES[name]
-                or _hash(path) != hashset[name]):
+        before = _file_identity(path, SIZES[name])
+        if identities is not None and identities[name] != before:
+            raise ValueError("Native private bank changed during offline analysis")
+        if _hash(path) != hashset[name]:
+            raise ValueError("Native private bank changed during offline analysis")
+        if _file_identity(path, SIZES[name]) != before:
             raise ValueError("Native private bank changed during offline analysis")
 
 
 def _phase_read(folder, phase, hashset, *, source):
+    identities = {}
     with ExitStack() as stack:
         banks, verified = [], {}
         for name in ("MEM1", "MEM2"):
             path = folder / f"{phase}-{name}.bin"
-            if path.is_symlink() or not path.is_file() or path.stat().st_size != SIZES[name]:
-                raise ValueError("Native follow-up bank missing or wrong size")
+            identity = _file_identity(path, SIZES[name])
             digest = _hash(path)
             if digest != hashset[name]:
                 raise ValueError("Native bank SHA does not match typed manifest")
             fh = stack.enter_context(path.open("rb"))
+            actual = os.fstat(fh.fileno())
+            # Both the object and its mapped bytes must be the original
+            # SHA-attested bank. Re-hashing the pathname alone cannot
+            # distinguish a rename/symlink race between hash and mmap.
+            if ((actual.st_dev, actual.st_ino, actual.st_size) != identity
+                    or _file_identity(path, SIZES[name]) != identity
+                    or _hash_open_file(fh) != hashset[name]):
+                raise ValueError("Native private bank changed during offline analysis")
             banks.append(stack.enter_context(mmap.mmap(
                 fh.fileno(), 0, access=mmap.ACCESS_READ)))
+            identities[name] = identity
             verified[name] = digest
         if source:
             reader = roster.TwoBankReader(*banks)
@@ -257,9 +290,9 @@ def _phase_read(folder, phase, hashset, *, source):
             result = (sample, pin, verified)
         else:
             result = (None, None, verified)
-    # mmap + file descriptors are closed. A post-read hash is necessary:
-    # a matching pre-read SHA alone cannot rule out a concurrent overwrite.
-    _recheck_phase(folder, phase, hashset)
+    # Files and maps are closed; detect replacement, symlink substitution
+    # or content changes that occurred during the source read.
+    _recheck_phase(folder, phase, hashset, identities=identities)
     return result
 
 
