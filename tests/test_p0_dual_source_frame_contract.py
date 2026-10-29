@@ -402,6 +402,70 @@ class DualObjectTests(unittest.TestCase):
         self.assertFalse(r["training_approved"])
         self.assertFalse(r["allowed_to_publish"])
 
+
+    def test_reject_signed_zero_only_shot_as_nonmovement(self):
+        # +0 and -0 are distinct u32 words but identical IEEE-754 values.
+        for key in mod.VECTORS[:3]:
+            with self.subTest(candidate=key):
+                rows = self.cohort()
+                for i, row in enumerate(rows):
+                    for field in mod.VECTORS[:3]:
+                        row[field] = (0x00000000, 0x3F800000, 0x40000000)
+                    if i % 2:
+                        row[key] = (0x80000000, 0x3F800000, 0x40000000)
+                with self.assertRaisesRegex(ValueError, "no changing source ball"):
+                    mod.summarize_private_samples(rows)
+
+    def test_reject_nan_payload_and_infinity_in_every_typed_float_vector(self):
+        # Source triples are float32, but Config BC/C0/C4 words are not.
+        for key in mod.VECTORS:
+            for bad in (0x7FC00001, 0x7FC00002, 0x7F800000,
+                        0xFF800000, 0x7FA00001, 0xFFFFFFFF):
+                with self.subTest(vector=key, word=bad):
+                    rows = self.cohort()
+                    rows[2][key] = (0x3F800000, bad, 0x40000000)
+                    with self.assertRaisesRegex(ValueError, "non-finite"):
+                        mod.summarize_private_samples(rows)
+
+    def test_opaque_config_words_are_not_reinterpreted_as_float32(self):
+        rows = self.cohort()
+        for row in rows:
+            row["config_bc_c0_c4_words"] = (
+                0x7FC00001, 0x7F800000, 0xFFFFFFFF)
+        result = mod.summarize_private_samples(rows)
+        self.assertTrue(result["accepted_for_offline_relationship_review"])
+        self.assertFalse(result["training_approved"])
+
+    def test_genuine_finite_f32_delta_still_allows_candidate_only(self):
+        rows = self.cohort()
+        for i, row in enumerate(rows):
+            for key in mod.VECTORS[:3]:
+                row[key] = (0x3F800000, 0x40000000, 0x40400000)
+            if i >= 2:
+                row["selected_ball_translation_words"] = (
+                    0x40000000, 0x40000000, 0x40400000)
+        r = mod.summarize_private_samples(rows)
+        self.assertTrue(r["candidate_vector_change_observed"])
+        self.assertTrue(r["candidate_vector_bitwise_change_observed"])
+        self.assertTrue(
+            r["candidate_change_qualified_as_finite_f32_numeric_difference"])
+        self.assertEqual(
+            r["selected_ball_changed_components_per_transition"], [0, 1, 0])
+        self.assertFalse(r["candidate_change_proves_rendered_ball_motion"])
+        self.assertFalse(r["rendered_ball_object_identity_verified"])
+        self.assertFalse(r["actual_guest_physics_time_verified_by_analyzer"])
+        self.assertFalse(r["training_approved"])
+
+    def test_idle_signed_zero_flip_remains_strictly_bitwise_rejected(self):
+        rows = [sample(i, stage="idle_control") for i in range(4)]
+        for row in rows:
+            for key in mod.VECTORS[:3]:
+                row[key] = (0x00000000, 0x3F800000, 0x40000000)
+        rows[2]["source_global_translation_words"] = (
+            0x80000000, 0x3F800000, 0x40000000)
+        with self.assertRaisesRegex(ValueError, "not stationary"):
+            mod.summarize_private_samples(rows)
+
     def test_dry_run_no_live_mode(self):
         p=subprocess.run([sys.executable,str(SCRIPT)],capture_output=True,text=True,timeout=10)
         self.assertEqual(p.returncode,0,p.stderr)
