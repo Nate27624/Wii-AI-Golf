@@ -173,6 +173,18 @@ class MatrixTests(unittest.TestCase):
             self.assertNotIn("secret",rendered)
             self.assertNotIn("training_allowed\": true",rendered)
 
+
+    def test_wrapper_requires_private_paths_only_outside_tests_only(self):
+        wrapper = (Path(__file__).resolve().parents[1]
+                   / "scripts/Invoke-P0FlightEvidenceMatrix.ps1")
+        text = wrapper.read_text(encoding="utf-8")
+        self.assertNotIn("D:" + chr(92) + "Projects", text)
+        self.assertIn("[string]$Baseline,", text)
+        self.assertIn("[string]$Flight,", text)
+        self.assertIn("if (-not $TestsOnly) {", text)
+        self.assertIn("$Baseline = Require-PrivateDirectory $Baseline", text)
+        self.assertIn("Explicit private Baseline and Flight directories", text)
+
     def test_duplicate_phase_or_missing_phase_fails(self):
         b,p,c=fixture()
         c["phases"].pop("B0_stationary_original")
