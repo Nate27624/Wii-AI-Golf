@@ -66,7 +66,18 @@ def _launch(args, profile):
             raise ValueError(f"{name} not found: {path}")
     if _connected(args.port):
         raise RuntimeError("port is already open: close existing Dolphin/bridge before start")
-    process = subprocess.Popen([str(exe), "--script", str(script), "--exec", str(game)], cwd=str(exe.parent))
+    user_arg = getattr(args, "dolphin_user", None)
+    command = [str(exe)]
+    if user_arg is not None:
+        # Never permit Dolphin's --user to silently create a fresh empty User
+        # tree; a missing existing controller INI means this root was not
+        # validated by the canonical preparation step.
+        user_root = Path(user_arg).expanduser().resolve()
+        if not user_root.is_dir() or not (user_root / "Config" / "WiimoteNew.ini").is_file():
+            raise ValueError("Dolphin user root requires an existing Config/WiimoteNew.ini; no launch")
+        command.extend(["--user", str(user_root)])
+    command.extend(["--script", str(script), "--exec", str(game)])
+    process = subprocess.Popen(command, cwd=str(exe.parent))
     deadline = time.monotonic() + args.timeout
     while time.monotonic() < deadline:
         if process.poll() is not None:
