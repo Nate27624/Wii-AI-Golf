@@ -173,9 +173,30 @@ def report_from_bytes(bank: Path, module, *, public_units):
                  or re.fullmatch(r"\+0x[0-9A-F]{4}", relative) is None
                  or int(relative[3:], 16) > expected[2] - expected[1])):
             raise QualificationError
-        if row["status"] == "ABSTAIN_SOURCE_UNRESOLVED" and reason is None:
+        status = row["status"]
+        reached = row["known_exact_cache_writer_callsite_reached"]
+        must_flow = row["all_reaching_paths_pass_entry_r3_through_r31_to_call_r3"]
+        # A typed but contradictory helper report is not a static proof.
+        # Keep the exact reviewed #254 status/flag meanings, including
+        # reached=True with ABSTAIN_SOURCE_UNRESOLVED on a different path.
+        if ((status == "STATIC_ENTRY_R3_MUST_FLOW"
+                and (not reached or not must_flow))
+                or (status == "NOT_PROVEN_FOR_ALL_REACHING_PATHS"
+                    and (not reached or must_flow))
+                or (status == "ABSTAIN_TARGET_UNREACHABLE"
+                    and (reached or must_flow))
+                or (status == "ABSTAIN_SOURCE_UNRESOLVED" and must_flow)):
             raise QualificationError
-        if (row["status"] != "ABSTAIN_SOURCE_UNRESOLVED"
+        if (status in ("STATIC_ENTRY_R3_MUST_FLOW",
+                       "NOT_PROVEN_FOR_ALL_REACHING_PATHS")
+                and reason is not None):
+            raise QualificationError
+        if (status == "ABSTAIN_TARGET_UNREACHABLE"
+                and reason != "NO_REACHABLE_TARGET_PATH"):
+            raise QualificationError
+        if status == "ABSTAIN_SOURCE_UNRESOLVED" and reason is None:
+            raise QualificationError
+        if (status != "ABSTAIN_SOURCE_UNRESOLVED"
                 and relative is not None):
             raise QualificationError
         rows.append({
