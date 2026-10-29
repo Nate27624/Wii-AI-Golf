@@ -1,0 +1,33 @@
+name: S001 Dolphin User-root handoff (offline)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/launch_golf.py'
+      - 'scripts/launch_hitting_green.py'
+      - 'scripts/savestate_session.py'
+      - 'tests/test_dolphin_user_root_handoff.py'
+      - '.github/workflows/s001-user-root-handoff.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install project (no Dolphin)
+        run: python -m pip install -e .
+      - name: Focused User-root mocked startup regression (no Dolphin)
+        run: python -m unittest discover -s tests -p test_dolphin_user_root_handoff.py -v
+      - name: Full exact-head offline suite (no Dolphin)
+        run: python -m unittest discover -s tests -v
