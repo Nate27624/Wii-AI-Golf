@@ -80,9 +80,11 @@ prompts or create a parallel onboarding architecture.** This protocol adds a dur
    current claims/dependencies, tests truly run and their exact SHAs/CI,
    privacy/evidence limitations, blockers, and **one next falsifiable task**.
    Never post raw private evidence or credentials.
-4. The outgoing agent returns the existing thread/handoff URL and a short
-   successor supplement. The user creates a **new ChatGPT conversation** and
-   pastes **their own existing V2 initiation prompt** plus the supplement.
+4. The outgoing agent returns the exact posted SUCCESSION HANDOFF comment URL
+   and **one complete, standalone, ready-to-paste successor-chat prompt**.
+   The operator creates the next ChatGPT conversation and pastes that prompt.
+   The operator may still use their existing V2 initiation prompt; the
+   successor handoff generator does not replace or edit their other prompts.
    A GitHub comment cannot create a new chat or notify an agent by itself.
 5. The successor reads latest `main`, this protocol, the charter and merge
    policy, the exact handoff URL and live overlaps, then runs
@@ -102,9 +104,15 @@ A read-only template helper is available locally:
 python scripts/agent_handoff.py --role S002 --instance S002-memory-a --successor S002-memory-b --thread https://github.com/Nate27624/Wii-AI-Golf/issues/121
 ```
 
-It prints **a structured comment template** and a *supplement* for an already
-existing user initiation prompt. Fill all placeholders with verified facts and
-post the handoff through the usual GitHub tools. The helper **does not**
+It prints **a structured GitHub comment template** and a **complete new-chat prompt**
+marked with copy boundaries. Fill all template placeholders with verified facts and
+post the handoff through the usual GitHub tools. If the handoff comment has
+already been posted, run the same command with
+`--handoff-url https://github.com/Nate27624/Wii-AI-Golf/issues/121#issuecomment-123456`
+(replace the number with the real comment ID) to embed the exact permalink.
+A link's syntax is checked offline, **not** its existence or ownership; verify
+those directly in GitHub first. Copy the content only between `NEW CHAT PROMPT`
+and `END NEW CHAT PROMPT` into the newly opened chat. The helper **does not**
 post comments, contact GitHub, create new agents, or run experiments. An
 agent without local repository access can produce the same structured
 record directly in its canonical GitHub thread.
