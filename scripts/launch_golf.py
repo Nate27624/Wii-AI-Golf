@@ -208,6 +208,28 @@ def make_swing_command(*, preset: str, port: int,
     return cmd
 
 
+def verify_portable_user_root(dolphin: Path, selected_user: Path | None) -> None:
+    """Reject an INI selection that cannot belong to a portable Dolphin child.
+
+    launch_hitting_green -> savestate_session starts the Dolphin executable
+    without forwarding --dolphin-user. With portable.txt the child uses the
+    executable's User directory. Validate BEFORE changing any controller INI.
+    This is not an attestation of arbitrary nonportable runtime user paths.
+    """
+    if selected_user is None:
+        return
+    executable = Path(dolphin).expanduser().resolve()
+    if not (executable.parent / "portable.txt").is_file():
+        return
+    portable_user = (executable.parent / "User").resolve()
+    if Path(selected_user).expanduser().resolve() != portable_user:
+        raise ControllerConfigError(
+            "Portable Dolphin user-root mismatch: selected --dolphin-user "
+            "(or remembered folder) differs from the executable's portable "
+            "User folder. No controller configuration changed or Dolphin started."
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="One command: launch Dolphin, restore green-pre-start, navigate A -> A+B -> A intro")
     parser.add_argument("--game", help="First-run Wii Sports RVZ/ISO path; saved in ignored local config")
@@ -269,6 +291,9 @@ def main(argv: list[str] | None = None) -> int:
             )
         remembered = read_config(args.config).get("dolphin_user")
         selected_user = args.dolphin_user or (Path(remembered) if remembered else None)
+        # A divergent explicit/remembered INI target must not be edited:
+        # the child launch command does not forward a user-root override.
+        verify_portable_user_root(args.dolphin, selected_user)
         controller = ensure_emulated_controller(args.dolphin, user_dir=selected_user)
         print("Controller ready BEFORE boot:", controller["source"],
               "| Extension:", controller["extension"])
