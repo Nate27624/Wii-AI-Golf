@@ -311,6 +311,7 @@ class TestSeven(unittest.TestCase):
                               return_value={i:root for i in range(1,8)}), \
                  patch.object(mod.src,"_file",
                               side_effect=lambda *_args: a if _args[1].endswith(".1.raw") else b), \
+                 patch.object(mod.roster,"TwoBankReader",return_value=object()), \
                  patch.object(mod,"_get",side_effect=get_fake):
                 with self.assertRaises(mod._SafeStageFailure) as caught:
                     mod.analyze(root)
