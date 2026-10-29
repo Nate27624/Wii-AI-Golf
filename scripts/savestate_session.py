@@ -39,6 +39,24 @@ def _connected(port):
         return False
 
 
+def _early_exit_message(returncode: int) -> str:
+    """Explain a native startup failure without guessing its faulting module.
+
+    This is an output-only diagnostic. It must never restart Dolphin or
+    attempt a savestate, menu input, bridge connection, or swing.
+    """
+    message = f"Dolphin exited before bridge preflight, code={returncode}"
+    # Windows can surface the NTSTATUS as either a signed or unsigned int.
+    if (returncode & 0xFFFFFFFF) == 0xC0000005:
+        return (
+            message + " (0xC0000005: Windows native access violation). "
+            "Bridge readiness was not established; no confirmed game action. "
+            "Inspect the matching Windows Application Error event (ID 1000) "
+            "for faulting module and offset before attempting another shot."
+        )
+    return message + "; bridge readiness was not established."
+
+
 def _launch(args, profile):
     game = Path(args.game).expanduser().resolve()
     exe = Path(args.dolphin).expanduser().resolve()
@@ -52,7 +70,7 @@ def _launch(args, profile):
     deadline = time.monotonic() + args.timeout
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            raise RuntimeError(f"Dolphin exited before bridge preflight, code={process.returncode}")
+            raise RuntimeError(_early_exit_message(process.returncode))
         try:
             with FelkRPC(port=args.port, timeout_s=1.0) as rpc:
                 outcome = StateManager(rpc).request_load(profile)

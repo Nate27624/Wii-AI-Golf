@@ -1,0 +1,32 @@
+name: M1.5 human terminal result-first regression
+
+on:
+  pull_request:
+    paths:
+      - "scripts/collect_outcome_transition.py"
+      - "scripts/research_cli.py"
+      - "tests/test_m15_visual_first.py"
+      - "tests/test_outcome_capture_cli.py"
+      - "tests/test_research_cli.py"
+      - ".github/workflows/m15-visual-first.yml"
+  workflow_dispatch:
+
+jobs:
+  m15-offline:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Focused offline M1.5 + preexisting collector/publisher tests
+        run: |
+          python -m unittest discover -s tests -p "test_m15_visual_first.py" -v
+          python -m unittest discover -s tests -p "test_outcome_capture_cli.py" -v
+          python -m unittest discover -s tests -p "test_research_cli.py" -v
+      - name: Full offline Python suite (Windows and Ubuntu)
+        run: python -m unittest discover -s tests -v
