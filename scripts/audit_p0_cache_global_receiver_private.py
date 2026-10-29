@@ -433,9 +433,8 @@ def summarize(samples, codes, callers) -> dict:
     return {
         "kind":"P0-SANITIZED-SEVEN-GLOBAL-BALL-AND-CACHE-RECEIVER-SOURCE-AUDIT",
         "phase_count":7,
-        "canonical_archive_sha_verified":True,
         "within_shot_pin_start_config_stability_verified":True,
-        "source_global_slot_and_callers_verified_all_phases":True,
+        "global_load_and_callers_unchanged_across_phases":True,
         "source_pcc_anchor_confirmed":True,
         "source_global_load_type":codes[1]["global_load_type"],
         "source_global_pointer_resolution_supported":codes[1]["static_source_global_slot_supported"],
@@ -557,7 +556,9 @@ def run_local(directory:Path) -> dict:
             if seven._hash(p)!=expected[phase][bank]:
                 raise ValueError("bank differs from canonical archive after inspection")
     _canonical_archive_sha(directory)
-    return summarize(samples,codes,callers)
+    report=summarize(samples,codes,callers)
+    report["canonical_archive_sha_verified"]=True
+    return report
 
 
 def main(argv=None) -> int:
