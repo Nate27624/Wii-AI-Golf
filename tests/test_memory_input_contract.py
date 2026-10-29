@@ -14,15 +14,18 @@ from wii_ai_golf.memory_input_contract import (
 
 class MemoryInputJoinTests(unittest.TestCase):
     def setUp(self):
-        self.input = InputReceipt("synthetic-run", "shot-1", 77, True, True, True, True)
+        self.input = InputReceipt("synthetic-run", "shot-1", 77, True, True, True, True,
+                                  scene_id="synthetic-scene", hole_id="synthetic-hole")
         self.actor = ActorReceipt(
             "synthetic-run", "shot-1", 77,
             0x1234, "lifetime-A", 0x1234, "lifetime-A",
-            0x1234, "lifetime-A", "START", "idle"
+            0x1234, "lifetime-A", "START", "idle",
+            scene_id="synthetic-scene", hole_id="synthetic-hole"
         )
         self.result = OutcomeReceipt(
             "synthetic-run", "shot-1", 77,
-            0x1234, "lifetime-A", "synthetic", "synthetic_distance", False
+            0x1234, "lifetime-A", "synthetic", "synthetic_distance", False,
+            scene_id="synthetic-scene", hole_id="synthetic-hole"
         )
 
     def decide(self, input=None, actor=None, result=None):
@@ -114,6 +117,45 @@ class MemoryInputJoinTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "max_frame_lag"):
             join_memory_input_observation(
                 self.input, self.actor, self.result, max_frame_lag=-1)
+
+
+    def test_swapped_scene_or_hole_abstains_before_any_real_training(self):
+        for change, expected in (
+            ({"scene_id": "other-scene"}, Rejection.SCENE_MISMATCH),
+            ({"hole_id": "other-hole"}, Rejection.HOLE_MISMATCH),
+            ({"scene_id": ""}, Rejection.SCENE_MISMATCH),
+            ({"hole_id": ""}, Rejection.HOLE_MISMATCH),
+        ):
+            with self.subTest(change=change):
+                result = replace(self.result, **change)
+                decision = self.decide(result=result)
+                self.assertIn(expected, decision.rejected)
+                self.assertFalse(decision.synthetic_consistent)
+                self.assertFalse(decision.real_training_eligible)
+                self.assertEqual(decision.validity_mask, ())
+
+    def test_scene_hole_mismatch_from_input_and_actor_also_abstains(self):
+        for evidence in (
+            ("input", replace(self.input, scene_id="different")),
+            ("input", replace(self.input, hole_id="different")),
+            ("actor", replace(self.actor, scene_id="different")),
+            ("actor", replace(self.actor, hole_id="different")),
+        ):
+            kind, modified = evidence
+            with self.subTest(kind=kind, value=modified):
+                decision = self.decide(**{kind: modified})
+                self.assertFalse(decision.synthetic_consistent)
+                self.assertFalse(decision.real_training_eligible)
+
+    def test_missing_scene_hole_from_legacy_receipts_fail_closed(self):
+        bare_input = replace(self.input, scene_id="", hole_id="")
+        bare_actor = replace(self.actor, scene_id="", hole_id="")
+        bare_outcome = replace(self.result, scene_id="", hole_id="")
+        decision = self.decide(bare_input, bare_actor, bare_outcome)
+        self.assertIn(Rejection.SCENE_MISMATCH, decision.rejected)
+        self.assertIn(Rejection.HOLE_MISMATCH, decision.rejected)
+        self.assertFalse(decision.synthetic_consistent)
+
 
 
 if __name__ == "__main__":
