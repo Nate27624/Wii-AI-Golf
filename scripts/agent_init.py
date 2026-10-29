@@ -56,7 +56,8 @@ def main() -> int:
     print("POST: [AGENT_ID] QUESTION | blocker | evidence | options | suggested resolution")
     print("FINAL STATUS=CONTINUE | ACTION REQUIRED | DECISION REQUIRED")
     print("USER CONTINUATION=CONTINUE V2; resume latest canonical HANDOFF")
-    print("NO LIVE DOLPHIN; NO RAW CAPTURE; NO AUTO MERGE/PUBLISH.")
+    print("NO LIVE DOLPHIN; NO RAW CAPTURE OR PRIVATE EVIDENCE PUBLICATION.")
+    print("SELF-MERGE=Allowed only when all merging.md gates PASS; GitHub protections apply.")
     return 0
 
 if __name__ == "__main__":
