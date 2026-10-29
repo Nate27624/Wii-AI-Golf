@@ -126,5 +126,62 @@ class S005EvaluationEvidenceGateTests(unittest.TestCase):
             evaluate(RandomPolicy(4), UnverifiedEnvironment(), ["seen"])
 
 
+    def test_proxy_wrapped_dolphin_refused_before_any_bridge_activity(self):
+        class ProxyEnvironment:
+            def __init__(self, inner):
+                self.inner = inner
+
+            def reset(self, scenario_id, *, seed):
+                return self.inner.reset(scenario_id, seed=seed)
+
+            def step(self, action):
+                return self.inner.step(action)
+
+        class FakeBridge:
+            def __init__(self):
+                self.loads = 0
+                self.swings = 0
+                self.reads = 0
+
+            def load_scenario(self, scenario_id, seed):
+                self.loads += 1
+                return Observation(scenario_id, (.1, .2))
+
+            def perform_swing(self, action):
+                self.swings += 1
+
+            def read_final_result(self):
+                self.reads += 1
+                # A forged synthetic tag is no evidence of a real result.
+                return ShotResult(30.48, False, metadata={"source": "synthetic"})
+
+        for depth in (1, 3):
+            with self.subTest(depth=depth):
+                bridge = FakeBridge()
+                env = DolphinEnvironment(bridge)
+                for _ in range(depth):
+                    env = ProxyEnvironment(env)
+                with self.assertRaisesRegex(ValueError, "verified real-shot"):
+                    evaluate(RandomPolicy(3), env, ["fake"], repeats=1)
+                self.assertEqual((bridge.loads, bridge.swings, bridge.reads),
+                                 (0, 0, 0))
+
+    def test_wrapped_toy_remains_valid_synthetic_evaluation(self):
+        class ProxyEnvironment:
+            def __init__(self, inner):
+                self.inner = inner
+
+            def reset(self, scenario_id, *, seed):
+                return self.inner.reset(scenario_id, seed=seed)
+
+            def step(self, action):
+                return self.inner.step(action)
+
+        metrics = evaluate(RandomPolicy(4),
+                           ProxyEnvironment(ProxyEnvironment(ToyGolfEnvironment())),
+                           ["toy-01"], repeats=2)
+        self.assertEqual(metrics.attempts, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
