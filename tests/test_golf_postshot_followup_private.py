@@ -4,11 +4,13 @@ from __future__ import annotations
 from contextlib import redirect_stderr
 from io import StringIO
 import json
+import hashlib
 from pathlib import Path
 import struct
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import audit_golf_postshot_followup_private as follow
@@ -204,6 +206,68 @@ class PostshotFollowupPrivateTests(unittest.TestCase):
         for private in ("789.5","0x900", "record_words","ball_words","10.0"):
             self.assertNotIn(private,raw)
         self.assertFalse(report["allowed_to_publish"])
+
+    def test_phase_read_rejects_bank_overwrite_between_initial_hash_and_map(self):
+        # A valid pre-read SHA alone can admit a later same-sized overwrite.
+        # Use small *fabricated* files, never real Wii RAM.
+        with tempfile.TemporaryDirectory() as t:
+            folder=Path(t)
+            p1=folder/"RESULT-MEM1.bin"
+            p2=folder/"RESULT-MEM2.bin"
+            p1.write_bytes(b"A"*64)
+            p2.write_bytes(b"B"*96)
+            hashes={"MEM1":hashlib.sha256(b"A"*64).hexdigest(),
+                    "MEM2":hashlib.sha256(b"B"*96).hexdigest()}
+            real_hash=follow._hash
+            changed=False
+
+            def overwrite_after_initial_hash(path):
+                nonlocal changed
+                digest=real_hash(path)
+                if not changed and path==p1:
+                    changed=True
+                    p1.write_bytes(b"Z"*64)
+                return digest
+
+            with patch.dict(follow.SIZES,{"MEM1":64,"MEM2":96},clear=True), \\
+                    patch.object(follow,"_hash",side_effect=overwrite_after_initial_hash):
+                with self.assertRaisesRegex(ValueError, "changed during offline"):
+                    follow._phase_read(folder,"RESULT",hashes,source=False)
+            self.assertTrue(changed)
+
+    def test_terminal_rehash_rejects_pre_bank_changed_after_base_audit(self):
+        with tempfile.TemporaryDirectory() as t:
+            root=Path(t)
+            folder=root/"SHOT-synthetic-PRIVATE"
+            folder.mkdir()
+            hashes={}
+            for phase in ("PRE","POST","RESULT"):
+                hashes[phase]={}
+                for name,size,byte in (("MEM1",64,b"A"),("MEM2",96,b"B")):
+                    raw=byte*size
+                    (folder/f"{phase}-{name}.bin").write_bytes(raw)
+                    hashes[phase][name]=hashlib.sha256(raw).hexdigest()
+            typed=doc(settled=False,result=True)
+            typed["checkpoints"]["RESULT"]["sha256"]=hashes["RESULT"]
+            (folder/follow.MANIFEST).write_text(json.dumps(typed),encoding="utf-8")
+            original={"PRE":{"sha256":hashes["PRE"]},
+                      "POST":{"sha256":hashes["POST"]}}
+
+            def fake_result_phase(_folder,phase,hashset,*,source):
+                self.assertEqual(phase,"RESULT")
+                self.assertFalse(source)
+                # Earlier PRE audit succeeded, then a same-sized private
+                # bank was replaced before the final report was returned.
+                (folder/"PRE-MEM1.bin").write_bytes(b"X"*64)
+                return None,None,hashset
+
+            with patch.dict(follow.SIZES,{"MEM1":64,"MEM2":96},clear=True), \\
+                    patch.object(follow.selected,"DATA_ROOT",root), \\
+                    patch.object(follow.prepost,"run_local",return_value=BASE), \\
+                    patch.object(follow.prepost,"_manifest",return_value=original), \\
+                    patch.object(follow,"_phase_read",side_effect=fake_result_phase):
+                with self.assertRaisesRegex(ValueError,"changed during offline"):
+                    follow.run_local(folder)
 
     def test_cli_fail_closed_private_path_redaction(self):
         with tempfile.TemporaryDirectory() as t:
