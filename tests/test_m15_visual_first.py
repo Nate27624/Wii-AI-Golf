@@ -288,6 +288,44 @@ class VisualFirstJoinTests(unittest.TestCase):
         self.assertEqual(joined["capture_status"] == "visual_first_joined", expect_ok)
         return joined
 
+    def test_atomic_a45_join_requires_exact_callback_receipt(self):
+        report = child_summary()
+        report["known_good_swing_request"].update({
+            "a_lead_atomic_bridge_callback": True,
+            "a_lead_bridge_button_dispatch_frames": 45,
+            "a_button_only_prime_requests": 0,
+        })
+        report["swing_dispatch"].update({
+            "kind": "atomic_a45_swing",
+            "prehold_applied_frames": 45,
+            "game_a_recognition_verified": False,
+        })
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / f"outcome-{TOKEN}-candidates.json"
+            with patch.object(research_cli, "CAPTURES", Path(folder)):
+                def join(data):
+                    target.write_text(json.dumps(data), encoding="utf-8")
+                    return research_cli._joined_visual_first(
+                        TOKEN, datetime.now(timezone.utc) - timedelta(seconds=2),
+                        a_lead=45, speed=1.0, backswing=1.0, atomic_a45=True)
+                good = join(report)
+                self.assertEqual(good["capture_status"], "visual_first_joined")
+                self.assertEqual(good["controller"]["a_lead_bridge_button_dispatch_frames"], 45)
+                self.assertFalse(good["train_approved"])
+                for mutate in (
+                    ("a_lead_bridge_button_dispatch_frames", 44),
+                    ("a_lead_atomic_bridge_callback", False),
+                    ("a_button_only_prime_requests", 1),
+                ):
+                    with self.subTest(mutate=mutate):
+                        bad = deepcopy(report)
+                        bad["known_good_swing_request"][mutate[0]] = mutate[1]
+                        self.assertEqual(join(bad)["capture_status"], "visual_first_join_refused")
+                bad_status = deepcopy(report)
+                bad_status["swing_dispatch"]["prehold_applied_frames"] = 44
+                self.assertEqual(join(bad_status)["capture_status"], "visual_first_join_refused")
+                self.assertEqual(join(child_summary())["capture_status"], "visual_first_join_refused")
+
     def test_exact_run_token_allows_bounded_mtime_granularity_not_stale_files(self):
         # Windows temp-file metadata may round slightly before the parent's
         # high-resolution datetime; exact token+trace validation still applies.
