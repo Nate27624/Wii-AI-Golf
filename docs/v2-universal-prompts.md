@@ -25,6 +25,10 @@ independently choose a task or implement files from the priority board.
    docs/v2-agent-continuity.md, root merging.md, scripts/agent_init.py,
    the latest S000 priority board AND latest [S000-manager] ASSIGNMENT
    ROSTER V2 comment on PR #320. Verify single manager and real CLAIMs.
+   BOOTSTRAP EXCEPTION: if you are the UNIQUE already operator-authorized
+   S000 Manager with a verified manager CLAIM but NO assignment roster yet,
+   publish the FIRST complete roster yourself. Never wait to assign yourself
+   before creating that first roster. S000 cleanup/support is NOT the manager.
 2. If the operator supplied a verified successor handoff, keep its SAME role
    and the distinct successor ID and task until the manager transfers the
    roster entry. Otherwise check whether S000 has already assigned you
