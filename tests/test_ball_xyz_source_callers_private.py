@@ -198,6 +198,28 @@ class PPCStaticTests(unittest.TestCase):
 
 
 
+    def test_public_split_index_uses_exact_committed_blob_not_claimed_sha(self):
+        # A locally modified unit name with intact metadata must fail closed.
+        expected = m.load_public_text_units()
+        self.assertEqual(len(expected), m.PUBLIC_UNIT_COUNT)
+        with tempfile.TemporaryDirectory() as root:
+            modified = json.loads(m.PUBLIC_INDEX.read_text("utf-8"))
+            self.assertEqual(modified["source_blob_sha"], m.PUBLIC_SPLITS_SHA)
+            modified["intervals"][0][2] = "ForgedSource.cpp"
+            candidate = Path(root) / "source-index.json"
+            candidate.write_text(json.dumps(modified), encoding="utf-8")
+            with self.assertRaises(m.UntrustedInput):
+                m.load_public_text_units(candidate)
+
+    def test_public_split_index_windows_crlf_normalization(self):
+        # CRLF checkout does not affect canonical committed Git object identity.
+        with tempfile.TemporaryDirectory() as root:
+            candidate = Path(root) / "source-index.json"
+            raw = m.PUBLIC_INDEX.read_bytes().replace(b"\r\n", b"\n")
+            candidate.write_bytes(raw.replace(b"\n", b"\r\n"))
+            self.assertEqual(m.load_public_text_units(candidate),
+                             m.load_public_text_units())
+
     def test_public_rev1_entry_symbols_and_caller_crosswalk(self):
         # Mimics the OPERATOR'S source-unit-relative reported callsites.
         # Labels only: no operator ROM/RAM bytes or runtime addresses.
