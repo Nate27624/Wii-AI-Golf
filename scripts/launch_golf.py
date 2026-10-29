@@ -270,6 +270,9 @@ def main(argv: list[str] | None = None) -> int:
         remembered = read_config(args.config).get("dolphin_user")
         selected_user = args.dolphin_user or (Path(remembered) if remembered else None)
         controller = ensure_emulated_controller(args.dolphin, user_dir=selected_user)
+        # The child Dolphin process must use the SAME existing user root whose
+        # Wii Remote config was just checked/updated (including remembered roots).
+        launch.extend(["--dolphin-user", str(controller["user_dir"])])
         print("Controller ready BEFORE boot:", controller["source"],
               "| Extension:", controller["extension"])
         print("Dolphin user config:", controller["ini"])
