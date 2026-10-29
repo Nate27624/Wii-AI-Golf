@@ -6,6 +6,8 @@ This is the main entry point for agents. Review these in order:
 2. `docs/v2-agent-charter.md`: role boundaries and identifiers.
 3. `docs/S000-manager-playbook.md`: manager coordination routine.
 4. `docs/p0-pr-consolidation-lanes.md`: historical research families.
+5. `docs/v2-evidence-gates.md`: verified observations, contradictions, and stop rules.
+6. `docs/v2-pr-triage.md`: backlog dispositions and safe closure criteria.
 
 Startup command (change to your role and unique instance):
 
