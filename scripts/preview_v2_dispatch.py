@@ -194,12 +194,15 @@ def find_handoff(row: dict, issue_comments: list, *, verified_main: str,
             latest = None
         if not body[len(prefix):].lstrip().startswith("HANDOFF"):
             continue
+        lowered = body.lower()
         if (row["task_id"] not in body or verified_main not in body
-                or "releas" not in body.lower()):
+                or "releas" not in lowered
+                or re.search(r"\\b(?:not|never)\\s+releas(?:e|ed)\\b", lowered)):
             continue
         url = comment.get("html_url", "")
-        if not isinstance(url, str) or not re.fullmatch(
-                r"https://github\.com/Nate27624/Wii-AI-Golf/(issues|pull)/[1-9][0-9]*#issuecomment-[1-9][0-9]*", url):
+        if (not isinstance(url, str) or not re.fullmatch(
+                r"https://github\.com/Nate27624/Wii-AI-Golf/(issues|pull)/[1-9][0-9]*#issuecomment-[1-9][0-9]*", url)
+                or not url.startswith(row["thread"] + "#issuecomment-")):
             continue
         latest = {"instance": row["instance"], "task_id": row["task_id"],
                   "status": "COMPLETE_RELEASED", "main_sha": verified_main,
