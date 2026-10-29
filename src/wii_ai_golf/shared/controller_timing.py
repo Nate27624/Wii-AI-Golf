@@ -27,19 +27,21 @@ def _count(rpc: Any) -> int:
 def hold_a_for_observed_frames(
     rpc: Any, *, frames: int, remote: int = 0,
     timeout_s: float = 7.0, max_polls: int = 600,
-    poll_sleep_s: float = 0.012,
+    poll_sleep_s: float = 0.004,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
-    """Press A and wait for >= frames observed emulated frames, NO swing API.
+    """Reassert A at each observed emulated frame, before the swing trace.
 
-    On success, A remains requested as held so the next swing trace can take
-    over. Caller MUST release buttons after the trace. On every failure,
-    release_buttons is attempted by this helper (also safe if caller cleans up).
+    Felk's Wii Remote setters use ClearOn::NextFrame semantics: a SINGLE A
+    request followed by 45 frame-count polls is NOT a held button. Reassert
+    after each observed frame change, and refuse gaps of >1 observed frame
+    because command coverage across those missing ticks cannot be claimed.
+    The scheduler itself continues A every frame once the trace begins.
 
-    Frame counting starts after the button RPC has returned. This yields a
-    lower bound on Dolphin frame progression while A is requested, NOT a
-    measured physical button edge or game-internal pressed-A latch.
+    This is best-effort RPC-side coverage, not an in-coroutine input latch
+    measurement. Caller MUST release buttons after trace completion; this
+    helper releases on failure and never invokes any motion or swing RPC.
     """
     if type(frames) is not int or not 1 <= frames <= 90:
         raise ValueError("frames must be an integer 1..90")
@@ -51,28 +53,41 @@ def hold_a_for_observed_frames(
         raise ValueError("timeout_s must be finite, >0 and <=60")
     if not math.isfinite(poll_sleep_s) or not 0 <= poll_sleep_s <= 0.1:
         raise ValueError("poll_sleep_s must be finite and between 0 and 0.1")
-    # Only one A-button setter is needed; the persistent emulated input is
-    # then held while the frame counter advances. Do not confuse RPC calls
-    # with elapsed emulated frames.
     try:
+        # The first press covers the initial frame only. Never infer button
+        # persistence from later frame.get_count results.
         prime_a_button(rpc, remote=remote, requests=1)
+        requests = 1
         start = _count(rpc)
+        previous = start
         beginning = clock()
         for poll in range(1, max_polls + 1):
             if clock() - beginning > timeout_s:
                 break
             latest = _count(rpc)
-            if latest < start:
+            if latest < previous:
                 raise RuntimeError("Dolphin frame counter went backwards during A lead")
+            if latest - previous > 1:
+                raise RuntimeError(
+                    "Unobserved emulated frame gap during A lead; "
+                    "cannot attest per-frame A commands"
+                )
+            if latest > previous:
+                # Felk's ClearOn::NextFrame input expires, so refresh it
+                # for each observed frame. Do not send swing/motion here.
+                prime_a_button(rpc, remote=remote, requests=1)
+                requests += 1
+                previous = latest
             if latest - start >= frames:
                 return {
-                    "a_button_only_requests": 1,
+                    "a_button_only_requests": requests,
                     "remote": remote,
                     "requested_lead_frames": frames,
                     "start_frame_after_a_request": start,
                     "last_observed_frame": latest,
                     "observed_frame_delta": latest - start,
                     "polls": poll,
+                    "per_observed_frame_a_reasserted": True,
                     "game_a_recognition_verified": False,
                 }
             sleep(poll_sleep_s)
