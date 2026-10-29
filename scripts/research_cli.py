@@ -38,6 +38,7 @@ SAFE_LABELS = ("contact_human", "initial_club_pose_human",
                "displayed_power_percent_human")
 SAFE_TRACE = ("trace_sha256", "generated_trace_frames",
               "a_lead_requested_frames", "a_lead_observed_frame_delta",
+              "a_lead_atomic_bridge_callback", "a_lead_bridge_button_dispatch_frames",
               "motion_scale", "speed_scale", "backswing_scale")
 _ALLOWED = {"test", "v1"}
 
@@ -134,7 +135,8 @@ def _fresh_human_labels(start_time: datetime) -> dict:
 
 
 def _joined_visual_first(run_token: str, start: datetime, *,
-                         a_lead: int, speed: float, backswing: float) -> dict:
+                         a_lead: int, speed: float, backswing: float,
+                         atomic_a45: bool = False) -> dict:
     """Read ONE exactly named child artifact; never infer identity via file mtime.
 
     All values are unverified human annotations/command metadata. No RAM or
@@ -178,6 +180,14 @@ def _joined_visual_first(run_token: str, start: datetime, *,
                 or swing.get("a_lead_requested_frames") != a_lead
                 or type(swing.get("a_lead_observed_frame_delta")) is not int
                 or swing["a_lead_observed_frame_delta"] < a_lead):
+            return invalid
+        if atomic_a45 and (
+            swing.get("a_lead_atomic_bridge_callback") is not True
+            or swing.get("a_lead_bridge_button_dispatch_frames") != 45
+            or swing.get("a_button_only_prime_requests") != 0
+            or dispatch.get("kind") != "atomic_a45_swing"
+            or dispatch.get("prehold_applied_frames") != 45
+            or dispatch.get("game_a_recognition_verified") is not False):
             return invalid
         digest = swing.get("trace_sha256")
         if type(digest) is not str or re.fullmatch(r"[a-f0-9]{64}", digest) is None:
@@ -256,7 +266,10 @@ def _joined_visual_first(run_token: str, start: datetime, *,
                            "a_lead_requested_frames": a_lead,
                            "a_lead_observed_frame_delta": swing["a_lead_observed_frame_delta"],
                            "speed_scale": speed, "backswing_scale": backswing,
-                           "motion_scale": 1.0},
+                           "motion_scale": 1.0,
+                           **({"a_lead_atomic_bridge_callback": True,
+                               "a_lead_bridge_button_dispatch_frames": 45}
+                              if atomic_a45 else {})},
             "human": {"contact_human": contact, "finished_on_green_human": green,
                       "terminal_screen_seen_before_transition_human": seen,
                       "visible_result_class_human": kind,
@@ -397,6 +410,8 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--trial-index", type=int, choices=range(1,11), default=None)
     v.add_argument("--live", action="store_true", help="Explicit consent to launch Dolphin")
     v.add_argument("--no-upload", action="store_true", help="Keep report local")
+    v.add_argument("--atomic-a45", action="store_true",
+                   help="Use separately prepared frame-callback A45 bridge; never replace legacy bridge")
     v.add_argument("--visual-first", action="store_true",
                    help="M1.5 one-shot terminal HUMAN result first; no RAM scoring")
     args = parser.parse_args(argv)
@@ -419,6 +434,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "v1" and args.backswing_scale != 1.0 and args.speed_scale != 1.0:
             parser.error("change either --backswing-scale or --speed-scale, not both")
         if args.command == "v1":
+            if args.atomic_a45 and (not args.visual_first or args.a_lead != 45):
+                parser.error("--atomic-a45 requires --visual-first and --a-lead 45")
             # M1.5 is a preregistered B1/B2/X1 pilot, not a free-form sweep.
             # Refuse mismatched settings BEFORE touching the emulator or bridge.
             if args.visual_first and (args.a_lead != 45 or args.speed_scale != 1.0
@@ -441,11 +458,16 @@ def main(argv: list[str] | None = None) -> int:
             exit_code = _run([sys.executable, "-m", "unittest", "discover",
                               "-s", "tests", "-p", args.pattern, "-v"])
         else:
-            bridge = ROOT.parent / "tools" / "mcp_bridge_swing_legacy_eval.py"
+            bridge = ROOT.parent / "tools" / (
+                "mcp_bridge_swing_atomic_a45.py" if args.atomic_a45
+                else "mcp_bridge_swing_legacy_eval.py")
+            expected_revision = "V1-atomic-a45" if args.atomic_a45 else "V1-neutral-swing-calls"
             from wii_ai_golf.shared.bridge_provenance import inspect_bridge_file
             identity = inspect_bridge_file(bridge)
-            if identity["revision"] != "V1-neutral-swing-calls" or not identity["safe_for_isolated_legacy_copy"]:
-                raise RuntimeError("Verified isolated V1 bridge missing; will not launch Dolphin")
+            if identity["revision"] != expected_revision or (
+                not args.atomic_a45 and not identity["safe_for_isolated_legacy_copy"]):
+                raise RuntimeError("Requested isolated bridge revision missing; no Dolphin launch. "
+                                   "For --atomic-a45 prepare via scripts/prepare_atomic_a45_bridge.py")
             # The bridge is a local source artifact, not authenticated in-process
             # code. Require a stable, typed preflight SHA for result-first shots.
             preflight_bridge_sha = identity.get("sha256")
@@ -467,6 +489,8 @@ def main(argv: list[str] | None = None) -> int:
                       "--ask-power"]
             if args.visual_first:
                 action.extend(["--visual-first", "--run-token", run_token])
+            if args.atomic_a45:
+                action.append("--atomic-a45")
             exit_code = _run(action)
             bridge_source_changed = False
             if args.visual_first:
@@ -475,8 +499,8 @@ def main(argv: list[str] | None = None) -> int:
                 try:
                     post_identity = inspect_bridge_file(bridge)
                     bridge_source_changed = not (
-                        post_identity.get("revision") == "V1-neutral-swing-calls"
-                        and post_identity.get("safe_for_isolated_legacy_copy") is True
+                        post_identity.get("revision") == expected_revision
+                        and (args.atomic_a45 or post_identity.get("safe_for_isolated_legacy_copy") is True)
                         and post_identity.get("sha256") == preflight_bridge_sha
                     )
                 except (OSError, ValueError, UnicodeError, KeyError, TypeError):
@@ -514,7 +538,8 @@ def main(argv: list[str] | None = None) -> int:
                 elif exit_code == 0:
                     summary.update(_joined_visual_first(
                         run_token, begin, a_lead=args.a_lead,
-                        speed=args.speed_scale, backswing=args.backswing_scale))
+                        speed=args.speed_scale, backswing=args.backswing_scale,
+                        atomic_a45=args.atomic_a45))
                 else:
                     summary.update({"capture_status": "failed_or_cancelled_action",
                                     "shot_dispatch_verified_by_collector": False})

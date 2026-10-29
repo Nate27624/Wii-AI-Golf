@@ -35,6 +35,7 @@ from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.integration.swing_client import SwingTraceClient
 from wii_ai_golf.integration.button_prime import prime_a_button, release_buttons
 from wii_ai_golf.shared.controller_timing import hold_a_for_observed_frames
+from wii_ai_golf.integration.atomic_a45_client import AtomicA45SwingTraceClient
 from wii_ai_golf.audit.outcome_transition import (
     capture_outcome_windows, rank_outcome_candidates)
 from wii_ai_golf.audit.outcome_recovery import parse_displayed_distance
@@ -171,6 +172,7 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 swing_fn: Callable[[Any], Any] | None = None,
                 a_prime_requests: int = 0,
                 a_lead_frames: int = 0,
+                atomic_a45: bool = False,
                 observe_start_pose: bool = False,
                 motion_scale: float = 1.0,
                 speed_scale: float = 1.0,
@@ -189,6 +191,8 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
         raise ValueError("a_prime_requests must be 0..180")
     if type(a_lead_frames) is not int or not 0 <= a_lead_frames <= 90:
         raise ValueError("a_lead_frames must be 0..90")
+    if atomic_a45 and (a_lead_frames != 45 or a_prime_requests != 0 or not visual_first):
+        raise ValueError('atomic A45 requires visual-first, 45 lead frames and no RPC-count prehold')
     if a_prime_requests and a_lead_frames:
         raise ValueError("choose either RPC-count A prime OR frame-measured A lead, not both")
 
@@ -214,6 +218,23 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
             # Original, user-confirmed V1 control program stays the default.
             # A lead is a ONE-variable, opt-in timing experiment; it is NOT a
             # validated fix and must never silently affect other experiments.
+            if atomic_a45:
+                # One in-bridge scheduled action: A on 45 bridge callback ticks,
+                # followed immediately by the UNCHANGED 89-frame V1 swing.
+                # No client frame-count polling and no remote-button RPC gap.
+                try:
+                    stroke = AtomicA45SwingTraceClient(client, port=0).run(samples)
+                finally:
+                    release_buttons(client, remote=0)
+                a_lead_report = {
+                    'a_button_only_requests': 0,  # no host prehold RPCs
+                    'observed_frame_delta': stroke['prehold_applied_frames'],
+                    'start_frame_after_a_request': stroke['prehold_start_frame'] - 1,
+                    'last_observed_frame': stroke['last_prehold_frame'],
+                    'per_observed_frame_a_reasserted': False,
+                    'bridge_callback_a_dispatch_frames': stroke['prehold_applied_frames'],
+                }
+                return stroke
             if not a_prime_requests and not a_lead_frames:
                 return SwingTraceClient(client, port=0).run(samples)
             try:
@@ -358,6 +379,10 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 "a_button_prime_applied": (
                     bool(a_prime_requests or a_lead_frames) if canonical_swing else None),
                 "a_lead_requested_frames": a_lead_frames if canonical_swing else None,
+                "a_lead_atomic_bridge_callback": (atomic_a45 if canonical_swing else None),
+                "a_lead_bridge_button_dispatch_frames": (
+                    a_lead_report.get("bridge_callback_a_dispatch_frames")
+                    if a_lead_report else None),
                 "a_lead_observed_frame_delta": (
                     a_lead_report["observed_frame_delta"] if a_lead_report else None),
                 "a_lead_start_frame": (
@@ -365,7 +390,9 @@ def run_session(rpc: Any, *, raw_path: Path, pre_samples: int,
                 "a_lead_last_observed_frame": (
                     a_lead_report["last_observed_frame"] if a_lead_report else None),
                 "a_priming_evidence": (
-                    "frame_observed_A_requested_not_game_verified"
+                    "bridge_callback_45_A_updates_not_game_verified"
+                    if canonical_swing and atomic_a45
+                    else "frame_observed_A_requested_not_game_verified"
                     if canonical_swing and a_lead_frames
                     else "operator_opt_in_unverified_rpc_count"
                     if canonical_swing and a_prime_requests
@@ -405,6 +432,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="Scale only backward-travel distance; preserve forward travel, speed and A timing")
     p.add_argument("--trial-seed", type=int, default=None)
     p.add_argument("--ask-power", action="store_true",help="Record the visible game power meter if shown")
+    p.add_argument("--atomic-a45", action="store_true",
+                   help="Opt-in isolated atomic bridge: 45 callback-held A frames then frozen 89-frame swing")
     p.add_argument("--visual-first", action="store_true",
                    help="M1.5 human result-first; no post/settled RAM capture or ranking")
     p.add_argument("--run-token", help="Strict unique token supplied by the canonical parent CLI")
@@ -444,6 +473,7 @@ def main(argv: list[str] | None = None) -> int:
                              settled_samples=args.settled_samples, interval=args.interval,
                              a_prime_requests=args.a_prime_requests,
                              a_lead_frames=args.a_lead_frames,
+                             atomic_a45=args.atomic_a45,
                              observe_start_pose=args.observe_start_pose,
                              motion_scale=scale,speed_scale=args.speed_scale,
                              backswing_scale=args.backswing_scale,
