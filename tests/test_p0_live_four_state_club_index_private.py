@@ -83,6 +83,27 @@ class TestLiveFourState(unittest.TestCase):
         with self.assertRaises(m.Abstain):
             m.analyze(fixture()[:-1])
 
+    def test_quick_positive_manual_up_down_aim(self):
+        result=m.analyze_quick(fixture()[:5])
+        self.assertEqual(result["status"],
+                         "QUICK_DPAD_FOUR_STATE_CANDIDATE_SUPPORTED")
+        self.assertFalse(result["game_club_id_verified"])
+        self.assertFalse(result["training_approved"])
+
+    def test_quick_reject_no_visible_club_switch(self):
+        rows=fixture()[:5]
+        for row in rows:
+            row["club"]="DRIVER"
+        result=m.analyze_quick(rows)
+        self.assertEqual(result["status"],
+                         "QUICK_DPAD_FOUR_STATE_CANDIDATE_NOT_SUPPORTED")
+
+    def test_quick_reject_aim_only_index_change(self):
+        rows=fixture()[:5]
+        rows[-1]["index"]=2
+        result=m.analyze_quick(rows)
+        self.assertFalse(result["controls"]["aim_only_same_club_and_index"])
+
     def test_source_root_unchanged_two_word_samples(self):
         # Identity same tuple shape as canonical p0_live_no_contact_compare:
         mgr,scene,config,field,pm,player,record,ball,nested,start,tee,pin,pinvec,hole=(
