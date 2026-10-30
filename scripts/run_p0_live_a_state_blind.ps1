@@ -62,10 +62,10 @@ try {
         Write-Host 'This replaces current in-game progress; live study itself sends NO input.'
         $consent=Read-Host 'Type START to authorize startup/menu presses; anything else cancels'
         if($consent -cne 'START') { throw 'Operator declined fresh launch.' }
-        $args=@('--dolphin',$emu,'--dolphin-user',$user,'--bridge',$bridge,
+        $launchArgs=@('--dolphin',$emu,'--dolphin-user',$user,'--bridge',$bridge,
                 '--config',$config,'--catalog',$catalog,'--profile','green-pre-start',
                 '--port',[string]$BridgePort)
-        & py -3 -I $launch @args
+        & py -3 -I $launch @launchArgs
         if($LASTEXITCODE -ne 0) { throw 'Dolphin menu navigation failed.' }
     }
     Write-Host 'Visually verify Hitting the Green / ball ready. NO swing or controller motion.'
