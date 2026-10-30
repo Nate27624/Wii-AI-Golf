@@ -25,12 +25,38 @@ class AutoAReadTests(unittest.TestCase):
         self.assertEqual(detector.observe(record(),**kwargs),'UNKNOWN')
         self.assertEqual(detector.observe(record(),**kwargs),'RELEASED')
 
-    def test_partial_changes_fail_closed(self):
+    def test_stable_partial_signatures_map_to_released_per_operator(self):
+        # Operator confirmed all observed partial signatures were RELEASED.
+        # Continue requiring two identical, source-qualified snapshots.
+        for count in range(1, len(PUBLISHED_OFFSETS)):
+            detector=LiveAIndicator();ctx={'source':'owner','ball':(1,2,3),'aim':(5,)}
+            detector.observe(record(),**ctx);detector.observe(record(),**ctx)
+            words=list(record())
+            for offset in PUBLISHED_OFFSETS[:count]:
+                words[offset//4]+=100
+            partial=tuple(words)
+            self.assertEqual(detector.observe(partial,**ctx),'UNKNOWN')
+            self.assertEqual(detector.observe(partial,**ctx),'RELEASED')
+            self.assertIn(f'({count}/8 changed)',detector.mode)
+            self.assertIn('operator-mapped',detector.mode)
+
+    def test_partial_drift_stays_unknown_until_two_equal_snapshots(self):
         detector=LiveAIndicator();ctx={'source':'owner','ball':(1,2,3),'aim':(5,)}
         detector.observe(record(),**ctx);detector.observe(record(),**ctx)
-        self.assertEqual(detector.observe(record(True,partial=True),**ctx),'UNKNOWN')
-        self.assertEqual(detector.observe(record(True,partial=True),**ctx),'UNKNOWN')
-        self.assertIn('partial',detector.mode)
+        one=list(record());one[PUBLISHED_OFFSETS[0]//4]+=100
+        two=list(one);two[PUBLISHED_OFFSETS[1]//4]+=100
+        self.assertEqual(detector.observe(tuple(one),**ctx),'UNKNOWN')
+        self.assertEqual(detector.observe(tuple(two),**ctx),'UNKNOWN')
+        self.assertEqual(detector.observe(tuple(two),**ctx),'RELEASED')
+
+    def test_partial_after_pressed_returns_to_released(self):
+        detector=LiveAIndicator();ctx={'source':'owner','ball':(1,2,3),'aim':(5,)}
+        detector.observe(record(),**ctx);detector.observe(record(),**ctx)
+        detector.observe(record(True),**ctx)
+        self.assertEqual(detector.observe(record(True),**ctx),'PRESSED')
+        partial=record(True,partial=True)
+        self.assertEqual(detector.observe(partial,**ctx),'UNKNOWN')
+        self.assertEqual(detector.observe(partial,**ctx),'RELEASED')
 
     def test_actor_swap_and_aim_movement_resets_baseline(self):
         d=LiveAIndicator();ctx={'source':'owner','ball':(1,2,3),'aim':(5,)}

@@ -95,5 +95,10 @@ class LiveAIndicator:
         if all(a != b for a, b in zip(vector, self.base)):
             self.mode = 'auto eight-offset synchronized change (candidate)'
             return 'PRESSED'
-        self.mode = 'partial A signature; abstaining'
-        return 'UNKNOWN'
+        # Operator observed that previous 1..7-of-8 partial signatures
+        # occurred while A was physically RELEASED. Treat a stable partial
+        # as RELEASED for this viewer only. This is an operator-defined
+        # heuristic, not evidence of a native A latch or a training label.
+        changed = sum(a != b for a, b in zip(vector, self.base))
+        self.mode = f'partial A signature ({changed}/8 changed): operator-mapped RELEASED candidate'
+        return 'RELEASED'
