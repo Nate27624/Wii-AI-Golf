@@ -57,6 +57,20 @@ class TestDpadSelectorStatic(unittest.TestCase):
         self.assertEqual(m.immediate_button_test(w2)["bits"],4)
         self.assertIsNone(m.immediate_button_test(rlwinm(3,3,2,28,28)))
 
+    def test_broad_masks_are_not_treated_as_dpad(self):
+        self.assertIsNone(m.immediate_button_test(encode(28,imm=0xffff)))
+        self.assertIsNone(m.immediate_button_test(encode(28,imm=0xf)))
+
+    def test_exact_ppc_rotated_bit_backmapping(self):
+        # r3 output bit 4 after ROL(input, 1) observes original bit 3 (UP).
+        up=m.immediate_button_test(rlwinm(3,3,1,27,27))
+        self.assertEqual(up["bits"],8)
+        self.assertTrue(up["rotated"])
+        # Output bit 5 after ROL(input, 3) observes original bit 2 (DOWN).
+        down=m.immediate_button_test(rlwinm(3,3,3,26,26))
+        self.assertEqual(down["bits"],4)
+        self.assertTrue(down["rotated"])
+
     def test_a_button_and_unrelated_mask_not_dpad(self):
         self.assertIsNone(m.immediate_button_test(encode(28,imm=0x800)))
         self.assertIsNone(m.immediate_button_test(encode(29,imm=0x800)))
