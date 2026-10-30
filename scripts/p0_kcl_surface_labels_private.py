@@ -32,28 +32,41 @@ class LabelsGate(ValueError):
 
 
 def _check_project_private_path(path: Path, root: Path, *, kind: str) -> Path:
+    """Only original private Data/derived or standalone outside-Git Projects.
+
+    The operator's original OBJ has already been relocated to D:\Projects;
+    its contents and SHA remain verified independently against source KCL.
+    The path exception does not authorize assets inside arbitrary Git repos.
+    """
     if (root.name != "Wii-AI-Golf-Data" or root.is_symlink()
             or not root.is_dir()):
         raise LabelsGate("PRIVATE_DATA_ROOT")
-    derived = root.resolve(strict=True) / "derived"
-    if (not derived.is_dir() or derived.is_symlink()
-            or path.parent.is_symlink() or not path.parent.is_dir()
-            or path.parent.resolve(strict=True) != derived
+    if (not path.parent.is_dir() or path.parent.is_symlink()
             or not path.name.endswith("-PRIVATE." + kind)
             or path.is_symlink()):
         raise LabelsGate("PROJECT_PRIVATE_PATH")
-    # A containing Git checkout is acceptable only with explicit ignored &
-    # absent-from-index proofs for the exact requested file.
-    if any((p / ".git").exists() for p in (derived, *derived.parents)):
+    parent = path.parent.resolve(strict=True)
+    derived = root.resolve(strict=True) / "derived"
+    in_data = (parent == derived and derived.is_dir() and not derived.is_symlink())
+    in_standalone_projects = parent.name == "Projects" and not in_data
+    if not in_data and not in_standalone_projects:
+        raise LabelsGate("PROJECT_PRIVATE_PATH")
+
+    containing_git = any((p / ".git").exists() for p in (parent, *parent.parents))
+    # Only the sibling private Data/derived directory is eligible for a
+    # Git-contained exception. Standalone Projects must be outside Git.
+    if in_standalone_projects and containing_git:
+        raise LabelsGate("PROJECTS_ROOT_INSIDE_GIT")
+    if in_data and containing_git:
         try:
             ignored = subprocess.run(
-                ["git", "-C", str(derived), "check-ignore", "--no-index", "-q",
+                ["git", "-C", str(parent), "check-ignore", "--no-index", "-q",
                  "--", str(path)],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 timeout=5, check=False,
             )
             indexed = subprocess.run(
-                ["git", "-C", str(derived), "ls-files", "--cached", "-z",
+                ["git", "-C", str(parent), "ls-files", "--cached", "-z",
                  "--", str(path)],
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 timeout=5, check=False,
@@ -64,8 +77,7 @@ def _check_project_private_path(path: Path, root: Path, *, kind: str) -> Path:
             raise LabelsGate("GIT_IGNORE_REQUIRED")
         if indexed.returncode != 0 or indexed.stdout:
             raise LabelsGate("GIT_INDEX_NOT_UNTRACKED")
-    return derived / path.name
-
+    return parent / path.name
 
 def _mesh_records(blob: bytes) -> tuple[str, ...]:
     # A legacy geometry-only OBJ produced by this repo accepts v/f + comments.
@@ -123,6 +135,8 @@ def make_labels(archive: Path, original_obj: Path, output: Path, *,
     root = DATA_ROOT
     mesh_path = _check_project_private_path(original_obj, root, kind="obj")
     labels_path = _check_project_private_path(output, root, kind="json")
+    if mesh_path.parent != labels_path.parent:
+        raise LabelsGate("LABELS_MUST_BE_NEXT_TO_OBJ")
     if labels_path.exists():
         raise LabelsGate("LABEL_OUTPUT_ALREADY_EXISTS")
     original = _read_existing_obj(mesh_path)
