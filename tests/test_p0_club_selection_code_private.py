@@ -67,6 +67,15 @@ class TestClubSelectionStatic(unittest.TestCase):
         with self.assertRaises(audit.Abstain):
             audit.source_units(payload)
 
+
+    def test_focused_c0_writer_without_ordinal_nearby(self):
+        blob=words(ins(36,4,3,0xC0),ins(36,4,1,0xC0),
+                   ins(36,4,3,0x40))
+        matches=audit.focused_writer_sites(blob,0x8029e62c,audit.SOURCE_UNITS[2])
+        self.assertEqual(len(matches),1)
+        self.assertEqual(matches[0]["candidate_store_displacement"],"+0x0C0")
+        self.assertFalse(matches[0]["club_selection_writer_verified"])
+
     def test_private_bank_bad_length_abstains(self):
         with self.assertRaises(audit.Abstain):
             audit.inspect_mem1_bank(bytes(1024), {}, 5)
