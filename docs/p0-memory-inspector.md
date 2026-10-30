@@ -150,3 +150,65 @@ user reported ~232ms cycle on #408; no stronger real performance result is
 claimed until tested on the user's Dolphin. To improve substantially beyond
 that, a separately reviewed bridge-side *single source-gated snapshot* RPC may
 be necessary; do not skip source/epoch checks.
+
+## P0 surface coloring / layered object-readiness contract (OGWS original Golf)
+
+The **Color source surface IDs** checkbox controls experimental *wireframe*
+colors on individually source-labeled collision triangles. The default is ON,
+but it cannot color a legacy untyped OBJ. A private OBJ with only `v`/`f`
+lines remains fully compatible and appears in the neutral color. The viewer
+never infers material from elevation, distance to flag, or triangle normals.
+
+The new **backward-compatible private mesh ABI** is a normal ASCII OBJ with
+optional exact **Wavefront groups**, placed immediately before the matching
+triangle(s):
+
+```text
+# synthetic example — not game geometry
+v 0 0 0
+v 20 0 0
+v 0 0 20
+g KCL_OGWS_0006
+f 1 2 3
+```
+
+The group consists of literal `g KCL_OGWS_` followed by exactly four uppercase
+hex digits. It must be emitted from the **original Wii Sports Golf per-prism
+BE16 attribute at KCL prism +0x0E**, not from guessed visuals, source
+proximity or a private histogram joined by face order without identity proof.
+Each `f` inherits the most recently declared group. A face with no group
+is **UNCLASSIFIED/neutral**. The full private file is still SHA-hashed,
+strictly bounded and limited to positive plain triangle indices. All other
+OBJ groups, `usemtl`, `mtllib`, textures, external includes and object/model
+records remain rejected.
+
+The source-candidate categories currently drawn in different colors are:
+fairway `0001`, rough `0002`, bunker `0003`, out of bounds `0004`, green
+`0006`, water `0007`, fringe `0009`, and cliff `000C`. Other attributes,
+including camera-lock `0005`, get **neutral** coloring, never mislabeled
+as grass. The inspector uses the numeric original game attribute mapping
+from source research #411 and never downloads assets; this is not verified
+surface physics or texture artwork. `Color source surface IDs` OFF uses the
+original single-color collision wireframe. A colored legend labels the
+categories in the viewer. Deterministic filtering/decimation preserves the
+face-to-material assignment; the live face-draw bound remains 600 and
+offline bound 1,200. The loaded geometry, flag/tee/ball/aim/A labels and
+right-click orbit remain independent.
+
+**Object and tree layer coordination:** original source-gated phase-7 inventory
+has **94 reported trees** (manager field `+0x1C`), but neither the contiguous
+object stride nor pointer-table layout has yet produced qualified individual
+positions. The viewer does **not** draw 94 imagined trees. The tree research
+agent #411 will first qualify individual tree positions and source record type
+before agreeing on a private opt-in object artifact; independent BRRES models
+are not present in the collision OBJ and should not be invented. Planned
+future objects will have an independently validated source-epoch/hole and
+local asset provenance, position/size/unit guards and a separate Show toggle;
+they must not alter terrain triangles or player positions. Terrain OBJ export
+from #413 is separately owned and currently blocked on an operator-local
+OUTPUT_DESTINATION gate; this viewer change does not assert a successful
+private material-bearing OBJ export or active-collision octree status.
+
+In all cases the 3D rendering is a **candidate source-component scene, not a
+verified visual-world alignment or trainable physics map**.
+`training_approved=false`.
