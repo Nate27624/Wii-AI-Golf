@@ -5,6 +5,10 @@ import struct
 import sys
 import unittest
 import math
+import io
+import contextlib
+from unittest.mock import patch
+import json
 
 HERE=Path(__file__).resolve().parents[1]/'scripts'
 for name in ('p0_kcl_private_probe','p0_kcl_octree_private'):
@@ -106,6 +110,29 @@ class OctreeTests(unittest.TestCase):
         self.assertTrue(all(isinstance(v,(str,bool,int)) for v in d.values()))
         self.assertFalse(any('address' in key or 'word' in key or 'vertex' in key
                              for key in d))
+    def test_safe_variant_diagnostic_identifies_capture(self):
+        problem=o.OctreeUnsupported('root indexing shift convention differs')
+        problem.capture_number=1
+        buf=io.StringIO()
+        with patch.object(o,'analyze_archive',side_effect=problem), contextlib.redirect_stdout(buf):
+            result=o.main(['--archive','synthetic-does-not-exist','--captures','1'])
+        report=json.loads(buf.getvalue())
+        self.assertEqual(result,4)
+        self.assertEqual(report['status'],'OCTREE_LAYOUT_VARIANT_UNRESOLVED')
+        self.assertEqual(report['capture_number'],1)
+        self.assertEqual(report['reason_code'],'ROOT_INDEX_SHIFT_MISMATCH')
+        self.assertFalse(report['training_approved'])
+    def test_unrecognized_exception_text_not_leaked(self):
+        secret='private-memory-address-0xdeadbeef'
+        problem=o.OctreeUnsupported(secret)
+        buf=io.StringIO()
+        with patch.object(o,'analyze_archive',side_effect=problem), contextlib.redirect_stdout(buf):
+            result=o.main(['--archive','synthetic-does-not-exist'])
+        report=json.loads(buf.getvalue())
+        self.assertEqual(result,4)
+        self.assertEqual(report['reason_code'],'UNCLASSIFIED_OCTREE_LAYOUT_VARIANT')
+        self.assertNotIn(secret,buf.getvalue())
+
     def test_point_outside_bounded_octree_rejected(self):
         buf,octo,_=fixture()
         struct.pack_into('>I',buf,octo,0x800000ff)
