@@ -9,6 +9,9 @@ on:
       - 'tests/test_p0_stage_private_capture.py'
       - 'scripts/p0_archive_variable_differential_private.py'
       - 'tests/test_p0_archive_variable_differential_private.py'
+      - 'scripts/p0_live_directional_aim_series.py'
+      - 'scripts/run_p0_live_directional_aim_series.ps1'
+      - 'tests/test_p0_live_directional_aim_series.py'
       - 'scripts/p0_live_no_contact_compare.py'
       - 'scripts/run_p0_live_no_contact_compare.ps1'
       - 'tests/test_p0_live_no_contact_compare.py'
@@ -41,5 +44,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_variable_validation_matrix.py -v
       - name: S000 local no-contact read-only source-candidate experiment tests
         run: python -m unittest discover -s tests -p test_p0_live_no_contact_compare.py -v
+      - name: S000 directional aim series new source/negative control synthetic tests
+        run: python -m unittest discover -s tests -p test_p0_live_directional_aim_series.py -v
       - name: Full offline Python suite
         run: python -m unittest discover -s tests -v
