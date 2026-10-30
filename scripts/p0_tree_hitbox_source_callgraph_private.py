@@ -32,7 +32,6 @@ UNITS = {
     "FieldManager": (0x80290B44,0x80294184),
     "CollisionChecker": (0x801BC418,0x801BD51C),
     "CollisionModel": (0x801BB9B8,0x801BC384),
-    "Rigid": (0x801B9E00,0x801BAEA0), # optional public utility; omitted in results if doubtful
 }
 # All important interaction source modules; do not guess other out-of-unit
 # targets as physics routines without a public function symbol.
