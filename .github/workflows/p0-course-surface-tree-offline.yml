@@ -11,6 +11,8 @@ on:
       - tests/test_p0_tree_array_layout_private.py
       - scripts/p0_tree_pointer_table_private.py
       - tests/test_p0_tree_pointer_table_private.py
+      - scripts/p0_tree_ppc_indexing_private.py
+      - tests/test_p0_tree_ppc_indexing_private.py
       - research/studies/P0-COURSE-SURFACES-TREES-01.md
       - .github/workflows/p0-course-surface-tree-offline.yml
 permissions:
@@ -33,5 +35,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_tree_array_layout_private.py -v
       - name: Focused tree pointer-array hypotheses
         run: python -m unittest discover -s tests -p test_p0_tree_pointer_table_private.py -v
+      - name: Public source window PPC tree construction/indexing checks
+        run: python -m unittest discover -s tests -p test_p0_tree_ppc_indexing_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
