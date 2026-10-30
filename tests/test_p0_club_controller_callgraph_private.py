@@ -34,10 +34,11 @@ def records_for_two_funcs(include_controller=True):
                         d(38,0,31,0x35),call(BASE+12,BASE+16))
     code2=struct.pack(">4I",call(BASE+16,CTRL) if include_controller else 0x60000000,
                         d(11,3,0,3),d(38,3,31,0x30),0x4e800020)
-    r1=x.static_instruction_records(code1,U,F[:1])
-    r2=x.static_instruction_records(code2, U,
-          [(BASE+16,BASE+32,"f2",x.PLAYER)])
-    return r1+r2
+    mem=bytearray(BASE-x.base.MEM1+32)
+    pos=BASE-x.base.MEM1
+    mem[pos:pos+16]=code1
+    mem[pos+16:pos+32]=code2
+    return x.static_instruction_records(mem,U,F[:2])
 
 class TestClubFunctionGraph(unittest.TestCase):
     def test_public_function_index_is_available_and_qualified(self):
@@ -87,7 +88,9 @@ class TestClubFunctionGraph(unittest.TestCase):
         f=[(BASE,BASE+16,"f1",x.PLAYER)]
         blob=struct.pack(">4I",0x48000008,d(38,3,31,0x34),
                             d(38,3,31,0x35),0x4e800020)
-        r=x.static_instruction_records(blob,u,f)
+        mem=bytearray(BASE-x.base.MEM1+16)
+        mem[BASE-x.base.MEM1:]=blob
+        r=x.static_instruction_records(mem,u,f)
         self.assertEqual(r[0]["calls"],[])
         report=x.analyze(r,f,u)
         self.assertEqual(report["static_direct_calls_from_golf"],0)
