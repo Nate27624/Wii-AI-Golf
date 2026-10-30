@@ -111,12 +111,15 @@ def _ignored_project_private_obj(path: Path) -> bool:
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             timeout=5, check=False)
         tracked = subprocess.run(
-            ["git", "-C", str(derived), "ls-files", "--error-unmatch", "--", str(path)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            ["git", "-C", str(derived), "ls-files", "--cached", "-z", "--", str(path)],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             timeout=5, check=False)
     except (OSError, subprocess.TimeoutExpired):
         return False
-    return ignored.returncode == 0 and tracked.returncode == 1
+    # Fail closed unless Git succeeds and proves the file is absent from
+    # the index. Avoid --error-unmatch's Windows-specific negative exit.
+    return (ignored.returncode == 0 and tracked.returncode == 0
+            and tracked.stdout == b"")
 
 
 def load_private_obj(filename: str | Path) -> TerrainMesh:
