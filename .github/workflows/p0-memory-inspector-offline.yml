@@ -4,13 +4,13 @@ on:
     paths:
       - 'src/wii_ai_golf/inspector/**'
       - 'scripts/p0_memory_inspector.py'
-      - 'tests/test_p0_memory_inspector.py'
+      - 'tests/test_p0_memory_inspector*.py'
       - '.github/workflows/p0-memory-inspector-offline.yml'
   push:
     paths:
       - 'src/wii_ai_golf/inspector/**'
       - 'scripts/p0_memory_inspector.py'
-      - 'tests/test_p0_memory_inspector.py'
+      - 'tests/test_p0_memory_inspector*.py'
       - '.github/workflows/p0-memory-inspector-offline.yml'
 jobs:
   offline:
@@ -26,5 +26,7 @@ jobs:
           python-version: '3.11'
       - name: Focused synthetic replay checks
         run: python -m unittest discover -s tests -p test_p0_memory_inspector.py -v
+      - name: Focused synthetic live worker checks
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_live.py -v
       - name: Full offline regression suite
         run: python -m unittest discover -s tests -v
