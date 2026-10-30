@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import math
+import time
+from collections import deque
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from .replay import AIM, BALL, CACHE, Replay, Sample, float_hypothesis, load_replay
+from .live import LiveSampler
 
 
 def project(point: tuple[float, float, float], yaw: float, pitch: float) -> tuple[float, float]:
@@ -34,7 +37,15 @@ class Inspector:
         self.index = tk.IntVar(value=0)
         self.yaw, self.pitch = 0.65, 0.48
         self.drag_origin: tuple[int, int] | None = None
+        self.live_worker: LiveSampler | None = None
+        self.live_buffer: deque[Sample] = deque(maxlen=180)
+        self.live_last: float | None = None
+        self.live_rate = 0.0
+        self.live_location = ""
+        self.live_port = tk.StringVar(value="55355")
         self._draw_controls()
+        root.protocol("WM_DELETE_WINDOW", self.close)
+        root.after(200, self.poll_live)
         if initial_capture and initial_manifest:
             self.open_capture()
 
@@ -49,7 +60,13 @@ class Inspector:
             ttk.Label(row, text=text, width=20).pack(side="left")
             ttk.Entry(row, textvariable=variable).pack(side="left", fill="x", expand=True)
             ttk.Button(row, text="Browse", command=lambda var=variable: self.pick(var)).pack(side="left", padx=5)
-        ttk.Button(head, text="Verify SHA-256 and Open", command=self.open_capture).pack(anchor="w", pady=4)
+        actions = ttk.Frame(head)
+        actions.pack(fill="x", pady=4)
+        ttk.Button(actions, text="Verify SHA-256 and Open Offline", command=self.open_capture).pack(side="left")
+        ttk.Label(actions, text="  Existing Dolphin bridge port: ").pack(side="left")
+        ttk.Entry(actions, textvariable=self.live_port, width=7).pack(side="left")
+        ttk.Button(actions, text="Connect LIVE (read-only)", command=self.connect_live).pack(side="left", padx=5)
+        ttk.Button(actions, text="Disconnect", command=self.disconnect_live).pack(side="left")
         ttk.Label(head, textvariable=self.status, foreground="#9b271d", wraplength=1190).pack(anchor="w")
 
         main = ttk.PanedWindow(self.root, orient="horizontal")
@@ -103,6 +120,8 @@ class Inspector:
             var.set(name)
 
     def open_capture(self) -> None:
+        self.disconnect_live(silent=True)
+        self.live_worker = None
         try:
             replay = load_replay(Path(self.capture.get()), Path(self.manifest.get()))
         except (OSError, ValueError) as exc:
@@ -157,6 +176,66 @@ class Inspector:
             details += (f"Operator annotation: {sample.annotation}",)
         self.detail.set(f"{timestamp} | " + "  •  ".join(details))
         self.draw_path()
+
+    def connect_live(self) -> None:
+        if self.live_worker is not None and self.live_worker.thread is not None and self.live_worker.thread.is_alive():
+            return
+        try:
+            port = int(self.live_port.get())
+            worker = LiveSampler(port=port)
+        except ValueError as exc:
+            messagebox.showerror("Invalid bridge port", str(exc))
+            return
+        self.live_worker = worker
+        self.live_buffer.clear()
+        self.live_last = None
+        self.baseline = None
+        self.replay = None
+        self.phases = []
+        self.phase_list.delete(0, "end")
+        self.rows.delete(*self.rows.get_children())
+        self.canvas.delete("all")
+        self.status.set("CONNECTING read-only to EXISTING Dolphin. No controller, savestate, boot or guest writes.")
+        worker.start()
+
+    def disconnect_live(self, silent: bool = False) -> None:
+        if self.live_worker is not None:
+            self.live_worker.stop()
+            if not silent:
+                self.status.set("DISCONNECT requested; RPC timeout may delay worker exit. No automatic reconnection.")
+
+    def poll_live(self) -> None:
+        worker = self.live_worker
+        if worker is not None:
+            for event in worker.drain():
+                if event.kind == "sample" and event.sample is not None:
+                    self.live_buffer.append(event.sample)
+                    self.live_last = time.monotonic()
+                    self.live_rate = event.rate_hz
+                    self.live_location = f"scene 5 · mode 4 · hole {event.hole} · selected player {event.selected_player}"
+                    self.replay = Replay(Path("LIVE-readonly"), "", tuple(self.live_buffer), (), "live")
+                    self.phases = [("LIVE", 0)]
+                    self.phase_list.delete(0, "end")
+                    self.phase_list.insert("end", "LIVE source-qualified")
+                    self.slider.configure(to=max(1, len(self.live_buffer) - 1))
+                    self.show(len(self.live_buffer) - 1)
+                    self.status.set(f"LIVE READ-ONLY · {self.live_location} · achieved {self.live_rate:.2f} samples/s · source checked · training_approved=false")
+                elif event.kind == "error":
+                    self.status.set("LIVE FAILED: " + event.reason + " Existing sample trace frozen. Check RSPE01 Rev1 and bridge.")
+                    self.live_last = None
+                elif event.kind == "disconnected":
+                    self.status.set("LIVE DISCONNECTED. Existing sample trace retained; no background retries.")
+                    self.live_last = None
+            if self.live_last is not None:
+                age = time.monotonic() - self.live_last
+                if age > 3.0:
+                    self.status.set(f"STALE LIVE SAMPLE {age:.1f}s ago · {self.live_location} · check source/bridge · training_approved=false")
+        self.root.after(200, self.poll_live)
+
+    def close(self) -> None:
+        self.disconnect_live(silent=True)
+        self.live_worker = None
+        self.root.destroy()
 
     def set_baseline(self) -> None:
         if self.replay is None:
@@ -225,7 +304,7 @@ class Inspector:
                 pos = xy(point)
                 if previous is not None and previous_source == sample.source_digest:
                     canvas.create_line(*previous, *pos, fill=color, width=2, dash=(5, 4) if color == "#f5b942" else ())
-                r = 5 if sample.ordinal == upto else 2.5
+                r = 5 if sample is samples[-1] else 2.5
                 canvas.create_oval(pos[0]-r, pos[1]-r, pos[0]+r, pos[1]+r, fill=color, outline="")
                 previous, previous_source = pos, sample.source_digest
         current = self.replay.samples[upto]
