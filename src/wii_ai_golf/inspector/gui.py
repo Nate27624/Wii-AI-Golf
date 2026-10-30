@@ -13,6 +13,7 @@ from .live import LiveSampler
 from .a_reference import discover_reference
 from .a_live import LiveAIndicator
 from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE
+from .terrain_solid import back_to_front, shaded_hex
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -96,6 +97,8 @@ class Inspector:
         self.terrain_visible = tk.BooleanVar(value=True)
         self.terrain_focus = tk.BooleanVar(value=True)
         self.terrain_colors = tk.BooleanVar(value=True)
+        self.terrain_solid = tk.BooleanVar(value=True)
+        self.terrain_edges = tk.BooleanVar(value=False)
         self.terrain_status = tk.StringVar(value="Terrain: select a locally exported PRIVATE collision OBJ to display.")
         self.a_reason = tk.StringVar(value="Connect LIVE with A released; 2 stable samples initialize candidate")
         self.baseline: float | None = None
@@ -172,6 +175,8 @@ class Inspector:
         ttk.Checkbutton(mesh_actions, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Color source surface IDs", variable=self.terrain_colors, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(mesh_actions, text="Solid terrain", variable=self.terrain_solid, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(mesh_actions, text="Triangle edges", variable=self.terrain_edges, command=self.draw_path).pack(side="left")
         ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
         source_legend = ttk.Frame(center)
         source_legend.pack(fill="x")
@@ -525,7 +530,7 @@ class Inspector:
             if hasattr(self, "terrain_status"):
                 labeled = sum(n for code,n in mesh.material_counts().items() if code is not None)
                 self.terrain_status.set(
-                    f"PRIVATE collision wireframe: {len(terrain_faces)}/{len(mesh.faces)} "
+                    f"PRIVATE terrain preview: {len(terrain_faces)}/{len(mesh.faces)} "
                     f"triangles drawn · {labeled}/{len(mesh.faces)} source-ID labeled · "
                     "alignment/active collision UNVERIFIED")
         elif mesh is not None and hasattr(self, "terrain_status"):
@@ -549,14 +554,27 @@ class Inspector:
             u, v = project(p, self.yaw, self.pitch)
             return width / 2 + (u - cx) * scale, height / 2 - (v - cy) * scale
         canvas.create_text(12, 12, text="Rotatable 3D source-coordinate projection · unknown units", anchor="nw", fill="#bacbe1")
-        # Behind source-qualified ball, tee, pin and screen-anchored A text.
-        for face, source_attr in colored_faces:
+        # Painter's-order solid triangles (not a Z-buffer), beneath all
+        # source-qualified actor/aim/A overlays. Never infer missing IDs.
+        solid_setting = getattr(self, "terrain_solid", None)
+        edges_setting = getattr(self, "terrain_edges", None)
+        solid = solid_setting is not None and solid_setting.get()
+        edges = edges_setting is None or edges_setting.get()
+        palette = getattr(self, "terrain_colors", None)
+        use_colors = palette is None or palette.get()
+        for face, source_attr in back_to_front(colored_faces, self.yaw, self.pitch):
             xy_face = [xy(v) for v in face]
-            palette = getattr(self, "terrain_colors", None)
-            use_colors = palette is None or palette.get()
-            color = surface_style(source_attr)[1] if use_colors else "#3c7366"
-            canvas.create_line(*xy_face[0], *xy_face[1], *xy_face[2], *xy_face[0],
-                               fill=color, width=1, tags=("terrain_collision_candidate",))
+            flat = tuple(value for p in xy_face for value in p)
+            base = surface_style(source_attr)[1] if use_colors else "#536778"
+            if solid:
+                canvas.create_polygon(
+                    *flat, fill=shaded_hex(base, face),
+                    outline=base if edges else "", width=1 if edges else 0,
+                    tags=("terrain_collision_candidate", "terrain_solid_face"))
+            elif edges:
+                canvas.create_line(
+                    *flat, *xy_face[0], fill=base, width=1,
+                    tags=("terrain_collision_candidate", "terrain_wire_edge"))
         # Recenter per displayed prefix; do not imply screen-space projection or verified spatial units.
         for sequence, color in ((path, "#f1f6ff"), (caches, "#f5b942")):
             previous = None
