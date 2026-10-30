@@ -119,3 +119,63 @@ class LiveTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+# A-only read probe uses a 51-word source-selected record. Tests never touch Dolphin.
+class AProbeTests(unittest.TestCase):
+    class ABridge(FakeRPC):
+        def __init__(self, *, moving=False):
+            super().__init__(); self.moving = moving; self.ball_reads = 0
+        def call(self, method, args):
+            self.calls.append(method)
+            if method != 'memory.read_u32':
+                raise AssertionError('unexpected RPC method')
+            addr = args[0]
+            if 0x90010000 <= addr < 0x900100cc:
+                offset = (addr - 0x90010000) // 4
+                return 0x3f000000 if offset == 15 else 29 if offset in (29,37,39,40,42,44,46,48) else 0
+            if 0x90020030 <= addr <= 0x90020038:
+                self.ball_reads += 1
+                return (1,2,3)[(addr - 0x90020030)//4] + (1 if self.moving else 0)
+            raise AssertionError('unexpected memory address')
+
+    @staticmethod
+    def packet(rpc, phase, index):
+        identity = (0,0,0,0,0,1,0x90010000,0x90020000,0,0,0,0,0,1)
+        return {'identity':identity, 'words':{'selected_ball_plus_0x30':(1,2,3),
+                'aim_candidate_plus_0x3c':(0x3f000000,)},
+                'start_ns':index*100000,'end_ns':index*100000+5000,
+                'frame_bracket':(index,index+1)}
+
+    def worker(self, bridge, *, epoch=True):
+        sampler=LiveSampler(connector=lambda:bridge,packet_reader=self.packet,
+             include_a_state=True,source_gate=lambda rpc, identity:epoch,poll_pause_s=0.001)
+        sampler.start()
+        sampler.thread.join(timeout=0.04)
+        sampler.stop();sampler.thread.join(timeout=1)
+        return sampler.drain(),bridge
+
+    def test_record_read_is_bounded_validated_and_readonly(self):
+        events,bridge=self.worker(self.ABridge())
+        samples=[e for e in events if e.kind=='sample']
+        self.assertTrue(samples)
+        self.assertEqual(len(samples[0].a_record),51)
+        self.assertEqual(samples[0].a_record[29],29)
+        self.assertTrue(samples[0].a_read_start_ns>0)
+        self.assertTrue(all(x=='memory.read_u32' for x in bridge.calls))
+
+    def test_ball_change_during_51_read_yields_unknown_without_stopping_plot(self):
+        events,_=self.worker(self.ABridge(moving=True))
+        samples=[e for e in events if e.kind=='sample']
+        self.assertTrue(samples)
+        self.assertIsNone(samples[0].a_record)
+        self.assertTrue(any(e.kind=='disconnected' for e in events))
+
+    def test_invalid_source_epoch_aborts_probe(self):
+        events,_=self.worker(self.ABridge(),epoch=False)
+        self.assertEqual([e.kind for e in events],['error'])
+
+    def test_a_probe_requires_end_epoch_guard(self):
+        sampler=LiveSampler(connector=lambda:self.ABridge(),packet_reader=self.packet,
+                             include_a_state=True)
+        sampler.start();sampler.thread.join(timeout=1)
+        self.assertEqual([e.kind for e in sampler.drain()],['error'])

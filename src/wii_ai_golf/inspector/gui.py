@@ -10,6 +10,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from .replay import AIM, BALL, CACHE, Replay, Sample, float_hypothesis, load_replay
 from .live import LiveSampler
+from .a_button import AButtonStudy, LABELS
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -30,33 +31,36 @@ def candidate_landmarks(sample: Sample) -> dict[str, tuple[float, float, float]]
 
 
 def aim_ray_hypothesis(
-    sample: Sample, landmarks: dict[str, tuple[float, float, float]]
+    sample: Sample, landmarks: dict[str, tuple[float, float, float]],
+    baseline: float | None = None
 ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
-    """Experimental +0x3C-as-radians ray from TEE, *not* player position.
+    """Tee-to-flag reference rotated by relative +0x3C *hypothesis*.
 
-    No native angle/axis interpretation is established. This deliberately
-    assumes yaw about source component1, zero toward negative component2,
-    positive toward component0. Rendering uses same-sample qualified TEE and
-    PIN to choose a finite display length, not a measured club/player origin.
+    No player coordinates anywhere. At a calibrated baseline (+0x3C == baseline)
+    the ray ALWAYS points to the pin, regardless of absolute field yaw/angle.
+    Ball position is not consulted. Direction-of-change/radians are unproven.
     """
-    if not sample.source_qualified or not sample.source_digest:
+    if not sample.source_qualified or not sample.source_digest or baseline is None or not math.isfinite(baseline):
         return None
     tee, pin = landmarks.get(TEE), landmarks.get(PIN)
     raw = sample.words.get(AIM)
     if tee is None or pin is None or raw is None or len(raw) != 1:
         return None
     angle = float_hypothesis(raw[0])
-    # A plausible *radian hypothesis*, not a validated decoding. Do not turn
-    # arbitrary floats into confident directions.
-    if angle is None or not -math.tau <= angle <= math.tau:
+    if angle is None or not -math.tau <= angle <= math.tau or not -math.tau <= baseline <= math.tau:
         return None
-    distance = math.hypot(pin[0] - tee[0], pin[2] - tee[2])
+    dx, dz = pin[0] - tee[0], pin[2] - tee[2]
+    distance = math.hypot(dx, dz)
     if not 1e-5 < distance <= 1e6:
         return None
-    length = distance * 0.23
-    tip = (tee[0] + length * math.sin(angle),
+    delta = angle - baseline
+    # Rotates in the candidate horizontal component0/component2 plane. The
+    # direction/sign mapping is still an empirical hypothesis, not calibrated.
+    cos_a, sin_a = math.cos(delta), math.sin(delta)
+    length = 0.23
+    tip = (tee[0] + length * (dx*cos_a - dz*sin_a),
            tee[1],
-           tee[2] - length * math.cos(angle))
+           tee[2] + length * (dx*sin_a + dz*cos_a))
     return tee, tip
 
 
@@ -81,7 +85,12 @@ class Inspector:
         self.phase = tk.StringVar(value="—")
         self.aim = tk.StringVar(value="Aim candidate: —")
         self.landmark_status = tk.StringVar(value="Pin / flag: not sampled   ·   Tee: not sampled")
-        self.aim_status = tk.StringVar(value="Aim ray: unavailable (uncalibrated angle hypothesis, no player location).")
+        self.aim_status = tk.StringVar(value="Aim ray: set a tee→flag baseline first; no player position.")
+        self.aim_baseline_source: str | None = None
+        self.aim_baseline_mode = "assumed first packet"
+        self.a_study = AButtonStudy()
+        self.a_status = tk.StringVar(value="A BUTTON: UNKNOWN — connect LIVE, then calibrate")
+        self.a_instructions = tk.StringVar(value="A study: R0 released → H0 held → R1 → H1 → R2 → H2 → R3 (3 samples each). No swing.")
         self.baseline: float | None = None
         self.replay: Replay | None = None
         self.index = tk.IntVar(value=0)
@@ -119,6 +128,12 @@ class Inspector:
         ttk.Button(actions, text="Connect LIVE (read-only)", command=self.connect_live).pack(side="left", padx=5)
         ttk.Button(actions, text="Disconnect", command=self.disconnect_live).pack(side="left")
         ttk.Label(head, textvariable=self.status, foreground="#9b271d", wraplength=1190).pack(anchor="w")
+        a_panel = ttk.Frame(head)
+        a_panel.pack(fill="x", pady=3)
+        ttk.Label(a_panel, textvariable=self.a_status, font=("Segoe UI", 13, "bold")).pack(side="left")
+        ttk.Button(a_panel, text="Capture next A window", command=self.capture_a_window).pack(side="left", padx=12)
+        ttk.Button(a_panel, text="Reset A detector", command=self.reset_a_detector).pack(side="left")
+        ttk.Label(head, textvariable=self.a_instructions, wraplength=1200).pack(anchor="w")
 
         main = ttk.PanedWindow(self.root, orient="horizontal")
         main.pack(fill="both", expand=True, padx=10)
@@ -132,7 +147,7 @@ class Inspector:
         self.phase_list.pack(fill="both", expand=True)
         self.phase_list.bind("<<ListboxSelect>>", self.select_phase)
         ttk.Label(left, textvariable=self.phase, wraplength=190).pack(fill="x", pady=6)
-        ttk.Button(left, text="Set aim baseline here", command=self.set_baseline).pack(fill="x")
+        ttk.Button(left, text="Set aim baseline (point at flag)", command=self.set_baseline).pack(fill="x")
         ttk.Label(left, textvariable=self.aim, wraplength=200).pack(fill="x", pady=7)
 
         self.canvas = tk.Canvas(center, background="#111c29", height=450, highlightthickness=0)
@@ -146,7 +161,7 @@ class Inspector:
         self.canvas.bind("<ButtonRelease-3>", self.drag_end)
         ttk.Label(center, text="White: ball +0x30  |  Amber: cache +0xCC  |  Cyan flag: PIN candidate  |  Green diamond: TEE candidate", wraplength=640).pack(anchor="w")
         ttk.Label(center, textvariable=self.landmark_status, wraplength=640).pack(anchor="w")
-        ttk.Label(center, text="Magenta dashed arrow: experimental +0x3C angle ray from TEE (not player position)", wraplength=640).pack(anchor="w")
+        ttk.Label(center, text="Magenta dashed: flag-aligned aim reference, rotated only by Δ+0x3C (unverified mapping; no player position)", wraplength=640).pack(anchor="w")
         ttk.Label(center, textvariable=self.aim_status, wraplength=640).pack(anchor="w")
         self.slider = ttk.Scale(center, from_=0, to=1, command=self.scrub)
         self.slider.pack(fill="x", pady=4)
@@ -194,6 +209,9 @@ class Inspector:
             return
         self.replay = replay
         self.baseline = None
+        self.aim_baseline_source = None
+        self.a_study = AButtonStudy()
+        self.a_status.set("A BUTTON: UNKNOWN — offline capture has no validated live A state")
         self.phase_list.delete(0, "end")
         self.phases: list[tuple[str, int]] = []
         for i, sample in enumerate(replay.samples):
@@ -211,6 +229,15 @@ class Inspector:
         self.index.set(i)
         self.slider.set(i)
         sample = self.replay.samples[i]
+        # The initial sample is a *provisional* flag-pointing baseline, NOT a
+        # native heading. User can explicitly reset at visually known pin aim.
+        if self.baseline is None and i == 0 and sample.source_qualified and sample.source_digest:
+            raw = sample.words.get(AIM)
+            value = float_hypothesis(raw[0]) if raw and len(raw) == 1 else None
+            if value is not None and -math.tau <= value <= math.tau:
+                self.baseline = value
+                self.aim_baseline_source = sample.source_digest
+                self.aim_baseline_mode = "ASSUMED first packet points to flag"
         self.phase.set(f"{sample.phase} / sample {sample.phase_index if sample.phase_index is not None else '?'}  ·  {sample.state.upper()}")
         self.position.config(text=f"{i + 1} / {len(self.replay.samples)}")
         active = max(j for j, (_, start) in enumerate(self.phases) if start <= i)
@@ -242,7 +269,7 @@ class Inspector:
             return
         try:
             port = int(self.live_port.get())
-            worker = LiveSampler(port=port)
+            worker = LiveSampler(port=port, include_a_state=True)
         except ValueError as exc:
             messagebox.showerror("Invalid bridge port", str(exc))
             return
@@ -250,6 +277,9 @@ class Inspector:
         self.live_buffer.clear()
         self.live_last = None
         self.baseline = None
+        self.aim_baseline_source = None
+        self.a_study = AButtonStudy()
+        self.a_status.set("A BUTTON: UNKNOWN — calibration required")
         self.replay = None
         self.phases = []
         self.phase_list.delete(0, "end")
@@ -281,16 +311,23 @@ class Inspector:
                     self.phase_list.insert("end", "LIVE source-qualified")
                     self.slider.configure(to=max(1, len(self.live_buffer) - 1))
                     self.show(len(self.live_buffer) - 1)
+                    self.process_a_sample(event)
                     self.status.set(f"LIVE READ-ONLY · {self.live_location} · achieved {self.live_rate:.2f} samples/s · source checked · training_approved=false")
                 elif event.kind == "error":
                     self.status.set("LIVE FAILED: " + event.reason + " Existing sample trace frozen. Check RSPE01 Rev1 and bridge.")
                     self.live_last = None
+                    self.a_status.set("A BUTTON: UNKNOWN — bridge/source error")
+                    self.a_study.invalidate("bridge/source error")
                 elif event.kind == "disconnected":
                     self.status.set("LIVE DISCONNECTED. Existing sample trace retained; no background retries.")
                     self.live_last = None
+                    self.a_status.set("A BUTTON: UNKNOWN — disconnected")
+                    self.a_study.invalidate("disconnected")
             if self.live_last is not None:
                 age = time.monotonic() - self.live_last
                 if age > 3.0:
+                    self.a_status.set("A BUTTON: UNKNOWN — stale live sample")
+                    self.a_study.history.clear()
                     self.status.set(f"STALE LIVE SAMPLE {age:.1f}s ago · {self.live_location} · check source/bridge · training_approved=false")
         self.root.after(200, self.poll_live)
 
@@ -302,10 +339,66 @@ class Inspector:
     def set_baseline(self) -> None:
         if self.replay is None:
             return
-        bits = self.replay.samples[self.index.get()].words.get(AIM)
-        if bits is not None and len(bits) == 1:
-            self.baseline = float_hypothesis(bits[0])
-            self.show(self.index.get())
+        sample = self.replay.samples[self.index.get()]
+        bits = sample.words.get(AIM)
+        landmarks = candidate_landmarks(sample)
+        if (sample.source_qualified and sample.source_digest and TEE in landmarks and PIN in landmarks
+                and bits is not None and len(bits) == 1):
+            value = float_hypothesis(bits[0])
+            if value is not None and -math.tau <= value <= math.tau:
+                self.baseline = value
+                self.aim_baseline_source = sample.source_digest
+                self.aim_baseline_mode = "OPERATOR set pointed-at-flag reference"
+                self.show(self.index.get())
+
+    def reset_a_detector(self) -> None:
+        self.a_study = AButtonStudy()
+        self.a_status.set("A BUTTON: UNKNOWN — not calibrated")
+        self.a_instructions.set("A study reset: R0 released → H0 held → R1 → H1 → R2 → H2 → R3; 3 reads each. Hold input BEFORE clicking Capture.")
+
+    def capture_a_window(self) -> None:
+        if (self.live_worker is None or self.live_worker.thread is None
+                or not self.live_worker.thread.is_alive() or self.live_last is None):
+            self.a_instructions.set("Connect to a responsive live bridge first; no automatic A inputs.")
+            return
+        if time.monotonic() - self.live_last > 3.0:
+            self.a_status.set("A BUTTON: UNKNOWN — stale source")
+            return
+        phase = self.a_study.next_phase
+        if phase is None:
+            self.a_instructions.set("Calibration already completed; Reset to repeat.")
+            return
+        try:
+            # Give the human time to return focus to Dolphin and set the
+            # requested A state BEFORE any calibration sample is accepted.
+            self.a_study.arm(time.monotonic_ns() + 3_000_000_000)
+        except ValueError:
+            self.a_instructions.set("A window still collecting or calibration failed. Reset to retry.")
+            return
+        self.a_status.set("A BUTTON: UNKNOWN — sampling " + phase)
+        self.a_instructions.set("FOCUS DOLPHIN NOW: set A " + LABELS[phase] +
+                                " within 3 seconds. Then HOLD that state until 3 valid samples are captured. No swing.")
+
+    def process_a_sample(self, event: object) -> None:
+        sample = event.sample
+        if sample is None:
+            return
+        ball, aim = sample.words.get(BALL), sample.words.get(AIM)
+        record = event.a_record
+        if self.a_study.phase_active:
+            progress = self.a_study.observe(record, sample.source_digest, ball, aim,
+                                            event.a_read_start_ns or 0)
+            self.a_instructions.set("A study: " + progress)
+            if self.a_study.verified:
+                self.a_instructions.set("A study passed repeated fit + withheld R2/H2/R3; candidate only, not native A latch.")
+        if self.a_study.verified:
+            state = self.a_study.predict(record, sample.source_digest, ball, aim)
+            self.a_status.set("A BUTTON: " + state + " (CALIBRATED CANDIDATE; non-atomic, ~2 reads to settle)")
+        elif self.a_study.failure:
+            self.a_status.set("A BUTTON: UNKNOWN — " + self.a_study.failure)
+        elif not self.a_study.phase_active:
+            self.a_status.set("A BUTTON: UNKNOWN — calibrate " + (self.a_study.next_phase or "A state"))
+
 
     def select_phase(self, _: object) -> None:
         selection = self.phase_list.curselection()
@@ -361,14 +454,15 @@ class Inspector:
             self.landmark_status.set(f"Pin / flag: {pin_state}   ·   Tee: {tee_state}   (candidate coordinates, units unknown)")
         # Only source-qualified, same-packet aim+tee+pin can draw a heading
         # hypothesis. Never infer or display a player/body position.
-        aim_ray = aim_ray_hypothesis(current, landmarks)
+        aim_ray = aim_ray_hypothesis(current, landmarks,
+                                      self.baseline if self.aim_baseline_source == current.source_digest else None)
         if aim_ray is not None:
             angle = float_hypothesis(current.words[AIM][0])
-            self.aim_status.set(f"Aim ray: +0x3C={angle:+.5g} rad HYPOTHESIS · TEE anchor only · no player coords")
+            self.aim_status.set(f"Aim: {self.aim_baseline_mode} · Δ+0x3C={angle - self.baseline:+.5g} rad HYPOTHESIS · anchored at TEE, no player coords")
         elif not current.source_qualified or not current.source_digest:
             self.aim_status.set("Aim ray: HIDDEN — source qualification/identity unavailable")
         else:
-            self.aim_status.set("Aim ray: unavailable — valid same-sample tee, pin and plausible +0x3C angle required")
+            self.aim_status.set("Aim ray: unavailable — requires same-source tee, pin and baseline +0x3C; press Set aim baseline when pointed at flag")
         # Include pin, tee and the illustrative aim line in the plot bounds.
         points = [p for p, _ in path + caches] + list(landmarks.values()) + (list(aim_ray) if aim_ray else [])
         if not points:
@@ -402,7 +496,7 @@ class Inspector:
             canvas.create_line(*start, *tip, fill="#e39bff", width=3,
                                dash=(8, 5), arrow=tk.LAST, arrowshape=(10, 12, 4),
                                tags=("aim_hypothesis",))
-            canvas.create_text(tip[0] + 7, tip[1] - 10, text="AIM? (+0x3C)",
+            canvas.create_text(tip[0] + 7, tip[1] - 10, text="AIM? (flag ref + Δ0x3C)",
                                anchor="sw", fill="#e39bff", tags=("aim_hypothesis",))
         for name, color in ((BALL, "#f1f6ff"), (CACHE, "#f5b942")):
             position = current.vec(name)
@@ -429,7 +523,7 @@ class Inspector:
                                fill="#44d7ef", outline="", tags=("pin_candidate",))
             canvas.create_text(x + 23, y - 14, anchor="nw", text="PIN / FLAG (candidate)",
                                fill="#44d7ef", tags=("pin_candidate",))
-        canvas.create_text(12, height - 15, text="Left or right drag: orbit view. Aim assumes unverified radians/XZ mapping; TEE is NOT player position.", anchor="sw", fill="#bacbe1")
+        canvas.create_text(12, height - 15, text="Left/right drag: orbit view. Initial aim assumed TEE→FLAG; Δ+0x3C radian/sign unverified; TEE ≠ player.", anchor="sw", fill="#bacbe1")
 
 
 def launch(capture: str = "", manifest: str = "") -> int:
