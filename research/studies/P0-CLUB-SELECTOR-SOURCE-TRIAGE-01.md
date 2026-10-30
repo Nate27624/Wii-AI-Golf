@@ -8,7 +8,7 @@ The authentic read-only operator club experiment generated 26 source-identity-st
 
 `scripts/audit_p0_club_selection_code_private.py` reuses the existing canonical original-seven-pair archive SHA and layout gate (`audit_p0_seven_numbered_source_pairs_private._check_archive`), reads one source-selected 24MiB **original** MEM1 bank by read-only mmap, validates RSPE01 revision 1 header, and limits static PPC instruction analysis to PUBLIC `doldecomp/ogws` Rev1 source units RPGolMain, RPGolConfig, RPGolPlayer, RPGolPlayerManager and RPGolScene_unsplit. It uses the committed `RSPE01_01_public_text_units.json` source map. No arbitrary heap scan, live Dolphin, code injection, controller calls, memory writes, disassembly bytes or private physical addresses in output.
 
-The conservative PPC decoder handles D-form stw/stb/sth and nearby cmpi/cmpli 0..8, addi +1/-1, andi./andis., conditional branch and direct b/bl destinations into source-mapped RPSysController code. It **does not decode branch conditions, build a CFG or prove register/receiver ownership**. Static proximity is a ranking heuristic, not a native club selector witness. Source unit output uses source-relative code offsets and source object displacement only, not executable words or heap pointers. Code paths that use indirect calls, X-form/FP stores, packed control tables or external units may be missed.
+The analyzer also indexes candidate source writes whose displacement matches the 26-packet observed player offsets (+0x34, +0x94..+0xC0), without asserting that the base register points to the selected player record.\n\nThe conservative PPC decoder handles D-form stw/stb/sth and nearby cmpi/cmpli 0..8, addi +1/-1, andi./andis., conditional branch and direct b/bl destinations into source-mapped RPSysController code. It **does not decode branch conditions, build a CFG or prove register/receiver ownership**. Static proximity is a ranking heuristic, not a native club selector witness. Source unit output uses source-relative code offsets and source object displacement only, not executable words or heap pointers. Code paths that use indirect calls, X-form/FP stores, packed control tables or external units may be missed.
 
 ### Operator-local read-only reproduction
 
@@ -16,7 +16,7 @@ Run from an independent detached worktree of the PR code. The archive should be 
 
 ```powershell
 $orig = 'D:\Projects\Wii Golf AI\Wii-AI-Golf'
-git -C $orig fetch origin pull/CLUB_PR_NUMBER/head
+git -C $orig fetch origin pull/412/head
 $work = Join-Path (Split-Path $orig -Parent) ('Wii-AI-Golf-P0-Club-Source-' + [guid]::NewGuid().ToString('N').Substring(0,8))
 git -C $orig worktree add --detach $work FETCH_HEAD
 if ($LASTEXITCODE -ne 0) { throw 'Worktree failed' }
