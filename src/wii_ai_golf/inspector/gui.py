@@ -29,6 +29,37 @@ def candidate_landmarks(sample: Sample) -> dict[str, tuple[float, float, float]]
             if (point := sample.vec(key)) is not None}
 
 
+def aim_ray_hypothesis(
+    sample: Sample, landmarks: dict[str, tuple[float, float, float]]
+) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
+    """Experimental +0x3C-as-radians ray from TEE, *not* player position.
+
+    No native angle/axis interpretation is established. This deliberately
+    assumes yaw about source component1, zero toward negative component2,
+    positive toward component0. Rendering uses same-sample qualified TEE and
+    PIN to choose a finite display length, not a measured club/player origin.
+    """
+    if not sample.source_qualified or not sample.source_digest:
+        return None
+    tee, pin = landmarks.get(TEE), landmarks.get(PIN)
+    raw = sample.words.get(AIM)
+    if tee is None or pin is None or raw is None or len(raw) != 1:
+        return None
+    angle = float_hypothesis(raw[0])
+    # A plausible *radian hypothesis*, not a validated decoding. Do not turn
+    # arbitrary floats into confident directions.
+    if angle is None or not -math.tau <= angle <= math.tau:
+        return None
+    distance = math.hypot(pin[0] - tee[0], pin[2] - tee[2])
+    if not 1e-5 < distance <= 1e6:
+        return None
+    length = distance * 0.23
+    tip = (tee[0] + length * math.sin(angle),
+           tee[1],
+           tee[2] - length * math.cos(angle))
+    return tee, tip
+
+
 def project(point: tuple[float, float, float], yaw: float, pitch: float) -> tuple[float, float]:
     """Orthographic rotating *source-coordinate* projection; not screen calibration."""
     x, y, z = point
@@ -50,11 +81,13 @@ class Inspector:
         self.phase = tk.StringVar(value="—")
         self.aim = tk.StringVar(value="Aim candidate: —")
         self.landmark_status = tk.StringVar(value="Pin / flag: not sampled   ·   Tee: not sampled")
+        self.aim_status = tk.StringVar(value="Aim ray: unavailable (uncalibrated angle hypothesis, no player location).")
         self.baseline: float | None = None
         self.replay: Replay | None = None
         self.index = tk.IntVar(value=0)
         self.yaw, self.pitch = 0.65, 0.48
         self.drag_origin: tuple[int, int] | None = None
+        self.drag_button: int | None = None
         self.live_worker: LiveSampler | None = None
         self.live_buffer: deque[Sample] = deque(maxlen=180)
         self.live_last: float | None = None
@@ -90,7 +123,7 @@ class Inspector:
         main = ttk.PanedWindow(self.root, orient="horizontal")
         main.pack(fill="both", expand=True, padx=10)
         left = ttk.LabelFrame(main, text="Phase / sample", padding=8)
-        center = ttk.LabelFrame(main, text="3D candidate view — drag to rotate", padding=8)
+        center = ttk.LabelFrame(main, text="3D candidate view — left/right drag to rotate", padding=8)
         right = ttk.LabelFrame(main, text="Raw source candidates", padding=8)
         main.add(left, weight=1)
         main.add(center, weight=3)
@@ -107,8 +140,14 @@ class Inspector:
         self.canvas.bind("<Configure>", lambda _: self.draw_path())
         self.canvas.bind("<ButtonPress-1>", self.drag_start)
         self.canvas.bind("<B1-Motion>", self.drag_move)
+        self.canvas.bind("<ButtonRelease-1>", self.drag_end)
+        self.canvas.bind("<ButtonPress-3>", self.drag_start)
+        self.canvas.bind("<B3-Motion>", self.drag_move)
+        self.canvas.bind("<ButtonRelease-3>", self.drag_end)
         ttk.Label(center, text="White: ball +0x30  |  Amber: cache +0xCC  |  Cyan flag: PIN candidate  |  Green diamond: TEE candidate", wraplength=640).pack(anchor="w")
         ttk.Label(center, textvariable=self.landmark_status, wraplength=640).pack(anchor="w")
+        ttk.Label(center, text="Magenta dashed arrow: experimental +0x3C angle ray from TEE (not player position)", wraplength=640).pack(anchor="w")
+        ttk.Label(center, textvariable=self.aim_status, wraplength=640).pack(anchor="w")
         self.slider = ttk.Scale(center, from_=0, to=1, command=self.scrub)
         self.slider.pack(fill="x", pady=4)
         buttons = ttk.Frame(center)
@@ -150,6 +189,7 @@ class Inspector:
             self.rows.delete(*self.rows.get_children())
             self.canvas.delete("all")
             self.landmark_status.set("Pin / flag: capture unavailable   ·   Tee: capture unavailable")
+            self.aim_status.set("Aim ray: unavailable (capture integrity failed).")
             messagebox.showerror("Integrity / capture error", str(exc))
             return
         self.replay = replay
@@ -216,6 +256,7 @@ class Inspector:
         self.rows.delete(*self.rows.get_children())
         self.canvas.delete("all")
         self.landmark_status.set("Pin / flag: awaiting read-only sample   ·   Tee: awaiting sample")
+        self.aim_status.set("Aim ray: awaiting qualified aim, tee and pin candidates.")
         self.status.set("CONNECTING read-only to EXISTING Dolphin. No controller, savestate, boot or guest writes.")
         worker.start()
 
@@ -282,6 +323,12 @@ class Inspector:
 
     def drag_start(self, event: tk.Event) -> None:
         self.drag_origin = (event.x, event.y)
+        self.drag_button = getattr(event, "num", 1)
+
+    def drag_end(self, event: tk.Event) -> None:
+        if self.drag_button == getattr(event, "num", 1):
+            self.drag_origin = None
+            self.drag_button = None
 
     def drag_move(self, event: tk.Event) -> None:
         if self.drag_origin is None:
@@ -312,9 +359,18 @@ class Inspector:
             pin_state = "sampled" if PIN in landmarks else "not sampled / invalid float"
             tee_state = "sampled" if TEE in landmarks else "not sampled / invalid float"
             self.landmark_status.set(f"Pin / flag: {pin_state}   ·   Tee: {tee_state}   (candidate coordinates, units unknown)")
-        # Include the stationary pin and tee in fitting the projection.  Without
-        # this they can be silently clipped when the ball never approaches them.
-        points = [p for p, _ in path + caches] + list(landmarks.values())
+        # Only source-qualified, same-packet aim+tee+pin can draw a heading
+        # hypothesis. Never infer or display a player/body position.
+        aim_ray = aim_ray_hypothesis(current, landmarks)
+        if aim_ray is not None:
+            angle = float_hypothesis(current.words[AIM][0])
+            self.aim_status.set(f"Aim ray: +0x3C={angle:+.5g} rad HYPOTHESIS · TEE anchor only · no player coords")
+        elif not current.source_qualified or not current.source_digest:
+            self.aim_status.set("Aim ray: HIDDEN — source qualification/identity unavailable")
+        else:
+            self.aim_status.set("Aim ray: unavailable — valid same-sample tee, pin and plausible +0x3C angle required")
+        # Include pin, tee and the illustrative aim line in the plot bounds.
+        points = [p for p, _ in path + caches] + list(landmarks.values()) + (list(aim_ray) if aim_ray else [])
         if not points:
             canvas.create_text(width // 2, height // 2, text="No finite source-qualified ball/cache/pin/tee candidates", fill="white")
             return
@@ -339,6 +395,15 @@ class Inspector:
                 r = 5 if sample is samples[-1] else 2.5
                 canvas.create_oval(pos[0]-r, pos[1]-r, pos[0]+r, pos[1]+r, fill=color, outline="")
                 previous, previous_source = pos, sample.source_digest
+        # Draw hypothesis ray underneath landmarks, never a player sprite or
+        # estimated golfer location. The anchor is the tee point ONLY.
+        if aim_ray is not None:
+            start, tip = xy(aim_ray[0]), xy(aim_ray[1])
+            canvas.create_line(*start, *tip, fill="#e39bff", width=3,
+                               dash=(8, 5), arrow=tk.LAST, arrowshape=(10, 12, 4),
+                               tags=("aim_hypothesis",))
+            canvas.create_text(tip[0] + 7, tip[1] - 10, text="AIM? (+0x3C)",
+                               anchor="sw", fill="#e39bff", tags=("aim_hypothesis",))
         for name, color in ((BALL, "#f1f6ff"), (CACHE, "#f5b942")):
             position = current.vec(name)
             if position is not None:
@@ -364,7 +429,7 @@ class Inspector:
                                fill="#44d7ef", outline="", tags=("pin_candidate",))
             canvas.create_text(x + 23, y - 14, anchor="nw", text="PIN / FLAG (candidate)",
                                fill="#44d7ef", tags=("pin_candidate",))
-        canvas.create_text(12, height - 15, text="Drag to rotate. Component0 / 1 / 2 are not verified X/Y/Z or screen pixels.", anchor="sw", fill="#bacbe1")
+        canvas.create_text(12, height - 15, text="Left or right drag: orbit view. Aim assumes unverified radians/XZ mapping; TEE is NOT player position.", anchor="sw", fill="#bacbe1")
 
 
 def launch(capture: str = "", manifest: str = "") -> int:
