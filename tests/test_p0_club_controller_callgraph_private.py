@@ -130,10 +130,11 @@ class TestClubFunctionGraph(unittest.TestCase):
         payload=json.loads(x.FUNCS.read_text("utf-8"))
         units=x.base.source_units(json.loads(x.base.INDEX.read_text("utf-8")))
         functions=x.parse_public_functions(payload,units)
-        self.assertGreaterEqual(len(functions),700)
+        self.assertGreaterEqual(len(functions),1300)
         named=[f[2] for f in functions]
         self.assertTrue(any("getFSStickButton" in name for name in named))
         self.assertTrue(any("WPAD" in name for name in named))
+        self.assertTrue(any(0x802A79F8 <= f[0] < 0x802C7924 for f in functions))
 
     def test_bad_report_limit_refused(self):
         with self.assertRaises(x.base.Abstain):
