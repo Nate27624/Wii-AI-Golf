@@ -87,6 +87,33 @@ def stages():
                for i in range(4)]
     return result
 
+def analyze_quick(events):
+    require([e["phase"] for e in events]==["B0","IDLE","UP","DOWN","AIM"],
+            "QUICK_PHASES_INVALID")
+    b0,idle,up,down,aim=events
+    checks={
+        "idle_same_club_and_index":idle["club"]==b0["club"] and idle["index"]==b0["index"],
+        "up_decrements_one_or_stays_at_zero":up["index"]==max(0,idle["index"]-1),
+        "down_increments_one_or_stays_at_three":down["index"]==min(3,up["index"]+1),
+        "aim_only_same_club_and_index":aim["club"]==down["club"] and aim["index"]==down["index"],
+        "at_least_one_direction_changed_the_visible_club":(
+            up["club"] != idle["club"] or down["club"] != up["club"]),
+    }
+    good=all(checks.values())
+    return {
+        "status":"QUICK_DPAD_FOUR_STATE_CANDIDATE_SUPPORTED" if good else
+                 "QUICK_DPAD_FOUR_STATE_CANDIDATE_NOT_SUPPORTED",
+        "observed": [{"phase":e["phase"],"club":e["club"],"index":e["index"]}
+                     for e in events],
+        "controls":checks,
+        "quick_test_not_full_four_club_mapping":True,
+        "same_live_receiver_as_existing_validated_player_manager":True,
+        "native_r13_register_verified":False,
+        "game_club_id_verified":False,
+        "training_approved":False,
+    }
+
+
 def analyze(events):
     byphase={e["phase"]:e for e in events}
     require(len(byphase)==len(events),"DUPLICATE_PHASE")
@@ -179,7 +206,7 @@ def run(args,rpc_class=None):
                     "SOURCE_INDEX_OUTSIDE_FOUR_STATE")
             with stream.open("x",encoding="utf-8") as out:
                 previous_club=None
-                for phase,target,instruction in stages():
+                for phase,target,instruction in (stages()[:5] if args.quick else stages()):
                     print("\n"+phase+": "+instruction)
                     if target is not None:
                         print("Manually SELECT visible "+target+" by D-pad. NO A.")
@@ -204,7 +231,7 @@ def run(args,rpc_class=None):
                     print("Observed index:",p["index"],"frames:",
                           p["frame_start"],"-",p["frame_end"])
                     previous_club=club
-        result=analyze(events)
+        result=analyze_quick(events) if args.quick else analyze(events)
     except (Abstain,OSError,ValueError,RuntimeError,TimeoutError,
             EOFError,TypeError,KeyError,IndexError) as exc:
         reason=str(exc) if isinstance(exc,Abstain) else type(exc).__name__
@@ -223,13 +250,16 @@ def run(args,rpc_class=None):
             encoding="utf-8")
     print(json.dumps(result,indent=2,sort_keys=True))
     print("Private archive stored outside Git:",folder)
-    return 0 if result.get("status")=="LIVE_FOUR_STATE_CANDIDATE_VALIDATED" else 3
+    return 0 if result.get("status") in (
+        "LIVE_FOUR_STATE_CANDIDATE_VALIDATED",
+        "QUICK_DPAD_FOUR_STATE_CANDIDATE_SUPPORTED") else 3
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port",type=int,default=55355)
     parser.add_argument("--private-root",type=Path)
     parser.add_argument("--selftest",action="store_true")
+    parser.add_argument("--quick",action="store_true",help="Five-phase operator Up/Down/idle/aim smoke test")
     a=parser.parse_args()
     if a.selftest:
         fake=[]
