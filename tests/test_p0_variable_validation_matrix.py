@@ -183,6 +183,48 @@ class P0ValidationTests(unittest.TestCase):
             self.assertIn("moving_settled_shot_or_frame_mismatch",r["contradictions"])
             self.assertNotIn("settled",r["controls_satisfied"])
 
+    def test_all_flight_settled_witnesses_must_pair_not_one_valid_pair(self):
+        """A legitimate pair must not hide stale, cross-shot or wrong-frame witnesses."""
+        vid="golf.ball.world_xyz"
+        flight=obs("flight","changed",frame=10)
+        stop=obs("settled","changed",frame=11)
+        self.assertFalse(self.row(vid,flight,stop)["contradictions"])
+        malformed=(
+            obs("flight","changed",frame=12,shot_id="other_shot"),
+            obs("settled","changed",frame=20,run_id="other_run"),
+            obs("flight","changed",frame=12,scene_id="other_scene"),
+            obs("settled","changed",frame=20,hole_id="other_hole"),
+            obs("flight","changed",frame=12,generation="g2",
+                observed_generation="g2",rendered_generation="g2"),
+            obs("settled","changed",frame=10),
+            obs("flight","changed",frame=12,guest_frame_verified=False),
+        )
+        for extra in malformed:
+            with self.subTest(extra=extra):
+                report=self.row(vid,flight,stop,extra)
+                self.assertIn("moving_settled_shot_or_frame_mismatch",
+                              report["contradictions"])
+                self.assertNotIn("flight",report["controls_satisfied"])
+                self.assertNotIn("settled",report["controls_satisfied"])
+                self.assertFalse(report["runtime_verified"])
+                self.assertFalse(report["training_eligible"])
+
+    def test_two_separately_well_formed_shots_remain_hypotheses(self):
+        vid="golf.ball.world_xyz"
+        pairs=[
+            obs("flight","changed",shot_id="shot1",frame=10),
+            obs("settled","changed",shot_id="shot1",frame=11),
+            obs("flight","changed",shot_id="shot2",frame=50),
+            obs("settled","changed",shot_id="shot2",frame=60),
+        ]
+        result=self.row(vid,*pairs,origin="operator_reviewed")
+        self.assertNotIn("moving_settled_shot_or_frame_mismatch",
+                         result["contradictions"])
+        self.assertIn("flight",result["controls_satisfied"])
+        self.assertIn("settled",result["controls_satisfied"])
+        self.assertFalse(result["runtime_verified"])
+        self.assertFalse(result["training_eligible"])
+
     def test_opposite_direction_aim_must_be_precontact(self):
         vid="golf.player.selected_record.aim_rotation"
         a=obs("aim_left","changed",direction="left",signed_delta=-1.0)
