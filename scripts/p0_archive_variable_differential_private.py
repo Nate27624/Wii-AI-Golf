@@ -207,7 +207,7 @@ def matrix(registry: dict, samples: dict[int, dict]) -> dict:
             "W5_W7_object_pointer_equality_does_not_prove_generation": True,
         },
         "absence_from_registry": ["verified_power", "verified_impact_frame", "verified_velocity", "verified_result_distance"],
-        "native_sha_pre_post_checked_by_existing_reader": True,
+        "native_sha_pre_post_checked_by_existing_reader": False,
         "same_boot_verified": False, "rendered_actor_verified": False,
         "game_mode_hole_across_new_boot_verified": False,
         "training_approved": False, "allowed_to_publish": False,
@@ -302,6 +302,7 @@ def analyze(archive: Path, registry_path: Path | None = None) -> dict:
     finally:
         # Original SHA check also runs if a read fails; errors never expose paths.
         seven._check_archive(archive)
+    result["native_sha_pre_post_checked_by_existing_reader"] = True
     return result
 
 
