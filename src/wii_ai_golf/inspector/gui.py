@@ -486,8 +486,11 @@ class Inspector:
         else:
             self.aim_status.set("Aim ray: unavailable — requires same-source tee, pin and baseline +0x3C; press Set aim baseline when pointed at flag")
         # No terrain without an independently source-qualified sample.
+        # Legacy headless GUI tests construct minimal Inspector stubs using
+        # __new__; preserve their existing no-terrain plot contract.
         terrain_faces = ()
-        if (self.terrain_mesh is not None and self.terrain_visible.get()
+        terrain_mesh = getattr(self, "terrain_mesh", None)
+        if (terrain_mesh is not None and self.terrain_visible.get()
                 and current.source_qualified and current.source_digest):
             terrain_faces = self.terrain_mesh.drawing_faces(
                 tuple(landmarks.values()), focused=self.terrain_focus.get())
@@ -497,7 +500,7 @@ class Inspector:
                 + ("Local source-component vicinity" if self.terrain_focus.get()
                    else "Whole mesh (decimated)")
                 + " · UNVERIFIED VISUAL ALIGNMENT / physics")
-        elif self.terrain_mesh is not None:
+        elif terrain_mesh is not None:
             self.terrain_status.set("Terrain hidden: source sample unqualified or Show disabled.")
         # Include visible terrain, pin, tee and aim in the plot bounds.
         points = ([p for p, _ in path + caches] + list(landmarks.values())
