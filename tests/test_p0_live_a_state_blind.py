@@ -1,6 +1,11 @@
 """Synthetic-only no-Dolphin tests for blind live A-state study."""
 from __future__ import annotations
 from pathlib import Path
+from contextlib import redirect_stdout
+import io
+import json
+import tempfile
+from types import SimpleNamespace
 import sys
 import unittest
 from unittest.mock import patch
@@ -69,6 +74,58 @@ class StudyTests(unittest.TestCase):
         self.assertEqual(got,tuple(range(51)))
         self.assertEqual(len(rpc.calls),51)
         self.assertTrue(all(m=='memory.read_u32' for m,_ in rpc.calls))
+    def test_original_first_sample_frame_key_contract(self):
+        """Regresses actual R0 KeyError: source capture and writer agree."""
+        identity=tuple(range(14))
+        source_event={
+            'identity':identity, 'words':{
+                'selected_ball_plus_0x30':(1,2,3),
+                'aim_candidate_plus_0x3c':(4,)},
+            'start_ns':101, 'frame_bracket':(11,12)}
+        with patch.object(module.source,'packet',return_value=source_event), \
+             patch.object(module.source,'end_epoch_matches',return_value=True), \
+             patch.object(module,'hex_record',return_value=tuple(range(51))):
+            event=module.capture(None,'R0',0,None,None,None)
+            item=module.serialize_packet(event,'R0',0)
+            self.assertEqual(item['bridge_frame_count_NOT_PHYSICS'],(11,12))
+            self.assertEqual(item['candidate_words_private_be_u32_hex']
+                             ['selected_player_record_all_51'][1],'00000001')
+            self.assertFalse(item['training_approved'])
+
+    def test_full_mock_run_seals_first_sample_and_blind_receipt(self):
+        """All stage prompts, capture serialization and private SHA are tested."""
+        class Bridge:
+            def __init__(self,**_): pass
+            def __enter__(self): return self
+            def __exit__(self,*_): return None
+            def call(self,method,params):
+                self._last=method
+                return {'bridge_version':'synthetic'} if method=='bridge.ping' else None
+        def fake_capture(rpc,phase,index,expected,idle_ball,idle_aim):
+            held=phase.startswith('H')
+            return {'identity':tuple(range(14)), 'phase':phase, 'index':index,
+                    'record':tuple((int(held) if i==7 else 0) for i in range(51)),
+                    'aim':(0,), 'ball':(1,2,3),
+                    'start_ns':index*100,'end_ns':index*100+10,
+                    'frame_bracket_NOT_PHYSICS':(10+index,11+index)}
+        answers=['READY']+['YES']*7+['YES','RELEASED']
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.object(module,'capture',side_effect=fake_capture), \
+             patch('builtins.input',side_effect=answers), \
+             redirect_stdout(io.StringIO()):
+            args=SimpleNamespace(private_root=Path(temp),port=55355,
+                                 samples_per_window=3,blind_windows=1,focus_seconds=3)
+            code=module.run(args,rpc_class=Bridge,clock=SimpleNamespace(sleep=lambda _:None))
+            self.assertEqual(code,0)
+            folder=next(Path(temp).glob('p0-a-state-blind-*-PRIVATE'))
+            manifest=json.loads((folder/'manifest-PRIVATE.json').read_text())
+            self.assertEqual(manifest['candidate_samples'],24)
+            self.assertEqual(manifest['predictions']['B0'],'RELEASED')
+            self.assertEqual(manifest['status'],'COMPLETE')
+            rows=(folder/'candidate-events-PRIVATE.jsonl').read_text().splitlines()
+            self.assertEqual(len(rows),24)
+            self.assertIn('bridge_frame_count_NOT_PHYSICS',json.loads(rows[0]))
+
     def test_source_scene_and_ball_changes_abstain(self):
         fake_event={'identity':tuple(range(14)),
                     'words':{'selected_ball_plus_0x30':(4,5,6),
