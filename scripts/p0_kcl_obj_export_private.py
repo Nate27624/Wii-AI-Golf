@@ -16,6 +16,7 @@ import math
 import os
 from pathlib import Path
 import stat
+import subprocess
 import struct
 import sys
 
@@ -40,6 +41,35 @@ class ExportGate(ValueError):
         self.stage = stage
         self.capture_number = capture_number
 
+
+
+def _git_ignored_private_obj(path: Path) -> bool:
+    """Approve project Data/derived OBJ only when explicitly Git-ignored.
+
+    A containing .git root alone is not a reason to prevent the operator
+    from organizing their own private files. Require ignored AND untracked.
+    """
+    data = path.parent.parent
+    if (path.parent.name != "derived" or data.name != "Wii-AI-Golf-Data"
+            or not path.name.endswith("-PRIVATE.obj")
+            or data.is_symlink() or path.parent.is_symlink()):
+        return False
+    try:
+        ignored = subprocess.run(
+            ["git", "-C", str(path.parent), "check-ignore", "--no-index", "-q",
+             "--", str(path)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            check=False, timeout=5,
+        )
+        tracked = subprocess.run(
+            ["git", "-C", str(path.parent), "ls-files", "--error-unmatch",
+             "--", str(path)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            check=False, timeout=5,
+        )
+        return ignored.returncode == 0 and tracked.returncode == 1
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 
 
 def _safe_output_path(output: Path, data_root: Path) -> Path:
@@ -95,7 +125,8 @@ def _safe_output_path(output: Path, data_root: Path) -> Path:
     if output.parent.resolve(strict=True) != parent:
         raise ValueError('OBJ must be placed directly under private Data/derived')
     path = parent / output.name
-    if any((p / '.git').exists() for p in (parent, *parent.parents)):
+    if (any((p / '.git').exists() for p in (parent, *parent.parents))
+            and not _git_ignored_private_obj(path)):
         raise ValueError('OBJ output must never be inside Git')
     return path
 
