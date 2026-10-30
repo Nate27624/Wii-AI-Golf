@@ -267,6 +267,56 @@ def analyze(records, funcs, units, *, limit=24):
         "training_approved":False,
     }
 
+
+def focused_input_digest(report):
+    """Source-only actionable digest; no raw PPC words or memory addresses."""
+    entries=[]
+    for item in report["golf_to_input_callsite_examples"]:
+        f=item.get("caller") or {}
+        target=item.get("destination_public_function")
+        entries.append({
+            "caller_public_function":f.get("public_function"),
+            "caller_unit":f.get("unit"),
+            "caller_unit_relative_offset":f.get("source_offset"),
+            "source_relative_callsite":item["callsite"]["source_offset"],
+            "callee_public_function":(
+                target.get("public_function") if target else "NO_PUBLISHED_FUNCTION_MATCH"),
+            "callee_source_unit":item.get("destination_source"),
+            "specific_button_test_verified":False,
+        })
+    anchors={}
+    for row in report["player_34_writer_function_anchors"]:
+        f=row.get("enclosing_function") or {}
+        name=f.get("public_function")
+        if name not in anchors:
+            anchors[name]={
+                "writer_function":name,
+                "public_unit_relative_start":f.get("source_offset"),
+                "writer_access_sites":[],
+                "direct_caller_hops":row.get("direct_callers_depth1_depth2",[]),
+                "same_function_direct_calls":row.get("same_function_source_calls",[]),
+                "selected_player_receiver_proven":False
+            }
+        anchors[name]["writer_access_sites"].append(
+            row["instruction"]["source_offset"])
+    return {
+        "status":"P0_CLUB_INPUT_CALLGRAPH_FOCUSED_DIGEST",
+        "game_id":"RSPE01","revision":1,
+        "original_archive_sha_preflight_passed":
+            report["original_archive_sha_preflight_passed"],
+        "public_function_index_expanded_to_egg_kpad_wpad":True,
+        "public_golf_functions_scanned":report["public_golf_functions_scanned"],
+        "total_golf_static_direct_calls":report["static_direct_calls_from_golf"],
+        "direct_input_source_calls":report["direct_golf_to_input_unit_calls"],
+        "resolved_input_calls":entries,
+        "paired_player_byte_writer_functions":list(anchors.values()),
+        "indirect_calls_and_inlined_input_still_unresolved":True,
+        "dpad_change_execution_verified":False,
+        "club_id_field_verified":False,
+        "training_approved":False,
+    }
+
+
 def analyze_original(archive, capture, limit):
     bank_file=base.sealed_bank(archive,capture)
     units=base.source_units(json.loads(base.INDEX.read_text("utf-8")))
@@ -282,6 +332,7 @@ def main(argv=None):
     p.add_argument("--capture",type=int,default=5,choices=range(1,8))
     p.add_argument("--limit",type=int,default=20)
     p.add_argument("--selftest",action="store_true")
+    p.add_argument("--focused",action="store_true",help="Print compact source-only direct input call digest")
     args=p.parse_args(argv)
     if args.selftest:
         tiny=[{"start":0x8029E62C,"end":0x8029E63C,
@@ -302,7 +353,8 @@ def main(argv=None):
         return 2
     try:
         r=analyze_original(args.archive,args.capture,args.limit)
-        print(json.dumps(r,indent=2,sort_keys=True))
+        print(json.dumps(focused_input_digest(r) if args.focused else r,
+                         indent=2,sort_keys=True))
         return 0
     except (base.Abstain,ValueError,KeyError,TypeError,IndexError,
             OSError,ImportError,struct.error,OverflowError):
