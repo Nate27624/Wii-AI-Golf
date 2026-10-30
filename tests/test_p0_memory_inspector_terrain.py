@@ -1,6 +1,8 @@
 """Synthetic private OBJ loader tests; no real game geometry."""
 import tempfile
 import unittest
+import subprocess
+from unittest.mock import patch
 from pathlib import Path
 import sys
 ROOT=Path(__file__).resolve().parents[1]
@@ -90,11 +92,52 @@ class TerrainTests(unittest.TestCase):
         self.path.write_text(GOOD.replace('f 1 2 3','f 1 2 3 2'))
         with self.assertRaises(TerrainError):load_private_obj(self.path)
     def test_symlink(self):
-        link=self.path.with_name('alias.obj');link.symlink_to(self.path)
-        with self.assertRaises(TerrainError):load_private_obj(link)
+        link = self.path.with_name('alias.obj')
+        try:
+            link.symlink_to(self.path)
+        except (OSError, NotImplementedError):
+            self.skipTest('Host cannot create symbolic links')
+        with self.assertRaises(TerrainError):
+            load_private_obj(link)
+
+    def test_symlink_validation_without_privilege(self):
+        with patch.object(Path, 'is_symlink', return_value=True):
+            with self.assertRaises(TerrainError):
+                load_private_obj(self.path)
     def test_git_inside_forbidden(self):
         (self.path.parent/'.git').mkdir()
         with self.assertRaises(TerrainError):load_private_obj(self.path)
+    def test_untracked_ignored_project_private_colored_obj(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            repo = Path(dirname)
+            subprocess.run(['git', 'init', '-q', str(repo)], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            derived = repo / 'Wii-AI-Golf-Data' / 'derived'
+            derived.mkdir(parents=True)
+            (derived / '.gitignore').write_text('*.obj\n', encoding='ascii')
+            local = derived / 'hole01-collision-colored-PRIVATE.obj'
+            local.write_text(GOOD.replace('f 1 2 3',
+                             'g KCL_OGWS_0006\nf 1 2 3'), encoding='ascii')
+            mesh = load_private_obj(local)
+            self.assertEqual(mesh.face_materials, (6,))
+
+    def test_tracked_or_unignored_colored_obj_rejected(self):
+        with tempfile.TemporaryDirectory() as dirname:
+            repo = Path(dirname)
+            subprocess.run(['git', 'init', '-q', str(repo)], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            derived = repo / 'Wii-AI-Golf-Data' / 'derived'
+            derived.mkdir(parents=True)
+            local = derived / 'hole01-collision-colored-PRIVATE.obj'
+            local.write_text(GOOD, encoding='ascii')
+            with self.assertRaises(TerrainError):
+                load_private_obj(local)
+            subprocess.run(['git', '-C', str(repo), 'add', '-f', '--', str(local)],
+                           check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            (derived / '.gitignore').write_text('*.obj\n', encoding='ascii')
+            with self.assertRaises(TerrainError):
+                load_private_obj(local)
+
     def test_only_plain_obj(self):
         self.path.write_text(GOOD+'mtllib bad.mtl\n')
         with self.assertRaises(TerrainError):load_private_obj(self.path)
