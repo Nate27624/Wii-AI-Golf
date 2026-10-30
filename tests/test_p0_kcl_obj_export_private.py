@@ -49,6 +49,29 @@ class TestPrivateObj(unittest.TestCase):
         self.assertTrue(all("/" not in x for x in lines))
         self.assertTrue(all(x.startswith(("#", "v ", "f ")) for x in lines))
 
+    def test_original_face_attribute_groups_are_exactly_ordered(self):
+        payload = obj._obj_bytes(TRIANGLES, attributes=(6, 3))
+        lines = payload.decode("ascii").splitlines()
+        self.assertEqual(
+            [line for line in lines if line.startswith(("g ", "f "))],
+            ["g KCL_OGWS_0006", "f 1 2 3",
+             "g KCL_OGWS_0003", "f 4 5 6"])
+        self.assertTrue(payload.isascii())
+        self.assertNotIn("usemtl", payload.decode("ascii"))
+
+    def test_surface_attribute_length_or_type_mismatch_rejected(self):
+        for attrs in ((6,), (6, "3"), (6, -1), (6, 65536), (True, 3)):
+            with self.subTest(attributes=attrs):
+                with self.assertRaises(ValueError):
+                    obj._obj_bytes(TRIANGLES, attributes=attrs)
+
+    def test_surface_groups_are_explicit_not_default(self):
+        legacy = obj._obj_bytes(TRIANGLES)
+        self.assertNotIn(b"g KCL_OGWS_", legacy)
+        source_labeled = obj._obj_bytes(TRIANGLES, attributes=(1, 7))
+        self.assertIn(b"g KCL_OGWS_0007", source_labeled)
+        self.assertNotEqual(legacy, source_labeled)
+
     def test_output_path_only_private_derived(self):
         found = obj._safe_output_path(self.output, self.data)
         self.assertEqual(found, self.output.resolve())
@@ -160,6 +183,7 @@ class TestPrivateObj(unittest.TestCase):
             "count": 2,
             "private_geometry_fingerprint": b"yes" if same else b"no",
             "triangles_PRIVATE": TRIANGLES if n == 5 else None,
+            "attributes_PRIVATE": (6, 2) if n == 5 else None,
         }
 
     def test_export_fails_closed_when_control_differs(self):
@@ -192,6 +216,21 @@ class TestPrivateObj(unittest.TestCase):
         self.assertFalse(report["allowed_to_publish"])
         self.assertFalse(report["training_approved"])
         self.assertEqual(self.output.read_bytes(), obj._obj_bytes(TRIANGLES))
+
+    def test_export_with_original_material_tags(self):
+        import audit_p0_seven_numbered_source_pairs_private as seven
+        import audit_selected_ball_start_link_private as selected
+        def facts(_, number, *unused, **kwargs):
+            return self._fake_fact(number)
+        with patch.object(selected, "DATA_ROOT", self.data), \
+             patch.object(seven, "_check_archive", return_value={}), \
+             patch.object(obj, "_source_qualified_mesh", side_effect=facts):
+            report = obj.export(self.data, self.output, surface_groups=True)
+        self.assertTrue(report["original_prism_ogws_groups_included"])
+        data = self.output.read_text(encoding="ascii")
+        self.assertIn("g KCL_OGWS_0006\nf 1 2 3", data)
+        self.assertIn("g KCL_OGWS_0002\nf 4 5 6", data)
+        self.assertFalse(report["training_approved"])
 
     def test_bad_control_count_rejected(self):
         with self.assertRaises(ValueError):
