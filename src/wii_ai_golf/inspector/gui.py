@@ -157,6 +157,7 @@ class Inspector:
         self.phase_list.bind("<<ListboxSelect>>", self.select_phase)
         ttk.Label(left, textvariable=self.phase, wraplength=190).pack(fill="x", pady=6)
         ttk.Button(left, text="Set aim baseline (point at flag)", command=self.set_baseline).pack(fill="x")
+        ttk.Button(left, text="Frame view (F)", command=self.frame_view).pack(fill="x", pady=(6, 0))
         ttk.Label(left, textvariable=self.aim, wraplength=200).pack(fill="x", pady=7)
 
         self.canvas = tk.Canvas(center, background="#111c29", height=450, highlightthickness=0)
@@ -201,7 +202,6 @@ class Inspector:
         ttk.Button(buttons, text="▶", command=lambda: self.move(1)).pack(side="left")
         self.position = ttk.Label(buttons, text="0 / 0")
         self.position.pack(side="left", padx=15)
-        ttk.Button(buttons, text="Frame view (F)", command=self.frame_view).pack(side="left", padx=10)
 
         self.rows = ttk.Treeview(right, columns=("hex", "f32"), show="tree headings")
         self.rows.heading("#0", text="Field / component")
