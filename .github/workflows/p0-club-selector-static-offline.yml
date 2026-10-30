@@ -6,7 +6,9 @@ on:
   pull_request:
     paths:
       - 'scripts/audit_p0_club_selection_code_private.py'
+      - 'scripts/audit_p0_club_player_byte_source_private.py'
       - 'tests/test_p0_club_selection_code_private.py'
+      - 'tests/test_p0_club_player_byte_source_private.py'
       - 'research/studies/P0-CLUB-SELECTOR-SOURCE-TRIAGE-01.md'
       - '.github/workflows/p0-club-selector-static-offline.yml'
   workflow_dispatch:
@@ -26,9 +28,13 @@ jobs:
           python-version: '3.12'
       - name: Synthetic focused source triage
         run: python -m unittest discover -s tests -p test_p0_club_selection_code_private.py -v
+      - name: Focused RPGolPlayer byte source checks
+        run: python -m unittest discover -s tests -p test_p0_club_player_byte_source_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
       - name: Script selftest
         run: python scripts/audit_p0_club_selection_code_private.py --selftest
+      - name: Player source selftest
+        run: python scripts/audit_p0_club_player_byte_source_private.py --selftest
       - name: Syntax check
-        run: python -m compileall -q scripts/audit_p0_club_selection_code_private.py tests/test_p0_club_selection_code_private.py
+        run: python -m compileall -q scripts/audit_p0_club_selection_code_private.py scripts/audit_p0_club_player_byte_source_private.py tests/test_p0_club_selection_code_private.py tests/test_p0_club_player_byte_source_private.py
