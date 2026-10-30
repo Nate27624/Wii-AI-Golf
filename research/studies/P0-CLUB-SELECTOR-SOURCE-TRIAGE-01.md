@@ -54,6 +54,15 @@ The original 26-packet live club collector's `golf_config` layout reads 39 words
 & py -3 -I (Join-Path $work 'scripts\audit_p0_club_player_byte_source_private.py') --archive $originalArchive --capture 5 --source-unit config --target-offset 0xBC --limit 15 --context 7
 ```
 
+
+### Second-stage authentic source result — two misleading original candidates
+
+The original SHA-verified Rev1 `RPGolPlayer.cpp` PPC source shows **5** `stb` sites writing displacement `+0x34`; their adjacent `stb` instructions write `+0x35` using the same base register. At unit-relative +0x00658,+0x006A4,+0x02014 the nearby PowerPC `li` instruction pairs set `(+0x34,+0x35)=(1,0)`; at +0x006D8 the pair is `(0,1)`; at +0x00008 +0x34 becomes 0 and +0x35 is taken from an input register. These are **local static constant assignments** conditional on control flow, not dynamic value observations or proof of receiver being the selected player. Critically, `addi r3,r0,+1` in PowerPC with RA=0 means `li r3,1`, *not* `r3=r0+1`; the original simple context decoder printed this incorrectly. The decoder now prints `li`/`lis` when RA=0 and reports paired constant-store source witnesses.
+
+The source-backed candidate `RPGolConfig.cpp +0xBC` is likewise not a verified club field: around +0x0080C it is loaded, incremented by one, written back, then compared with 16 in a loop. Nearby reads at +0xC4,+0xC8,+0xCC are checked against -1 and indexed. This is consistent with multi-entry loop/bookkeeping rather than a simple four-club enum, but game semantics and receiver roots remain UNPROVEN. New report field `plus_bc_counter_loop_patterns` detects the six-instruction counter signature conservatively.
+
+**Decision:** Do not prioritize Player+0x34 as a four-valued club enum and do not prioritize Config+0xBC as a four-valued club enum based solely on displacement matches. Further work should locate a source consumer of actual D-pad club choices, table lookup, or runtime source-qualified club state in a broader object window, with aim-only and stationary negative controls. No new operator shot or A-button work.
+
 ## Tests
 
 Synthetic unit tests cover big-endian PPC load/store decoding, signed displacements, negative branches, ordinal-store selection, negative stack and absolute base controls, unbounded displacements, unrelated copies, controller BL edge, public source map guard, and bad MEM1 guard. Windows and Ubuntu full offline CI required before merge.
