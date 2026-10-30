@@ -1,0 +1,31 @@
+name: P0 terrain full-prism synthetic and full offline
+on:
+  pull_request:
+    paths:
+      - 'scripts/p0_kcl_full_validation_private.py'
+      - 'tests/test_p0_kcl_full_validation_private.py'
+      - 'research/studies/P0-TERRAIN-KCL-FULL-VALIDATION-01.md'
+      - '.github/workflows/p0-terrain-full-prism-offline.yml'
+  push:
+    branches:
+      - agent/terrain-full-prism-private-20261030
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    name: offline-${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Synthetic full KCL tests (no Dolphin/no native RAM)
+        run: python -m unittest discover -s tests -p test_p0_kcl_full_validation_private.py -v
+      - name: Full offline regression suite
+        run: python -m unittest discover -s tests -v
