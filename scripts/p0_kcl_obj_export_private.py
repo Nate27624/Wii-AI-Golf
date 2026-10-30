@@ -194,8 +194,18 @@ def export(archive: Path, output: Path, *, capture=CAPTURE_NUMBER,
     from audit_selected_ball_start_link_private import DATA_ROOT
     try:
         target = _safe_output_path(output, DATA_ROOT)
-    except (OSError, ValueError, TypeError):
-        raise ExportGate('OUTPUT_DESTINATION') from None
+    except (OSError, ValueError, TypeError) as exc:
+        stage = {
+            'private Data root invalid': 'OUTPUT_DATA_ROOT',
+            'private Data derived directory missing or linked': 'OUTPUT_DERIVED_DIRECTORY',
+            'output must be directly in private Data derived': 'OUTPUT_DERIVED_DIRECTORY_PARENT',
+            'private OBJ name must end in -PRIVATE.obj': 'OUTPUT_PRIVATE_OBJ_FILENAME',
+            'refusing existing, linked, or invalid OBJ target': 'OUTPUT_FILE_ALREADY_EXISTS',
+            'OBJ parent must be existing private Data/derived': 'OUTPUT_REQUESTED_PARENT',
+            'OBJ must be placed directly under private Data/derived': 'OUTPUT_PARENT_MISMATCH',
+            'OBJ output must never be inside Git': 'OUTPUT_INSIDE_GIT',
+        }.get(str(exc), 'OUTPUT_DESTINATION_UNKNOWN')
+        raise ExportGate(stage) from None
     try:
         folders = seven._check_archive(archive)
     except (OSError, ValueError, TypeError, KeyError, IndexError, OverflowError):
