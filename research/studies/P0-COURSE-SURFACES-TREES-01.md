@@ -141,3 +141,36 @@ No new Dolphin, gameplay action or RAM capture. If no class/object layout can
 be distinguished the script returns `TREE_LAYOUT_UNRESOLVED` rather than
 claiming trees are mapped. Models remain separate from the stored collision
 mesh. Trainable labels remain disabled.
+
+## Real phase-7 contiguous tree-array falsification
+
+Operator ran the prior `p0_tree_array_layout_private.py` against original
+SHA/source-gated capture 7, yielding `TREE_LAYOUT_UNRESOLVED` for count **94**.
+The highest-ranked strides (104,112,160 bytes) had only 15/26/24 structurally
+plausible records, with common-vtable matches 2/1/1. This **rejects those
+specific contiguous-object-vtable assumptions**, not the source field count.
+
+### Pointer-table hypothesis
+
+New, separately scoped `scripts/p0_tree_pointer_table_private.py` tests
+whether `field+0x20` instead points to a table of per-tree object **pointers**.
+It probes bounded 4..48-byte pointer-table strides and aligned pointer offsets,
+then independently validates each non-null unique MEM2 object pointer,
+at least one plausible MEM1 virtual function reference, and finite candidate
+`obj+0x30` translations. A mixture of two tree variants is allowed through
+a top-two-vtable test. These are structural gates ONLY and may fail for
+correct native layouts; failing does not contradict 94 source field tree objects.
+
+No object XYZ, vtables, private address, hashes, geometry, or files are emitted.
+The script does not claim tree hitboxes or model meshes. To run in the existing
+detached user research worktree after fetching this PR branch:
+
+```powershell
+py -3 -I scripts/p0_tree_pointer_table_private.py --archive 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures\p0-new-cohort-20261028-063011392-955fd483-PRIVATE' --captures 7
+```
+
+If `POINTER_TABLE_STRUCTURAL_CANDIDATE` and *one* layout qualifies, the
+next independent step is compare the private 94 source-component translations
+to the terrain bbox and record topology, plus inspect constructor/array writer
+PPC. If unresolved, investigate native allocation/pointer buffer layout
+directly from source disassembly. No training promotion.
