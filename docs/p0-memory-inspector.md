@@ -249,3 +249,29 @@ Use a NEW distinct output name (for example,
 hole01-collision-colored-PRIVATE.obj), original capture 5 and controls 1,7.
 Keep the existing uncolored file unchanged. Trees are independent PR #411
 scope and no trees or unsupported material geometry is guessed.
+
+
+## UI-only original source surface colors (no modified OBJ)
+
+The operator specifically requests that shading and coloring be an
+**inspector behavior**, not a modification to the geometry OBJ.
+The successful original private OBJ remains byte-for-byte unchanged.
+
+The inspector has **Load source colors** beside Load PRIVATE terrain OBJ.
+A separate, locally generated private JSON file contains only original KCL
+BE16 source attribute IDs, in exact prism-to-OBJ face order, accompanied by
+the SHA-256 of the existing unmodified OBJ and face count. It is generated
+read-only from the original source-qualified capture by the independent
+private script p0_kcl_surface_labels_private.py in exporter PR #413.
+The inspector verifies JSON schema, local Data/derived path, ignored and
+untracked Git state, SHA match and face count, and applies the palette
+ONLY to its in-memory mesh view. The file is never written into the OBJ,
+and switching source IDs OFF returns to neutral shading.
+
+At startup use --terrain-obj with the existing private OBJ and optionally
+--terrain-labels with the local companion *-PRIVATE.json. Without labels,
+Solid terrain ON still gives filled neutral-shaded faces. The source
+category names (green, fairway, rough, bunker, OOB, water, fringe, cliff)
+require explicit original KCL IDs. Categories are source-backed hypotheses
+about the candidate collision asset, not extracted textures, tree geometry,
+live contact proof or approved training data.
