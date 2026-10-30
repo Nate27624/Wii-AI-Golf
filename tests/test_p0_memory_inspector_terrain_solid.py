@@ -134,7 +134,7 @@ class SolidTerrainTests(unittest.TestCase):
         from wii_ai_golf.inspector import gui
         with patch.object(gui, "launch", return_value=0) as launch:
             self.assertEqual(launcher.main(["--terrain-obj", "private.obj"]), 0)
-        launch.assert_called_once_with("", "", "private.obj")
+        launch.assert_called_once_with("", "", "private.obj", "")
 
     def test_startup_reuses_strict_loader(self):
         with tempfile.TemporaryDirectory() as folder:
