@@ -145,6 +145,35 @@ def candidate_sites(code, origin, unit, controller_ranges):
                               x["source_relative_code_offset"]))
     return found
 
+
+# These offsets are observed club/aim-dependent player fields, NOT proven
+# primitive club selectors. Match instruction displacement, not object owner.
+PRIOR_OBSERVED_OFFSETS = (0x34, 0x94, 0x98, 0x9C, 0xA0, 0xA4,
+                          0xA8, 0xAC, 0xB4, 0xC0)
+
+def focused_writer_sites(code, origin, unit):
+    """Index plausible store displacements regardless of nearby UI logic."""
+    require(origin % 4 == 0 and len(code) % 4 == 0
+            and 0 < len(code) <= 0x40000, "BAD_CODE_WINDOW")
+    result = []
+    for i in range(0, len(code), 4):
+        access = decode_access(struct.unpack_from(">I", code, i)[0])
+        if (access is None or access["op"] not in STORES.values()
+                or access["base"] in (0, 1)
+                or access["disp"] not in PRIOR_OBSERVED_OFFSETS):
+            continue
+        result.append({
+            "public_source_unit": unit,
+            "source_relative_code_offset": "+0x%05X" % i,
+            "candidate_store_displacement": "+0x%03X" % access["disp"],
+            "opcode": access["op"],
+            "unproven_base_register": "r%d" % access["base"],
+            "unproven_written_register": "r%d" % access["reg"],
+            "actual_selected_player_receiver_verified": False,
+            "club_selection_writer_verified": False,
+        })
+    return result
+
 def inspect_mem1_bank(bank, source_index, limit=25):
     require(len(bank) == MEM1_LEN, "MEM1_SIZE_INVALID")
     require(bytes(bank[0:6]) == b"RSPE01" and bank[7] == 1,
@@ -153,6 +182,7 @@ def inspect_mem1_bank(bank, source_index, limit=25):
     controller_ranges = [units[name] for name in CONTROLLERS]
     hits = []
     counts = {}
+    focused = []
     for name in SOURCE_UNITS:
         lo, hi = units[name]
         begin, end = lo - MEM1, hi - MEM1
@@ -160,6 +190,7 @@ def inspect_mem1_bank(bank, source_index, limit=25):
         local = candidate_sites(bytes(bank[begin:end]), lo, name, controller_ranges)
         counts[name] = len(local)
         hits.extend(local)
+        focused.extend(focused_writer_sites(bytes(bank[begin:end]), lo, name))
     hits.sort(key=lambda x: (-x["heuristic_score"],
                               x["public_source_unit"],
                               x["source_relative_code_offset"]))
@@ -172,6 +203,10 @@ def inspect_mem1_bank(bank, source_index, limit=25):
         "candidate_sites_by_unit": counts,
         "total_candidate_store_sites": len(hits),
         "ranked_sites": hits[:limit],
+        "observed_player_field_store_displacements": ["+0x%03X" % x for x in PRIOR_OBSERVED_OFFSETS],
+        "focused_static_store_count": len(focused),
+        "focused_static_store_sites": sorted(focused, key=lambda x: (x["candidate_store_displacement"] != "+0x0C0", x["candidate_store_displacement"], x["public_source_unit"], x["source_relative_code_offset"]))[:limit],
+        "focused_sites_omitted": max(0, len(focused)-limit),
         "sites_omitted": max(0, len(hits)-limit),
         "executed_dpad_path_verified": False,
         "receiver_pointer_chain_verified": False,
