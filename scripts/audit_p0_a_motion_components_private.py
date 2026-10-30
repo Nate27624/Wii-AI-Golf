@@ -65,8 +65,14 @@ def load(run_dir, captures_root, expected_sha256):
     try:
         manifest = json.loads(safe_bytes(folder / MANIFEST, 65536))
         lines = raw.decode("utf-8").splitlines()
-        require(len(lines) == TOTAL, "incorrect_packet_count")
-        events = [json.loads(line) for line in lines]
+        require(TOTAL <= len(lines) <= 256, "invalid_event_stream_length")
+        all_events = [json.loads(line) for line in lines]
+        require(all(type(e) is dict for e in all_events), "invalid_event_record")
+        require(all(e.get("event") in ("operator_phase_marker",
+                       "human_visual_observation", "candidate_sample")
+                    for e in all_events), "unrecognized_event_type")
+        events = [e for e in all_events if e.get("event") == "candidate_sample"]
+        require(len(events) == TOTAL, "incorrect_candidate_sample_count")
     except (ValueError, UnicodeError) as exc:
         raise Abstain("unreadable_manifest_or_stream") from exc
     require(type(manifest) is dict and manifest.get("status") == "ABORTED"
