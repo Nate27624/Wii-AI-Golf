@@ -142,8 +142,8 @@ def evidence(manager_blob,handler_blob,funcs,units):
             "current_selected_club_owner_confirmed":False,
         },
         "selector_behavior_source":{
-            "r4_eq_0":"load field +0x1C, compare with 3, increment +1, store +0x1C",
-            "r4_ne_0":"load field +0x1C, compare with 0, decrement -1, store +0x1C",
+            "r4_eq_0":"UP: load field +0x1C, compare with 0, decrement -1, store +0x1C",
+            "r4_ne_0":"DOWN: load field +0x1C, compare with 3, increment +1, store +0x1C",
             "field_displacement":"+0x01C",
             "element_width_bytes":4,
             "observed_index_bounds":{"minimum":0,"maximum":3},
