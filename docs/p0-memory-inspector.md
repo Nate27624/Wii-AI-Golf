@@ -275,3 +275,17 @@ category names (green, fairway, rough, bunker, OOB, water, fringe, cliff)
 require explicit original KCL IDs. Categories are source-backed hypotheses
 about the candidate collision asset, not extracted textures, tree geometry,
 live contact proof or approved training data.
+
+
+## Standalone D:\Projects OBJ path
+
+The original collision candidate OBJ can remain physically at
+`D:\Projects\hole01-collision-candidate-PRIVATE.obj` (outside Git).
+The inspector loads this exact geometry file by --terrain-obj or local
+file picker; it accepts a source-color JSON located next to it at
+`D:\Projects\hole01-collision-candidate-labels-PRIVATE.json` via
+--terrain-labels or Load source colors. It still validates the geometry
+SHA, exact face count, original KCL IDs, no symlinks, file bounds and
+non-Git directory. No file relocation or modification is necessary.
+D:\Projects containing .git is deliberately rejected for the standalone
+labels file; separate Data/derived Git-ignored/untracked remains supported.
