@@ -1,6 +1,8 @@
 """Synthetic private OBJ loader tests; no real game geometry."""
 import tempfile
 import unittest
+import subprocess
+from unittest.mock import patch
 from pathlib import Path
 import sys
 ROOT=Path(__file__).resolve().parents[1]
@@ -37,6 +39,48 @@ class TerrainTests(unittest.TestCase):
     def test_git_inside_forbidden(self):
         (self.path.parent/'.git').mkdir()
         with self.assertRaises(TerrainError):load_private_obj(self.path)
+    def test_git_ignored_project_private_obj(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            subprocess.run(["git", "init", "-q", str(root)], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            data = root / "Wii-AI-Golf-Data"
+            derived = data / "derived"
+            derived.mkdir(parents=True)
+            target = derived / "hole01-collision-candidate-PRIVATE.obj"
+            target.write_text(GOOD, encoding="ascii")
+            # No blanket under-Git exception: explicitly ignored untracked.
+            (derived / ".gitignore").write_text("*.obj\n", encoding="ascii")
+            loaded = load_private_obj(target)
+            self.assertEqual(len(loaded.faces), 1)
+
+    def test_unignored_project_private_obj_still_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            subprocess.run(["git", "init", "-q", str(root)], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            derived = root / "Wii-AI-Golf-Data" / "derived"
+            derived.mkdir(parents=True)
+            target = derived / "hole01-collision-candidate-PRIVATE.obj"
+            target.write_text(GOOD, encoding="ascii")
+            with self.assertRaises(TerrainError):
+                load_private_obj(target)
+
+    def test_tracked_ignored_project_private_obj_still_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            subprocess.run(["git", "init", "-q", str(root)], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            derived = root / "Wii-AI-Golf-Data" / "derived"
+            derived.mkdir(parents=True)
+            target = derived / "hole01-collision-candidate-PRIVATE.obj"
+            target.write_text(GOOD, encoding="ascii")
+            subprocess.run(["git", "-C", str(root), "add", "-f", "--", str(target)],
+                           check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            (derived / ".gitignore").write_text("*.obj\n", encoding="ascii")
+            with self.assertRaises(TerrainError):
+                load_private_obj(target)
+
     def test_only_plain_obj(self):
         self.path.write_text(GOOD+'mtllib bad.mtl\n')
         with self.assertRaises(TerrainError):load_private_obj(self.path)
