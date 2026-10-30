@@ -148,3 +148,48 @@ usage (model getter/position/collision callback/constructor/render etc.),
 then search only validated function disassembly for shape math and
 ball velocity changes. A constructor call or model getter must not be
 misrepresented as collision merely because it targets tree code.
+
+## Original operator five-call disassembly: NO hitbox identified (critical correction)
+
+The exact 5 original calls to executable code compiled inside `RPGolMapObjTree.cpp`
+were disassembled from source/SHA-gated capture7. **All 5 are generic math**:
+
+| Caller source-relative BL sites | Callee in `RPGolMapObjTree.cpp` | PPC semantics |
+|--|--|--|
+| Ball `+0x025C,+0x02C0`, GolfKCol `+0x1FC8` | `Tree+0x0604` | Clamp float f1 to range [f2, f3], via `fcmpo`, `fmr`, and immediate returns |
+| Ball `+0x231C`, GolfKCol `+0x21D4` | `Tree+0x0BF8` | Paired-single load/subtract/store vectors from r4/r5 to r3; no tree receiver or hitbox |
+
+The link scanner was correct at native source-module level, but **NOT** evidence
+of 5 true *tree-collider* calls. The compilation unit contains utility routines.
+The KCol caller `+0x21D4` indexed triangle vertices with `lhz` and
+`mulli +12` before generic vector subtraction — further evidence of normal
+triangle processing rather than a special tree-object narrowphase.
+
+Do not label `Tree+0x0604` or `Tree+0x0BF8` as tree collision handlers,
+or infer collider geometry/velocity response from either.
+
+## Next falsifier: actual Ball <-> GolfKCol cross-module calls
+
+Source operator linkage still shows independent direct `bl`:
+`Ball -> GolfKCol` **5** and `GolfKCol -> Ball` **7**. Such calls may
+lead into ground collision, obstacle response, or irrelevant utility
+math; **these are not proven contact functions**.
+
+New independent read-only
+`scripts/p0_ball_kcol_twelve_calls_private.py` scans the source public
+`Ball` and `GolfKCol` bounded unit code, requires **exactly** those
+original 5+7 linked callsites, and records native target offsets with
+ten prior / eight following float access clues. Default prints a compact
+JSON summary. `--detail` locally disassembles each source callsite with
+ten instructions before, eight after, and 14 target-entry instructions;
+it never dumps native RAM data, current tree XYZ, or images and never
+changes Dolphin. Real archived capture7 original source 84-byte loop,
+SHA and scene gates must all pass or the tool abstains.
+
+```powershell
+py -3 -I scripts/p0_ball_kcol_twelve_calls_private.py --archive 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures\p0-new-cohort-20261028-063011392-955fd483-PRIVATE' --capture 7 --detail
+```
+
+Next: source-based receiver provenance, which function actually processes
+a *tree* rather than terrain triangles, and any independently verified
+collision geometry. No physical tree hitbox or response model is trainable.
