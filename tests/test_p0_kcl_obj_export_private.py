@@ -168,7 +168,7 @@ class TestPrivateObj(unittest.TestCase):
                 "--output", str(self.data / "not-in-derived-PRIVATE.obj")])
         report = json.loads(stdout.getvalue())
         self.assertEqual(code, 3)
-        self.assertEqual(report["stage"], "OUTPUT_DESTINATION")
+        self.assertEqual(report["stage"], "OUTPUT_PARENT_MISMATCH")
         self.assertIsNone(report["capture_number"])
         self.assertFalse(self.output.exists())
 
