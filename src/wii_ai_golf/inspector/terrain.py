@@ -11,6 +11,7 @@ import hashlib
 import math
 from pathlib import Path
 import re
+import subprocess
 
 MAX_OBJ_BYTES = 16 * 1024 * 1024
 MAX_VERTICES = 90_000
@@ -96,6 +97,28 @@ class TerrainMesh:
                             else (None for _ in self.faces)))
 
 
+def _ignored_project_private_obj(path: Path) -> bool:
+    """Accept project-private OBJ under an enclosing Git root only if ignored/untracked."""
+    derived = path.parent
+    data = derived.parent
+    if (derived.name != "derived" or data.name != "Wii-AI-Golf-Data"
+            or not path.name.endswith("-PRIVATE.obj")
+            or any(v.is_symlink() for v in (derived, data))):
+        return False
+    try:
+        ignored = subprocess.run(
+            ["git", "-C", str(derived), "check-ignore", "--no-index", "-q", "--", str(path)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=5, check=False)
+        tracked = subprocess.run(
+            ["git", "-C", str(derived), "ls-files", "--error-unmatch", "--", str(path)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=5, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return ignored.returncode == 0 and tracked.returncode == 1
+
+
 def load_private_obj(filename: str | Path) -> TerrainMesh:
     """Safe local ASCII OBJ: strict v/f + optional exact OGWS source group labels.
 
@@ -107,8 +130,9 @@ def load_private_obj(filename: str | Path) -> TerrainMesh:
     if path.suffix.lower() != '.obj' or path.is_symlink() or not path.is_file():
         raise TerrainError('Choose a regular local private .obj file')
     path = path.resolve(strict=True)
-    if any((parent/'.git').exists() for parent in (path.parent, *path.parents)):
-        raise TerrainError('Terrain OBJ must be located outside Git checkouts')
+    if (any((parent/'.git').exists() for parent in (path.parent, *path.parents))
+            and not _ignored_project_private_obj(path)):
+        raise TerrainError('Git-contained private OBJ must be ignored and untracked under Wii-AI-Golf-Data/derived')
     start = path.stat()
     if not 1 <= start.st_size <= MAX_OBJ_BYTES:
         raise TerrainError('Terrain OBJ outside safe file bound')
