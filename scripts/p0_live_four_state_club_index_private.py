@@ -96,6 +96,10 @@ def analyze_quick(events):
         "up_decrements_one_or_stays_at_zero":up["index"]==max(0,idle["index"]-1),
         "down_increments_one_or_stays_at_three":down["index"]==min(3,up["index"]+1),
         "aim_only_same_club_and_index":aim["club"]==down["club"] and aim["index"]==down["index"],
+        "up_visible_change_agrees_with_index_change":(
+            (up["club"] != idle["club"]) == (up["index"] != idle["index"])),
+        "down_visible_change_agrees_with_index_change":(
+            (down["club"] != up["club"]) == (down["index"] != up["index"])),
         "at_least_one_direction_changed_the_visible_club":(
             up["club"] != idle["club"] or down["club"] != up["club"]),
     }
