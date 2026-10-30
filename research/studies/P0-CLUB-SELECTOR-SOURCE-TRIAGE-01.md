@@ -27,6 +27,24 @@ $archive = Read-Host 'Absolute original PRIVATE seven-pair archive directory'
 
 The inspector is **offline** and cannot tell which static instruction actually executed on D-pad input. The next high-value step after reviewing its source-unit/offset results is to inspect candidate function neighborhoods, prove the caller/receiver chain into selected-player or club object, then separately compare executed D-pad club switch (without A or swing) against no-change control. No training promotion or club-ID mapping until independent runtime/semantic evidence.
 
+
+## First authentic archive result (source-gated, 2026-10-30)
+
+Operator original 7-pair archive and canonical archive SHA passed. The broad static scan yielded 896 source-mapped candidate stores (RPGolConfig 108, Main 7, Player 50, PlayerManager 10, unsplit 721), with 114 store displacements matching player candidate offsets. This is NOT a club-address identification: offsets are relative to the unproven base register, not necessarily the source-selected player record.
+
+The higher-information focus is five **stb** stores in the public `RPGolPlayer.cpp` source unit with displacement +0x034 at source-unit-relative PCs +0x00008, +0x00658, +0x006A4, +0x006D8 and +0x02014. Candidate registers and receiver pointers remain unverified, and previous operator A-released motion changed +0x34; do not call it club index without negative-control separation. The +0xC0 derived float changes with both club and aim; displacements +0xC0 from *GolfConfig* or *unsplit* cannot be confused with player+0xC0. General score-15 store candidates were broad false-positive-heavy.
+
+New `scripts/audit_p0_club_player_byte_source_private.py` performs a **narrow** second-stage decode of all candidate stores AND loads in the genuine RPGolPlayer text interval, including PPC byte loads/stores and floating-point `stfs`/ `lfs` previously absent from the D-form integer-only ranking. It shows only bounded decoded source-relative instruction contexts and register operands; no original raw PPC words or game bytes. This is a static context view, **not executed store witness, club field proof or register dataflow proof**.
+
+Reproduce against original private seven-pair archive using the same exact PR #412 worktree:
+
+```powershell
+$originalArchive = Read-Host 'Absolute path to ORIGINAL seven-pair private archive'
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_player_byte_source_private.py') --archive $originalArchive --capture 5 --limit 22 --context 6
+```
+
+Next: source-review the five +0x34 byte stores and corresponding `lbz` reads, trace what value and object base register feed them, and only then decide whether a single operator D-pad change/no-change runtime test is needed. Zero training promotion.
+
 ## Tests
 
 Synthetic unit tests cover big-endian PPC load/store decoding, signed displacements, negative branches, ordinal-store selection, negative stack and absolute base controls, unbounded displacements, unrelated copies, controller BL edge, public source map guard, and bad MEM1 guard. Windows and Ubuntu full offline CI required before merge.
