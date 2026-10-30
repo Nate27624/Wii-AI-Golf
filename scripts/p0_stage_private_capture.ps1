@@ -93,26 +93,35 @@ function Assert-ReadBank([string]$Path, [long]$Size) {
 }
 
 function Assert-OperatorGates {
+    $script:safeStage='ATTEST_WORKING_SESSION'
     if ($RuntimeStatus -ne 'Working' -or $WorkingSessionToken -cnotmatch '^[A-Za-z0-9_-]{8,64}$' -or
         $SceneHoleToken -cnotmatch '^[A-Za-z0-9_-]{8,64}$') {
         throw 'WORKING_DOLPHIN_SCENE_NOT_OPERATOR_ATTESTED'
     }
+    $script:safeStage='ATTEST_GAME_REVISION'
     if ($GameId -ne 'RSPE01' -or $GameRevision -ne 1 -or $RevisionEvidenceToken -cnotmatch '^[A-Za-z0-9_-]{8,64}$') {
         throw 'GAME_REVISION_NOT_OPERATOR_ATTESTED'
     }
+    $script:safeStage='ATTEST_SAME_PAUSE'
     if (-not $PairSamePauseAttested) { throw 'PAIR_SAME_PAUSE_NOT_ATTESTED' }
+    $script:safeStage='ATTEST_CAPTURE_ORDER'
     if (-not $StagedInCaptureOrderAttested) { throw 'CAPTURE_ORDER_NOT_ATTESTED' }
+    $script:safeStage='ATTEST_EXPECTED_BINARY_SHA'
     if ($ExpectedDolphinSha256 -cnotmatch '^[a-fA-F0-9]{64}$') { throw 'MISSING_APPROVED_DOLPHIN_DIGEST' }
+    $script:safeStage='ATTEST_DOLPHIN_LOCAL_PATH'
     $exe = Assert-LocalPrivate $DolphinExe $true
     if (-not (Test-Path -LiteralPath $exe -PathType Leaf) -or
         [IO.Path]::GetFileName($exe) -ne 'Dolphin.exe') { throw 'DOLPHIN_INSTALL_IDENTITY' }
+    $script:safeStage='ATTEST_PORTABLE_MARKER'
     if (-not [IO.File]::Exists((Join-Path ([IO.Path]::GetDirectoryName($exe)) 'portable.txt'))) {
         throw 'CLEAN_PORTABLE_DOLPHIN_REQUIRED'
     }
+    $script:safeStage='ATTEST_PE_HEADER'
     $reader = [IO.File]::OpenRead($exe)
     try {
         if ($reader.ReadByte() -ne 77 -or $reader.ReadByte() -ne 90) { throw 'DOLPHIN_NOT_PE' }
     } finally { $reader.Dispose() }
+    $script:safeStage='ATTEST_DOLPHIN_DIGEST'
     if (-not [string]::Equals((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash,
                               $ExpectedDolphinSha256, [StringComparison]::OrdinalIgnoreCase)) {
         throw 'DOLPHIN_DIGEST_MISMATCH'
