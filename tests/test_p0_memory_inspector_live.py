@@ -71,6 +71,8 @@ class LiveTests(unittest.TestCase):
         self.assertEqual(samples[-1].selected_player, 1)
         self.assertTrue(samples[-1].sample.source_qualified)
         self.assertGreater(samples[-1].rate_hz, 0.0)
+        self.assertGreaterEqual(samples[-1].read_duration_ms, 0.0)
+        self.assertGreaterEqual(samples[-1].rpc_calls, 2)
         self.assertEqual(samples[-1].sample.words["selected_ball_plus_0x30"][0], 0x3f800000 + samples[-1].sample.ordinal)
         self.assertTrue(set(fake.calls) <= {"memory.read_u32", "frame.get_count"})
         self.assertTrue(any(e.kind == "disconnected" for e in events))
@@ -111,7 +113,8 @@ class LiveTests(unittest.TestCase):
 
     def test_worker_source_import_only_during_user_start(self):
         source = (ROOT / "src/wii_ai_golf/inspector/live.py").read_text()
-        self.assertIn("from p0_live_directional_aim_series import packet", source)
+        self.assertIn("from p0_live_directional_aim_series import packet as canonical_packet", source)
+        self.assertIn("from .fast import packet as batched_packet", source)
         self.assertIn("ReadOnlyRPC(raw_rpc)", source)
         self.assertNotIn('rpc.call("memory.write', source)
         self.assertNotIn('rpc.call("controller.', source)
@@ -127,16 +130,19 @@ class AProbeTests(unittest.TestCase):
             super().__init__(); self.moving = moving; self.ball_reads = 0
         def call(self, method, args):
             self.calls.append(method)
-            if method != 'memory.read_u32':
-                raise AssertionError('unexpected RPC method')
-            addr = args[0]
-            if 0x90010000 <= addr < 0x900100cc:
-                offset = (addr - 0x90010000) // 4
-                return 0x3f000000 if offset == 15 else 29 if offset in (29,37,39,40,42,44,46,48) else 0
-            if 0x90020030 <= addr <= 0x90020038:
-                self.ball_reads += 1
-                return (1,2,3)[(addr - 0x90020030)//4] + (1 if self.moving else 0)
-            raise AssertionError('unexpected memory address')
+            def word(addr):
+                if 0x90010000 <= addr < 0x900100cc:
+                    offset = (addr - 0x90010000) // 4
+                    return 0x3f000000 if offset == 15 else 29 if offset in (29,37,39,40,42,44,46,48) else 0
+                if 0x90020030 <= addr <= 0x90020038:
+                    self.ball_reads += 1
+                    return (1,2,3)[(addr - 0x90020030)//4] + (1 if self.moving else 0)
+                raise AssertionError('unexpected memory address')
+            if method == 'memory.read_u32': return word(args[0])
+            if method == 'memory.read_bytes':
+                addr,n = args
+                return b''.join(word(a).to_bytes(4,'big') for a in range(addr,addr+n,4)).hex()
+            raise AssertionError('unexpected RPC method')
 
     @staticmethod
     def packet(rpc, phase, index):
@@ -161,7 +167,9 @@ class AProbeTests(unittest.TestCase):
         self.assertEqual(len(samples[0].a_record),51)
         self.assertEqual(samples[0].a_record[29],29)
         self.assertTrue(samples[0].a_read_start_ns>0)
-        self.assertTrue(all(x=='memory.read_u32' for x in bridge.calls))
+        self.assertTrue(all(x in {'memory.read_bytes','memory.read_u32'} for x in bridge.calls))
+        self.assertGreaterEqual(bridge.calls.count('memory.read_bytes'),2*len(samples))
+        self.assertEqual(bridge.calls.count('memory.read_bytes'),2*bridge.calls.count('memory.read_u32'))
 
     def test_ball_change_during_51_read_yields_unknown_without_stopping_plot(self):
         events,_=self.worker(self.ABridge(moving=True))
@@ -169,6 +177,17 @@ class AProbeTests(unittest.TestCase):
         self.assertTrue(samples)
         self.assertIsNone(samples[0].a_record)
         self.assertTrue(any(e.kind=='disconnected' for e in events))
+
+    def test_malformed_batched_a_record_abstains_without_label(self):
+        class BadBytes(self.ABridge):
+            def call(self, method, args):
+                if method == 'memory.read_bytes' and args[1] == 51*4:
+                    self.calls.append(method)
+                    return 'not valid hexadecimal data'
+                return super().call(method,args)
+        events,bridge=self.worker(BadBytes())
+        self.assertEqual([e.kind for e in events],['error'])
+        self.assertIn('ValueError',events[-1].reason)
 
     def test_invalid_source_epoch_aborts_probe(self):
         events,_=self.worker(self.ABridge(),epoch=False)

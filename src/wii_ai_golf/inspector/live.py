@@ -1,4 +1,4 @@
-"""Opt-in read-only live worker, reusing the repository's source-gated P0 packet.
+"""Opt-in read-only live worker, retaining source gates with batched reads.
 
 All RPC calls are constrained to a memory-read allowlist; Dolphin is never
 started or controlled. Tkinter is never touched from the sampling thread.
@@ -26,10 +26,12 @@ class ReadOnlyRPC:
     """Fail closed if a reused source reader ever attempts game control/write."""
     def __init__(self, inner: object):
         self.inner = inner
+        self.calls = 0
 
     def call(self, method: str, args: list):
         if method not in _ALLOWED:
             raise PermissionError("Read-only inspector blocks all non-read RPC methods")
+        self.calls += 1
         return self.inner.call(method, args)
 
 
@@ -43,13 +45,16 @@ class LiveEvent:
     reason: str = ""
     a_record: tuple[int, ...] | None = None
     a_read_start_ns: int | None = None
+    read_duration_ms: float = 0.0
+    rpc_calls: int = 0
 
 
 class LiveSampler:
     """Bounded queue + single background worker; no unattended reconnect."""
     def __init__(self, *, port: int = 55355, poll_pause_s: float = 0.15,
                  connector: Callable | None = None, packet_reader: Callable | None = None,
-                 include_a_state: bool = False, source_gate: Callable | None = None):
+                 include_a_state: bool = False, source_gate: Callable | None = None,
+                 use_batched_reads: bool = True):
         if type(port) is not int or not 1 <= port <= 65535:
             raise ValueError("invalid local bridge port")
         self.port = port
@@ -58,6 +63,7 @@ class LiveSampler:
         self.packet_reader = packet_reader
         self.include_a_state = include_a_state
         self.source_gate = source_gate
+        self.use_batched_reads = use_batched_reads
         self.events: queue.Queue[LiveEvent] = queue.Queue(maxsize=24)
         self.stop_event = threading.Event()
         self.thread: threading.Thread | None = None
@@ -94,7 +100,9 @@ class LiveSampler:
                 scripts = str(ROOT / "scripts")
                 if scripts not in sys.path:
                     sys.path.insert(0, scripts)
-                from p0_live_directional_aim_series import packet, end_epoch_matches
+                from p0_live_directional_aim_series import packet as canonical_packet, end_epoch_matches
+                from .fast import packet as batched_packet
+                packet = batched_packet if self.use_batched_reads else canonical_packet
                 source_gate = self.source_gate or end_epoch_matches
             else:
                 packet = self.packet_reader
@@ -112,6 +120,8 @@ class LiveSampler:
                 rpc = ReadOnlyRPC(raw_rpc)
                 index = 0
                 while not self.stop_event.is_set():
+                    cycle_start = time.monotonic_ns()
+                    rpc_before = rpc.calls
                     data = packet(rpc, "LIVE", index)
                     actor = data["identity"]
                     if not isinstance(actor, (tuple, list)) or len(actor) != 14:
@@ -148,17 +158,32 @@ class LiveSampler:
                                 or not 0x90000000 <= record_addr <= 0x94000000 - RECORD_WORDS * 4
                                 or not 0x90000000 <= ball_addr <= 0x94000000 - 0x3C):
                             raise ValueError("A probe selected record/ball range invalid")
-                        candidate = tuple(rpc.call("memory.read_u32", [record_addr + i * 4])
-                                          for i in range(RECORD_WORDS))
-                        if any(type(bit) is not int or not 0 <= bit <= 0xFFFFFFFF for bit in candidate):
-                            raise ValueError("A probe raw selected record invalid")
+                        # One bounded, guest-BE byte range replaces 51 scalar
+                        # bridge round trips. Decode each word; fail closed on
+                        # malformed/short responses instead of silently falling
+                        # back to different A semantics.
+                        hex_words = rpc.call("memory.read_bytes", [record_addr, RECORD_WORDS * 4])
+                        if type(hex_words) is not str or len(hex_words) != RECORD_WORDS * 8:
+                            raise ValueError("A probe batched record invalid")
+                        try:
+                            raw_record = bytes.fromhex(hex_words)
+                        except ValueError as exc:
+                            raise ValueError("A probe batched record invalid hex") from exc
+                        candidate = tuple(int.from_bytes(raw_record[i:i+4], "big")
+                                          for i in range(0, len(raw_record), 4))
                         if not source_gate(rpc, tuple(actor)):
                             raise ValueError("A probe source epoch changed")
                         # The source-gated base packet was sampled BEFORE the
                         # 51-word scan: a moving ball/aim could otherwise be
                         # misclassified as an A transition.
-                        ball_after = tuple(rpc.call("memory.read_u32", [ball_addr + 0x30 + 4*i])
-                                           for i in range(3))
+                        ball_after_hex = rpc.call("memory.read_bytes", [ball_addr + 0x30, 12])
+                        if type(ball_after_hex) is not str or len(ball_after_hex) != 24:
+                            raise ValueError("A probe post-ball vector invalid")
+                        try:
+                            ball_after_bytes = bytes.fromhex(ball_after_hex)
+                        except ValueError as exc:
+                            raise ValueError("A probe post-ball vector invalid hex") from exc
+                        ball_after = tuple(int.from_bytes(ball_after_bytes[i:i+4], "big") for i in (0, 4, 8))
                         aim_after = (rpc.call("memory.read_u32", [record_addr + 0x3C]),)
                         if any(type(bit) is not int or not 0 <= bit <= 0xFFFFFFFF
                                for bit in ball_after + aim_after):
@@ -175,7 +200,9 @@ class LiveSampler:
                     clock.append(time.monotonic())
                     rate = (len(clock) - 1) / (clock[-1] - clock[0]) if len(clock) >= 2 and clock[-1] > clock[0] else 0.0
                     self._emit(LiveEvent("sample", sample, int(actor[13]), int(actor[5]), rate,
-                                         a_record=a_words, a_read_start_ns=probe_start))
+                                         a_record=a_words, a_read_start_ns=probe_start,
+                                         read_duration_ms=(time.monotonic_ns()-cycle_start)/1e6,
+                                         rpc_calls=rpc.calls-rpc_before))
                     index += 1
                     self.stop_event.wait(self.pause)
             self._emit(LiveEvent("disconnected", reason="Operator stopped or bridge closed"))

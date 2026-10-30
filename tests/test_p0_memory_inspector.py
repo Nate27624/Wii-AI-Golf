@@ -267,7 +267,9 @@ class ReplayTests(unittest.TestCase):
             def set(self, value): self.value = value
         class Canvas:
             def __init__(self): self.ops = []
-            def delete(self, *args): self.ops = []
+            def delete(self, *args):
+                if 'all' in args: self.ops = []
+                else: self.ops = [op for op in self.ops if not any(tag in op[1] for tag in args)]
             def winfo_width(self): return 900
             def winfo_height(self): return 470
             def __getattr__(self, name):
@@ -296,7 +298,8 @@ class ReplayTests(unittest.TestCase):
         self.assertIn("pin_candidate", tags)
         self.assertIn("tee_candidate", tags)
         self.assertTrue(view.landmark_status.get().startswith("Pin / flag: sampled"))
-        self.assertEqual(view.canvas.ops[-2][1], ("pin_candidate",))
+        self.assertEqual(view.canvas.ops[-3][1], ("pin_candidate",))
+        self.assertEqual(view.canvas.ops[-1][1], ("a_state_overlay",))
         self.assertTrue(any(op[0] == "create_polygon" and op[1] == ("pin_candidate",)
                             for op in view.canvas.ops))
         # Omit the pin and verify that the viewer refuses to leave a stale flag.
@@ -306,6 +309,29 @@ class ReplayTests(unittest.TestCase):
         tags = [tag for _, group, _ in view.canvas.ops for tag in group]
         self.assertNotIn("pin_candidate", tags)
         self.assertIn("not sampled", view.landmark_status.get())
+
+    def test_a_text_overlay_is_prominent_and_always_visible(self):
+        from wii_ai_golf.inspector.gui import Inspector
+        class Text:
+            def __init__(self,value):self.value=value
+            def get(self):return self.value
+        class Canvas:
+            def __init__(self):self.ops=[]
+            def delete(self,tag):self.ops=[x for x in self.ops if tag not in x[2].get('tags',())]
+            def winfo_width(self):return 640
+            def create_text(self,*args,**kw):self.ops.append((args,kw.get('text'),kw))
+        view=object.__new__(Inspector)
+        view.canvas=Canvas()
+        view.a_status=Text('A UNKNOWN')
+        view.draw_a_overlay()
+        self.assertEqual(len(view.canvas.ops),1)
+        self.assertEqual(view.canvas.ops[0][1],'A UNKNOWN')
+        self.assertEqual(view.canvas.ops[0][2]['anchor'],'ne')
+        view.a_status=Text('A PRESSED')
+        view.draw_a_overlay()
+        self.assertEqual(len(view.canvas.ops),1)
+        self.assertEqual(view.canvas.ops[0][1],'A PRESSED')
+        self.assertEqual(view.canvas.ops[0][2]['tags'],('a_state_overlay',))
 
     def test_aim_ray_tee_anchor_not_player_location(self):
         from wii_ai_golf.inspector.gui import (aim_ray_hypothesis, candidate_landmarks,
@@ -381,7 +407,9 @@ class ReplayTests(unittest.TestCase):
             def set(self, value): self.value = value
         class Canvas:
             def __init__(self): self.ops = []
-            def delete(self, *args): self.ops = []
+            def delete(self, *args):
+                if 'all' in args: self.ops = []
+                else: self.ops = [op for op in self.ops if not any(tag in op[1] for tag in args)]
             def winfo_width(self): return 900
             def winfo_height(self): return 470
             def __getattr__(self, name):
