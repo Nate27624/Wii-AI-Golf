@@ -19,17 +19,27 @@ one unique MEM2 file-style KCL, every prism reconstructed, tee/pin
 categorical proximity, and identical geometry on controls 1 and 7
 against capture 5. All original hashes are checked again before output.
 
-The output is a new, private ASCII v/f triangle OBJ created **only**
-under ignored sibling Wii-AI-Golf-Data/derived. No existing file
-overwrites or symlinks. No original RAM, OBJ, pointers, vectors,
-source-bank hashes or game assets are committed or sent over network.
+The output is a new private ASCII v/f triangle OBJ, placed only in
+one of two explicitly approved directories:
+- ignored sibling Wii-AI-Golf-Data/derived when that location is outside
+  every Git worktree;
+- Windows per-user LOCALAPPDATA/WiiGolfAI/private/derived when the sibling
+  private Data directory is under an enclosing Git checkout.
+
+The LOCALAPPDATA option is intentionally narrow; it must already exist,
+is checked for symlinks, and any .git ancestor still fails closed. No
+existing-file overwrite or native RAM/OBJ/paths/publication is permitted.
+Actual original seven-capture source remains in the SHA-verified Data area.
 
 ## Windows operator use
 
 From this stacked branch, invoke the isolated offline exporter with
 --archive pointing to the original numbered seven-pair PRIVATE capture
-directory; --output pointing directly to the new private Data/derived
-file ending in -PRIVATE.obj; --capture 5 --controls 1 7.
+directory; --output pointing directly to a new file ending in -PRIVATE.obj under the
+approved private Data/derived folder, or under LOCALAPPDATA/WiiGolfAI/private/derived
+after that per-user directory is created. Use --capture 5 --controls 1 7.
+If OUTPUT_INSIDE_GIT appeared for the original destination, change ONLY
+the output path; leave original archive and all scene/mesh gates unchanged.
 The operator receives the full copy/paste PowerShell command in chat.
 Dolphin is not required. No re-capture.
 
