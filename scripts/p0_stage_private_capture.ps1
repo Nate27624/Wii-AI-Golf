@@ -49,7 +49,7 @@ function Assert-LocalPrivate([string]$Path, [bool]$MustExist) {
         throw 'SYNCED_PATH_FORBIDDEN'
     }
     $root = [IO.Path]::GetPathRoot($full)
-    $drive = New-Object IO.DriveInfo($root)
+    $drive = [IO.DriveInfo]::new($root)
     if ($drive.DriveType -ne [IO.DriveType]::Fixed) { throw 'NONLOCAL_DRIVE' }
     $cursor = $full
     while ($cursor) {
@@ -69,9 +69,9 @@ function Assert-LocalPrivate([string]$Path, [bool]$MustExist) {
 }
 
 function Write-PrivateNew([string]$Path, [object]$Object) {
-    $stream = New-Object IO.FileStream($Path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    $stream = [IO.FileStream]::new($Path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
     try {
-        $writer = New-Object IO.StreamWriter($stream, (New-Object Text.UTF8Encoding($false)))
+        $writer = [IO.StreamWriter]::new($stream, [Text.UTF8Encoding]::new($false))
         try {
             $writer.WriteLine(($Object | ConvertTo-Json -Depth 6))
             $writer.Flush()
@@ -191,7 +191,7 @@ try {
             if ((Test-Path -LiteralPath $one) -or (Test-Path -LiteralPath $two) -or
                 (Test-Path -LiteralPath $note)) { throw 'PHASE_EXISTS_REFUSE_OVERWRITE' }
             if ($first -eq $one -or $second -eq $two) { throw 'INPUT_OUTPUT_COLLISION' }
-            $drive = New-Object IO.DriveInfo([IO.Path]::GetPathRoot($session))
+            $drive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($session))
             if ($drive.AvailableFreeSpace -lt ($MEM1_SIZE + $MEM2_SIZE + 16777216)) {
                 throw 'INSUFFICIENT_PRIVATE_STORAGE'
             }
