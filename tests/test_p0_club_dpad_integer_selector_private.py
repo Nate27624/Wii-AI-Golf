@@ -34,7 +34,7 @@ class TestDpadSelectorStatic(unittest.TestCase):
         self.assertEqual(m.rotate_mask(28,28),0x8)
         self.assertEqual(m.rotate_mask(29,29),0x4)
         self.assertEqual(m.rotate_mask(28,29),0xC)
-        self.assertEqual(m.rotate_mask(30,2),0xc0000003)
+        self.assertEqual(m.rotate_mask(30,2),0xe0000003)
 
     def test_andi_mask_pair_with_step_and_integer_store(self):
         words=[encode(28,imm=8),
