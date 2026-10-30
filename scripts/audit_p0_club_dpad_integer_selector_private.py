@@ -39,22 +39,31 @@ def rotate_mask(mb,me):
         i=(i+1)%32
     return value
 
+def _ror32(value, amount):
+    amount %= 32
+    if amount==0:
+        return value & 0xffffffff
+    return ((value>>amount)|(value<<(32-amount)))&0xffffffff
+
 def immediate_button_test(w):
     opcode=source.op(w)
     if opcode in (28,29):
         mask=(w & 0xffff) << (16 if opcode==29 else 0)
-        return {"opcode":"andis." if opcode==29 else "andi.",
-                "bits":mask, "rotated":False} if mask & (UP|DOWN) else None
+        # Avoid treating unrelated broad masks such as 0xFFFF as
+        # affirmative UP+DOWN tests. Exact one/two-bit masks only.
+        if mask in (UP,DOWN,UP|DOWN):
+            return {"opcode":"andis." if opcode==29 else "andi.",
+                    "bits":mask,"rotated":False}
+        return None
     if opcode==21:
         shift=(w>>11)&31
-        mb=(w>>6)&31
-        me=(w>>1)&31
-        # Only SH==0 can prove an exact input bit position without tracking
-        # value transformation. No unproven rotated-bit equivalence.
-        mask=rotate_mask(mb,me)
-        if shift==0 and mask & (UP|DOWN):
+        mask=rotate_mask((w>>6)&31,(w>>1)&31)
+        # PPC rlwinm rotates the *input* left by SH before masking.
+        # The original input bits selected are ROR(mask, SH).
+        original_bits=_ror32(mask,shift)
+        if original_bits in (UP,DOWN,UP|DOWN):
             return {"opcode":"rlwinm"+("." if w&1 else ""),
-                    "bits":mask, "rotated":False}
+                    "bits":original_bits,"rotated":bool(shift)}
     return None
 
 def ordinal_step(w):
