@@ -96,7 +96,7 @@ def _sha_from_manifest(data: Any, capture_name: str) -> str:
     found: list[str] = []
     if not isinstance(data, dict):
         raise CaptureError("manifest must be an object")
-    for key in ("sha256", "capture_sha256", "jsonl_sha256", "event_stream_sha256"):
+    for key in ("sha256", "capture_sha256", "jsonl_sha256", "event_stream_sha256", "private_sha256"):
         if key in data:
             found.append(data[key])
     for key in ("files", "artifacts"):
@@ -143,15 +143,15 @@ def _sample(raw: Any, ordinal: int) -> Sample:
         if not isinstance(values, (tuple, list)) or not 1 <= len(values) <= 64:
             raise CaptureError(f"invalid word vector for {name}")
         words[name] = tuple(word_bits(w) for w in values)
-    start = _ns(raw.get("start_monotonic_ns"), "start")
-    end = _ns(raw.get("end_monotonic_ns"), "end")
+    start = _ns(raw.get("start_monotonic_ns", raw.get("monotonic_start_ns")), "start")
+    end = _ns(raw.get("end_monotonic_ns", raw.get("monotonic_end_ns")), "end")
     if start is not None and end is not None and end < start:
         raise CaptureError("nonmonotonic sampling bracket")
     phase_index = raw.get("sample_index")
     if phase_index is not None and (type(phase_index) is not int or phase_index < 0):
         raise CaptureError("invalid sample index")
-    digest = raw.get("source_identity_digest_private")
-    if digest is not None and (not isinstance(digest, str) or re.fullmatch("[a-fA-F0-9]{64}", digest) is None):
+    digest = raw.get("source_identity_digest_private", raw.get("source_owner_pointer_digest_private"))
+    if digest is not None and (not isinstance(digest, str) or not 1 <= len(digest) <= 256):
         raise CaptureError("malformed source identity digest")
     bracket = raw.get("bridge_frame_count_bracket_NOT_GUEST_PHYSICS")
     if bracket is not None:
@@ -189,27 +189,67 @@ def load_replay(capture: Path | str, manifest: Path | str, *, max_bytes: int = 3
         raise CaptureError("JSONL must be UTF-8") from exc
     samples: list[Sample] = []
     warnings: list[str] = []
+    annotations: list[str] = []
+    protocol = metadata.get("protocol", "")
     terminated = str(metadata.get("status", metadata.get("capture_status", "complete"))).lower()
     if terminated not in {"complete", "incomplete", "aborted", "quarantined"}:
         terminated = "incomplete"
         warnings.append("Unrecognized manifest run status.")
-    for number, line in enumerate(stream.splitlines(), 1):
+    lines = stream.splitlines()
+    for number, line in enumerate(lines, 1):
         if not line.strip():
             continue
         if len(samples) >= max_samples:
             raise CaptureError("capture exceeds sample limit")
         try:
             raw = json.loads(line)
-            samples.append(_sample(raw, len(samples)))
+            if not isinstance(raw, dict):
+                raise CaptureError("event must be an object")
+            kind = raw.get("event", "candidate_sample")
+            if kind in ("operator_phase_marker", "human_visual_observation"):
+                # Annotations are human-supplied and not machine-aligned evidence.
+                fragments = [str(raw[k]) for k in ("phase", "label", "description", "observation", "message", "note", "text")
+                             if isinstance(raw.get(k), (str, int, float))]
+                annotations.append((kind + ": " + " / ".join(fragments))[:300])
+                continue
+            if kind != "candidate_sample":
+                raise CaptureError("unknown event type")
+            sample = _sample(raw, len(samples))
+            if annotations:
+                sample = Sample(sample.ordinal, sample.phase, sample.phase_index,
+                                sample.start_ns, sample.end_ns, sample.words, sample.source_digest,
+                                sample.source_qualified, " | ".join(annotations) +
+                                (" | " + sample.annotation if sample.annotation else ""),
+                                sample.state, sample.frame_bracket)
+                annotations.clear()
+            if protocol == "manual-a-miss-v1" and sample.phase == "M1" and terminated == "aborted":
+                sample = Sample(sample.ordinal, sample.phase, sample.phase_index,
+                                sample.start_ns, sample.end_ns, sample.words, sample.source_digest,
+                                sample.source_qualified, sample.annotation, "quarantined", sample.frame_bracket)
+            samples.append(sample)
         except (json.JSONDecodeError, CaptureError) as exc:
             # Only a truncated final JSONL line can be retained as an incomplete run.
-            if number == len(stream.splitlines()) and isinstance(exc, json.JSONDecodeError):
+            if number == len(lines) and isinstance(exc, json.JSONDecodeError):
                 terminated = "incomplete"
                 warnings.append(f"Last JSONL line {number} truncated; valid earlier samples retained.")
                 break
             raise CaptureError(f"event line {number}: {exc}") from exc
     if not samples:
         raise CaptureError("no complete valid event packets")
+    if annotations:
+        warnings.append("One or more trailing operator markers have no sampled frame alignment.")
+    if protocol == "manual-a-miss-v1":
+        expected_phases = [p for p in ("I0", "AH", "AR", "M0", "I1") for _ in range(8)] + ["M1"] * 6
+        if (terminated != "aborted" or metadata.get("run_samples") != 46
+                or metadata.get("training_approved") is not False
+                or [s.phase for s in samples] != expected_phases
+                or any(s.phase_index != (i % 8 if i < 40 else i - 40)
+                       for i, s in enumerate(samples))):
+            raise CaptureError("manual-a-miss-v1 archive manifest/phase gate failed")
+        if (any(s.source_digest is None or s.source_digest != samples[0].source_digest for s in samples)
+                or any(s.start_ns is None or s.end_ns is None for s in samples)):
+            raise CaptureError("manual-a-miss-v1 source-owner/time gate failed")
+        warnings.append("Original archive: five 8-packet no-contact controls plus six M1 packets QUARANTINED after human HIT report.")
     if terminated == "complete" and any(s.state != "complete" for s in samples):
         terminated = "incomplete"
     if any(s.source_digest != samples[0].source_digest for s in samples):

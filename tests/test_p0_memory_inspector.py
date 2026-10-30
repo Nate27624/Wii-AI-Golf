@@ -171,6 +171,45 @@ class ReplayTests(unittest.TestCase):
         self.assertFalse(r.samples[0].source_qualified)
         self.assertTrue(any("Missing host sampling bracket" in m for m in r.messages(r.samples[0])))
 
+    def archive_fixture(self, *, swap_owner=False, wrong_phase=False):
+        phases = [p for p in ("I0", "AH", "AR", "M0", "I1") for _ in range(8)] + ["M1"] * 6
+        records = [{"event": "operator_phase_marker", "phase": "I0", "label": "Operator idle"}]
+        for n, phase in enumerate(phases):
+            sample = event(phase, n % 8 if n < 40 else n - 40)
+            sample["event"] = "candidate_sample"
+            sample["monotonic_start_ns"] = 5000 + n * 1000
+            sample["monotonic_end_ns"] = 5300 + n * 1000
+            sample.pop("start_monotonic_ns")
+            sample.pop("end_monotonic_ns")
+            sample["source_owner_pointer_digest_private"] = "same-archive-owner" if not (swap_owner and n == 41) else "changed-owner"
+            sample.pop("source_identity_digest_private")
+            if wrong_phase and n == 20:
+                sample["phase"] = "R1"
+            if n == 40:
+                records.append({"event": "human_visual_observation", "phase": "M1", "observation": "Human HIT (timing unknown)"})
+            records.append(sample)
+        blob = ("\n".join(json.dumps(e) for e in records) + "\n").encode()
+        self.capture.write_bytes(blob)
+        self.manifest.write_text(json.dumps({"status": "ABORTED", "protocol": "manual-a-miss-v1",
+                                             "run_samples": 46, "training_approved": False,
+                                             "private_sha256": hashlib.sha256(blob).hexdigest()}))
+        return load_replay(self.capture, self.manifest)
+
+    def test_original_archive_mixed_markers_and_quarantined_m1(self):
+        replay = self.archive_fixture()
+        self.assertEqual(len(replay.samples), 46)
+        self.assertEqual(replay.terminated, "aborted")
+        self.assertEqual(sum(s.state == "quarantined" for s in replay.samples), 6)
+        self.assertTrue(any("human_visual_observation" in s.annotation for s in replay.samples))
+        self.assertTrue(any("five 8-packet" in w for w in replay.warnings))
+        self.assertFalse(replay.training_approved)
+
+    def test_original_archive_rejects_wrong_owner_and_phase(self):
+        with self.assertRaisesRegex(CaptureError, "source-owner"):
+            self.archive_fixture(swap_owner=True)
+        with self.assertRaisesRegex(CaptureError, "manifest/phase"):
+            self.archive_fixture(wrong_phase=True)
+
     def test_no_controller_bridge_or_training_imports(self):
         for path in (ROOT / "src/wii_ai_golf/inspector/replay.py", ROOT / "src/wii_ai_golf/inspector/gui.py", ROOT / "scripts/p0_memory_inspector.py"):
             source = path.read_text(encoding="utf-8")

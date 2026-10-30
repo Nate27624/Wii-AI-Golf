@@ -1,0 +1,31 @@
+name: S000 P0 Flight Read Coherence Offline
+
+on:
+  pull_request:
+    paths:
+      - "src/wii_ai_golf/audit/p0_flight_read_coherence.py"
+      - "tests/test_p0_flight_read_coherence.py"
+      - "research/studies/S000-P0-MEMORY-INTEGRATION-PLAN-01.md"
+      - ".github/workflows/p0-flight-read-coherence-offline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-synthetic-and-full:
+    name: offline-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Focused flight-read coherence tests (no Dolphin)
+        run: python -m unittest discover -s tests -p "test_p0_flight_read_coherence.py" -v
+      - name: Full offline suite (no Dolphin)
+        run: python -m unittest discover -s tests -v
