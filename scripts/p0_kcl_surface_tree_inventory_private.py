@@ -60,7 +60,7 @@ def dot(a, b):
     return sum(x*y for x, y in zip(a, b))
 
 
-def read_prism_histogram(bank, offset, *, required_min=3):
+def read_prism_histogram(bank, offset=0, *, required_min=3):
     """Return histogram only after every prism passes typed numeric checks."""
     try:
         if offset < 0 or offset % 4 or offset+0x3C > len(bank):
