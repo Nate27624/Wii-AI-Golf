@@ -212,3 +212,40 @@ private material-bearing OBJ export or active-collision octree status.
 In all cases the 3D rendering is a **candidate source-component scene, not a
 verified visual-world alignment or trainable physics map**.
 `training_approved=false`.
+
+
+## Experimental filled collision-terrain preview
+
+An old OBJ with just v/f records now renders **filled neutral slate-gray
+triangles** by default, never guessed fairway. New source-tagged private
+OBJ files can include Wavefront g KCL_OGWS_XXXX before each corresponding
+face; each group is the actual original Golf KCL BE16 attribute from that
+prism, not a category inferred from location or appearance.
+
+Controls in the 3D inspector: **Solid terrain** ON by default;
+**Triangle edges** OFF by default; **Color source surface IDs** ON by
+default (only applies to explicitly labeled OBJ triangles). With solid
+OFF and edges ON the original wireframe remains accessible. A tagged OBJ
+uses the palette already validated in PR #416: fairway, rough, bunker,
+out of bounds, green, water, fringe and cliff. Unsupported and camera-lock
+IDs remain neutral. Unlabeled faces remain neutral without exception.
+
+The canvas uses a bounded painter-style far-to-near face sort and two-sided
+shading as visualization only, not a native depth buffer, visible game
+textures, or physics. It does not infer terrain type from slope or proximity.
+The loaded SHA/private path and source epoch gates, tee/pin, ball/aim,
+A display, native reader cadence and 600 live / 1200 offline face bounds
+remain intact. No game input, ROM export, raw RAM publication or training.
+
+To auto-load a project-private OBJ use the inspector CLI option
+--terrain-obj <your-private-project-obj-path>. An encompassing Git repo is
+allowed only for a source OBJ directly in Wii-AI-Golf-Data/derived with a
+PRIVATE.obj suffix that Git independently confirms is ignored and untracked.
+Other Git-tracked OBJ paths are rejected.
+
+To generate typed face colors from the original candidate, the separate
+SHA/source-gated offline exporter PR #413 supports --surface-groups.
+Use a NEW distinct output name (for example,
+hole01-collision-colored-PRIVATE.obj), original capture 5 and controls 1,7.
+Keep the existing uncolored file unchanged. Trees are independent PR #411
+scope and no trees or unsupported material geometry is guessed.
