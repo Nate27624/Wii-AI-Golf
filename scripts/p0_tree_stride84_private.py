@@ -190,7 +190,9 @@ def run(archive:Path,captures:tuple[int,...]):
                 "TREE_TRANSLATION_CANDIDATES_CONSISTENT"
                 if report["candidate_spatial_sanity_passed"]
                 else "TREE_TRANSLATION_LAYOUT_UNVERIFIED"),**report})
-            source_points.append(pts)
+            # Compare original BE32 vector words, not Python float equality, across captures.
+            source_points.append(tuple(tuple(reader.u32(array+i*TREE_SIZE+TRANS_OFFSET+4*j)
+                                            for j in range(3)) for i in range(count)))
     seven._check_archive(archive)
     stable=(all(len(p)==len(source_points[0]) for p in source_points) and
             all(p==source_points[0] for p in source_points[1:]))
@@ -201,7 +203,7 @@ def run(archive:Path,captures:tuple[int,...]):
         "game_scene_source_gated":True,
         "private_guest_ppc_tree_loop_exact_match":True,
         "source_84_byte_tree_stride_verified":True,
-        "candidate_positions_bitwise_stable_across_selected_captures":(
+        "candidate_position_words_identical_across_selected_captures":(
             stable if len(captures)>1 else None),
         "records":rows,
         "actual_3d_tree_mesh_verified":False,
