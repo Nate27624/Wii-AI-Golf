@@ -38,7 +38,7 @@ class LiveAIndicator:
     def observe(self, record: tuple[int, ...] | None, source: str | None,
                 ball: tuple[int, ...] | None, aim: tuple[int, ...] | None) -> str:
         if self.blocked:
-            self.mode = 'scene/aim/ball changed: reconnect when stable'
+            self.mode = 'selected scene/actor changed: reconnect for source safety'
             return 'UNKNOWN'
         if not source or record is None or type(record) is not tuple or len(record) != 51 or any(
                 type(x) is not int or not 0 <= x <= 0xFFFFFFFF for x in record):
@@ -52,12 +52,22 @@ class LiveAIndicator:
         ctx = (source, ball, aim)
         if self.context is None:
             self.context = ctx
-        if ctx != self.context:
-            # Do not assume the new state is RELEASED after a swing or aim
-            # change. A fresh explicit live Connect is needed to rebaseline.
+        elif source != self.context[0]:
+            # A new actor/scene/selected owner invalidates all previous A
+            # candidate evidence; never silently rebootstrap from held state.
             self.blocked = True
             self.recent.clear()
-            self.mode = 'scene/aim/ball changed: reconnect when stable'
+            self.mode = 'selected scene/actor changed: reconnect for source safety'
+            return 'UNKNOWN'
+        elif (ball, aim) != self.context[1:]:
+            # Ball trajectories and aim adjustments are NORMAL play, not
+            # evidence of a changed selected player. Do not permanently lock
+            # the A display or infer a new RELEASED baseline from motion.
+            # Only classify again after consecutive stable new readings.
+            self.context = ctx
+            self.recent.clear()
+            self.private.clear()
+            self.mode = 'ball/aim moved: waiting for stable A candidate readings'
             return 'UNKNOWN'
 
         if self.reference is not None and source == self.reference.source_digest:

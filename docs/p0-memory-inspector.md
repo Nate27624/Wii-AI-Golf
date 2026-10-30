@@ -106,3 +106,42 @@ predictable from synthetic tests**. The LIVE status provides measured read
 milliseconds, RPC calls per sample, and achieved samples/s to compare with the
 operator's ~700 ms baseline. The bridge polls on emulator frames, so changing
 Dolphin speed or `poll_pause_s` alone is not a substitute for fewer round trips.
+
+## P0 live A recovery and opt-in private KCL terrain (after #408)
+
+**A state:** The existing candidate-only A text now recovers automatically after
+ball movement or an aim adjustment: the immediate moving packet is UNKNOWN,
+then two consecutive stable A signatures can display PRESSED/RELEASED again
+without requiring a reconnect. The original session-local released baseline is
+**not relearned from movement**. Changing selected actor/source identity still
+requires a fresh connection. The eight-offset classifier remains an observed
+correlation from #396, **not a verified game-owned A-input bit**, and must not
+be used as a training feature. To bootstrap the candidate baseline, connect
+with A initially released; no A calibration controls are added.
+
+**Terrain:** The 3D viewer now includes optional **Load PRIVATE terrain OBJ**,
+**Clear terrain**, **Show**, and **Focus tee/flag** controls. Use a locally
+source/SHA-qualified KCL-candidate triangle OBJ from the terrain research
+exporter, stored **outside Git**. The picker accepts only bounded, SHA-hashed,
+ASCII `v x y z` and `f i j k` triangle OBJ; invalid indices, nonfinite or
+degenerate faces, materials, symlinks and files in Git worktrees are refused.
+Only the operator-selected file is read, and no geometry is uploaded or
+extracted from live RAM. The graph draws up to 1,200 triangles offline or 600
+triangles while live, behind the existing flag/tee/ball/cache/aim overlays;
+right-drag orbit still works. If a source-qualified game sample is unavailable,
+the terrain is hidden. The optional Focus filter is an uncalibrated component
+0/2 vicinity, **not** a world transform. No fake surface is generated.
+
+The original captures 1/5/7 have operator-reported 2,498/2,498
+source-qualified reconstructed KCL prism triangles near tee/pin, but octree
+reachability, active physics ownership and visible model alignment remain
+**UNVERIFIED**. The separately owned #403/#406 exporter must write the local
+OBJ before the viewer can display the actual private terrain. Mesh/texture
+assets never belong in the public repo. `training_approved=false`.
+
+**Sampling:** Default post-read sleep is zero; sample interval is still limited
+by the read-only source checks and emulator-polled bridge RPC latency. The
+user reported ~232ms cycle on #408; no stronger real performance result is
+claimed until tested on the user's Dolphin. To improve substantially beyond
+that, a separately reviewed bridge-side *single source-gated snapshot* RPC may
+be necessary; do not skip source/epoch checks.
