@@ -150,3 +150,27 @@ user reported ~232ms cycle on #408; no stronger real performance result is
 claimed until tested on the user's Dolphin. To improve substantially beyond
 that, a separately reviewed bridge-side *single source-gated snapshot* RPC may
 be necessary; do not skip source/epoch checks.
+
+## Private project terrain OBJ startup (operator opt-in)
+
+The exporter can place a source-qualified local collision candidate OBJ at
+`D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\derived\hole01-collision-candidate-PRIVATE.obj`.
+If that directory lives under an enclosing Git checkout, the file must first
+be demonstrably **ignored** and **untracked** by the containing Git repo; the
+loader checks both using bounded, read-only Git commands. No arbitrary OBJ
+inside a Git worktree will be loaded, even if structurally valid. Preserve
+the original untouched source capture archive and SHA manifest.
+
+To load at inspector startup (no file picker needed):
+
+    py -3 -I scripts/p0_memory_inspector.py --terrain-obj "D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\derived\hole01-collision-candidate-PRIVATE.obj"
+
+The terrain is visible only for source-qualified replay/live samples, and
+the existing Show/Focus/Clear controls remain available. Source coordinate
+geometry is an unverified collision-candidate visualization, not a certified
+course render or valid training/physics input. Trees/material labels are
+handled by a different research track.
+
+The output location may be inside a broader **Git working directory**
+only with confirmed ignored/untracked status; it is never committed.
+Do not remove ignore rules or force-add this game-derived private OBJ.
