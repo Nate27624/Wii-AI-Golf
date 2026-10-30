@@ -140,3 +140,24 @@ Operator offline command from a fresh PR #412 detached worktree:
 & py -3 -I (Join-Path $work 'scripts\audit_p0_club_dpad_integer_selector_private.py') --archive $originalArchive --capture 5 --limit 30
 ```
 
+
+
+## Fifth stage: strongest four-club D-pad selector candidate
+
+Operator's SHA-qualified original seven-pair archive source scan from `audit_p0_club_dpad_integer_selector_private.py` scanned **994** Golf functions. Exactly **three** contained strict source-defined Up/Down bit shapes and only **one** contained both direction bits:
+
+- **`RPGolPlayerManager::fn_802A28DC`** public unit-relative function +0x006CC, size 984 bytes: Up bit masks at +0x0081C and +0x00910, Down bit masks at +0x00834 and +0x00928, PPC `addi -1` at +0x0085C and `addi +1` at +0x008A8. Source source code confirms EGG/WPAD UP=0x8, DOWN=0x4. This combination in one manager function is a **strong source-supported selector-path hypothesis**; input register origin, executed control path and destination selected-club data are **NOT yet proved**. The existing callgraph also has a static `RPGolMain::fn_8028E158 -> RPGolPlayerManager::fn_802A28DC -> RPGolPlayer::fn_8029EC30` path, although `fn_8029EC30` primarily writes paired byte state flags +0x34/+0x35 and calls `getNthController`. No nearby nonstack D-form integer stores were detected in the manager's first scan: the value may be passed via a call, preserved in a register, sent to a non-D-form store, or written further away.
+- `RPGolMapObjBall::fn_80298E70` contained one Up shape, integer `-1/+1` and unrelated possible writes (+0x94/+0x5C); likely ball/map processing but cannot dismiss without instruction-level evidence.
+- `RPGolScene_unsplit::fn_802ABD50` contained one Up shape and nearby stores (+0x2C/+0x24) but no local ordinal-step witness. Its club significance is unknown.
+
+New narrowly scoped `scripts/audit_p0_club_dpad_handler_flow_private.py` decodes original SHA-qualified private **entire named Rev1 source function** for just three previously anchored candidates. It collects exact masks and local increments, coalesces bounded +/-16-instruction windows, annotates all direct call targets with published function names, shows conditional branch targets in source/function-relative code offsets, and indexes integer/floating-point nonstack stores. **No raw PPC word, native executable absolute address, private memory, or live Dolphin interaction is printed**. It does not prove D-pad status provenance or club-index ownership. Tests cover direct call target attribution, branch math, register-mask operands, unknown receiver provenance, and output bounds.
+
+Operator-local exact PR #412 worktree command, original private **seven-pair** archive only (NOT the 26-packet club study):
+
+```powershell
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_dpad_handler_flow_private.py') --selftest
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_dpad_handler_flow_private.py') --archive $originalArchive --capture 5 --focus player-manager --context 16 --max-lines 140
+```
+
+The next proof must identify a source-qualified path from the observed D-pad input register via conditional branches and the +1/-1 arithmetic into the **live selected-club owner field**, not merely a bit mask adjacent to a counter. Validate player/scene identity, aim-only negative controls and heldout club switching before any training claim.
+
