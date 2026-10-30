@@ -1,0 +1,29 @@
+name: P0 Wii Golf private KCL surfaces and trees offline
+on:
+  push:
+    branches:
+      - agent/p0-course-surfaces-trees-private-20261030
+  pull_request:
+    paths:
+      - scripts/p0_kcl_surface_tree_inventory_private.py
+      - tests/test_p0_kcl_surface_tree_inventory_private.py
+      - research/studies/P0-COURSE-SURFACES-TREES-01.md
+      - .github/workflows/p0-course-surface-tree-offline.yml
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Focused synthetic source-specific material and tree tests
+        run: python -m unittest discover -s tests -p test_p0_kcl_surface_tree_inventory_private.py -v
+      - name: Full offline regression
+        run: python -m unittest discover -s tests -v
