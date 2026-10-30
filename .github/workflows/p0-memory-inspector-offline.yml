@@ -30,5 +30,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_live.py -v
       - name: Focused synthetic A-button candidate checks
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_a_button.py -v
+      - name: Focused passive A reference checks
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_a_reference.py -v
       - name: Full offline regression suite
         run: python -m unittest discover -s tests -v
