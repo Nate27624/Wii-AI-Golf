@@ -92,6 +92,20 @@ function Assert-ReadBank([string]$Path, [long]$Size) {
     return $full
 }
 
+function Get-PrivateSha256([string]$Path) {
+    # Fixed streaming SHA256, independent of host Get-FileHash cmdlet availability.
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open,
+                              [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    $hash = [Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = $hash.ComputeHash($stream)
+        return ([BitConverter]::ToString($bytes)).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $hash.Dispose()
+        $stream.Dispose()
+    }
+}
+
 function Assert-OperatorGates {
     $script:safeStage='ATTEST_WORKING_SESSION'
     if ($RuntimeStatus -ne 'Working' -or $WorkingSessionToken -cnotmatch '^[A-Za-z0-9_-]{8,64}$' -or
@@ -122,7 +136,7 @@ function Assert-OperatorGates {
         if ($reader.ReadByte() -ne 77 -or $reader.ReadByte() -ne 90) { throw 'DOLPHIN_NOT_PE' }
     } finally { $reader.Dispose() }
     $script:safeStage='ATTEST_DOLPHIN_HASH_READ'
-    $actualDolphinHash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
+    $actualDolphinHash = (Get-PrivateSha256 $exe)
     $script:safeStage='ATTEST_DOLPHIN_HASH_COMPARE'
     if ([string]::IsNullOrWhiteSpace($actualDolphinHash) -or
         $actualDolphinHash.ToUpperInvariant() -cne $ExpectedDolphinSha256.ToUpperInvariant()) {
@@ -142,7 +156,7 @@ function Invoke-ExistingPreflight([string]$Session, [bool]$WriteManifest) {
 
 function Copy-VerifiedBank([string]$Source, [string]$Dest, [long]$ExpectedSize) {
     $original = Get-Item -LiteralPath $Source
-    $before = (Get-FileHash -LiteralPath $Source -Algorithm SHA256).Hash
+    $before = (Get-PrivateSha256 $Source)
     $input = [IO.File]::Open($Source,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
     try {
         $output = [IO.File]::Open($Dest,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
@@ -153,8 +167,8 @@ function Copy-VerifiedBank([string]$Source, [string]$Dest, [long]$ExpectedSize) 
     if ($original.Length -ne $ExpectedSize -or $afterItem.Length -ne $ExpectedSize -or
         $original.LastWriteTimeUtc.Ticks -ne $afterItem.LastWriteTimeUtc.Ticks -or
         (Get-Item -LiteralPath $Dest).Length -ne $ExpectedSize -or
-        (Get-FileHash -LiteralPath $Source -Algorithm SHA256).Hash -ne $before -or
-        (Get-FileHash -LiteralPath $Dest -Algorithm SHA256).Hash -ne $before) {
+        (Get-PrivateSha256 $Source) -ne $before -or
+        (Get-PrivateSha256 $Dest) -ne $before) {
         throw 'BANK_CHANGED_DURING_COPY'
     }
 }
