@@ -12,7 +12,7 @@ from .replay import AIM, BALL, CACHE, Replay, Sample, float_hypothesis, load_rep
 from .live import LiveSampler
 from .a_reference import discover_reference
 from .a_live import LiveAIndicator
-from .terrain import TerrainError, TerrainMesh, load_private_obj
+from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -95,6 +95,7 @@ class Inspector:
         self.terrain_mesh: TerrainMesh | None = None
         self.terrain_visible = tk.BooleanVar(value=True)
         self.terrain_focus = tk.BooleanVar(value=True)
+        self.terrain_colors = tk.BooleanVar(value=True)
         self.terrain_status = tk.StringVar(value="Terrain: select a locally exported PRIVATE collision OBJ to display.")
         self.a_reason = tk.StringVar(value="Connect LIVE with A released; 2 stable samples initialize candidate")
         self.baseline: float | None = None
@@ -170,7 +171,13 @@ class Inspector:
         ttk.Button(mesh_actions, text="Clear terrain", command=self.clear_terrain).pack(side="left", padx=4)
         ttk.Checkbutton(mesh_actions, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(mesh_actions, text="Color source surface IDs", variable=self.terrain_colors, command=self.draw_path).pack(side="left")
         ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
+        source_legend = ttk.Frame(center)
+        source_legend.pack(fill="x")
+        for label, color in (SURFACE_STYLE[v] for v in (0x0001,0x0002,0x0003,0x0006,0x0007,0x0009)):
+            ttk.Label(source_legend, text=label, foreground=color).pack(side="left", padx=4)
+        ttk.Label(source_legend, text="other/unknown: neutral; ID hypotheses", foreground="#a1aab7").pack(side="left")
         ttk.Label(center, text="White: ball +0x30  |  Amber: cache +0xCC  |  Cyan flag: PIN candidate  |  Green diamond: TEE candidate", wraplength=640).pack(anchor="w")
         ttk.Label(center, textvariable=self.landmark_status, wraplength=640).pack(anchor="w")
         ttk.Label(center, text="Magenta dashed: flag-aligned aim reference, rotated only by Δ+0x3C (unverified mapping; no player position)", wraplength=640).pack(anchor="w")
@@ -502,6 +509,7 @@ class Inspector:
         # alignment. Keep previous synthetic GUI test stubs working if they
         # don't construct optional terrain fields.
         terrain_faces = ()
+        colored_faces = ()
         mesh = getattr(self, "terrain_mesh", None)
         showing = getattr(self, "terrain_visible", None)
         focusing = getattr(self, "terrain_focus", None)
@@ -511,12 +519,15 @@ class Inspector:
             # UI work per sample. All 2498 triangles remain in the private OBJ.
             live_mode = bool(self.live_worker is not None and self.live_last is not None)
             limit = 600 if live_mode else 1200
-            terrain_faces = mesh.drawing_faces(
+            colored_faces = mesh.drawing_colored_faces(
                 tuple(landmarks.values()), focused=(focusing is None or focusing.get()), limit=limit)
+            terrain_faces = tuple(face for face, _ in colored_faces)
             if hasattr(self, "terrain_status"):
+                labeled = sum(n for code,n in mesh.material_counts().items() if code is not None)
                 self.terrain_status.set(
                     f"PRIVATE collision wireframe: {len(terrain_faces)}/{len(mesh.faces)} "
-                    "triangles drawn · alignment/active collision UNVERIFIED")
+                    f"triangles drawn · {labeled}/{len(mesh.faces)} source-ID labeled · "
+                    "alignment/active collision UNVERIFIED")
         elif mesh is not None and hasattr(self, "terrain_status"):
             self.terrain_status.set("Terrain HIDDEN — Show disabled or source qualification unavailable")
         # Plot bounds include the selected collision candidate; do NOT transform
@@ -539,10 +550,13 @@ class Inspector:
             return width / 2 + (u - cx) * scale, height / 2 - (v - cy) * scale
         canvas.create_text(12, 12, text="Rotatable 3D source-coordinate projection · unknown units", anchor="nw", fill="#bacbe1")
         # Behind source-qualified ball, tee, pin and screen-anchored A text.
-        for face in terrain_faces:
+        for face, source_attr in colored_faces:
             xy_face = [xy(v) for v in face]
+            palette = getattr(self, "terrain_colors", None)
+            use_colors = palette is None or palette.get()
+            color = surface_style(source_attr)[1] if use_colors else "#3c7366"
             canvas.create_line(*xy_face[0], *xy_face[1], *xy_face[2], *xy_face[0],
-                               fill="#3c7366", width=1, tags=("terrain_collision_candidate",))
+                               fill=color, width=1, tags=("terrain_collision_candidate",))
         # Recenter per displayed prefix; do not imply screen-space projection or verified spatial units.
         for sequence, color in ((path, "#f1f6ff"), (caches, "#f5b942")):
             previous = None
