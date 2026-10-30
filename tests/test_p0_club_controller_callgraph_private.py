@@ -17,9 +17,9 @@ BASE=0x8029E62C
 CTRL=0x8019B214
 U={x.PLAYER:(BASE,BASE+0x1000),
    "Pack/RPKernel/RPSysController.cpp":(CTRL,CTRL+0x200)}
-F=[(BASE,BASE+0x10,"f1",x.PLAYER),
-   (BASE+0x10,BASE+0x20,"f2",x.PLAYER),
-   (CTRL,CTRL+0x20,"get_controller","Pack/RPKernel/RPSysController.cpp")]
+F=[(CTRL,CTRL+0x20,"get_controller","Pack/RPKernel/RPSysController.cpp"),
+   (BASE,BASE+0x10,"f1",x.PLAYER),
+   (BASE+0x10,BASE+0x20,"f2",x.PLAYER)]
 
 def d(op,rs=3,ra=3,imm=0):
     return (op<<26)|(rs<<21)|(ra<<16)|(imm & 65535)
@@ -38,7 +38,7 @@ def records_for_two_funcs(include_controller=True):
     pos=BASE-x.base.MEM1
     mem[pos:pos+16]=code1
     mem[pos+16:pos+32]=code2
-    return x.static_instruction_records(mem,U,F[:2])
+    return x.static_instruction_records(mem,U,[z for z in F if z[3]==x.PLAYER])
 
 class TestClubFunctionGraph(unittest.TestCase):
     def test_public_function_index_is_available_and_qualified(self):
