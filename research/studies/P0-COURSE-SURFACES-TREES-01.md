@@ -217,3 +217,55 @@ py -3 -I scripts/p0_tree_ppc_indexing_private.py --archive 'D:\Projects\Wii Golf
 ```
 See [ogws public source splits](https://github.com/doldecomp/ogws/blob/master/config/RSPE01_01/splits.txt)
 and [Wii Sports public Rev1 symbol map](https://github.com/kiwi515/ogws_info/blob/main/RSPE_r1.map.csv).
+
+## Source-proven tree-object stride — operator phase 7 (2026-10-30)
+
+Operator's bounded original SHA/source-gated source disassembly established
+an executable `RPGolFieldManager` loop (public `Golf::LoadCurrentHoleResources`
+source-window offsets, RSPE01 Rev1):
+
+```asm
++0x0698  stwu r1,-32(r1)
++0x06BC  mr r28,r3
++0x06E8  lwz r0,+0x20(r28)
++0x06EC  add r3,r0,r31
++0x06F0  bl RPGolMapObjTree+0x000C
++0x06F4  addi r31,r31,+84
++0x06F8  addi r30,r30,+1
++0x06FC  lwz r0,+0x1C(r28)
++0x0700  cmpw r30,r0
++0x0704  blt +0x06E8
+```
+
+This is **direct source register-flow evidence** of an array of
+**0x54 (84)-byte tree objects**. The public `RPGolFieldManager` header
+documents tree count at `+0x1C`, and `RPGolMapObjTree* mTreeObjs` at
+`+0x20`, exactly matching loop operands. Source count is **94**, field
+array pointer bounded in MEM2. The earlier contiguous object/pointer-table
+guesses were overconstrained by unsupported vtable-pointer assumptions.
+The loop alone does **not** verify actual tree translations, 3D models,
+scale, world transform, or collision/contact; count/stride must be
+used with source-scene SHA gates.
+
+New separate `scripts/p0_tree_stride84_private.py` verifies exact
+native PPC word fingerprints across the 10 loop instructions,
+the original seven-pair SHA and selected scene/tee/pin,
+then reads the 94 contiguous 0x54 records. It classifies
+`RPGolMapObjBase::mTrans +0x30` float candidate vectors,
+their distinctness/spans/source tee/pin proximity and first-word
+address-region buckets **without outputting individual XYZ**.
+Optionally cross-checks phase 1, 5, 7 original BE32 position words
+for identity (only a boolean printed). It intentionally
+doesn't gate position validity on first-word vtable identity
+or treat proxy positions as real tree hitboxes.
+
+Private operator command:
+```powershell
+py -3 -I scripts/p0_tree_stride84_private.py --archive 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures\p0-new-cohort-20261028-063011392-955fd483-PRIVATE' --captures 1 5 7
+```
+
+No new Dolphin capture or gameplay action is required. A positive finite,
+distinct near-source-coordinate result supports subsequent PRIVATE
+tree proxy overlay with position calibration, separately owned by S002 UI.
+Do not merge the script or publish source private pointers/vector/OBJ.
+Trainable status remains false.
