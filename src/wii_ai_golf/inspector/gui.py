@@ -75,7 +75,8 @@ def project(point: tuple[float, float, float], yaw: float, pitch: float) -> tupl
 
 
 class Inspector:
-    def __init__(self, root: tk.Tk, initial_capture: str = "", initial_manifest: str = ""):
+    def __init__(self, root: tk.Tk, initial_capture: str = "", initial_manifest: str = "",
+                 initial_terrain_obj: str = ""):
         self.root = root
         root.title("Wii Golf · P0 Memory Inspector — OFFLINE CANDIDATES")
         root.geometry("1320x850")
@@ -110,6 +111,10 @@ class Inspector:
         self.live_location = ""
         self.live_port = tk.StringVar(value="55355")
         self._draw_controls()
+        if initial_terrain_obj:
+            # Explicit CLI path opt-in. Still hidden whenever packet source
+            # is unqualified; no claim of mesh/physics ownership.
+            self.load_terrain_path(initial_terrain_obj, show_dialog=False)
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(200, self.poll_live)
         if initial_capture and initial_manifest:
@@ -204,19 +209,25 @@ class Inspector:
         filename = filedialog.askopenfilename(
             title="Select local source-coordinate private KCL collision OBJ",
             filetypes=[("Wavefront OBJ", "*.obj")])
-        if not filename:
-            return
+        if filename:
+            self.load_terrain_path(filename, show_dialog=True)
+
+    def load_terrain_path(self, filename: str, *, show_dialog: bool = False) -> bool:
+        """Load explicitly nominated private OBJ, preserving source guards."""
         try:
             mesh = load_private_obj(filename)
         except (TerrainError, OSError) as exc:
-            messagebox.showerror("Private terrain declined", str(exc))
-            return
+            if show_dialog:
+                messagebox.showerror("Private terrain declined", str(exc))
+            self.terrain_status.set("Terrain: private OBJ declined by path/format verification.")
+            return False
         self.terrain_mesh = mesh
         self.terrain_visible.set(True)
         self.terrain_status.set(
             f"PRIVATE collision OBJ: {len(mesh.faces)} candidate triangles, SHA {mesh.sha256[:12]}… "
             "· visual alignment/active collision UNVERIFIED")
         self.draw_path()
+        return True
 
     def clear_terrain(self) -> None:
         self.terrain_mesh = None
@@ -594,8 +605,8 @@ class Inspector:
         self.draw_a_overlay()
 
 
-def launch(capture: str = "", manifest: str = "") -> int:
+def launch(capture: str = "", manifest: str = "", terrain_obj: str = "") -> int:
     root = tk.Tk()
-    Inspector(root, capture, manifest)
+    Inspector(root, capture, manifest, terrain_obj)
     root.mainloop()
     return 0
