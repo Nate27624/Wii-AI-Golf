@@ -97,3 +97,16 @@ Its Solid terrain and Triangle edges controls remain purely display toggles.
 There are no inferred fairway/rough/green labels. Neither source file nor
 private JSON/OBJ is committed. Octree reachability/active collision remain
 unproven; training false.
+
+
+## Operator's corrected D:\Projects path
+
+If the successfully SHA-verified and unmodified OBJ was moved to
+`D:\Projects\hole01-collision-candidate-PRIVATE.obj`, the original
+source-label extraction accepts it there. Set --original-obj to that exact
+path and --labels-output to
+`D:\Projects\hole01-collision-candidate-labels-PRIVATE.json`. Both
+files must be directly in an outside-Git standalone folder named Projects;
+the labels JSON is exclusive-create and never overwrites or modifies OBJ.
+Any original-byte mismatch versus reconstructed v/f records abstains.
+No rerun of the earlier geometry exporter or change to source archive.
