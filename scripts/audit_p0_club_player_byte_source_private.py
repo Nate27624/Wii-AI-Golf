@@ -50,8 +50,12 @@ def decode(pc, word, unit_lo, unit_hi):
     opcode = prior.op(word)
     rd, ra, rb = (word >> 21) & 31, (word >> 16) & 31, (word >> 11) & 31
     if opcode in (14, 15):
-        name = "addi" if opcode == 14 else "addis"
-        return "%s r%d,r%d,%+d" % (name, rd, ra, prior.signed16(word))
+        value = prior.signed16(word)
+        if ra == 0:
+            return ("%s r%d,%+d" % (
+                "li" if opcode == 14 else "lis", rd, value))
+        return "%s r%d,r%d,%+d" % (
+            "addi" if opcode == 14 else "addis", rd, ra, value)
     if opcode in (10, 11):
         name = "cmplwi" if opcode == 10 else "cmpwi"
         return "%s r%d,%+d" % (name, ra, prior.signed16(word))
@@ -84,6 +88,92 @@ def decode(pc, word, unit_lo, unit_hi):
                 "add" if xo == 266 else "subf", rd, ra, rb))
         return "op31 xo=%d registers=r%d,r%d,r%d" % (xo, rd, ra, rb)
     return "opcode=%d (not decoded)" % opcode
+
+
+def immediate_definition(words, index, register):
+    """Only nearby PPC li; unknown if any control transfer or register rewrite.
+
+    Conservative local symbolic witness. No interprocedural or CFG analysis.
+    """
+    for i in range(index - 1, max(-1, index - 8), -1):
+        word = words[i]
+        opcode = prior.op(word)
+        if opcode in (16, 18, 19):
+            return None
+        dest = (word >> 21) & 31
+        if opcode == 14 and dest == register:
+            if (word >> 16) & 31 == 0:
+                return prior.signed16(word) & 0xff
+            return None
+        if opcode in (14, 15, 24, 25, 26, 27, 28, 29, 31) and dest == register:
+            return None
+        if opcode == 18 and (word & 1):
+            return None
+    return None
+
+
+def flag_pair_summary(words):
+    """Find same-base +0x34/+0x35 byte pairs; constant values only if local."""
+    result = []
+    for i, w in enumerate(words):
+        a = prior.decode_access(w)
+        if not (a and a["op"] == "stb" and a["disp"] == 0x34
+                and a["base"] not in (0, 1)):
+            continue
+        matches = []
+        for j in range(max(0, i-4), min(len(words), i+5)):
+            b = prior.decode_access(words[j])
+            if b and b["op"] == "stb" and b["disp"] == 0x35 and b["base"] == a["base"]:
+                if any(prior.op(words[k]) in (16,18,19)
+                       for k in range(min(i,j)+1, max(i,j))):
+                    continue
+                matches.append((abs(i-j),j,b))
+        if not matches:
+            continue
+        _,j,b = min(matches, key=lambda m:(m[0],m[1]))
+        r = {"source_relative_store_34": "+0x%05X" % (4*i),
+             "source_relative_store_35": "+0x%05X" % (4*j),
+             "same_base_register": "r%d" % a["base"],
+             "store_34_local_li_or_unknown": immediate_definition(words,i,a["reg"]),
+             "store_35_local_li_or_unknown": immediate_definition(words,j,b["reg"]),
+             "source_reaches_live_selected_player_verified": False,
+             "dpad_state_or_club_index_verified": False}
+        result.append(r)
+    return result
+
+
+def counted_loop_summary(words):
+    """Strict local PPC +0xBC counter-loop signature; not field ownership."""
+    results = []
+    for i in range(len(words)-5):
+        a = prior.decode_access(words[i])
+        b = words[i+1]
+        c = prior.decode_access(words[i+2])
+        d = prior.decode_access(words[i+3])
+        e = words[i+4]
+        f = words[i+5]
+        if not (a and c and d and a["op"] == "lwz"
+                and a["disp"] == 0xBC and a["base"] not in (0,1)
+                and prior.op(b) == 14 and prior.signed16(b) == 1
+                and ((b>>16)&31) == a["reg"]
+                and c["op"] == "stw" and c["disp"] == 0xBC
+                and c["base"] == a["base"] and c["reg"] == ((b>>21)&31)
+                and d["op"] == "lwz" and d["disp"] == 0xBC
+                and d["base"] == a["base"]
+                and prior.op(e) == 11 and prior.signed16(e) == 16
+                and ((e>>16)&31) == d["reg"]
+                and prior.op(f) == 16):
+            continue
+        results.append({
+            "source_relative_counter_read": "+0x%05X" % (4*i),
+            "source_relative_increment_store": "+0x%05X" % (4*(i+2)),
+            "source_relative_upper_bound_compare": "+0x%05X" % (4*(i+4)),
+            "observed_compare_bound": 16,
+            "receiver_is_golf_config_verified": False,
+            "selected_club_semantics_verified": False,
+        })
+    return results
+
 
 def describe_player(code, address, limit=18, context=6, target_offset=None, source_unit=PLAYER):
     prior.require(address % 4 == 0 and len(code) % 4 == 0
@@ -145,6 +235,8 @@ def describe_player(code, address, limit=18, context=6, target_offset=None, sour
         "monitored_displacements": ["+0x%03X" % x for x in WATCH],
         "matching_access_counts_by_offset": counts,
         "matching_access_total": len(found),
+        "paired_adjacent_byte_state_stores": flag_pair_summary(words) if source_unit == PLAYER else [],
+        "plus_bc_counter_loop_patterns": counted_loop_summary(words) if source_unit == CONFIG else [],
         "sites_in_report": result,
         "sites_omitted": max(0, len(found) - limit),
         "nearby_code_is_not_dataflow_proof": True,
