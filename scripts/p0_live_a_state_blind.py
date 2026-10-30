@@ -148,7 +148,7 @@ def run(args, *, rpc_class=None, clock=time):
     model = []
     fit_report = {'inference_enabled': False, 'reason': 'NOT_STARTED'}
     print('LIVE A-STATE CANDIDATE: manual controller only, NO SWING, NO AUTOMATIC INPUT.')
-    print('Each window: keep Dolphin ready-to-hit, manually hold A only when instructed.')
+    print('R0 starts with A RELEASED. Each window: set the requested A state BEFORE HIGH beep; keep it until LOW beep.')
     try:
         with stream.open('x',encoding='utf-8') as out:
             with rpc_class(port=args.port,timeout_s=15.0) as rpc:
@@ -161,13 +161,23 @@ def run(args, *, rpc_class=None, clock=time):
                 stages += [('B'+str(i), None) for i in range(args.blind_windows)]
                 for phase,hold in stages:
                     if hold is None:
-                        print('\nBLIND '+phase+': secretly choose A HELD or A RELEASED; do not swing.')
-                        answer=input('Set intended state after countdown; type YES to arm: ').strip()
+                        print('\nBLIND ' + phase + ': SECRETLY choose whether A is held or released.')
+                        print('After YES: move to Dolphin and set your SECRET state before HIGH beep.')
+                        print('Keep the same state from HIGH until LOW beep. No motion or swing.')
+                    elif hold:
+                        print('\n' + phase + ': A MUST BE HELD FOR ENTIRE SAMPLE WINDOW.')
+                        print('After YES: move to Dolphin, press and HOLD A before HIGH beep.')
+                        print('KEEP HOLDING A through sampling; release only AFTER LOW beep.')
                     else:
-                        print('\n'+phase+': '+('PRESS AND HOLD A' if hold else 'RELEASE A') + ' after HIGH beep; NO motion.')
-                        answer=input('Type YES to arm; anything else cancels: ').strip()
+                        print('\n' + phase + ': A MUST BE RELEASED FOR ENTIRE SAMPLE WINDOW.')
+                        print('For R0, do NOT press A first. For later R, release prior A hold.')
+                        print('After YES: move to Dolphin with A RELEASED before HIGH beep.')
+                        print('KEEP A RELEASED through sampling until LOW beep.')
+                    answer=input('Type YES in PowerShell to start the focus countdown (anything else cancels): ').strip()
                     _gate(answer == 'YES','OPERATOR_CANCELLED')
-                    print('Focus Dolphin now. HIGH beep indicates sampling start; LOW beep means stop.',flush=True)
+                    print('Focus Dolphin NOW. You have ' + str(args.focus_seconds) +
+                          ' seconds to set the state BEFORE HIGH beep.', flush=True)
+                    print('HIGH beep STARTS sampling; LOW beep ENDS sampling. Keep state unchanged between.',flush=True)
                     clock.sleep(args.focus_seconds)
                     try:
                         import winsound
