@@ -99,17 +99,17 @@ def evidence(manager_blob,handler_blob,funcs,units):
     # Source branch determines r4=0 path and r4!=0 path.
     require_cmpwi(word_at(handler_blob,BRANCH_A),4,0)
     gate=word_at(handler_blob,BRANCH_A+4)
-    base.require(branch_target(HANDLER_PC+BRANCH_A+4,gate)
+    base.require(((gate>>21)&31)==12 and ((gate>>16)&31)==2\n                 and not (gate & 2),\n                 "SOURCE_EQUALITY_BRANCH_SEMANTICS_MISMATCH")\n    base.require(branch_target(HANDLER_PC+BRANCH_A+4,gate)
                  ==HANDLER_PC+DECREMENT[0],
                  "SOURCE_DIRECTION_BRANCH_TARGET_MISMATCH")
-    # In first direction branch, integer >=4 no increment, else +1.
+    # PPC BO=12 BI=2 branches on equality: r4==0 takes the\n    # decrement arm at +0x234, r4!=0 falls through to increment.\n    # Increment arm is guarded by a comparison to index 3.
     require_access(word_at(handler_blob,INCREMENT[0]),"lwz",4,3,0x1C)
     require_cmpwi(word_at(handler_blob,INCREMENT[1]),4,3)
     base.require(base.op(word_at(handler_blob,INCREMENT[2]))==16,
                  "SOURCE_MAX_GUARD_MISSING")
     require_step(word_at(handler_blob,INCREMENT[3]),4,0,1)
     require_access(word_at(handler_blob,INCREMENT[4]),"stw",0,3,0x1C)
-    # In other direction branch, <=0 no decrement, else -1.
+    # Zero-direction arm is guarded by an index-0 comparison.
     require_access(word_at(handler_blob,DECREMENT[0]),"lwz",4,3,0x1C)
     require_cmpwi(word_at(handler_blob,DECREMENT[1]),4,0)
     base.require(base.op(word_at(handler_blob,DECREMENT[2]))==16,
