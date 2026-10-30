@@ -239,7 +239,8 @@ class Inspector:
             return False
         self.terrain_mesh = mesh
         # New OBJ invalidates any earlier face-index/source-label association.
-        self.surface_label_status.set("Surface colors: no original KCL labels loaded (neutral shading only).")
+        if hasattr(self, "surface_label_status"):
+            self.surface_label_status.set("Surface colors: no original KCL labels loaded (neutral shading only).")
         self.terrain_visible.set(True)
         self.terrain_status.set(
             f"PRIVATE terrain OBJ: {len(mesh.faces)} candidate triangles, SHA {mesh.sha256[:12]}… "
