@@ -104,3 +104,47 @@ this first pass returns **code-linkage metadata only**, no RAM bytes.
    identity and 100-ft censored outcomes in future gameplay experiments.
 
 Training approved: FALSE. Physics semantics approved: FALSE.
+
+## Original capture7 direct code linkage (operator, source/SHA gated)
+
+Original operator callgraph result from `p0_tree_hitbox_source_callgraph_private.py`
+reported:
+- `RPGolMapObjBall -> RPGolMapObjTree`: **3 direct bl** at Ball unit-relative
+  `+0x025C,+0x02C0,+0x231C`.
+- `RPGolKCol -> RPGolMapObjTree`: **2 direct bl** at GolfKCol
+  unit-relative `+0x1FC8,+0x21D4`.
+- `RPGolMapObjBall -> RPGolKCol`: 5; `GolfKCol -> Ball`: 7;
+  `Simulation -> Ball`: 16.
+- Ball unit **34 indirect bctrl**. No direct proof these are
+  collision tests or that all of them execute during one ball flight.
+  `Tree -> CollisionChecker` did NOT appear in the direct-call report;
+  indirect dispatch and GolfKCol ownership remain unexcluded.
+
+**Interpretation:** Tree code is reached from both Ball and GolfKCol in
+the original executable. That's considerably stronger than heuristic
+collision guesswork, but identifying a shape or bounce/damping response
+requires function/receiver and numeric instruction provenance.
+
+## Targeted next static audit: exactly five verified source calls
+
+`scripts/p0_tree_hitbox_five_calls_private.py` is a new read-only,
+original seven-capture SHA/scene/84-byte-tree-loop gated script. It
+checks all five reported `bl` callsites truly resolve into the public
+`RPGolMapObjTree` source module; otherwise it abstains. It prints
+**only 21 caller instructions around each site and 18 instructions
+at the actual target** with source-unit-relative offsets and local
+operator-only original code words. It decodes loads, stores, compares,
+branches, floating instructions and frame setup as available, but
+unknown instructions retain `undecoded`. It does **not** dump
+runtime heap, native model assets, ball positions or private tree
+coordinates and never writes original RAM or game state.
+
+```powershell
+py -3 -I scripts/p0_tree_hitbox_five_calls_private.py --archive 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures\p0-new-cohort-20261028-063011392-955fd483-PRIVATE' --capture 7
+```
+
+**Evidence gate:** classify target tree methods by their actual PPC data
+usage (model getter/position/collision callback/constructor/render etc.),
+then search only validated function disassembly for shape math and
+ball velocity changes. A constructor call or model getter must not be
+misrepresented as collision merely because it targets tree code.
