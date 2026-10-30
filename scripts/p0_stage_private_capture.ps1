@@ -1,0 +1,321 @@
+#Requires -Version 5.1
+<#
+.SYNOPSIS
+  OFFLINE ONLY: privately stage operator-exported Wii Sports Golf MEM1/MEM2.
+.DESCRIPTION
+  Prepare -> Stage one manually exported pair per label -> Finalize.
+  Never runs Dolphin, reads a game process, presses A, or establishes guest frames.
+  Requires an explicit current working-session operator attestation before Stage.
+  Private session, original banks, notes and hashed manifest MUST NOT be committed.
+.EXAMPLE
+  .\scripts\p0_stage_private_capture.ps1 -Action Prepare -PrivateRoot 'C:\WiiGolfPrivate' -SessionId 'GOLF-20261030-01'
+.EXAMPLE
+  .\scripts\p0_stage_private_capture.ps1 -Action Stage -PrivateRoot 'C:\WiiGolfPrivate' -SessionId 'GOLF-20261030-01' -Phase B0 -Mem1Path 'C:\WiiExports\mem1.bin' -Mem2Path 'C:\WiiExports\mem2.bin' -DolphinExe 'C:\ApprovedDolphin\Dolphin.exe' -ExpectedDolphinSha256 '<independently-approved-64-hex-sha256>' -RuntimeStatus Working -WorkingSessionToken 'WorkingDolphin-01' -SceneHoleToken 'SameHoleScene-01' -RevisionEvidenceToken 'RSPE01Rev1Checked-01' -ExportMethod ManualPausedExport -PairSamePauseAttested -StagedInCaptureOrderAttested -Observation 'Baseline; phase is operator-labelled only.'
+.EXAMPLE
+  .\scripts\p0_stage_private_capture.ps1 -Action Finalize -PrivateRoot 'C:\WiiGolfPrivate' -SessionId 'GOLF-20261030-01' -PythonCommand py
+.EXAMPLE
+  .\scripts\p0_stage_private_capture.ps1 -Action Finalize -PrivateRoot 'C:\WiiGolfPrivate' -SessionId 'GOLF-20261030-01'
+#>
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory=$true)][ValidateSet('Prepare','Stage','Finalize')][string]$Action,
+    [Parameter(Mandatory=$true)][string]$PrivateRoot,
+    [Parameter(Mandatory=$true)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_-]{2,39}$')][string]$SessionId,
+    [ValidateSet('B0','A0','C0','F0','S0')][string]$Phase,
+    [string]$Mem1Path,
+    [string]$Mem2Path,
+    [string]$DolphinExe,
+    [string]$ExpectedDolphinSha256,
+    [ValidateSet('Unknown','Working')][string]$RuntimeStatus='Unknown',
+    [string]$WorkingSessionToken,
+    [string]$SceneHoleToken,
+    [ValidateSet('RSPE01')][string]$GameId='RSPE01',
+    [ValidateSet(1)][int]$GameRevision=1,
+    [string]$RevisionEvidenceToken,
+    [ValidateSet('ManualPausedExport','ManualMemoryViewer')][string]$ExportMethod='ManualPausedExport',
+    [switch]$PairSamePauseAttested,
+    [switch]$StagedInCaptureOrderAttested,
+    [string]$Observation='',
+    [string]$Uncertainty='Operator-labelled phase, not a verified guest frame or physical contact.',
+    [string]$PythonCommand='py'
+)
+$ErrorActionPreference='Stop'
+Set-StrictMode -Version Latest
+$MEM1_SIZE = 24 * 1024 * 1024
+$MEM2_SIZE = 64 * 1024 * 1024
+$manifestName = 'p0-capture-manifest-PRIVATE.json'
+$metaName = 'p0-session-PRIVATE.json'
+
+function Assert-LocalPrivate([string]$Path, [bool]$MustExist) {
+    if (-not [IO.Path]::IsPathRooted($Path) -or $Path.StartsWith('\\')) { throw 'PRIVATE_PATH_REQUIRED' }
+    $full = [IO.Path]::GetFullPath($Path)
+    if ($full -match '(?i)(^|[\\/])(?:OneDrive[^\\/]*|Dropbox|Google Drive|iCloudDrive|Syncthing)([\\/]|$)') {
+        throw 'SYNCED_PATH_FORBIDDEN'
+    }
+    $root = [IO.Path]::GetPathRoot($full)
+    $drive = [IO.DriveInfo]::new($root)
+    if ($drive.DriveType -ne [IO.DriveType]::Fixed) { throw 'NONLOCAL_DRIVE' }
+    $cursor = $full
+    while ($cursor) {
+        if ([IO.File]::Exists($cursor) -or [IO.Directory]::Exists($cursor)) {
+            $attr = [IO.File]::GetAttributes($cursor)
+            if (($attr -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'LINK_FORBIDDEN' }
+        }
+        if ([IO.Directory]::Exists((Join-Path $cursor '.git')) -or [IO.File]::Exists((Join-Path $cursor '.git'))) {
+            throw 'GIT_CHECKOUT_FORBIDDEN'
+        }
+        $parent = [IO.Path]::GetDirectoryName($cursor)
+        if (-not $parent -or $parent -eq $cursor) { break }
+        $cursor = $parent
+    }
+    if ($MustExist -and -not (Test-Path -LiteralPath $full)) { throw 'PATH_MISSING' }
+    return $full
+}
+
+function Write-PrivateNew([string]$Path, [object]$Object) {
+    $stream = [IO.FileStream]::new($Path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    try {
+        $writer = [IO.StreamWriter]::new($stream, [Text.UTF8Encoding]::new($false))
+        try {
+            $writer.WriteLine(($Object | ConvertTo-Json -Depth 6))
+            $writer.Flush()
+            $stream.Flush($true)
+        } finally { $writer.Dispose() }
+    } finally { $stream.Dispose() }
+}
+
+function Assert-ReadBank([string]$Path, [long]$Size) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { throw 'MISSING_BANK' }
+    $full = Assert-LocalPrivate $Path $true
+    if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { throw 'BANK_NOT_FILE' }
+    if ((Get-Item -LiteralPath $full).Length -ne $Size) { throw 'WRONG_BANK_SIZE' }
+    return $full
+}
+
+function Get-PrivateSha256([string]$Path) {
+    # Fixed streaming SHA256, independent of host Get-FileHash cmdlet availability.
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open,
+                              [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    $hash = [Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = $hash.ComputeHash($stream)
+        return ([BitConverter]::ToString($bytes)).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $hash.Dispose()
+        $stream.Dispose()
+    }
+}
+
+function Assert-OperatorGates {
+    $script:safeStage='ATTEST_WORKING_SESSION'
+    if ($RuntimeStatus -ne 'Working' -or $WorkingSessionToken -cnotmatch '^[A-Za-z0-9_-]{8,64}$' -or
+        $SceneHoleToken -cnotmatch '^[A-Za-z0-9_-]{8,64}$') {
+        throw 'WORKING_DOLPHIN_SCENE_NOT_OPERATOR_ATTESTED'
+    }
+    $script:safeStage='ATTEST_GAME_REVISION'
+    if ($GameId -ne 'RSPE01' -or $GameRevision -ne 1 -or $RevisionEvidenceToken -cnotmatch '^[A-Za-z0-9_-]{8,64}$') {
+        throw 'GAME_REVISION_NOT_OPERATOR_ATTESTED'
+    }
+    $script:safeStage='ATTEST_SAME_PAUSE'
+    if (-not $PairSamePauseAttested) { throw 'PAIR_SAME_PAUSE_NOT_ATTESTED' }
+    $script:safeStage='ATTEST_CAPTURE_ORDER'
+    if (-not $StagedInCaptureOrderAttested) { throw 'CAPTURE_ORDER_NOT_ATTESTED' }
+    $script:safeStage='ATTEST_EXPECTED_BINARY_SHA'
+    if ($ExpectedDolphinSha256 -cnotmatch '^[a-fA-F0-9]{64}$') { throw 'MISSING_APPROVED_DOLPHIN_DIGEST' }
+    $script:safeStage='ATTEST_DOLPHIN_LOCAL_PATH'
+    $exe = Assert-LocalPrivate $DolphinExe $true
+    if (-not (Test-Path -LiteralPath $exe -PathType Leaf) -or
+        [IO.Path]::GetFileName($exe) -ne 'Dolphin.exe') { throw 'DOLPHIN_INSTALL_IDENTITY' }
+    $script:safeStage='ATTEST_PORTABLE_MARKER'
+    if (-not [IO.File]::Exists((Join-Path ([IO.Path]::GetDirectoryName($exe)) 'portable.txt'))) {
+        throw 'CLEAN_PORTABLE_DOLPHIN_REQUIRED'
+    }
+    $script:safeStage='ATTEST_PE_HEADER'
+    $reader = [IO.File]::OpenRead($exe)
+    try {
+        if ($reader.ReadByte() -ne 77 -or $reader.ReadByte() -ne 90) { throw 'DOLPHIN_NOT_PE' }
+    } finally { $reader.Dispose() }
+    $script:safeStage='ATTEST_DOLPHIN_HASH_READ'
+    $actualDolphinHash = (Get-PrivateSha256 $exe)
+    $script:safeStage='ATTEST_DOLPHIN_HASH_COMPARE'
+    if ([string]::IsNullOrWhiteSpace($actualDolphinHash) -or
+        $actualDolphinHash.ToUpperInvariant() -cne $ExpectedDolphinSha256.ToUpperInvariant()) {
+        throw 'DOLPHIN_DIGEST_MISMATCH'
+    }
+}
+
+function Invoke-ExistingPreflight([string]$Session, [bool]$WriteManifest) {
+    $helper = Join-Path $PSScriptRoot 'p0_capture_manifest_preflight.py'
+    if (-not [IO.File]::Exists($helper)) { throw 'MANAGER_PREFLIGHT_UNAVAILABLE' }
+    $cmd = Get-Command $PythonCommand -ErrorAction Stop
+    $preflightArgs = @($helper,'--private-root',$Session,'--mode','checkpoint')
+    if ($WriteManifest) { $preflightArgs += '--write-private-manifest' }
+    & $cmd.Source @preflightArgs
+    if ($LASTEXITCODE -ne 0) { throw 'MANAGER_PREFLIGHT_REFUSED' }
+}
+
+function Copy-VerifiedBank([string]$Source, [string]$Dest, [long]$ExpectedSize) {
+    $original = Get-Item -LiteralPath $Source
+    $before = (Get-PrivateSha256 $Source)
+    $input = [IO.File]::Open($Source,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+    try {
+        $output = [IO.File]::Open($Dest,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+        try { $input.CopyTo($output); $output.Flush($true) }
+        finally { $output.Dispose() }
+    } finally { $input.Dispose() }
+    $afterItem = Get-Item -LiteralPath $Source
+    if ($original.Length -ne $ExpectedSize -or $afterItem.Length -ne $ExpectedSize -or
+        $original.LastWriteTimeUtc.Ticks -ne $afterItem.LastWriteTimeUtc.Ticks -or
+        (Get-Item -LiteralPath $Dest).Length -ne $ExpectedSize -or
+        (Get-PrivateSha256 $Source) -ne $before -or
+        (Get-PrivateSha256 $Dest) -ne $before) {
+        throw 'BANK_CHANGED_DURING_COPY'
+    }
+}
+
+$safeStage='PREREQUISITES'
+try {
+    if ($env:OS -ne 'Windows_NT') { throw 'WINDOWS_OPERATOR_ONLY' }
+    $root = Assert-LocalPrivate $PrivateRoot $true
+    if (-not (Test-Path -LiteralPath $root -PathType Container)) { throw 'PRIVATE_ROOT_NOT_DIRECTORY' }
+    $session = Assert-LocalPrivate (Join-Path $root $SessionId) $false
+    $metaFile = Join-Path $session $metaName
+
+    if ($Action -eq 'Prepare') {
+        if (Test-Path -LiteralPath $session) { throw 'SESSION_EXISTS_REFUSE_OVERWRITE' }
+        [IO.Directory]::CreateDirectory($session) | Out-Null
+        try {
+            Write-PrivateNew $metaFile ([ordered]@{
+                kind='private-operator-capture-staging'; schema_version=1;
+                game_id_declared='RSPE01'; revision_declared=1;
+                export_method_declared=$ExportMethod; prepared_utc=[DateTime]::UtcNow.ToString('o');
+                guest_frame_verified=$false; same_shot_verified=$false;
+                training_approved=$false
+            })
+        } catch { [IO.Directory]::Delete($session,$false); throw }
+        Write-Output 'P0 private session PREPARED. Runtime remains operator-unattested; no Dolphin action taken.'
+        exit 0
+    }
+
+    $session = Assert-LocalPrivate $session $true
+    if (-not (Test-Path -LiteralPath $session -PathType Container) -or
+        -not [IO.File]::Exists($metaFile)) { throw 'SESSION_NOT_PREPARED' }
+    $null = Assert-LocalPrivate $metaFile $true
+    $meta = Get-Content -LiteralPath $metaFile -Raw | ConvertFrom-Json
+    if ($meta.kind -ne 'private-operator-capture-staging' -or $meta.game_id_declared -ne 'RSPE01' -or
+        $meta.revision_declared -ne 1 -or $meta.export_method_declared -ne $ExportMethod -or
+        $meta.training_approved -ne $false) { throw 'SESSION_CONTRACT_MISMATCH' }
+    if ([IO.File]::Exists((Join-Path $session $manifestName))) { throw 'SESSION_ALREADY_FINALIZED' }
+
+    # Exclusive local session lock; never uses Git, network, emulator processes or a watcher.
+    $lockPath = Assert-LocalPrivate (Join-Path $session 'p0-stage.lock') $false
+    $lock = [IO.File]::Open($lockPath,
+                           [IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+    try {
+        if ([IO.File]::Exists((Join-Path $session $manifestName))) { throw 'SESSION_ALREADY_FINALIZED' }
+        if ($Action -eq 'Stage') {
+            $safeStage='OPERATOR_ATTESTATIONS'
+            Assert-OperatorGates
+            if (-not $Phase) { throw 'PHASE_REQUIRED' }
+            $safeStage='SOURCE_BANK_VALIDATION'
+            $first = Assert-ReadBank $Mem1Path $MEM1_SIZE
+            $second = Assert-ReadBank $Mem2Path $MEM2_SIZE
+            if ([string]::Equals($first,$second,[StringComparison]::OrdinalIgnoreCase)) { throw 'BANKS_IDENTICAL_PATH' }
+            $one = Join-Path $session ($Phase + '-MEM1.bin')
+            $two = Join-Path $session ($Phase + '-MEM2.bin')
+            $note = Join-Path $session ($Phase + '-observation-PRIVATE.json')
+            if ((Test-Path -LiteralPath $one) -or (Test-Path -LiteralPath $two) -or
+                (Test-Path -LiteralPath $note)) { throw 'PHASE_EXISTS_REFUSE_OVERWRITE' }
+            if ($first -eq $one -or $second -eq $two) { throw 'INPUT_OUTPUT_COLLISION' }
+            $drive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($session))
+            if ($drive.AvailableFreeSpace -lt ($MEM1_SIZE + $MEM2_SIZE + 16777216)) {
+                throw 'INSUFFICIENT_PRIVATE_STORAGE'
+            }
+            $prior = @(Get-ChildItem -LiteralPath $session -Filter '*-observation-PRIVATE.json' -File)
+            if ($prior.Count -ge 5) { throw 'MAX_PHASES' }
+            # One session must not silently mix binaries, crash decisions or revisions.
+            foreach ($existingNote in $prior) {
+                $null = Assert-LocalPrivate $existingNote.FullName $true
+                $previous = Get-Content -LiteralPath $existingNote.FullName -Raw | ConvertFrom-Json
+                if ($previous.dolphin_sha256_private -ne $ExpectedDolphinSha256.ToLowerInvariant() -or
+                    $previous.working_session_token_private -ne $WorkingSessionToken -or
+                    $previous.scene_hole_token_private -ne $SceneHoleToken -or
+                    $previous.revision_evidence_token_private -ne $RevisionEvidenceToken -or
+                    $previous.export_method -ne $ExportMethod -or
+                    $previous.pair_same_pause_operator_attestation -ne $true -or
+                    $previous.capture_order_operator_attestation -ne $true -or
+                    $previous.guest_frame_verified -ne $false) {
+                    throw 'MIXED_SESSION_PROVENANCE'
+                }
+            }
+            try {
+                $safeStage='BANK_COPY_AND_HASH'
+                Copy-VerifiedBank $first $one $MEM1_SIZE
+                Copy-VerifiedBank $second $two $MEM2_SIZE
+                $safeStage='MANAGER_PREFLIGHT'
+                Invoke-ExistingPreflight $session $false
+                $safeStage='PRIVATE_NOTE_WRITE'
+                Write-PrivateNew $note ([ordered]@{
+                    phase=$Phase; capture_order=($prior.Count + 1);
+                    human_label=(@{B0='baseline';A0='aim-only';C0='contact candidate';F0='flight candidate';S0='settled candidate'}[$Phase]);
+                    staged_utc_wall_clock=[DateTime]::UtcNow.ToString('o');
+                    capture_order_operator_attestation=$true;
+                    observation=$Observation; uncertainty=$Uncertainty;
+                    current_working_runtime_operator_attestation=$true;
+                    game_revision_operator_attestation=$true;
+                    pair_same_pause_operator_attestation=$true;
+                    export_method=$ExportMethod;
+                    dolphin_sha256_private=$ExpectedDolphinSha256.ToLowerInvariant();
+                    working_session_token_private=$WorkingSessionToken;
+                    scene_hole_token_private=$SceneHoleToken;
+                    revision_evidence_token_private=$RevisionEvidenceToken;
+                    guest_frame_verified=$false; contact_verified=$false;
+                    same_shot_verified=$false; training_approved=$false
+                })
+            } catch {
+                foreach ($file in @($one,$two)) {
+                    if ([IO.File]::Exists($file)) { [IO.File]::Delete($file) }
+                }
+                throw
+            }
+            Write-Output 'P0 native-size private pair STAGED; phase/observations are operator-labelled only.'
+        } elseif ($Action -eq 'Finalize') {
+            $safeStage='FINALIZE_NOTES'
+            $notes = @(Get-ChildItem -LiteralPath $session -Filter '*-observation-PRIVATE.json' -File)
+            if ($notes.Count -lt 1 -or $notes.Count -gt 5) { throw 'NO_VALID_PHASE_NOTES' }
+            $oneFiles = @(Get-ChildItem -LiteralPath $session -Filter '*-MEM1.bin' -File)
+            $twoFiles = @(Get-ChildItem -LiteralPath $session -Filter '*-MEM2.bin' -File)
+            if ($oneFiles.Count -ne $notes.Count -or $twoFiles.Count -ne $notes.Count) {
+                throw 'AMBIGUOUS_BANK_NOTE_COUNT'
+            }
+            $seenOrders = @{}
+            foreach ($item in $notes) {
+                $null = Assert-LocalPrivate $item.FullName $true
+                $p = $item.Name.Split('-')[0]
+                if (@('B0','A0','C0','F0','S0') -notcontains $p -or
+                    -not [IO.File]::Exists((Join-Path $session ($p + '-MEM1.bin'))) -or
+                    -not [IO.File]::Exists((Join-Path $session ($p + '-MEM2.bin')))) {
+                    throw 'UNPAIRED_PHASE_NOTES'
+                }
+                $detail = Get-Content -LiteralPath $item.FullName -Raw | ConvertFrom-Json
+                if ($detail.phase -ne $p -or $detail.capture_order -lt 1 -or
+                    $detail.capture_order -gt $notes.Count -or
+                    $detail.capture_order_operator_attestation -ne $true -or
+                    $detail.guest_frame_verified -ne $false -or
+                    $detail.training_approved -ne $false -or
+                    $seenOrders.ContainsKey([int]$detail.capture_order)) {
+                    throw 'AMBIGUOUS_ORDER_OR_UNVERIFIED_PROVENANCE'
+                }
+                $seenOrders[[int]$detail.capture_order] = $true
+            }
+            $safeStage='FINALIZE_MANIFEST'
+            Invoke-ExistingPreflight $session $true
+            Write-Output 'P0 private capture inventory FINALIZED; all identity/physics/training claims remain unverified.'
+        } else { throw 'UNKNOWN_ACTION' }
+    } finally { $lock.Dispose() }
+} catch {
+    # Never interpolate an exception: it can include private source paths, hashes, or console data.
+    # Allowlisted stage only, never an exception string containing private paths or hashes.
+    [Console]::Error.WriteLine('P0 private capture staging REFUSED at ' + $safeStage + '.')
+    exit 2
+}
