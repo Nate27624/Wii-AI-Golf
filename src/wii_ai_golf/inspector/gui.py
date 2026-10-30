@@ -183,7 +183,6 @@ class Inspector:
         ttk.Checkbutton(mesh_actions, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Color source surface IDs", variable=self.terrain_colors, command=self.draw_path).pack(side="left")
-        ttk.Button(mesh_actions, text="Frame view (F)", command=self.frame_view).pack(side="left", padx=4)
         ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
         source_legend = ttk.Frame(center)
         source_legend.pack(fill="x")
@@ -202,6 +201,7 @@ class Inspector:
         ttk.Button(buttons, text="▶", command=lambda: self.move(1)).pack(side="left")
         self.position = ttk.Label(buttons, text="0 / 0")
         self.position.pack(side="left", padx=15)
+        ttk.Button(buttons, text="Frame view (F)", command=self.frame_view).pack(side="left", padx=10)
 
         self.rows = ttk.Treeview(right, columns=("hex", "f32"), show="tree headings")
         self.rows.heading("#0", text="Field / component")
