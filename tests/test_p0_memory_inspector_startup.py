@@ -26,8 +26,8 @@ class StartupTests(unittest.TestCase):
         self.python.write_text('')
 
     def test_runtime_checkout_prefers_canonical_private_catalog(self):
-        self.assertEqual(startup.runtime_checkout(self.inspector),self.runtime)
-        self.assertEqual(startup.runtime_checkout(self.runtime),self.runtime)
+        self.assertEqual(startup.runtime_checkout(self.inspector).resolve(),self.runtime.resolve())
+        self.assertEqual(startup.runtime_checkout(self.runtime).resolve(),self.runtime.resolve())
 
     def test_missing_private_catalog_blocks_before_process_spawn(self):
         (self.runtime/'research'/'savestates.local.json').unlink()
