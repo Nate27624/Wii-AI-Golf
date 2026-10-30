@@ -83,10 +83,12 @@ def decode(pc, word, unit_lo, unit_hi):
         return "op31 xo=%d registers=r%d,r%d,r%d" % (xo, rd, ra, rb)
     return "opcode=%d (not decoded)" % opcode
 
-def describe_player(code, address, limit=18, context=6):
+def describe_player(code, address, limit=18, context=6, target_offset=None):
     prior.require(address % 4 == 0 and len(code) % 4 == 0
                   and len(code) > 0 and len(code) <= 0x40000,
                   "BAD_PLAYER_SOURCE_WINDOW")
+    prior.require(target_offset is None or target_offset in WATCH,
+                  "UNQUALIFIED_TARGET_OFFSET")
     prior.require(1 <= limit <= 50 and 1 <= context <= 12,
                   "BAD_OUTPUT_LIMIT")
     words = struct.unpack(">" + "I" * (len(code) // 4), code)
@@ -95,6 +97,7 @@ def describe_player(code, address, limit=18, context=6):
     for i, w in enumerate(words):
         a = access(w)
         if not (a and a["disp"] in WATCH
+                and (target_offset is None or a["disp"] == target_offset)
                 and a["base"] not in (0, 1)
                 and a["op"] in ALL_LOAD | ALL_STORE):
             continue
@@ -135,6 +138,7 @@ def describe_player(code, address, limit=18, context=6):
     return {
         "status": "SOURCE_PLAYER_CLUB_CONTEXT",
         "unit": PLAYER,
+        "requested_target_offset": ("+0x%03X" % target_offset if target_offset is not None else "ALL_WATCHED"),
         "monitored_displacements": ["+0x%03X" % x for x in WATCH],
         "matching_access_counts_by_offset": counts,
         "matching_access_total": len(found),
@@ -152,6 +156,7 @@ def main(argv=None):
     ap.add_argument("--capture", type=int, choices=range(1, 8), default=5)
     ap.add_argument("--limit", type=int, default=18)
     ap.add_argument("--context", type=int, default=6)
+    ap.add_argument("--target-offset", type=lambda x: int(x, 0), choices=WATCH, default=0x34)
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args(argv)
     if args.selftest:
@@ -174,7 +179,7 @@ def main(argv=None):
         with bank.open("rb") as fh, closing(mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)) as mm:
             prior.require(hi <= prior.MEM1 + len(mm), "WINDOW_OUTSIDE_MEM1")
             result = describe_player(bytes(mm[lo-prior.MEM1:hi-prior.MEM1]),
-                                     lo, args.limit, args.context)
+                                     lo, args.limit, args.context, args.target_offset)
         result["original_archive_sha_preflight_passed"] = True
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
