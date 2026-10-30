@@ -172,20 +172,33 @@ def check_evidence(e,ids):
     return e
 
 def cross_contradictions(observations):
-    a=[o for o in observations if o.get("control")=="flight"]
-    b=[o for o in observations if o.get("control")=="settled"]
-    if not a or not b:
+    """Reject *every* unpaired flight/settled witness, not just the first pair.
+
+    One valid shot must never launder an unrelated flight/settled observation
+    from another run, shot, scene, hole, actor generation, or guest frame.
+    This remains a hypothesis-only check, not game-side physics attestation.
+    """
+    flights = [o for o in observations if o.get("control") == "flight"]
+    settled = [o for o in observations if o.get("control") == "settled"]
+    if not flights or not settled:
         return set()
-    for x in a:
-        for y in b:
-            if (all(x.get(k)==y.get(k) for k in
-                ("run_id","shot_id","scene_id","hole_id","selected_actor","generation"))
-                and type(x.get("frame")) is int and type(y.get("frame")) is int
-                and x["frame"]<y["frame"]
-                and yes(x,"guest_frame_verified","physics_step_verified")
-                and yes(y,"guest_frame_verified","physics_step_verified")):
-                return set()
-    return {"moving_settled_shot_or_frame_mismatch"}
+
+    def follows(flight, stop):
+        keys = ("run_id", "shot_id", "scene_id", "hole_id",
+                "selected_actor", "generation")
+        return (all(flight.get(k) == stop.get(k) for k in keys)
+                and type(flight.get("frame")) is int
+                and type(stop.get("frame")) is int
+                and flight["frame"] < stop["frame"]
+                and yes(flight, "guest_frame_verified", "physics_step_verified")
+                and yes(stop, "guest_frame_verified", "physics_step_verified")
+                and identity(flight, frame=True)
+                and identity(stop, frame=True))
+
+    if (any(not any(follows(f, s) for s in settled) for f in flights)
+            or any(not any(follows(f, s) for f in flights) for s in settled)):
+        return {"moving_settled_shot_or_frame_mismatch"}
+    return set()
 
 def build_matrix(registry,evidence=None):
     vs=registry.get("variables")

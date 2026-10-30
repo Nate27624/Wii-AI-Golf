@@ -210,6 +210,97 @@ class ReplayTests(unittest.TestCase):
         with self.assertRaisesRegex(CaptureError, "manifest/phase"):
             self.archive_fixture(wrong_phase=True)
 
+
+    # The pin + tee are sampled by the existing source-qualified reader. The
+    # viewer must show them as individual static markers, never cache/ball paths.
+    def test_candidate_pin_and_tee_decode_from_current_packet(self):
+        try:
+            from wii_ai_golf.inspector.gui import candidate_landmarks, PIN, TEE
+        except ImportError:
+            self.skipTest("Tkinter unavailable on this runner")
+        e = event()
+        e["candidate_words_private_be_u32_hex"][PIN] = [bits(6), bits(2), bits(-380)]
+        e["candidate_words_private_be_u32_hex"][TEE] = [bits(2.2), bits(-5.5), bits(-318)]
+        r = self.save([e])
+        landmarks = candidate_landmarks(r.samples[0])
+        self.assertEqual(set(landmarks), {PIN, TEE})
+        self.assertAlmostEqual(landmarks[PIN][2], -380)
+        self.assertAlmostEqual(landmarks[TEE][0], 2.2, places=5)
+        self.assertFalse(r.training_approved)
+
+    def test_missing_or_nonfinite_pin_never_fabricated(self):
+        try:
+            from wii_ai_golf.inspector.gui import candidate_landmarks, PIN, TEE
+        except ImportError:
+            self.skipTest("Tkinter unavailable on this runner")
+        missing = self.save([event()])
+        self.assertEqual(candidate_landmarks(missing.samples[0]), {})
+        e = event()
+        e["candidate_words_private_be_u32_hex"][PIN] = ["7FC00000", bits(1), bits(2)]
+        e["candidate_words_private_be_u32_hex"][TEE] = [bits(2), bits(3), bits(4)]
+        nonfinite = self.save([e])
+        self.assertEqual(set(candidate_landmarks(nonfinite.samples[0])), {TEE})
+
+    def test_pin_abstains_on_unqualified_or_missing_owner_identity(self):
+        try:
+            from wii_ai_golf.inspector.gui import candidate_landmarks, PIN
+        except ImportError:
+            self.skipTest("Tkinter unavailable on this runner")
+        e = event()
+        e["candidate_words_private_be_u32_hex"][PIN] = [bits(1), bits(2), bits(3)]
+        e["source_layout_qualified"] = False
+        self.assertEqual(candidate_landmarks(self.save([e]).samples[0]), {})
+        e["source_layout_qualified"] = True
+        e.pop("source_identity_digest_private")
+        self.assertEqual(candidate_landmarks(self.save([e]).samples[0]), {})
+
+    def test_pin_and_tee_render_distinct_stationary_tags_over_cache(self):
+        try:
+            from wii_ai_golf.inspector.gui import Inspector, PIN, TEE
+        except ImportError:
+            self.skipTest("Tkinter unavailable on this runner")
+        class Var:
+            def __init__(self, value=None): self.value = value
+            def get(self): return self.value
+            def set(self, value): self.value = value
+        class Canvas:
+            def __init__(self): self.ops = []
+            def delete(self, *args): self.ops = []
+            def winfo_width(self): return 900
+            def winfo_height(self): return 470
+            def __getattr__(self, name):
+                if name not in {"create_polygon", "create_text", "create_line", "create_oval"}:
+                    raise AttributeError(name)
+                def draw(*args, **kwargs): self.ops.append((name, kwargs.get("tags", ()), kwargs))
+                return draw
+        e = event()
+        e["candidate_words_private_be_u32_hex"][PIN] = [bits(10), bits(20), bits(-350)]
+        e["candidate_words_private_be_u32_hex"][TEE] = [bits(2.2), bits(-5.5), bits(-318)]
+        replay = self.save([e])
+        # A zero-Tk object with a canvas recorder tests geometry and layering
+        # on Windows and Ubuntu without a window or Dolphin.
+        view = object.__new__(Inspector)
+        view.canvas = Canvas()
+        view.index = Var(0)
+        view.landmark_status = Var("")
+        view.replay = replay
+        view.yaw, view.pitch = 0.65, 0.48
+        view.draw_path()
+        tags = [tag for _, group, _ in view.canvas.ops for tag in group]
+        self.assertIn("pin_candidate", tags)
+        self.assertIn("tee_candidate", tags)
+        self.assertTrue(view.landmark_status.get().startswith("Pin / flag: sampled"))
+        self.assertEqual(view.canvas.ops[-2][1], ("pin_candidate",))
+        self.assertTrue(any(op[0] == "create_polygon" and op[1] == ("pin_candidate",)
+                            for op in view.canvas.ops))
+        # Omit the pin and verify that the viewer refuses to leave a stale flag.
+        missing = self.save([event()])
+        view.replay = missing
+        view.draw_path()
+        tags = [tag for _, group, _ in view.canvas.ops for tag in group]
+        self.assertNotIn("pin_candidate", tags)
+        self.assertIn("not sampled", view.landmark_status.get())
+
     def test_no_controller_bridge_or_training_imports(self):
         for path in (ROOT / "src/wii_ai_golf/inspector/replay.py", ROOT / "src/wii_ai_golf/inspector/gui.py", ROOT / "scripts/p0_memory_inspector.py"):
             source = path.read_text(encoding="utf-8")
