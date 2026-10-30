@@ -81,6 +81,22 @@ Reproduce in a clean PR #412 detached worktree (uses original 7-pair archive, do
 
 Find the direct upstream calls into the five bounded Player +0x34 functions, inspect any directly linked input reader and alternative byte/small-enum setter functions. These are static candidates until the source-selected receiver is proven. No emulator input is required for this offline stage, and `selected_club_variable_verified=false`.
 
+
+### Authentic function graph result and expanded source coverage
+
+Operator original B0 private SHA-qualified read-only callgraph (on earlier 643-public-function index) found **433** Golf functions, **1,331** direct PPC call edges, and two direct calls into input source units: `RPGolMain::fn_8028E0E4` to WPAD at Main unit +0x0009C and `RPGolPlayer::fn_8029EC30` to EGG Controller at Player unit +0x006B4. Static upstream of `fn_8029EC30` is PlayerManager `fn_802A28DC` then GolfMain `fn_8028E158`. These are source-only function call edges (not execution on actual D-pad events); `fn_8029EC30` also writes the +0x34/+0x35 paired flags, likely a separate state mechanism.
+
+**Coverage correction:** The initial 643-function index omitted the enormous `RPGolScene_unsplit.o` source unit and did not include EGG/KPAD/WPAD function names. The updated index contains **1,342 exact source-qualified Rev1 function intervals** (public upstream metadata only). This expands the same original-archive static callgraph scan into the unsplit Golf Scene region and identifies the specific published EGG/WPAD called function entries. New `--focused` print mode emits only source-relative input calls and three known Player byte-writer function chains. This broader static scan may show more than the originally reported two controller calls. It is important not to call any source function the club-changing handler without a separate proof of its D-pad input semantics and selected receiver.
+
+Operator-local command in PR worktree:
+
+```powershell
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_controller_callgraph_private.py') --selftest
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_controller_callgraph_private.py') --archive $originalArchive --capture 5 --focused --limit 50
+```
+
+Avoid repeat A-button/shot test or unbounded raw memory uploads. Training approval remains false.
+
 ## Tests
 
 Synthetic unit tests cover big-endian PPC load/store decoding, signed displacements, negative branches, ordinal-store selection, negative stack and absolute base controls, unbounded displacements, unrelated copies, controller BL edge, public source map guard, and bad MEM1 guard. Windows and Ubuntu full offline CI required before merge.
