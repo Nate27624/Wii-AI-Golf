@@ -1,0 +1,33 @@
+name: P0 Clean B1 Event1000 diagnostic (synthetic only)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/p0_read_clean_b1_event1000.ps1'
+      - 'tests/test_p0_read_clean_b1_event1000.py'
+      - '.github/workflows/p0-read-clean-b1-event1000.yml'
+  workflow_dispatch:
+
+jobs:
+  b1-event1000-offline:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install optional Bayesian baseline dependency
+        run: python -m pip install -e ".[bayes]"
+      - name: PowerShell synthetic XML parser with no event log access
+        shell: pwsh
+        run: |
+          & ./scripts/p0_read_clean_b1_event1000.ps1 -SelfTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Focused synthetic validator tests
+        run: python -m unittest discover -s tests -p test_p0_read_clean_b1_event1000.py -v
+      - name: Full offline Python suite
+        run: python -m unittest discover -s tests -v
