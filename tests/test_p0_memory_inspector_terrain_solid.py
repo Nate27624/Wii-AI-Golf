@@ -66,6 +66,70 @@ class SolidTerrainTests(unittest.TestCase):
         items = mesh.drawing_colored_faces(focused=False, limit=2)
         self.assertEqual({attr for _, attr in back_to_front(items, 0, 0)}, {6, 7})
 
+    def test_gui_draws_source_colored_polygons_not_only_edges(self):
+        from wii_ai_golf.inspector.replay import AIM, BALL, CACHE
+        class FakeCanvas:
+            def __init__(self):
+                self.ops = []
+            def delete(self, *a, **k):
+                pass
+            def winfo_width(self):
+                return 640
+            def winfo_height(self):
+                return 480
+            def create_polygon(self, *a, **kw):
+                self.ops.append(("polygon", kw))
+            def create_line(self, *a, **kw):
+                self.ops.append(("line", kw))
+            def create_text(self, *a, **kw):
+                self.ops.append(("text", kw))
+            def create_oval(self, *a, **kw):
+                self.ops.append(("oval", kw))
+        class Sample:
+            source_qualified = True
+            source_digest = "synthetic"
+            words = {}
+            def vec(self, channel):
+                return {BALL: (0.0, 0.0, 0.0),
+                        CACHE: (0.0, 0.0, 0.0),
+                        "pin_candidate": (1.0, 0.0, 1.0),
+                        "tee_start_candidate": (0.0, 0.0, 0.0)}.get(channel)
+        class Value:
+            def __init__(self, value):
+                self.value = value
+            def get(self):
+                return self.value
+        canvas = FakeCanvas()
+        sample = Sample()
+        view = SimpleNamespace(
+            canvas=canvas, replay=SimpleNamespace(samples=(sample,)),
+            index=Value(0), yaw=0.65, pitch=0.48,
+            terrain_mesh=TerrainMesh(
+                A, ((0, 1, 2),), "a"*64, "synthetic", (6,)),
+            terrain_visible=Value(True), terrain_focus=Value(False),
+            terrain_colors=Value(True), terrain_solid=Value(True),
+            terrain_edges=Value(False),
+            terrain_status=Mock(), landmark_status=Mock(), aim_status=Mock(),
+            baseline=None, aim_baseline_source=None, aim_baseline_mode="",
+            live_worker=None, live_last=None,
+            a_status=Value("A RELEASED"), a_reason=Value("synthetic"),
+        )
+        view.draw_a_overlay = lambda: Inspector.draw_a_overlay(view)
+        Inspector.draw_path(view)
+        solid = [kw for kind, kw in canvas.ops
+                 if kind == "polygon" and "terrain_solid_face" in kw.get("tags", ())]
+        self.assertEqual(len(solid), 1)
+        self.assertEqual(solid[0]["fill"], shaded_hex(surface_style(6)[1], A))
+        self.assertFalse(any(kind == "line" and "terrain_wire_edge" in kw.get("tags", ())
+                             for kind, kw in canvas.ops))
+        view.terrain_solid = Value(False)
+        view.terrain_edges = Value(True)
+        canvas.ops.clear()
+        Inspector.draw_path(view)
+        wire = [kw for kind, kw in canvas.ops
+                if kind == "line" and "terrain_wire_edge" in kw.get("tags", ())]
+        self.assertEqual(len(wire), 1)
+
     def test_launcher_passes_explicit_obj_without_connecting(self):
         from wii_ai_golf.inspector import gui
         with patch.object(gui, "launch", return_value=0) as launch:
