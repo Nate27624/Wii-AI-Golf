@@ -68,8 +68,11 @@ try {
         & py -3 -I $launch @launchArgs
         if($LASTEXITCODE -ne 0) { throw 'Dolphin menu navigation failed.' }
     }
+    Write-Host 'R0: A must ALREADY be released; never press it first.'
+    Write-Host 'For every window: type YES, focus Dolphin, set requested A state BEFORE HIGH beep.'
+    Write-Host 'Keep state unchanged through samples. LOW beep means you may release A.'
     Write-Host 'Visually verify Hitting the Green / ball ready. NO swing or controller motion.'
-    & py -3 -I $script --private-root $data --port $BridgePort --samples-per-window $SamplesPerWindow --blind-windows $BlindWindows
+    & py -3 -I $script --private-root $data --port $BridgePort --samples-per-window $SamplesPerWindow --blind-windows $BlindWindows --focus-seconds 8
     if($LASTEXITCODE -ne 0) { throw 'Live A-state experiment abstained: review reason and local sealed manifest.' }
     Write-Host 'A-state study completed. Share the final JSON.'
 } catch {
