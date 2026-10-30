@@ -287,6 +287,9 @@ class ReplayTests(unittest.TestCase):
         view.landmark_status = Var("")
         view.aim_status = Var("")
         view.replay = replay
+        view.aim_baseline_source = None
+        view.baseline = None
+        view.aim_baseline_mode = "assumed"
         view.yaw, view.pitch = 0.65, 0.48
         view.draw_path()
         tags = [tag for _, group, _ in view.canvas.ops for tag in group]
@@ -312,13 +315,31 @@ class ReplayTests(unittest.TestCase):
         e["candidate_words_private_be_u32_hex"][TEE] = [bits(5), bits(2), bits(-100)]
         e["candidate_words_private_be_u32_hex"][PIN] = [bits(5), bits(2), bits(-200)]
         sample = self.save([e]).samples[0]
-        ray = aim_ray_hypothesis(sample, candidate_landmarks(sample))
+        ray = aim_ray_hypothesis(sample, candidate_landmarks(sample), 0.0)
         self.assertIsNotNone(ray)
         self.assertEqual(ray[0], sample.vec(TEE))  # Anchor is verified source TEE only.
         self.assertAlmostEqual(ray[1][0], 5.0)
         self.assertAlmostEqual(ray[1][1], 2.0)
         self.assertAlmostEqual(ray[1][2], -123.0)
         self.assertFalse(hasattr(sample, "player_position"))
+
+    def test_aim_baseline_always_points_at_flag_in_any_orientation(self):
+        from wii_ai_golf.inspector.gui import aim_ray_hypothesis, candidate_landmarks, PIN, TEE
+        e=event()
+        e["candidate_words_private_be_u32_hex"][AIM]=[bits(2.217)]
+        e["candidate_words_private_be_u32_hex"][TEE]=[bits(-13), bits(2), bits(-20)]
+        e["candidate_words_private_be_u32_hex"][PIN]=[bits(20), bits(3), bits(56)]
+        sample=self.save([e]).samples[0]
+        ray=aim_ray_hypothesis(sample,candidate_landmarks(sample),2.217)
+        self.assertIsNotNone(ray)
+        self.assertAlmostEqual(ray[1][0],-13+33*0.23,places=4)
+        self.assertAlmostEqual(ray[1][2],-20+76*0.23,places=4)
+        # Changing the BALL word never changes the aim direction.
+        f=json.loads(json.dumps(e))
+        f['candidate_words_private_be_u32_hex'][BALL]=[bits(10000),bits(400),bits(90)]
+        sample2=self.save([f]).samples[0]
+        self.assertEqual(aim_ray_hypothesis(sample2,candidate_landmarks(sample2),2.217),ray)
+        self.assertIsNone(aim_ray_hypothesis(sample2,candidate_landmarks(sample2),None))
 
     def test_aim_radian_hypothesis_changes_direction(self):
         from wii_ai_golf.inspector.gui import aim_ray_hypothesis, candidate_landmarks, PIN, TEE
@@ -327,7 +348,7 @@ class ReplayTests(unittest.TestCase):
         e["candidate_words_private_be_u32_hex"][PIN] = [bits(0), bits(0), bits(-100)]
         e["candidate_words_private_be_u32_hex"][AIM] = [bits(math.pi / 2)]
         sample = self.save([e]).samples[0]
-        ray = aim_ray_hypothesis(sample, candidate_landmarks(sample))
+        ray = aim_ray_hypothesis(sample, candidate_landmarks(sample), 0.0)
         self.assertAlmostEqual(ray[1][0], 23.0, places=4)
         self.assertAlmostEqual(ray[1][2], 0.0, places=4)
         self.assertFalse(self.save([e]).training_approved)
@@ -350,7 +371,7 @@ class ReplayTests(unittest.TestCase):
             if kind == "coincident_tee_pin": w[PIN] = list(w[TEE])
             sample = self.save([e]).samples[0]
             with self.subTest(kind=kind):
-                self.assertIsNone(aim_ray_hypothesis(sample, candidate_landmarks(sample)))
+                self.assertIsNone(aim_ray_hypothesis(sample, candidate_landmarks(sample), 0.0))
 
     def test_aim_rendered_as_distinct_ray_without_player_model(self):
         from wii_ai_golf.inspector.gui import Inspector, PIN, TEE
@@ -377,6 +398,9 @@ class ReplayTests(unittest.TestCase):
         v.landmark_status = Var("")
         v.aim_status = Var("")
         v.replay = self.save([e])
+        v.aim_baseline_source = v.replay.samples[0].source_digest
+        v.baseline = float_hypothesis(v.replay.samples[0].words[AIM][0])
+        v.aim_baseline_mode = "ASSUMED first packet points to flag"
         v.yaw, v.pitch = 0.65, 0.48
         v.draw_path()
         tagged = [op for op in v.canvas.ops if op[1] == ("aim_hypothesis",)]
