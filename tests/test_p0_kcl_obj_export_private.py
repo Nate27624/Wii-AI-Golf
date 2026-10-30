@@ -49,7 +49,7 @@ class TestPrivateObj(unittest.TestCase):
 
     def test_output_path_only_private_derived(self):
         found = obj._safe_output_path(self.output, self.data)
-        self.assertEqual(found, self.output)
+        self.assertEqual(found, self.output.resolve())
         with self.assertRaises(ValueError):
             obj._safe_output_path(self.data/"no.obj", self.data)
         with self.assertRaises(ValueError):
