@@ -109,3 +109,35 @@ No local Dolphin/controller, no guest writes, no new capture required.
 **Training approved: false.** Source collision flags and tree IDs are
 documented, but no original user material histogram or tree placement counts
 were obtained in this agent environment.
+
+## Real original phase-7 evidence (operator, 2026-10-30)
+
+The operator executed the original read-only research PR #411 and reported:
+`status=CANDIDATE_SURFACE_FLAGS_COUNTED`, all 2,498 KCL records valid, MEM2,
+exact OGWS types `fairway=208 rough=585 bunker=301 OOB=508 camera_lock=44
+green=478 water=7 fringe=99 cliff=268` (zero unknown). The source
+`field+0x1C` tree count was **94**, with a MEM2-valid `field+0x20` tree
+array. PMP direct object positions did *not* validate. **This is not evidence
+of zero trees** and does not establish tree model meshes, 3D hitboxes,
+collision octree reachability or shaded visual-terrain ownership.
+
+## Next read-only source tree-array layout falsifier
+
+New `scripts/p0_tree_array_layout_private.py` studies ONLY the source-owned
+`field+0x20` potential contiguous native tree object array from that same
+original archived phase7. It ranks possible aligned object strides using
+repeatable plausible vtable pointers and finite distinct candidate `+0x30`
+translation vectors. The source class annotates `+0x30` as translation, but
+its alleged `+0x3C/+0x40/+0x44` fields **overlap**, so the script makes NO
+claims about scale, rotation or any other offsets. It never exports tree XYZ
+or dynamic pointers. A positive stride is only a structure hypothesis; it
+does not verify 3D tree positions.
+
+Example from the *current independent branch's existing detached worktree*:
+```powershell
+py -3 -I scripts/p0_tree_array_layout_private.py --archive 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures\p0-new-cohort-20261028-063011392-955fd483-PRIVATE' --capture 7
+```
+No new Dolphin, gameplay action or RAM capture. If no class/object layout can
+be distinguished the script returns `TREE_LAYOUT_UNRESOLVED` rather than
+claiming trees are mapped. Models remain separate from the stored collision
+mesh. Trainable labels remain disabled.
