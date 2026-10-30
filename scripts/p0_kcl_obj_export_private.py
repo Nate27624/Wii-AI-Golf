@@ -32,6 +32,16 @@ CAPTURE_NUMBER = 5
 CONTROL_NUMBERS = (1, 7)
 
 
+class ExportGate(ValueError):
+    """Only static, non-sensitive diagnostic stage codes go to stdout."""
+
+    def __init__(self, stage: str, capture_number: int | None = None):
+        super().__init__("private export source/output gate abstained")
+        self.stage = stage
+        self.capture_number = capture_number
+
+
+
 def _safe_output_path(output: Path, data_root: Path) -> Path:
     """Only a new regular .obj directly in sibling ignored Data/derived.
 
@@ -87,11 +97,11 @@ def _source_qualified_mesh(folders, capture: int, seven, roster, *, keep_mesh: b
         if any(roots.get(label) != 'non_null_in_guest_ram' for label in (
                 'placement_pmp', 'course_model_object',
                 'course_visual_model_g3d', 'minimap_object')):
-            raise ValueError('course source roots not qualified')
+            raise ExportGate('FIELD_MODEL_ROOTS', capture)
         _, count1 = kcl.scan_bank(banks[0], limit=1)
         hits, count2 = kcl.scan_bank(banks[1], limit=2)
         if count1 != 0 or count2 != 1 or len(hits) != 1:
-            raise ValueError('unique MEM2 KCL candidate not established')
+            raise ExportGate('UNIQUE_MEM2_KCL_CANDIDATE', capture)
         start, header = hits[0]
         tee = source['triplets']['source_current_start']
         pin = source['pin']
@@ -106,7 +116,7 @@ def _source_qualified_mesh(folders, capture: int, seven, roster, *, keep_mesh: b
                 or report['prism_reconstructed_non_degenerate'] != count
                 or report['tee_untransformed_proximity'] != 'WITHIN_2PCT_OF_MESH_BBOX_DIAGONAL'
                 or report['pin_untransformed_proximity'] != 'WITHIN_2PCT_OF_MESH_BBOX_DIAGONAL'):
-            raise ValueError('full-prism or tee/pin alignment qualification failed')
+            raise ExportGate('FULL_PRISM_OR_TEE_PIN_GATE', capture)
         triangles = None
         if keep_mesh:
             po, no, prism_offset, _ = struct.unpack_from('>IIII', banks[1], start)
@@ -120,7 +130,7 @@ def _source_qualified_mesh(folders, capture: int, seven, roster, *, keep_mesh: b
             for i in range(count):
                 tri = kcl._triangle(banks[1], start, positions, normals, prism_offset, i)
                 if tri is None:
-                    raise ValueError('candidate triangle changed during conversion')
+                    raise ExportGate('TRIANGLE_CONVERSION', capture)
                 triangles.append(tri[:3])
         return {
             'hole': source['hole'],
@@ -182,13 +192,25 @@ def export(archive: Path, output: Path, *, capture=CAPTURE_NUMBER,
             or len({capture, *controls}) != 3):
         raise ValueError('source capture/control numbers must be distinct')
     from audit_selected_ball_start_link_private import DATA_ROOT
-    target = _safe_output_path(output, DATA_ROOT)
-    folders = seven._check_archive(archive)
+    try:
+        target = _safe_output_path(output, DATA_ROOT)
+    except (OSError, ValueError, TypeError):
+        raise ExportGate('OUTPUT_DESTINATION') from None
+    try:
+        folders = seven._check_archive(archive)
+    except (OSError, ValueError, TypeError, KeyError, IndexError, OverflowError):
+        raise ExportGate('ARCHIVE_SHA_PRECHECK') from None
     findings = {}
     # Independently read both controls as well as requested selected capture.
     for number in (*controls, capture):
-        findings[number] = _source_qualified_mesh(
-            folders, number, seven, roster, keep_mesh=(number == capture))
+        try:
+            findings[number] = _source_qualified_mesh(
+                folders, number, seven, roster, keep_mesh=(number == capture))
+        except ExportGate:
+            raise
+        except (OSError, ValueError, IndexError, KeyError, TypeError,
+                AttributeError, OverflowError, struct.error):
+            raise ExportGate('CAPTURE_SOURCE_OR_MEMORY_READER', number) from None
     baseline = findings[capture]
     if any(
         findings[n]['hole'] != baseline['hole'] or
@@ -197,13 +219,22 @@ def export(archive: Path, output: Path, *, capture=CAPTURE_NUMBER,
         baseline['private_geometry_fingerprint']
         for n in controls
     ):
-        raise ValueError('independent source-qualified controls disagree')
-    payload = _obj_bytes(baseline['triangles_PRIVATE'])
+        raise ExportGate('CROSS_CAPTURE_GEOMETRY_CONSISTENCY')
+    try:
+        payload = _obj_bytes(baseline['triangles_PRIVATE'])
+    except (ValueError, TypeError, OverflowError, AttributeError):
+        raise ExportGate('OBJ_ASCII_ENCODING') from None
     # Recheck every original bank after mappings have closed, BEFORE write.
-    seven._check_archive(archive)
+    try:
+        seven._check_archive(archive)
+    except (OSError, ValueError, TypeError, KeyError, IndexError, OverflowError):
+        raise ExportGate('ARCHIVE_SHA_POSTCHECK') from None
     if target.exists():
-        raise ValueError('private output already exists')
-    _write_new_private_obj(target, payload)
+        raise ExportGate('OUTPUT_ALREADY_EXISTS')
+    try:
+        _write_new_private_obj(target, payload)
+    except (OSError, ValueError, TypeError):
+        raise ExportGate('OUTPUT_FILE_CREATE') from None
     return {
         'kind': 'P0_PRIVATE_KCL_OBJ_EXPORT',
         'status': 'PRIVATE_OBJ_CREATED',
@@ -237,11 +268,24 @@ def main(argv=None) -> int:
                                capture=args.capture, controls=tuple(args.controls)),
                          indent=2, sort_keys=True))
         return 0
+    except ExportGate as exc:
+        print(json.dumps({
+            'kind': 'P0_PRIVATE_KCL_OBJ_EXPORT',
+            'status': 'ABSTAIN_SOURCE_GEOMETRY_OR_OUTPUT_GATE',
+            'stage': exc.stage,
+            'capture_number': exc.capture_number,
+            'private_obj_created': False,
+            'training_approved': False,
+            'allowed_to_publish': False,
+        }))
+        return 3
     except (OSError, ValueError, IndexError, KeyError, TypeError,
             AttributeError, OverflowError, struct.error):
         print(json.dumps({
             'kind': 'P0_PRIVATE_KCL_OBJ_EXPORT',
             'status': 'ABSTAIN_SOURCE_GEOMETRY_OR_OUTPUT_GATE',
+            'stage': 'UNCLASSIFIED_SAFE_ABSTAIN',
+            'capture_number': None,
             'private_obj_created': False,
             'training_approved': False,
             'allowed_to_publish': False,
