@@ -196,7 +196,6 @@ def run(args,rpc_class=None):
                         require(previous_club==club,"IDLE_OPERATOR_CLUB_CHANGED")
                     if phase=="AIM":
                         require(previous_club==club,"AIM_OPERATOR_CLUB_CHANGED")
-                    require(phase!="UP" or True,"")
                     p=bracketed_index(rpc,ident,initial_ball)
                     event={"phase":phase,"club":club,**p}
                     events.append(event)
@@ -229,7 +228,7 @@ def run(args,rpc_class=None):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port",type=int,default=55355)
-    parser.add_argument("--private-root",required=True,type=Path)
+    parser.add_argument("--private-root",type=Path)
     parser.add_argument("--selftest",action="store_true")
     a=parser.parse_args()
     if a.selftest:
@@ -241,6 +240,8 @@ def main():
         print(json.dumps({"status":"SELFTEST_PASS","rpc_used":False,
                           "training_approved":False}))
         return 0
+    if a.private_root is None:
+        parser.error("--private-root required for live test")
     return run(a)
 
 if __name__=="__main__":
