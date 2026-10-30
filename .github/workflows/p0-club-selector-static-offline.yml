@@ -1,0 +1,83 @@
+name: P0 club selector static source audit
+on:
+  push:
+    branches:
+      - agent/p0-club-source-selector-triage-20261030
+  pull_request:
+    paths:
+      - 'research/source_maps/RSPE01_01_public_golf_controller_functions.json'
+      - 'scripts/audit_p0_club_controller_callgraph_private.py'
+      - 'scripts/audit_p0_club_controller_status_consumers_private.py'
+      - 'scripts/audit_p0_club_dpad_integer_selector_private.py'
+      - 'scripts/audit_p0_club_dpad_handler_flow_private.py'
+      - 'scripts/audit_p0_club_direction_dispatch_private.py'
+      - 'scripts/audit_p0_club_four_state_writer_private.py'
+      - 'scripts/p0_live_four_state_club_index_private.py'
+      - 'scripts/audit_p0_club_selection_code_private.py'
+      - 'scripts/audit_p0_club_player_byte_source_private.py'
+      - 'tests/test_p0_club_controller_callgraph_private.py'
+      - 'tests/test_p0_club_controller_status_consumers_private.py'
+      - 'tests/test_p0_club_dpad_integer_selector_private.py'
+      - 'tests/test_p0_club_dpad_handler_flow_private.py'
+      - 'tests/test_p0_club_direction_dispatch_private.py'
+      - 'tests/test_p0_club_four_state_writer_private.py'
+      - 'tests/test_p0_live_four_state_club_index_private.py'
+      - 'tests/test_p0_club_selection_code_private.py'
+      - 'tests/test_p0_club_player_byte_source_private.py'
+      - 'research/studies/P0-CLUB-SELECTOR-SOURCE-TRIAGE-01.md'
+      - '.github/workflows/p0-club-selector-static-offline.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Synthetic focused source triage
+        run: python -m unittest discover -s tests -p test_p0_club_selection_code_private.py -v
+      - name: Focused RPGolPlayer byte source checks
+        run: python -m unittest discover -s tests -p test_p0_club_player_byte_source_private.py -v
+      - name: Exact public function caller graph tests
+        run: python -m unittest discover -s tests -p test_p0_club_controller_callgraph_private.py -v
+      - name: Focused source-controller-status decoder tests
+        run: python -m unittest discover -s tests -p test_p0_club_controller_status_consumers_private.py -v
+      - name: Focused public D-pad integer selector checks
+        run: python -m unittest discover -s tests -p test_p0_club_dpad_integer_selector_private.py -v
+      - name: Focused D-pad selected handler flow checks
+        run: python -m unittest discover -s tests -p test_p0_club_dpad_handler_flow_private.py -v
+      - name: Shared direction callee source tests
+        run: python -m unittest discover -s tests -p test_p0_club_direction_dispatch_private.py -v
+      - name: Four state source writer witness tests
+        run: python -m unittest discover -s tests -p test_p0_club_four_state_writer_private.py -v
+      - name: Focused source rooted live club index protocol tests
+        run: python -m unittest discover -s tests -p test_p0_live_four_state_club_index_private.py -v
+      - name: Full offline regression
+        run: python -m unittest discover -s tests -v
+      - name: Script selftest
+        run: python scripts/audit_p0_club_selection_code_private.py --selftest
+      - name: Player source selftest
+        run: python scripts/audit_p0_club_player_byte_source_private.py --selftest
+      - name: Controller callgraph selftest
+        run: python scripts/audit_p0_club_controller_callgraph_private.py --selftest
+      - name: Controller status consumer selftest
+        run: python scripts/audit_p0_club_controller_status_consumers_private.py --selftest
+      - name: D-pad source triage selftest
+        run: python scripts/audit_p0_club_dpad_integer_selector_private.py --selftest
+      - name: D-pad handler flow selftest
+        run: python scripts/audit_p0_club_dpad_handler_flow_private.py --selftest
+      - name: Shared direction callee selftest
+        run: python scripts/audit_p0_club_direction_dispatch_private.py --selftest
+      - name: Four-state source proof selftest
+        run: python scripts/audit_p0_club_four_state_writer_private.py --selftest
+      - name: Live four-state club index offline selftest
+        run: python scripts/p0_live_four_state_club_index_private.py --selftest
+      - name: Syntax check
+        run: python -m compileall -q scripts/p0_live_four_state_club_index_private.py tests/test_p0_live_four_state_club_index_private.py scripts/audit_p0_club_four_state_writer_private.py tests/test_p0_club_four_state_writer_private.py scripts/audit_p0_club_direction_dispatch_private.py tests/test_p0_club_direction_dispatch_private.py scripts/audit_p0_club_dpad_handler_flow_private.py tests/test_p0_club_dpad_handler_flow_private.py scripts/audit_p0_club_dpad_integer_selector_private.py tests/test_p0_club_dpad_integer_selector_private.py scripts/audit_p0_club_controller_status_consumers_private.py tests/test_p0_club_controller_status_consumers_private.py scripts/audit_p0_club_controller_callgraph_private.py tests/test_p0_club_controller_callgraph_private.py scripts/audit_p0_club_selection_code_private.py scripts/audit_p0_club_player_byte_source_private.py tests/test_p0_club_selection_code_private.py tests/test_p0_club_player_byte_source_private.py
