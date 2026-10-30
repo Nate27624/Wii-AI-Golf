@@ -7,6 +7,8 @@ on:
     paths:
       - scripts/p0_kcl_surface_tree_inventory_private.py
       - tests/test_p0_kcl_surface_tree_inventory_private.py
+      - scripts/p0_tree_array_layout_private.py
+      - tests/test_p0_tree_array_layout_private.py
       - research/studies/P0-COURSE-SURFACES-TREES-01.md
       - .github/workflows/p0-course-surface-tree-offline.yml
 permissions:
@@ -25,5 +27,7 @@ jobs:
           python-version: '3.11'
       - name: Focused synthetic source-specific material and tree tests
         run: python -m unittest discover -s tests -p test_p0_kcl_surface_tree_inventory_private.py -v
+      - name: Focused source tree array layout falsification
+        run: python -m unittest discover -s tests -p test_p0_tree_array_layout_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
