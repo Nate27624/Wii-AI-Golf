@@ -121,3 +121,22 @@ Decision: inspect status-dependent branches and writes *before* another live exp
 Synthetic unit tests cover big-endian PPC load/store decoding, signed displacements, negative branches, ordinal-store selection, negative stack and absolute base controls, unbounded displacements, unrelated copies, controller BL edge, public source map guard, and bad MEM1 guard. Windows and Ubuntu full offline CI required before merge.
 
 All science gates false: `executed_dpad_path_verified=false`, `receiver_pointer_chain_verified=false`, `native_club_index_verified=false`, `training_approved=false`.
+
+
+## Fourth stage: EGG/WPAD D-pad integer-source triage
+
+The operator's original SHA-qualified scene-status trace shows motion/sensor-oriented control handling rather than a club index. `fn_802B4794` called three indexed `getExCoreStatus` and wrote 11 nonstack floats; `fn_802B439C` called `getExCoreStatus` and `getAccel` and had no nonstack stores in inspected range; `fn_802B4474` called `getAccel` and wrote floats and other state. These are lower-priority club-selection leads, not disproven unreachable code.
+
+Published original ogws `include/egg/core/eggController.h` defines `cCORE_BUTTON_UP = 1 << 3` (0x0008), `cCORE_BUTTON_DOWN = 1 << 2` (0x0004); `include/revolution/WPAD/WPAD.h` defines corresponding Wii Remote Up/Down bits. These are SOURCE button definitions, not discovered native memory locations. The button bits provide a much tighter static search.
+
+`scripts/audit_p0_club_dpad_integer_selector_private.py` SHA verifies the original seven-pair archive, read-only maps original Rev1 MEM1, and statically examines only published Golf function boundaries. It looks for exact `andi.`/ `andis.` masks of 0x4,0x8,0xC and `rlwinm[.]` masks whose **correct PPC rotate-left inverse** selects only those input bits (input bits = ROR32(output-mask,SH)), nearby +/-1 `addi`, small integer comparisons, conditional branches and nonstack `stw/stb/sth`. Broad masks such as 0xFFFF are explicitly **not treated as D-pad evidence**. It retains single-direction functions because Up/Down could use separate handlers. It lowers priority on the three motion-heavy functions already investigated. Results report source unit relative code offsets, public function name and unverified object-field displacement, never raw RAM bytes, original instruction words, selected heap roots or an actual selected-club mapping. It deliberately avoids dynamic input modification.
+
+**Limitations:** An exact bit shape in a function does not prove it was applied to controller status, and proximity is not source-backed dataflow/branch ownership. Input could also be checked through register constants, inlined status buffers, virtual dispatch or computed lookups, which this first static search may miss. No club training promotion without independent heldout and aim-only controls.
+
+Operator offline command from a fresh PR #412 detached worktree:
+
+```powershell
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_dpad_integer_selector_private.py') --selftest
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_dpad_integer_selector_private.py') --archive $originalArchive --capture 5 --limit 30
+```
+
