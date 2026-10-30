@@ -14,12 +14,16 @@ def main(argv=None) -> int:
     parser.add_argument("--capture", default="", help="Local SHA-verified JSONL candidate events")
     parser.add_argument("--manifest", default="", help="Matching SHA-256 manifest")
     parser.add_argument("--terrain-obj", default="", help="Opt-in private OBJ to load on startup")
+    parser.add_argument("--terrain-labels", default="",
+                        help="Optional local source KCL per-face JSON colors; OBJ stays unmodified")
     args = parser.parse_args(argv)
+    if args.terrain_labels and not args.terrain_obj:
+        parser.error("--terrain-labels requires --terrain-obj for SHA binding")
     if bool(args.capture) != bool(args.manifest):
         parser.error("--capture and --manifest must be supplied together")
     from wii_ai_golf.inspector.gui import launch
     try:
-        return launch(args.capture, args.manifest, args.terrain_obj)
+        return launch(args.capture, args.manifest, args.terrain_obj, args.terrain_labels)
     except (OSError, RuntimeError) as exc:
         print(f"Offline inspector could not start: {exc}", file=sys.stderr)
         return 2
