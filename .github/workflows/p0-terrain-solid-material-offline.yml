@@ -5,10 +5,12 @@ on:
     paths:
       - 'src/wii_ai_golf/inspector/terrain_solid.py'
       - 'src/wii_ai_golf/inspector/terrain.py'
+      - 'src/wii_ai_golf/inspector/terrain_labels.py'
       - 'src/wii_ai_golf/inspector/gui.py'
       - 'scripts/p0_memory_inspector.py'
       - 'tests/test_p0_memory_inspector_terrain.py'
       - 'tests/test_p0_memory_inspector_terrain_solid.py'
+      - 'tests/test_p0_memory_inspector_terrain_labels.py'
       - '.github/workflows/p0-terrain-solid-material-offline.yml'
   push:
     branches:
@@ -34,5 +36,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_terrain.py -v
       - name: Solid render and startup regressions
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_terrain_solid.py -v
+      - name: UI source-label SHA binding synthetic tests
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_terrain_labels.py -v
       - name: Full offline repository regression
         run: python -m unittest discover -s tests -v
