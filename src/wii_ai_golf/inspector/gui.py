@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import math
 import time
+import platform
+import subprocess
+import sys
 from collections import deque
 from pathlib import Path
 import tkinter as tk
@@ -14,6 +17,7 @@ from .a_reference import discover_reference
 from .a_live import LiveAIndicator
 from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE
 from .navigation import pan_by, wheel_steps, zoom_at_cursor
+from .startup import StartupError, occupied_bridge, powershell_command, runtime_checkout
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -113,6 +117,7 @@ class Inspector:
         self.live_rate = 0.0
         self.live_location = ""
         self.live_port = tk.StringVar(value="55355")
+        self.startup_process: subprocess.Popen | None = None
         self._draw_controls()
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(200, self.poll_live)
@@ -137,6 +142,9 @@ class Inspector:
         ttk.Entry(actions, textvariable=self.live_port, width=7).pack(side="left")
         ttk.Button(actions, text="Connect LIVE (read-only)", command=self.connect_live).pack(side="left", padx=5)
         ttk.Button(actions, text="Disconnect", command=self.disconnect_live).pack(side="left")
+        ttk.Button(actions, text="PowerShell: Launch ready for shot",
+                   command=self.open_game_startup,
+                   state="normal" if platform.system() == "Windows" else "disabled").pack(side="left", padx=(10, 0))
         ttk.Label(head, textvariable=self.status, foreground="#9b271d", wraplength=1190).pack(anchor="w")
         a_panel = ttk.Frame(head)
         a_panel.pack(fill="x", pady=3)
@@ -318,6 +326,63 @@ class Inspector:
             details += (f"Operator annotation: {sample.annotation}",)
         self.detail.set(f"{timestamp} | " + "  •  ".join(details))
         self.draw_path()
+
+    def open_game_startup(self) -> None:
+        """Explicit operator-controlled game boot/menu sequence in a visible PS.
+
+        The usual LIVE sampler remains strictly read-only. This separate
+        button (after confirmation) invokes the repo's existing canonical
+        A -> A+B -> A startup; it NEVER fires a shot or fabricates a ready
+        screen claim. Do not run it from an unconfigured detached worktree.
+        """
+        if platform.system() != "Windows":
+            messagebox.showerror("Windows PowerShell required", "This startup button is Windows-only.")
+            return
+        process = getattr(self, "startup_process", None)
+        if process is not None and process.poll() is None:
+            messagebox.showinfo("PowerShell already open", "Close the prior startup PowerShell window before launching again.")
+            return
+        try:
+            port = int(self.live_port.get())
+            runtime = runtime_checkout(Path(__file__).resolve().parents[3])
+            attach = occupied_bridge(port)
+            argv = powershell_command(runtime, Path(sys.executable), port, attach=attach)
+        except (ValueError, OSError, StartupError) as exc:
+            messagebox.showerror("Golf launcher not ready", str(exc))
+            return
+
+        target = "reset the existing game's registered checkpoint" if attach else "start a NEW Dolphin session"
+        if not messagebox.askyesno("Launch Hitting the Green?",
+              "This will " + target + " and automatically send A, A+B, A to the menu.\n\n"
+              "It may discard current in-game progress, but will NOT overwrite a savestate or swing.\n"
+              "You must visually confirm the golfer is ready to hit. Proceed?"):
+            return
+
+        worker = self.live_worker
+        if worker is not None:
+            worker.stop()
+            thread = worker.thread
+            if thread is not None and thread.is_alive():
+                thread.join(timeout=2.0)
+                if thread.is_alive():
+                    messagebox.showerror("Inspector is still sampling",
+                                         "The read-only worker is still exiting. Retry after it disconnects.")
+                    return
+            self.live_worker = None
+            self.live_last = None
+            self.a_indicator.clear()
+            self.a_status.set("A UNKNOWN")
+            self.a_reason.set("Launch in separate PowerShell; reconnect when ready")
+            self.draw_a_overlay()
+        try:
+            self.startup_process = subprocess.Popen(
+                argv, cwd=str(runtime), shell=False,
+                creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+        except (OSError, ValueError) as exc:
+            messagebox.showerror("Unable to open PowerShell", str(exc))
+            return
+        self.status.set("POWERSHELL STARTED · startup/menu dispatch in separate console; "
+                        "visually verify ready golfer, then Connect LIVE. No swing sent.")
 
     def connect_live(self) -> None:
         if self.live_worker is not None and self.live_worker.thread is not None and self.live_worker.thread.is_alive():
