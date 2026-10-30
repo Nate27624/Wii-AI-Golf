@@ -53,11 +53,15 @@ class FixtureRPC:
             return self.words.get(addr,0)
         if method=='memory.read_bytes':
             addr,size=args
-            if self.bad_range and addr==0x90050030:return 'oops'
+            if self.bad_range and addr==0x90050000:return 'oops'
             if addr==0x80000000 and size==8:return b'RSPE01\x00\x01'.hex()
             assert addr%4==0 and size%4==0
-            return b''.join(int(self.words.get(a,0)).to_bytes(4,'big')
-                            for a in range(addr,addr+size,4)).hex()
+            content = b''.join(int(self.words.get(a,0)).to_bytes(4,'big')
+                            for a in range(addr,addr+size,4))
+            if self.mutate_source and addr<=base.SCENE_STATIC<addr+size:
+                idx=base.SCENE_STATIC-addr
+                content=content[:idx]+(0x80020000).to_bytes(4,'big')+content[idx+4:]
+            return content.hex()
         raise AssertionError('unexpected RPC '+method)
 
 
@@ -71,9 +75,16 @@ class FastPacketTests(unittest.TestCase):
         self.assertEqual(current['words'],previous['words'])
         self.assertEqual(current['frame_bracket'],previous['frame_bracket'])
         self.assertEqual(set(current),set(previous))
-        self.assertGreater(len(a.calls),len(b.calls)*1.35)
+        self.assertGreater(len(a.calls),len(b.calls)*1.8)
         self.assertTrue(all(m in {'frame.get_count','memory.read_u32','memory.read_bytes'}
                             for m,_ in b.calls))
+
+    def test_optimized_source_gate_and_live_a_record(self):
+        x=FixtureRPC()
+        data=batch_packet(x,'LIVE',0,include_a_state=True)
+        self.assertEqual(len(data['a_record']),51)
+        self.assertEqual(data['a_record'][0x3C//4], data['words']['aim_candidate_plus_0x3c'][0])
+        self.assertLess(len(x.calls),35)
 
     def test_fails_on_source_mutation(self):
         x=FixtureRPC();x.mutate_source=True
@@ -81,7 +92,7 @@ class FastPacketTests(unittest.TestCase):
 
     def test_fails_on_malformed_binary_read(self):
         x=FixtureRPC();x.bad_range=True
-        with self.assertRaisesRegex(ValueError, 'batched read'):
+        with self.assertRaisesRegex(ValueError, 'bounded read'):
             batch_packet(x,'LIVE',0)
 
     def test_never_reads_outside_guest_banks(self):
