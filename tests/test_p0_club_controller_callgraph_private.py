@@ -114,6 +114,27 @@ class TestClubFunctionGraph(unittest.TestCase):
         self.assertFalse(r["player_34_writer_function_anchors"][0]
                          ["source_pair_plus_35_nearby"])
 
+
+    def test_focused_digest_resolves_public_callee(self):
+        report=x.analyze(records_for_two_funcs(),F,U,limit=15)
+        digest=x.focused_input_digest(report)
+        self.assertEqual(digest["direct_input_source_calls"],1)
+        self.assertEqual(digest["resolved_input_calls"][0]
+                         ["callee_public_function"],"get_controller")
+        self.assertEqual(digest["resolved_input_calls"][0]
+                         ["caller_public_function"],"f2")
+        self.assertFalse(digest["club_id_field_verified"])
+        self.assertFalse(digest["training_approved"])
+
+    def test_public_real_egg_and_wpad_function_ranges(self):
+        payload=json.loads(x.FUNCS.read_text("utf-8"))
+        units=x.base.source_units(json.loads(x.base.INDEX.read_text("utf-8")))
+        functions=x.parse_public_functions(payload,units)
+        self.assertGreaterEqual(len(functions),700)
+        named=[f[2] for f in functions]
+        self.assertTrue(any("getFSStickButton" in name for name in named))
+        self.assertTrue(any("WPAD" in name for name in named))
+
     def test_bad_report_limit_refused(self):
         with self.assertRaises(x.base.Abstain):
             x.analyze([],[],U,limit=0)
