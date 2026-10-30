@@ -90,6 +90,40 @@ class LabelsTests(unittest.TestCase):
         with self.assertRaises(TerrainError):
             apply_private_surface_labels(self.mesh,self.labels)
 
+    def test_standalone_projects_obj_and_labels_ui_only(self):
+        with tempfile.TemporaryDirectory() as folder:
+            standalone = Path(folder) / "Projects"
+            standalone.mkdir()
+            original = standalone / self.obj.name
+            private_labels = standalone / self.labels.name
+            original.write_bytes(self.obj.read_bytes())
+            private_labels.write_text(json.dumps(self.data()),encoding="ascii")
+            before = original.read_bytes()
+            mesh = load_private_obj(original)
+            colored = apply_private_surface_labels(mesh,private_labels)
+            self.assertEqual(colored.face_materials,(6,))
+            self.assertEqual(original.read_bytes(),before)
+            self.assertEqual(mesh.sha256,colored.sha256)
+
+    def test_standalone_projects_with_git_is_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            standalone = Path(folder) / "Projects"
+            standalone.mkdir()
+            (standalone / ".git").mkdir()
+            private_labels = standalone / self.labels.name
+            private_labels.write_text(json.dumps(self.data()), encoding="ascii")
+            with self.assertRaises(TerrainError):
+                apply_private_surface_labels(self.mesh,private_labels)
+
+    def test_unapproved_arbitrary_folder_remains_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            standalone = Path(folder) / "RandomFolder"
+            standalone.mkdir()
+            private_labels = standalone / self.labels.name
+            private_labels.write_text(json.dumps(self.data()),encoding="ascii")
+            with self.assertRaises(TerrainError):
+                apply_private_surface_labels(self.mesh,private_labels)
+
     def test_outside_private_data_folder_rejected(self):
         self.save(self.data())
         wrong=self.repo/"labels-PRIVATE.json"
