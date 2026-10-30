@@ -1,0 +1,32 @@
+name: P0 Terrain KCL Candidate Probe Offline
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/p0_kcl_private_probe.py'
+      - 'tests/test_p0_kcl_private_probe.py'
+      - 'research/studies/P0-TERRAIN-KCL-PROBE-01.md'
+      - '.github/workflows/p0-terrain-kcl-offline.yml'
+  push:
+    branches:
+      - agent/terrain-private-kcl-probe-20261030
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Synthetic terrain KCL parser tests
+        run: python -m unittest discover -s tests -p test_p0_kcl_private_probe.py -v
+      - name: Full offline regression suite
+        run: python -m unittest discover -s tests -v
