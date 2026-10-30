@@ -62,6 +62,17 @@ class TestPlayerClubSource(unittest.TestCase):
         with self.assertRaises(scan.prior.Abstain):
             scan.describe_player(source,PC,10,1,0x42)
 
+
+    def test_source_map_config_bc_not_claimed_as_player(self):
+        code=words(d(36,4,31,0xBC))
+        out=scan.describe_player(code,0x8029ca4c,5,1,0xBC,scan.CONFIG)
+        self.assertEqual(out["unit"],scan.CONFIG)
+        self.assertEqual(out["matching_access_total"],1)
+        self.assertEqual(out["sites_in_report"][0]["field_offset_hypothesis"],"+0x0BC")
+        self.assertFalse(out["sites_in_report"][0]["receiver_proven"])
+        with self.assertRaises(scan.prior.Abstain):
+            scan.describe_player(code,0x8029ca4c,5,1,0xBC,"UNKNOWN_UNIT")
+
     def test_bad_native_window_abstains(self):
         with self.assertRaises(scan.prior.Abstain):
             scan.describe_player(b"\x00",PC)
