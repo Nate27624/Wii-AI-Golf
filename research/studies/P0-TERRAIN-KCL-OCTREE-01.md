@@ -27,7 +27,7 @@ from *prisms reachable through KCL lookup*.
 - Reports counts and booleans only. No pointer offsets, raw indices, hashes,
   geometry, RAM, octree payloads or file paths appear in stdout.
 - An unsupported layout returns OCTREE_LAYOUT_VARIANT_UNRESOLVED, not
-  'not terrain'. KCL octree variants differ across Nintendo games.
+  'not terrain'. The JSON includes a fixed, sanitized reason_code and the\n  first failing capture number to distinguish mask/shift/leaf-layout assumptions,\n  without displaying header words or native pointers. KCL octree variants differ\n  across Nintendo games.
 - Even a successful octree structure remains candidate evidence only: active
   Wii Sports collision ownership, coordinate transforms, physics and training
   remain unverified.
