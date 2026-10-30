@@ -62,6 +62,19 @@ def capture(rpc, phase, index, expected, idle_ball, idle_aim):
             'start_ns':event['start_ns'], 'end_ns':time.monotonic_ns(),
             'frame_bracket_NOT_PHYSICS':event['frame_bracket']}
 
+def serialize_packet(event, phase, index):
+    """Produce the immutable raw sample record from the capture return schema."""
+    return {
+        'kind':'candidate_sample','phase':phase,'sample_index':index,
+        'start_monotonic_ns':event['start_ns'],
+        'end_monotonic_ns':event['end_ns'],
+        'source_identity_digest_private':sha256(str(event['identity']).encode()).hexdigest(),
+        'candidate_words_private_be_u32_hex':{
+            'selected_player_record_all_51': [f'{w:08x}' for w in event['record']]},
+        'bridge_frame_count_NOT_PHYSICS':event['frame_bracket_NOT_PHYSICS'],
+        'training_approved':False
+    }
+
 def modes(events):
     """Only return stable within-window words, no treating drift as a latch."""
     _gate(len(events) >= 2, 'INSUFFICIENT_WINDOW_SAMPLES')
@@ -167,15 +180,7 @@ def run(args, *, rpc_class=None, clock=time):
                         if expected is None:
                             expected = event['identity'];idle_ball=event['ball'];idle_aim=event['aim']
                         windows[phase].append(event)
-                        private = {
-                            'kind':'candidate_sample','phase':phase,'sample_index':index,
-                            'start_monotonic_ns':event['start_ns'],
-                            'end_monotonic_ns':event['end_ns'],
-                            'source_identity_digest_private':sha256(str(event['identity']).encode()).hexdigest(),
-                            'candidate_words_private_be_u32_hex':{
-                                'selected_player_record_all_51': [f'{w:08x}' for w in event['record']]},
-                            'bridge_frame_count_NOT_PHYSICS':event['frame_bracket_NOT_PHYSICS'],
-                            'training_approved':False}
+                        private = serialize_packet(event, phase, index)
                         out.write(json.dumps(private,separators=(',',':'))+'\n')
                         out.flush();packet_count += 1
                     try:
