@@ -19,15 +19,30 @@ MAX_FACES = 30_000
 
 
 def _ignored_and_untracked(path: Path) -> bool:
-    """Re-use strict project private Data/derived containment and Git proof."""
+    """Strict private Data/derived or standalone outside-Git Projects.
+
+    The project-local geometry OBJ can live directly in D:\Projects; its
+    labels stay beside it, and the inspector verifies the OBJ SHA separately.
+    """
     folder = path.parent
-    if (folder.name != "derived" or folder.parent.name != "Wii-AI-Golf-Data"
-            or path.is_symlink() or folder.is_symlink()
-            or folder.parent.is_symlink()
-            or not path.name.endswith("-PRIVATE.json")):
+    if (path.is_symlink() or folder.is_symlink()
+            or not path.name.endswith("-PRIVATE.json")
+            or not folder.is_dir()):
         return False
-    # Git absent is only acceptable if no containing Git root/ancestor marker.
-    if not any((parent / ".git").exists() for parent in (folder, *folder.parents)):
+    in_private_data = (
+        folder.name == "derived" and folder.parent.name == "Wii-AI-Golf-Data"
+        and not folder.parent.is_symlink()
+    )
+    in_standalone_projects = folder.name == "Projects"
+    if not in_private_data and not in_standalone_projects:
+        return False
+    containing_git = any((parent / ".git").exists()
+                         for parent in (folder, *folder.parents))
+    if in_standalone_projects:
+        # No Git index exception for a user-owned root Projects directory;
+        # the output is private and is never part of any repository.
+        return not containing_git
+    if not containing_git:
         return True
     try:
         ignored = subprocess.run(
@@ -47,13 +62,12 @@ def _ignored_and_untracked(path: Path) -> bool:
     return (ignored.returncode == 0 and indexed.returncode == 0
             and indexed.stdout == b"")
 
-
 def apply_private_surface_labels(mesh: TerrainMesh, filename: str | Path) -> TerrainMesh:
     """Return a new in-memory mesh view, with original OBJ vertices unchanged."""
     path = Path(filename)
     if (path.suffix.lower() != ".json" or not path.is_file()
             or not _ignored_and_untracked(path)):
-        raise TerrainError("Private source labels must be ignored/untracked in Data/derived")
+        raise TerrainError("Private source labels must be in standalone Projects or ignored/untracked Data/derived")
     path = path.resolve(strict=True)
     before = path.stat()
     if not 1 <= before.st_size <= MAX_LABEL_BYTES:
