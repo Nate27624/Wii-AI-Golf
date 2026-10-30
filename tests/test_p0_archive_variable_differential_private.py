@@ -126,6 +126,15 @@ class EvidenceMatrixTest(unittest.TestCase):
                          ['verified_power','verified_impact_frame','verified_velocity',
                           'verified_result_distance'])
 
+    def test_d1_contradiction_not_asserted_when_original_words_disagree(self):
+        data=samples()
+        data[1]["ball_object_0x030"]=(101,201,301)
+        report=audit.matrix(registry(),data)
+        self.assertFalse(report["control_summary"]["D1_selected_current_equals_start"])
+        row=next(v for v in report["p0_rows"] if v["id"]=="golf.ball_object.current_translation_candidate")
+        self.assertNotIn("D1_human_airborne_selected_equals_START_unverified_mapping",
+                         row["contradictory_evidence"])
+
     def test_pin_changes_confounds_ball_discrimination(self):
         data=samples()
         data[6]['pin']=(1,8,3)
