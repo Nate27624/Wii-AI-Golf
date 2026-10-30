@@ -40,6 +40,27 @@ class AutoAReadTests(unittest.TestCase):
         self.assertTrue(d.blocked)
         self.assertEqual(d.observe(record(True),**{**ctx,'aim':(6,)}),'UNKNOWN')
 
+    def test_aim_or_ball_changes_recover_after_stability_without_rebaseline(self):
+        for changed in ({'aim':(9,)}, {'ball':(3,2,1)}):
+            d=LiveAIndicator();ctx={'source':'owner','ball':(1,2,3),'aim':(5,)}
+            self.assertEqual(d.observe(record(),**ctx),'UNKNOWN')
+            self.assertEqual(d.observe(record(),**ctx),'RELEASED')
+            ctx2={**ctx,**changed}
+            self.assertEqual(d.observe(record(True),**ctx2),'UNKNOWN')
+            self.assertFalse(d.blocked)
+            self.assertIsNotNone(d.base)
+            self.assertEqual(d.observe(record(True),**ctx2),'UNKNOWN')
+            self.assertEqual(d.observe(record(True),**ctx2),'PRESSED')
+            self.assertEqual(d.observe(record(),**ctx2),'UNKNOWN')
+            self.assertEqual(d.observe(record(),**ctx2),'RELEASED')
+
+    def test_owner_change_remains_hard_abstention(self):
+        d=LiveAIndicator();ctx={'source':'owner','ball':(1,2,3),'aim':(5,)}
+        d.observe(record(),**ctx);d.observe(record(),**ctx)
+        self.assertEqual(d.observe(record(True),**{**ctx,'source':'other'}),'UNKNOWN')
+        self.assertTrue(d.blocked)
+        self.assertEqual(d.observe(record(True),**{**ctx,'source':'owner'}),'UNKNOWN')
+
     def test_invalid_reading_never_produces_press(self):
         d=LiveAIndicator()
         self.assertEqual(d.observe(None,'x',(1,2,3),(4,)),'UNKNOWN')

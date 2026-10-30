@@ -51,7 +51,7 @@ class LiveEvent:
 
 class LiveSampler:
     """Bounded queue + single background worker; no unattended reconnect."""
-    def __init__(self, *, port: int = 55355, poll_pause_s: float = 0.03,
+    def __init__(self, *, port: int = 55355, poll_pause_s: float = 0.0,
                  connector: Callable | None = None, packet_reader: Callable | None = None,
                  include_a_state: bool = False, source_gate: Callable | None = None,
                  use_batched_reads: bool = True):

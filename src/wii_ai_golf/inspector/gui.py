@@ -12,6 +12,7 @@ from .replay import AIM, BALL, CACHE, Replay, Sample, float_hypothesis, load_rep
 from .live import LiveSampler
 from .a_reference import discover_reference
 from .a_live import LiveAIndicator
+from .terrain import TerrainError, TerrainMesh, load_private_obj
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -91,6 +92,10 @@ class Inspector:
         self.aim_baseline_mode = "assumed first packet"
         self.a_indicator = LiveAIndicator(None)
         self.a_status = tk.StringVar(value="A UNKNOWN")
+        self.terrain_mesh: TerrainMesh | None = None
+        self.terrain_visible = tk.BooleanVar(value=True)
+        self.terrain_focus = tk.BooleanVar(value=True)
+        self.terrain_status = tk.StringVar(value="Terrain: select a locally exported PRIVATE collision OBJ to display.")
         self.a_reason = tk.StringVar(value="Connect LIVE with A released; 2 stable samples initialize candidate")
         self.baseline: float | None = None
         self.replay: Replay | None = None
@@ -159,6 +164,13 @@ class Inspector:
         self.canvas.bind("<ButtonPress-3>", self.drag_start)
         self.canvas.bind("<B3-Motion>", self.drag_move)
         self.canvas.bind("<ButtonRelease-3>", self.drag_end)
+        mesh_actions = ttk.Frame(center)
+        mesh_actions.pack(fill="x", pady=3)
+        ttk.Button(mesh_actions, text="Load PRIVATE terrain OBJ", command=self.load_terrain).pack(side="left")
+        ttk.Button(mesh_actions, text="Clear terrain", command=self.clear_terrain).pack(side="left", padx=4)
+        ttk.Checkbutton(mesh_actions, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(mesh_actions, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
+        ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
         ttk.Label(center, text="White: ball +0x30  |  Amber: cache +0xCC  |  Cyan flag: PIN candidate  |  Green diamond: TEE candidate", wraplength=640).pack(anchor="w")
         ttk.Label(center, textvariable=self.landmark_status, wraplength=640).pack(anchor="w")
         ttk.Label(center, text="Magenta dashed: flag-aligned aim reference, rotated only by Δ+0x3C (unverified mapping; no player position)", wraplength=640).pack(anchor="w")
@@ -186,6 +198,30 @@ class Inspector:
         lower = ttk.LabelFrame(self.root, text="Sampling / provenance / warnings", padding=8)
         lower.pack(fill="x", padx=10, pady=8)
         ttk.Label(lower, textvariable=self.detail, wraplength=1250, justify="left").pack(anchor="w")
+
+    def load_terrain(self) -> None:
+        """User opt-in: load only local private OBJ, never read live RAM for terrain."""
+        filename = filedialog.askopenfilename(
+            title="Select local source-coordinate private KCL collision OBJ",
+            filetypes=[("Wavefront OBJ", "*.obj")])
+        if not filename:
+            return
+        try:
+            mesh = load_private_obj(filename)
+        except (TerrainError, OSError) as exc:
+            messagebox.showerror("Private terrain declined", str(exc))
+            return
+        self.terrain_mesh = mesh
+        self.terrain_visible.set(True)
+        self.terrain_status.set(
+            f"PRIVATE collision OBJ: {len(mesh.faces)} candidate triangles, SHA {mesh.sha256[:12]}… "
+            "· visual alignment/active collision UNVERIFIED")
+        self.draw_path()
+
+    def clear_terrain(self) -> None:
+        self.terrain_mesh = None
+        self.terrain_status.set("Terrain: no private OBJ loaded.")
+        self.draw_path()
 
     def pick(self, var: tk.StringVar) -> None:
         name = filedialog.askopenfilename(title="Choose local file (not uploaded)")
@@ -462,8 +498,32 @@ class Inspector:
             self.aim_status.set("Aim ray: HIDDEN — source qualification/identity unavailable")
         else:
             self.aim_status.set("Aim ray: unavailable — requires same-source tee, pin and baseline +0x3C; press Set aim baseline when pointed at flag")
-        # Include pin, tee and the illustrative aim line in the plot bounds.
-        points = [p for p, _ in path + caches] + list(landmarks.values()) + (list(aim_ray) if aim_ray else [])
+        # SOURCE-QUALIFIED private geometry only, with unverified coordinate
+        # alignment. Keep previous synthetic GUI test stubs working if they
+        # don't construct optional terrain fields.
+        terrain_faces = ()
+        mesh = getattr(self, "terrain_mesh", None)
+        showing = getattr(self, "terrain_visible", None)
+        focusing = getattr(self, "terrain_focus", None)
+        if (mesh is not None and (showing is None or showing.get())
+                and current.source_qualified and bool(current.source_digest)):
+            # Rendering bound; under live load use <= 600 faces to minimize
+            # UI work per sample. All 2498 triangles remain in the private OBJ.
+            live_mode = bool(self.live_worker is not None and self.live_last is not None)
+            limit = 600 if live_mode else 1200
+            terrain_faces = mesh.drawing_faces(
+                tuple(landmarks.values()), focused=(focusing is None or focusing.get()), limit=limit)
+            if hasattr(self, "terrain_status"):
+                self.terrain_status.set(
+                    f"PRIVATE collision wireframe: {len(terrain_faces)}/{len(mesh.faces)} "
+                    "triangles drawn · alignment/active collision UNVERIFIED")
+        elif mesh is not None and hasattr(self, "terrain_status"):
+            self.terrain_status.set("Terrain HIDDEN — Show disabled or source qualification unavailable")
+        # Plot bounds include the selected collision candidate; do NOT transform
+        # vertices to force fit with the ball, tee or pin.
+        points = ([p for p, _ in path + caches] + list(landmarks.values())
+                  + (list(aim_ray) if aim_ray else [])
+                  + [v for face in terrain_faces for v in face])
         if not points:
             canvas.create_text(width // 2, height // 2, text="No finite source-qualified ball/cache/pin/tee candidates", fill="white")
             self.draw_a_overlay()
@@ -478,6 +538,11 @@ class Inspector:
             u, v = project(p, self.yaw, self.pitch)
             return width / 2 + (u - cx) * scale, height / 2 - (v - cy) * scale
         canvas.create_text(12, 12, text="Rotatable 3D source-coordinate projection · unknown units", anchor="nw", fill="#bacbe1")
+        # Behind source-qualified ball, tee, pin and screen-anchored A text.
+        for face in terrain_faces:
+            xy_face = [xy(v) for v in face]
+            canvas.create_line(*xy_face[0], *xy_face[1], *xy_face[2], *xy_face[0],
+                               fill="#3c7366", width=1, tags=("terrain_collision_candidate",))
         # Recenter per displayed prefix; do not imply screen-space projection or verified spatial units.
         for sequence, color in ((path, "#f1f6ff"), (caches, "#f5b942")):
             previous = None
