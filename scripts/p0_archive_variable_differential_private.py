@@ -141,6 +141,8 @@ def matrix(registry: dict, samples: dict[int, dict]) -> dict:
     """Pure synthetic-testable analysis; input words/pointers NEVER serialized."""
     entries = registry_entries(registry)
     _qualify_wedge(samples)
+    d1_equal = _bits_changed(samples[1]["ball_object_0x030"],
+                             samples[1]["source_current_start"]) == 0
     rows = []
     for v in entries:
         id_ = v["id"]
@@ -169,7 +171,7 @@ def matrix(registry: dict, samples: dict[int, dict]) -> dict:
             "source_owner_confidence": source_confidence,
             "archive_observation": observed,
             "wedge_5_6_6_7_5_7_changed_word_counts": counts,
-            "stationary_negative_control": "source_START_and_PIN_on_identical_owner",
+            "stationary_negative_control": "wedge_PIN_and_START_categorical_comparison",
             "independent_no_input_control": "not_available_no_A_and_A_held_are_different_poses",
             "supports_candidate_temporal_change_only": observed == "candidate_changed",
             "contradictory_evidence": [],
@@ -180,7 +182,7 @@ def matrix(registry: dict, samples: dict[int, dict]) -> dict:
             "same_guest_physics_frame_verified": False,
             "training_approved": False,
         }
-        if key in ("ball_object_0x030", "global_current", "ball_cache_0x0cc", "ball_cache_0x0f0", "ball_cache_0x0fc"):
+        if d1_equal and key in ("ball_object_0x030", "global_current", "ball_cache_0x0cc", "ball_cache_0x0f0", "ball_cache_0x0fc"):
             row["contradictory_evidence"].append("D1_human_airborne_selected_equals_START_unverified_mapping")
         if key in ("ball_object_0x030", "global_current"):
             row["contradictory_evidence"].append("global_source_distinct_from_all_roster_7_of_7_historical_only")
@@ -193,8 +195,6 @@ def matrix(registry: dict, samples: dict[int, dict]) -> dict:
             if row["id"] in HIGH_PRIORITY:
                 row["contradictory_evidence"].append("wedge_reference_geometry_changed_confounded")
                 row["supports_candidate_temporal_change_only"] = False
-    d1 = samples[1]
-    d1_equal = _bits_changed(d1["ball_object_0x030"], d1["source_current_start"]) == 0
     return {
         "kind": "p0-private-archive-variable-differential", "schema_version": 1,
         "status": "source_gated_archive_candidates_only", "number_of_p0_rows": len(rows),
