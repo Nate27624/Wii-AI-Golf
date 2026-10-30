@@ -53,3 +53,23 @@ misalignment; no force-fit transform.
 
 The mesh is PRIVATE and copyright-sensitive. Training remains
 disabled; no active physics or verified textured model claim.
+
+
+## Explicit OGWS per-face groups for solid colored inspector
+
+Once the uncolored SHA/source-gated OBJ is validated locally, a separate NEW
+file can be exported with the --surface-groups option. The exporter reads
+the original attribute returned alongside each source triangle by canonical
+KCL prism reconstruction; it writes exactly one plain Wavefront
+g KCL_OGWS_XXXX line before its matching f i j k line. IDs are BE16 values,
+not guessed from a category histogram or tee/flag proximity. This preserves
+all 2498 original face indices and verifies original source-capture geometry
+is byte-identical against controls 1 and 7.
+
+Use --output ending in e.g. hole01-collision-colored-PRIVATE.obj directly
+in the ignored, untracked, D: project Data/derived location. Never overwrite
+the earlier legacy OBJ. The latest inspector filled-polygon branch PR #419
+accepts both legacy and exact tagged forms. Source surface colors are
+original-game categorical hypotheses, not visual game textures or real
+coefficient-of-friction measurements. Camera lock and unknown IDs stay neutral;
+training remains false.
