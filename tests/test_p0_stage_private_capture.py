@@ -104,6 +104,7 @@ class WindowsCaptureStageTests(unittest.TestCase):
             Observation="Synthetic label; no observed physical strike",
             Uncertainty="No guest-frame identity established",
             PairSamePauseAttested=same_pause,
+            StagedInCaptureOrderAttested=True,
         )
         base.update(extra)
         return self.execute("Stage", **base)
@@ -138,6 +139,7 @@ class WindowsCaptureStageTests(unittest.TestCase):
         a = self.bank("mem1.bin", MEM1)
         b = self.bank("mem2.bin", MEM2)
         self.assertEqual(self.stage(mem1=a, mem2=b, same_pause=False).returncode, 2)
+        self.assertEqual(self.stage(mem1=a, mem2=b, StagedInCaptureOrderAttested=False).returncode, 2)
         self.assertEqual(self.stage(mem1=a, mem2=b,
                                     ExpectedDolphinSha256="0" * 64).returncode, 2)
         self.assertFalse((self.session / "B0-MEM1.bin").exists())
@@ -173,6 +175,9 @@ class WindowsCaptureStageTests(unittest.TestCase):
             note = json.loads((self.session / (label + "-observation-PRIVATE.json"))
                               .read_text(encoding="utf-8-sig"))
             self.assertEqual(note["capture_order"], index)
+            self.assertTrue(note["capture_order_operator_attestation"])
+            self.assertIn("staged_utc_wall_clock", note)
+            self.assertNotIn("guest_frame_timestamp", note)
             self.assertEqual(note["dolphin_sha256_private"], self.exe_sha)
             self.assertEqual(note["g0_evidence_token_private"], "B1CrashReviewed-01")
             self.assertFalse(note["guest_frame_verified"])
