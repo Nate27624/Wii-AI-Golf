@@ -40,6 +40,19 @@ class OctreeInvalid(ValueError):
     """Specific octree layout fails structural/reference validation."""
 
 
+# Fixed allowlist of code-authored exception messages; never serialize native
+# values, offsets, source paths, guest bytes, or untrusted exception strings.
+# A failure means the *parser hypothesis* is unresolved, not no geometry.
+_SAFE_UNSUPPORTED_REASONS = {
+    'noncontiguous KCL dimensions': 'ROOT_MASK_SHAPE_UNSUPPORTED',
+    'unexpected root block shift': 'ROOT_BLOCK_SHIFT_UNSUPPORTED',
+    'root indexing shift convention differs': 'ROOT_INDEX_SHIFT_MISMATCH',
+    'root entry table exceeds safe bound': 'ROOT_TABLE_TOO_LARGE',
+    'too many root entries': 'ROOT_COUNT_TOO_LARGE',
+    'unexpected leaf start convention': 'LEAF_SENTINEL_LAYOUT_UNSUPPORTED',
+}
+
+
 def _mask_width(mask: int) -> int:
     """Return count of contiguous low zero bits in upper-one KCL mask."""
     inv = (~mask) & 0xFFFFFFFF
@@ -200,7 +213,12 @@ def analyze_archive(archive: Path, captures=CAPTURES):
     folders = seven._check_archive(archive)
     reports = []
     for number in captures:
-        hole, evidence = _read_one(folders, number, seven, roster)
+        try:
+            hole, evidence = _read_one(folders, number, seven, roster)
+        except OctreeUnsupported as exc:
+            # Preserve the failing *numbered* phase, but no native address.
+            exc.capture_number = number
+            raise
         reports.append({'capture_number':number,'source_hole_index':hole,**evidence})
     seven._check_archive(archive)
     return {
@@ -224,9 +242,12 @@ def main(argv=None):
         print(json.dumps(analyze_archive(a.archive, tuple(a.captures)),
                          indent=2, sort_keys=True))
         return 0
-    except OctreeUnsupported:
+    except OctreeUnsupported as exc:
         print(json.dumps({'kind':'P0_PRIVATE_KCL_OCTREE_REFERENCE_TRIAGE',
                           'status':'OCTREE_LAYOUT_VARIANT_UNRESOLVED',
+                          'capture_number':getattr(exc, 'capture_number', None),
+                          'reason_code':_SAFE_UNSUPPORTED_REASONS.get(
+                              str(exc), 'UNCLASSIFIED_OCTREE_LAYOUT_VARIANT'),
                           'game_uses_this_octree_for_collision_verified':False,
                           'training_approved':False, 'allowed_to_publish':False}))
         return 4
