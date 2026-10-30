@@ -247,13 +247,30 @@ try {
         } elseif ($Action -eq 'Finalize') {
             $notes = @(Get-ChildItem -LiteralPath $session -Filter '*-observation-PRIVATE.json' -File)
             if ($notes.Count -lt 1 -or $notes.Count -gt 5) { throw 'NO_VALID_PHASE_NOTES' }
+            $oneFiles = @(Get-ChildItem -LiteralPath $session -Filter '*-MEM1.bin' -File)
+            $twoFiles = @(Get-ChildItem -LiteralPath $session -Filter '*-MEM2.bin' -File)
+            if ($oneFiles.Count -ne $notes.Count -or $twoFiles.Count -ne $notes.Count) {
+                throw 'AMBIGUOUS_BANK_NOTE_COUNT'
+            }
+            $seenOrders = @{}
             foreach ($item in $notes) {
                 $null = Assert-LocalPrivate $item.FullName $true
                 $p = $item.Name.Split('-')[0]
-                if (-not [IO.File]::Exists((Join-Path $session ($p + '-MEM1.bin'))) -or
+                if (@('B0','A0','C0','F0','S0') -notcontains $p -or
+                    -not [IO.File]::Exists((Join-Path $session ($p + '-MEM1.bin'))) -or
                     -not [IO.File]::Exists((Join-Path $session ($p + '-MEM2.bin')))) {
                     throw 'UNPAIRED_PHASE_NOTES'
                 }
+                $detail = Get-Content -LiteralPath $item.FullName -Raw | ConvertFrom-Json
+                if ($detail.phase -ne $p -or $detail.capture_order -lt 1 -or
+                    $detail.capture_order -gt $notes.Count -or
+                    $detail.capture_order_operator_attestation -ne $true -or
+                    $detail.guest_frame_verified -ne $false -or
+                    $detail.training_approved -ne $false -or
+                    $seenOrders.ContainsKey([int]$detail.capture_order)) {
+                    throw 'AMBIGUOUS_ORDER_OR_UNVERIFIED_PROVENANCE'
+                }
+                $seenOrders[[int]$detail.capture_order] = $true
             }
             Invoke-ExistingPreflight $session $true
             Write-Output 'P0 private capture inventory FINALIZED; all identity/physics/training claims remain unverified.'
