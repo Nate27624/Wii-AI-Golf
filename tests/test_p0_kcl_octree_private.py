@@ -81,6 +81,7 @@ class OctreeTests(unittest.TestCase):
         buf,octo,_=fixture(n=25)
         struct.pack_into('>I',buf,0x20,0xffffffe0) # width5 / root shift4 => 2 roots
         struct.pack_into('>I',buf,0x30,1)
+        struct.pack_into('>I',buf,0x34,1)
         struct.pack_into('>I',buf,octo+4,0x80000020)
         d=o.inspect_octree(buf,0)
         self.assertEqual(d['root_entry_count'],2)
