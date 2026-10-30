@@ -19,6 +19,8 @@ on:
       - tests/test_p0_tree_ppc_r28_disasm_private.py
       - scripts/p0_tree_stride84_private.py
       - tests/test_p0_tree_stride84_private.py
+      - scripts/p0_tree_position_export_private.py
+      - tests/test_p0_tree_position_export_private.py
       - research/studies/P0-COURSE-SURFACES-TREES-01.md
       - .github/workflows/p0-course-surface-tree-offline.yml
 permissions:
@@ -49,5 +51,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_tree_ppc_r28_disasm_private.py -v
       - name: Source 84-byte tree objects and private position sanity
         run: python -m unittest discover -s tests -p test_p0_tree_stride84_private.py -v
+      - name: Focused private 94-tree position exporter schema and safety
+        run: python -m unittest discover -s tests -p test_p0_tree_position_export_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
