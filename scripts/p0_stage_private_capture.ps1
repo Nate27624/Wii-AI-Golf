@@ -12,6 +12,8 @@
 .EXAMPLE
   .\scripts\p0_stage_private_capture.ps1 -Action Stage -PrivateRoot 'C:\WiiGolfPrivate' -SessionId 'GOLF-20261030-01' -Phase B0 -Mem1Path 'C:\WiiExports\mem1.bin' -Mem2Path 'C:\WiiExports\mem2.bin' -DolphinExe 'C:\ApprovedDolphin\Dolphin.exe' -ExpectedDolphinSha256 '<independently-approved-64-hex-sha256>' -G0Status Cleared -G0EvidenceToken 'B1CrashReviewed-01' -RevisionEvidenceToken 'RSPE01Rev1Checked-01' -ExportMethod ManualPausedExport -PairSamePauseAttested -Observation 'Baseline; phase is operator-labelled only.'
 .EXAMPLE
+  .\scripts\p0_stage_private_capture.ps1 -Action Finalize -PrivateRoot 'C:\WiiGolfPrivate' -SessionId 'GOLF-20261030-01' -PythonCommand py
+.EXAMPLE
   .\scripts\p0_stage_private_capture.ps1 -Action Finalize -PrivateRoot 'C:\WiiGolfPrivate' -SessionId 'GOLF-20261030-01'
 #>
 [CmdletBinding()]
@@ -117,9 +119,9 @@ function Invoke-ExistingPreflight([string]$Session, [bool]$WriteManifest) {
     $helper = Join-Path $PSScriptRoot 'p0_capture_manifest_preflight.py'
     if (-not [IO.File]::Exists($helper)) { throw 'MANAGER_PREFLIGHT_UNAVAILABLE' }
     $cmd = Get-Command $PythonCommand -ErrorAction Stop
-    $args = @($helper,'--private-root',$Session,'--mode','checkpoint')
-    if ($WriteManifest) { $args += '--write-private-manifest' }
-    & $cmd.Source @args
+    $preflightArgs = @($helper,'--private-root',$Session,'--mode','checkpoint')
+    if ($WriteManifest) { $preflightArgs += '--write-private-manifest' }
+    & $cmd.Source @preflightArgs
     if ($LASTEXITCODE -ne 0) { throw 'MANAGER_PREFLIGHT_REFUSED' }
 }
 
@@ -197,6 +199,18 @@ try {
             }
             $prior = @(Get-ChildItem -LiteralPath $session -Filter '*-observation-PRIVATE.json' -File)
             if ($prior.Count -ge 5) { throw 'MAX_PHASES' }
+            # One session must not silently mix binaries, crash decisions or revisions.
+            foreach ($existingNote in $prior) {
+                $previous = Get-Content -LiteralPath $existingNote.FullName -Raw | ConvertFrom-Json
+                if ($previous.dolphin_sha256_private -ne $ExpectedDolphinSha256.ToLowerInvariant() -or
+                    $previous.g0_evidence_token_private -ne $G0EvidenceToken -or
+                    $previous.revision_evidence_token_private -ne $RevisionEvidenceToken -or
+                    $previous.export_method -ne $ExportMethod -or
+                    $previous.pair_same_pause_operator_attestation -ne $true -or
+                    $previous.guest_frame_verified -ne $false) {
+                    throw 'MIXED_SESSION_PROVENANCE'
+                }
+            }
             try {
                 Copy-VerifiedBank $first $one $MEM1_SIZE
                 Copy-VerifiedBank $second $two $MEM2_SIZE
@@ -210,6 +224,9 @@ try {
                     game_revision_operator_attestation=$true;
                     pair_same_pause_operator_attestation=$true;
                     export_method=$ExportMethod;
+                    dolphin_sha256_private=$ExpectedDolphinSha256.ToLowerInvariant();
+                    g0_evidence_token_private=$G0EvidenceToken;
+                    revision_evidence_token_private=$RevisionEvidenceToken;
                     guest_frame_verified=$false; contact_verified=$false;
                     same_shot_verified=$false; training_approved=$false
                 })
