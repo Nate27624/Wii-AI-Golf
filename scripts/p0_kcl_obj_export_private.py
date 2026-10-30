@@ -43,14 +43,43 @@ class ExportGate(ValueError):
 
 
 def _safe_output_path(output: Path, data_root: Path) -> Path:
-    """Only a new regular .obj directly in sibling ignored Data/derived.
+    """Allow new private OBJ in Data/derived or per-user LOCALAPPDATA.
 
-    Data/derived must already exist; never use untrusted paths as directory
-    creation targets, and never allow publication in the Git working tree.
+    Both are allowlisted, must already exist and must be outside Git.
+    Never use untrusted output paths as directory creation targets.
     """
     root = data_root.resolve(strict=True)
-    if not root.is_dir() or root.is_symlink():
+    if not root.is_dir() or data_root.is_symlink():
         raise ValueError('private Data root invalid')
+
+    # A workspace may have an enclosing Git checkout above the sibling
+    # Wii-AI-Golf-Data directory. In that case, allow a narrowly prescribed
+    # alternate destination in per-user LOCALAPPDATA, never arbitrary paths.
+    local_env = os.environ.get('LOCALAPPDATA')
+    if local_env:
+        user_root = Path(local_env)
+        if user_root.is_dir() and not user_root.is_symlink():
+            user_root = user_root.resolve(strict=True)
+            app_folder = user_root / 'WiiGolfAI'
+            priv_folder = app_folder / 'private'
+            derived_folder = priv_folder / 'derived'
+            if (all(d.is_dir() and not d.is_symlink()
+                    for d in (app_folder, priv_folder, derived_folder))
+                    and output.parent.is_dir()
+                    and not output.parent.is_symlink()
+                    and output.parent.resolve(strict=True) ==
+                    derived_folder.resolve(strict=True)):
+                if (output.suffix.lower() != '.obj'
+                        or not output.name.endswith('-PRIVATE.obj')):
+                    raise ValueError('private OBJ name must end in -PRIVATE.obj')
+                if output.is_symlink() or output.exists():
+                    raise ValueError('refusing existing, linked, or invalid OBJ target')
+                approved_parent = derived_folder.resolve(strict=True)
+                if any((d / '.git').exists()
+                       for d in (approved_parent, *approved_parent.parents)):
+                    raise ValueError('OBJ output must never be inside Git')
+                return approved_parent / output.name
+
     parent = root / 'derived'
     if not parent.is_dir() or parent.is_symlink():
         raise ValueError('private Data derived directory missing or linked')
