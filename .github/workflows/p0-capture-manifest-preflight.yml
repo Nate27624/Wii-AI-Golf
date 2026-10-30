@@ -1,0 +1,28 @@
+name: P0 private capture manifest preflight (offline only)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/p0_capture_manifest_preflight.py'
+      - 'tests/test_p0_capture_manifest_preflight.py'
+      - '.github/workflows/p0-capture-manifest-preflight.yml'
+  workflow_dispatch:
+
+jobs:
+  private-manifest-offline:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install optional Bayesian regression dependency
+        run: python -m pip install -e ".[bayes]"
+      - name: Focused synthetic private capture integrity cases (NO Dolphin)
+        run: python -m unittest discover -s tests -p test_p0_capture_manifest_preflight.py -v
+      - name: Full offline regression suite (NO Dolphin)
+        run: python -m unittest discover -s tests -v
