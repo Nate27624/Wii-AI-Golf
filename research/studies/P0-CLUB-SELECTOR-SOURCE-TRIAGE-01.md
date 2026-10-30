@@ -63,6 +63,24 @@ The source-backed candidate `RPGolConfig.cpp +0xBC` is likewise not a verified c
 
 **Decision:** Do not prioritize Player+0x34 as a four-valued club enum and do not prioritize Config+0xBC as a four-valued club enum based solely on displacement matches. Further work should locate a source consumer of actual D-pad club choices, table lookup, or runtime source-qualified club state in a broader object window, with aim-only and stationary negative controls. No new operator shot or A-button work.
 
+
+## Third stage: exact public function boundary and static call graph
+
+After correcting the earlier local PPC immediate decode and rejecting simplistic offset matches, the next offline research task is to identify **which functions contain the real state transitions** and **who directly calls those functions**. The public upstream `doldecomp/ogws/config/RSPE01_01/symbols.txt` (Git blob `ec42efd5ef247dff7920e905f9004fc579dd3f74`) supplies exact function starts and lengths. A new checked-in public-only index `research/source_maps/RSPE01_01_public_golf_controller_functions.json` retains 643 nonoverlapping Golf and controller function intervals; all are checked against the existing public source-unit spans.
+
+New `scripts/audit_p0_club_controller_callgraph_private.py` SHA-verifies original private seven-pair archive through existing gate, read-only maps original MEM1 and statically scans **only published Golf functions**. It decodes direct PowerPC `bl` edges, attributes each callsite and target to exact public function boundaries, finds static callers up to two hops of Player `+0x34` paired-state writer functions, reports calls into public Controller/KPAD/WPAD input source units, and ranks local Golf Player/PlayerMgr/Main/Config function candidates by nearby bytes writes, small compares and bit tests. Public function and source-unit relative offsets only; **no raw PPC words, ROM bytes, private heap address, native values, or execution assertion**.
+
+IMPORTANT: The report cannot claim that a direct caller was executed on a D-pad event; code may use indirect/vtable calls, inline input reads or other unscanned source units. The original 26-packet experiment's unlabeled aim drift and missing independent Putter heldout also cannot be fixed by static graph ranking alone.
+
+Reproduce in a clean PR #412 detached worktree (uses original 7-pair archive, does not use the 26-packet club JSONL):
+
+```powershell
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_controller_callgraph_private.py') --selftest
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_controller_callgraph_private.py') --archive $originalArchive --capture 5 --limit 20
+```
+
+Find the direct upstream calls into the five bounded Player +0x34 functions, inspect any directly linked input reader and alternative byte/small-enum setter functions. These are static candidates until the source-selected receiver is proven. No emulator input is required for this offline stage, and `selected_club_variable_verified=false`.
+
 ## Tests
 
 Synthetic unit tests cover big-endian PPC load/store decoding, signed displacements, negative branches, ordinal-store selection, negative stack and absolute base controls, unbounded displacements, unrelated copies, controller BL edge, public source map guard, and bad MEM1 guard. Windows and Ubuntu full offline CI required before merge.
