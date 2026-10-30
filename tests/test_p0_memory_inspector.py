@@ -7,6 +7,8 @@ from pathlib import Path
 import struct
 import sys
 import tempfile
+from types import SimpleNamespace
+import math
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -283,6 +285,7 @@ class ReplayTests(unittest.TestCase):
         view.canvas = Canvas()
         view.index = Var(0)
         view.landmark_status = Var("")
+        view.aim_status = Var("")
         view.replay = replay
         view.yaw, view.pitch = 0.65, 0.48
         view.draw_path()
@@ -300,6 +303,114 @@ class ReplayTests(unittest.TestCase):
         tags = [tag for _, group, _ in view.canvas.ops for tag in group]
         self.assertNotIn("pin_candidate", tags)
         self.assertIn("not sampled", view.landmark_status.get())
+
+    def test_aim_ray_tee_anchor_not_player_location(self):
+        from wii_ai_golf.inspector.gui import (aim_ray_hypothesis, candidate_landmarks,
+                                                PIN, TEE)
+        e = event()
+        e["candidate_words_private_be_u32_hex"][AIM] = [bits(0.0)]
+        e["candidate_words_private_be_u32_hex"][TEE] = [bits(5), bits(2), bits(-100)]
+        e["candidate_words_private_be_u32_hex"][PIN] = [bits(5), bits(2), bits(-200)]
+        sample = self.save([e]).samples[0]
+        ray = aim_ray_hypothesis(sample, candidate_landmarks(sample))
+        self.assertIsNotNone(ray)
+        self.assertEqual(ray[0], sample.vec(TEE))  # Anchor is verified source TEE only.
+        self.assertAlmostEqual(ray[1][0], 5.0)
+        self.assertAlmostEqual(ray[1][1], 2.0)
+        self.assertAlmostEqual(ray[1][2], -123.0)
+        self.assertFalse(hasattr(sample, "player_position"))
+
+    def test_aim_radian_hypothesis_changes_direction(self):
+        from wii_ai_golf.inspector.gui import aim_ray_hypothesis, candidate_landmarks, PIN, TEE
+        e = event()
+        e["candidate_words_private_be_u32_hex"][TEE] = [bits(0), bits(0), bits(0)]
+        e["candidate_words_private_be_u32_hex"][PIN] = [bits(0), bits(0), bits(-100)]
+        e["candidate_words_private_be_u32_hex"][AIM] = [bits(math.pi / 2)]
+        sample = self.save([e]).samples[0]
+        ray = aim_ray_hypothesis(sample, candidate_landmarks(sample))
+        self.assertAlmostEqual(ray[1][0], 23.0, places=4)
+        self.assertAlmostEqual(ray[1][2], 0.0, places=4)
+        self.assertFalse(self.save([e]).training_approved)
+
+    def test_aim_not_drawn_on_missing_source_tee_pin_or_invalid_word(self):
+        from wii_ai_golf.inspector.gui import aim_ray_hypothesis, candidate_landmarks, PIN, TEE
+        clean = event()
+        clean["candidate_words_private_be_u32_hex"][PIN] = [bits(0), bits(0), bits(-100)]
+        clean["candidate_words_private_be_u32_hex"][TEE] = [bits(0), bits(0), bits(0)]
+        for kind in ("missing_tee", "missing_pin", "no_aim", "nonfinite", "out_of_range", "bad_source", "missing_digest", "coincident_tee_pin"):
+            e = json.loads(json.dumps(clean))
+            w = e["candidate_words_private_be_u32_hex"]
+            if kind == "missing_tee": w.pop(TEE)
+            if kind == "missing_pin": w.pop(PIN)
+            if kind == "no_aim": w.pop(AIM)
+            if kind == "nonfinite": w[AIM] = ["7fc00000"]
+            if kind == "out_of_range": w[AIM] = [bits(100)]
+            if kind == "bad_source": e["source_layout_qualified"] = False
+            if kind == "missing_digest": e.pop("source_identity_digest_private")
+            if kind == "coincident_tee_pin": w[PIN] = list(w[TEE])
+            sample = self.save([e]).samples[0]
+            with self.subTest(kind=kind):
+                self.assertIsNone(aim_ray_hypothesis(sample, candidate_landmarks(sample)))
+
+    def test_aim_rendered_as_distinct_ray_without_player_model(self):
+        from wii_ai_golf.inspector.gui import Inspector, PIN, TEE
+        class Var:
+            def __init__(self, value=None): self.value = value
+            def get(self): return self.value
+            def set(self, value): self.value = value
+        class Canvas:
+            def __init__(self): self.ops = []
+            def delete(self, *args): self.ops = []
+            def winfo_width(self): return 900
+            def winfo_height(self): return 470
+            def __getattr__(self, name):
+                if name not in {"create_polygon", "create_text", "create_line", "create_oval"}:
+                    raise AttributeError(name)
+                def draw(*args, **kwargs): self.ops.append((name, kwargs.get("tags", ()), kwargs))
+                return draw
+        e = event()
+        e["candidate_words_private_be_u32_hex"][PIN] = [bits(0), bits(0), bits(-200)]
+        e["candidate_words_private_be_u32_hex"][TEE] = [bits(0), bits(0), bits(0)]
+        v = object.__new__(Inspector)
+        v.canvas = Canvas()
+        v.index = Var(0)
+        v.landmark_status = Var("")
+        v.aim_status = Var("")
+        v.replay = self.save([e])
+        v.yaw, v.pitch = 0.65, 0.48
+        v.draw_path()
+        tagged = [op for op in v.canvas.ops if op[1] == ("aim_hypothesis",)]
+        self.assertEqual(len(tagged), 2)  # line + label, no player model
+        self.assertEqual(tagged[0][0], "create_line")
+        self.assertIn("HYPOTHESIS", v.aim_status.get())
+        self.assertIn("no player coords", v.aim_status.get())
+        no_pin = event()
+        v.replay = self.save([no_pin])
+        v.draw_path()
+        self.assertFalse(any(op[1] == ("aim_hypothesis",) for op in v.canvas.ops))
+        self.assertIn("unavailable", v.aim_status.get())
+
+    def test_right_button_drag_rotates_and_release_stops(self):
+        from wii_ai_golf.inspector.gui import Inspector
+        viewer = object.__new__(Inspector)
+        viewer.yaw, viewer.pitch = 0.5, 0.3
+        viewer.drag_origin = None
+        viewer.drag_button = None
+        redraws = []
+        viewer.draw_path = lambda: redraws.append((viewer.yaw, viewer.pitch))
+        viewer.drag_start(SimpleNamespace(x=100, y=100, num=3))
+        viewer.drag_move(SimpleNamespace(x=140, y=80))
+        self.assertAlmostEqual(viewer.yaw, 0.9)
+        self.assertAlmostEqual(viewer.pitch, 0.1)
+        self.assertEqual(len(redraws), 1)
+        viewer.drag_end(SimpleNamespace(x=140, y=80, num=1))
+        self.assertEqual(viewer.drag_button, 3)
+        viewer.drag_end(SimpleNamespace(x=140, y=80, num=3))
+        viewer.drag_move(SimpleNamespace(x=150, y=90))
+        self.assertEqual(len(redraws), 1)
+        viewer.drag_start(SimpleNamespace(x=10, y=10, num=1))
+        viewer.drag_move(SimpleNamespace(x=10, y=20))
+        self.assertEqual(len(redraws), 2)
 
     def test_no_controller_bridge_or_training_imports(self):
         for path in (ROOT / "src/wii_ai_golf/inspector/replay.py", ROOT / "src/wii_ai_golf/inspector/gui.py", ROOT / "scripts/p0_memory_inspector.py"):
