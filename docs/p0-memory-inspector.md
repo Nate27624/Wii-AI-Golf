@@ -236,3 +236,39 @@ This is orthographic canvas navigation, **not full Unity's perspective/flight
 camera**, and it does not modify Dolphin, source coordinates, contact/physics,
 terrain identity, or training eligibility. Camera functions are synthetic-tested
 with zoom-pointer invariants, bounds, platform wheel events and UI interactions.
+
+
+## Explicit PowerShell game startup (Windows-only, operator-triggered)
+
+The inspector's **PowerShell: Launch ready for shot** button opens a **separate visible
+Windows PowerShell** and invokes the repository's **existing**
+`launch_golf.py`/`launch_hitting_green.py` startup path from the configured
+**canonical** `Wii-AI-Golf` checkout, rather than an unconfigured detached
+inspector worktree. It requires the locally registered (gitignored)
+`research/savestates.local.json` catalog. If the game file is not yet configured,
+the existing fresh launcher prompts for its path in that PowerShell window and
+persists it in the existing ignored local launch configuration.
+
+After explicit confirmation, a fresh session runs
+`launch_golf.py --profile green-pre-start --port <inspector-port>`, which
+launches Dolphin, restores the registered pre-start checkpoint, dispatches
+`A → A+B → A` through the existing emulated-controller bridge and **does not
+swing**. When a local bridge already listens at the selected port, the button
+uses the existing `launch_hitting_green.py --profile green-pre-start --port
+<inspector-port> --attach-running --send-live`, which **resets the existing
+registered checkpoint**, then dispatches the same menu input sequence without
+launching another Dolphin. An occupied non-Felk port fails the launcher health
+checks; TCP availability alone is not considered proof of Felk.
+
+The button stops the inspector's read-only sampling thread before launching
+PowerShell, to avoid a live read spanning the user-authorized savestate reset.
+If the sampler cannot exit within its bounded wait, startup is declined and
+the user can retry. PowerShell stays open after dispatch/error to expose logs.
+**Visually confirm the ready golfer and manually click Connect LIVE** before
+using the inspector again. A launcher success code confirms button dispatch,
+not Wii Sports' internal ready-to-hit screen.
+
+This is an **explicit operator-authorized game-changing action**, entirely
+separate from the inspector's read-only sample path. It does not overwrite
+existing savestates, automatically hit the ball, approve training, or install
+new controller/bridge code. The button is disabled on non-Windows platforms.
