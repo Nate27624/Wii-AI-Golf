@@ -1,15 +1,21 @@
-name: P0 private capture manifest preflight (offline only)
+name: P0 memory capture and variable validation (synthetic offline)
 
 on:
   pull_request:
     paths:
       - 'scripts/p0_capture_manifest_preflight.py'
       - 'tests/test_p0_capture_manifest_preflight.py'
+      - 'scripts/p0_stage_private_capture.ps1'
+      - 'tests/test_p0_stage_private_capture.py'
+      - 'scripts/p0_archive_variable_differential_private.py'
+      - 'tests/test_p0_archive_variable_differential_private.py'
+      - 'scripts/p0_variable_validation_matrix.py'
+      - 'tests/test_p0_variable_validation_matrix.py'
       - '.github/workflows/p0-capture-manifest-preflight.yml'
   workflow_dispatch:
 
 jobs:
-  private-manifest-offline:
+  p0-memory-offline:
     strategy:
       fail-fast: false
       matrix:
@@ -22,7 +28,13 @@ jobs:
           python-version: '3.11'
       - name: Install optional Bayesian regression dependency
         run: python -m pip install -e ".[bayes]"
-      - name: Focused synthetic private capture integrity cases (NO Dolphin)
+      - name: Manager capture integrity tests
         run: python -m unittest discover -s tests -p test_p0_capture_manifest_preflight.py -v
-      - name: Full offline regression suite (NO Dolphin)
+      - name: S001 PowerShell stage tests (synthetic banks only, no Dolphin)
+        run: python -m unittest discover -s tests -p test_p0_stage_private_capture.py -v
+      - name: S002 archive differential tests (synthetic banks only, no Dolphin)
+        run: python -m unittest discover -s tests -p test_p0_archive_variable_differential_private.py -v
+      - name: S003 P0 variable falsification tests (synthetic metadata only)
+        run: python -m unittest discover -s tests -p test_p0_variable_validation_matrix.py -v
+      - name: Full offline Python suite
         run: python -m unittest discover -s tests -v
