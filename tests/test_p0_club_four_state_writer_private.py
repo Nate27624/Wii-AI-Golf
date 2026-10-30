@@ -62,6 +62,8 @@ class TestFourStateWriter(unittest.TestCase):
         self.assertEqual([r["direction_argument_r4"] for r in report["static_direction_calls"]],[0,1,0,1])
         self.assertEqual(report["selector_behavior_source"]["field_displacement"],"+0x01C")
         self.assertEqual(report["selector_behavior_source"]["observed_index_bounds"],{"minimum":0,"maximum":3})
+        self.assertIn("decrement",report["selector_behavior_source"]["r4_eq_0"])
+        self.assertIn("increment",report["selector_behavior_source"]["r4_ne_0"])
         self.assertFalse(report["game_club_id_verified"])
         self.assertFalse(report["training_approved"])
 
