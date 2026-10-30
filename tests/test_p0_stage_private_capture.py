@@ -183,6 +183,22 @@ class WindowsCaptureStageTests(unittest.TestCase):
             self.assertFalse(note["guest_frame_verified"])
             self.assertFalse(note["contact_verified"])
             self.assertFalse(note["training_approved"])
+        # Untracked extra bank pair must not silently enter the private manifest.
+        injected_a = self.session / "A0-MEM1.bin"
+        injected_b = self.session / "A0-MEM2.bin"
+        injected_a.write_bytes(b"not a native bank")
+        injected_b.write_bytes(b"not a native bank")
+        self.assertEqual(self.execute("Finalize", PythonCommand=sys.executable).returncode, 2)
+        injected_a.unlink()
+        injected_b.unlink()
+        # Duplicate operator capture ordinals make the provenance ambiguous.
+        note_file = self.session / "F0-observation-PRIVATE.json"
+        original_note = note_file.read_bytes()
+        changed_note = json.loads(original_note.decode("utf-8-sig"))
+        changed_note["capture_order"] = 1
+        note_file.write_text(json.dumps(changed_note), encoding="utf-8")
+        self.assertEqual(self.execute("Finalize", PythonCommand=sys.executable).returncode, 2)
+        note_file.write_bytes(original_note)
         done = self.execute("Finalize", PythonCommand=sys.executable)
         self.assertEqual(done.returncode, 0, done.stderr)
         report = json.loads((self.session / "p0-capture-manifest-PRIVATE.json")
