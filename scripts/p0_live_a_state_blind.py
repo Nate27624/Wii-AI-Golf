@@ -174,7 +174,7 @@ def run(args, *, rpc_class=None, clock=time):
                             'source_identity_digest_private':sha256(str(event['identity']).encode()).hexdigest(),
                             'candidate_words_private_be_u32_hex':{
                                 'selected_player_record_all_51': [f'{w:08x}' for w in event['record']]},
-                            'bridge_frame_count_NOT_PHYSICS':event['frame_bracket'],
+                            'bridge_frame_count_NOT_PHYSICS':event['frame_bracket_NOT_PHYSICS'],
                             'training_approved':False}
                         out.write(json.dumps(private,separators=(',',':'))+'\n')
                         out.flush();packet_count += 1
