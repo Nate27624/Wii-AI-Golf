@@ -148,6 +148,7 @@ function Copy-VerifiedBank([string]$Source, [string]$Dest, [long]$ExpectedSize) 
     }
 }
 
+$safeStage='PREREQUISITES'
 try {
     if ($env:OS -ne 'Windows_NT') { throw 'WINDOWS_OPERATOR_ONLY' }
     $root = Assert-LocalPrivate $PrivateRoot $true
@@ -188,8 +189,10 @@ try {
     try {
         if ([IO.File]::Exists((Join-Path $session $manifestName))) { throw 'SESSION_ALREADY_FINALIZED' }
         if ($Action -eq 'Stage') {
+            $safeStage='OPERATOR_ATTESTATIONS'
             Assert-OperatorGates
             if (-not $Phase) { throw 'PHASE_REQUIRED' }
+            $safeStage='SOURCE_BANK_VALIDATION'
             $first = Assert-ReadBank $Mem1Path $MEM1_SIZE
             $second = Assert-ReadBank $Mem2Path $MEM2_SIZE
             if ([string]::Equals($first,$second,[StringComparison]::OrdinalIgnoreCase)) { throw 'BANKS_IDENTICAL_PATH' }
@@ -221,9 +224,12 @@ try {
                 }
             }
             try {
+                $safeStage='BANK_COPY_AND_HASH'
                 Copy-VerifiedBank $first $one $MEM1_SIZE
                 Copy-VerifiedBank $second $two $MEM2_SIZE
+                $safeStage='MANAGER_PREFLIGHT'
                 Invoke-ExistingPreflight $session $false
+                $safeStage='PRIVATE_NOTE_WRITE'
                 Write-PrivateNew $note ([ordered]@{
                     phase=$Phase; capture_order=($prior.Count + 1);
                     human_label=(@{B0='baseline';A0='aim-only';C0='contact candidate';F0='flight candidate';S0='settled candidate'}[$Phase]);
@@ -249,6 +255,7 @@ try {
             }
             Write-Output 'P0 native-size private pair STAGED; phase/observations are operator-labelled only.'
         } elseif ($Action -eq 'Finalize') {
+            $safeStage='FINALIZE_NOTES'
             $notes = @(Get-ChildItem -LiteralPath $session -Filter '*-observation-PRIVATE.json' -File)
             if ($notes.Count -lt 1 -or $notes.Count -gt 5) { throw 'NO_VALID_PHASE_NOTES' }
             $oneFiles = @(Get-ChildItem -LiteralPath $session -Filter '*-MEM1.bin' -File)
@@ -276,12 +283,14 @@ try {
                 }
                 $seenOrders[[int]$detail.capture_order] = $true
             }
+            $safeStage='FINALIZE_MANIFEST'
             Invoke-ExistingPreflight $session $true
             Write-Output 'P0 private capture inventory FINALIZED; all identity/physics/training claims remain unverified.'
         } else { throw 'UNKNOWN_ACTION' }
     } finally { $lock.Dispose() }
 } catch {
     # Never interpolate an exception: it can include private source paths, hashes, or console data.
-    [Console]::Error.WriteLine('P0 private capture staging REFUSED (local prerequisite/privacy/integrity gate).')
+    # Allowlisted stage only, never an exception string containing private paths or hashes.
+    [Console]::Error.WriteLine('P0 private capture staging REFUSED at ' + $safeStage + '.')
     exit 2
 }
