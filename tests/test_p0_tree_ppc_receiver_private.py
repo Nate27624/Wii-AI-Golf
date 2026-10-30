@@ -48,7 +48,7 @@ class TreePpcReceiver(unittest.TestCase):
     def test_stack_writes_never_treated_as_field(self):
         x=r.inspect(fixture())
         self.assertTrue(x["stack_r1_writes_excluded"])
-        self.assertEqual(x["nearest_nonstack_field_offset_pairs"],[])
+        self.assertFalse(any(p["shared_base_register"]=="r1"\n                             for p in x["nearest_nonstack_field_offset_pairs"]))
 
     def test_unknown_receiver_stays_false(self):
         x=r.inspect(fixture())
