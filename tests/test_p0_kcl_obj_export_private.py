@@ -144,6 +144,34 @@ class TestPrivateObj(unittest.TestCase):
         with self.assertRaises(ValueError):
             obj.export(self.data, self.output, capture=5, controls=(1, 5))
 
+    def test_safe_cli_stage_and_capture_without_private_paths(self):
+        stdout = io.StringIO()
+        with patch.object(obj, "export",
+                          side_effect=obj.ExportGate("FULL_PRISM_OR_TEE_PIN_GATE", 5)), \
+             redirect_stdout(stdout):
+            code = obj.main([
+                "--archive", str(self.data / "PRIVATE bank path"),
+                "--output", str(self.output)])
+        report = json.loads(stdout.getvalue())
+        self.assertEqual(code, 3)
+        self.assertEqual(report["stage"], "FULL_PRISM_OR_TEE_PIN_GATE")
+        self.assertEqual(report["capture_number"], 5)
+        self.assertFalse(report["private_obj_created"])
+        self.assertNotIn(str(self.data), stdout.getvalue())
+
+    def test_output_path_rejection_is_categorized(self):
+        import audit_selected_ball_start_link_private as selected
+        stdout = io.StringIO()
+        with patch.object(selected, "DATA_ROOT", self.data), redirect_stdout(stdout):
+            code = obj.main([
+                "--archive", str(self.data / "nonexistent"),
+                "--output", str(self.data / "not-in-derived-PRIVATE.obj")])
+        report = json.loads(stdout.getvalue())
+        self.assertEqual(code, 3)
+        self.assertEqual(report["stage"], "OUTPUT_DESTINATION")
+        self.assertIsNone(report["capture_number"])
+        self.assertFalse(self.output.exists())
+
     def test_safe_cli_abstain_without_private_path(self):
         stdout = io.StringIO()
         with redirect_stdout(stdout):
