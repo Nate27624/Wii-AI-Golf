@@ -12,6 +12,7 @@ from contextlib import ExitStack
 import hashlib
 import json
 import mmap
+import math
 import os
 from pathlib import Path
 import stat
@@ -50,6 +51,8 @@ def _safe_output_path(output: Path, data_root: Path) -> Path:
         raise ValueError('private OBJ name must end in -PRIVATE.obj')
     if output.name in ('.', '..') or output.is_symlink() or output.exists():
         raise ValueError('refusing existing, linked, or invalid OBJ target')
+    if not output.parent.is_dir() or output.parent.is_symlink():
+        raise ValueError('OBJ parent must be existing private Data/derived')
     if output.parent.resolve(strict=True) != parent:
         raise ValueError('OBJ must be placed directly under private Data/derived')
     path = parent / output.name
@@ -141,7 +144,7 @@ def _obj_bytes(triangles) -> bytes:
         for vertex in face:
             if len(vertex) != 3 or any(
                 not isinstance(v, (int, float)) or
-                not __import__('math').isfinite(v) or abs(v) >= 1e7
+                not math.isfinite(v) or abs(v) >= 1e7
                 for v in vertex
             ):
                 raise ValueError('nonfinite or unsafe OBJ vertex')
