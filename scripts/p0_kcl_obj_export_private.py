@@ -62,12 +62,17 @@ def _git_ignored_private_obj(path: Path) -> bool:
             check=False, timeout=5,
         )
         tracked = subprocess.run(
-            ["git", "-C", str(path.parent), "ls-files", "--error-unmatch",
+            ["git", "-C", str(path.parent), "ls-files", "--cached", "-z",
              "--", str(path)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             check=False, timeout=5,
         )
-        return ignored.returncode == 0 and tracked.returncode == 1
+        # --error-unmatch differs for untracked paths across Git for Windows
+        # versions. --cached -z is stable: 0 + empty stdout proves the file
+        # does not already occur in the repository index. A Git failure
+        # cannot be mistaken for "untracked".
+        return (ignored.returncode == 0 and tracked.returncode == 0
+                and tracked.stdout == b"")
     except (OSError, subprocess.TimeoutExpired):
         return False
 
