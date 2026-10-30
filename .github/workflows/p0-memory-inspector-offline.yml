@@ -32,5 +32,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_a_button.py -v
       - name: Focused passive A reference checks
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_a_reference.py -v
+      - name: Focused batched source parity and speed checks
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_fast.py -v
       - name: Full offline regression suite
         run: python -m unittest discover -s tests -v

@@ -130,6 +130,8 @@ class Inspector:
         a_panel = ttk.Frame(head)
         a_panel.pack(fill="x", pady=3)
         ttk.Label(a_panel, textvariable=self.a_status, font=("Segoe UI", 17, "bold")).pack(side="left")
+        ttk.Label(a_panel, text="  Live read-only candidate · may be UNKNOWN across sessions",
+                  foreground="#566171").pack(side="left")
 
         main = ttk.PanedWindow(self.root, orient="horizontal")
         main.pack(fill="both", expand=True, padx=10)
@@ -310,21 +312,26 @@ class Inspector:
                     self.slider.configure(to=max(1, len(self.live_buffer) - 1))
                     self.show(len(self.live_buffer) - 1)
                     self.process_a_sample(event)
-                    self.status.set(f"LIVE READ-ONLY · {self.live_location} · achieved {self.live_rate:.2f} samples/s · source checked · training_approved=false")
+                    self.status.set(f"LIVE READ-ONLY · {self.live_location} · {self.live_rate:.2f} samples/s "
+                                    f"· read {event.read_duration_ms:.0f} ms / {event.rpc_calls} RPCs "
+                                    "· source checked · training_approved=false")
                 elif event.kind == "error":
                     self.status.set("LIVE FAILED: " + event.reason + " Existing sample trace frozen. Check RSPE01 Rev1 and bridge.")
                     self.live_last = None
                     self.a_status.set("A UNKNOWN")
+                    self.draw_a_overlay()
                     self.a_indicator.clear()
                 elif event.kind == "disconnected":
                     self.status.set("LIVE DISCONNECTED. Existing sample trace retained; no background retries.")
                     self.live_last = None
                     self.a_status.set("A UNKNOWN")
+                    self.draw_a_overlay()
                     self.a_indicator.clear()
             if self.live_last is not None:
                 age = time.monotonic() - self.live_last
                 if age > 3.0:
                     self.a_status.set("A UNKNOWN")
+                    self.draw_a_overlay()
                     self.a_indicator.clear()
                     self.status.set(f"STALE LIVE SAMPLE {age:.1f}s ago · {self.live_location} · check source/bridge · training_approved=false")
         self.root.after(200, self.poll_live)
@@ -360,6 +367,7 @@ class Inspector:
             event.a_record, sample.source_digest,
             sample.words.get(BALL), sample.words.get(AIM))
         self.a_status.set("A " + state)
+        self.draw_a_overlay()
 
 
     def select_phase(self, _: object) -> None:
@@ -394,10 +402,26 @@ class Inspector:
         self.drag_origin = (event.x, event.y)
         self.draw_path()
 
+    def draw_a_overlay(self) -> None:
+        """A readout stays visible in the upper right of the 3D viewport.
+
+        No game input or source-coordinate geometry is involved; overlay is
+        screen anchored, not a badge/button and not a player marker.
+        """
+        canvas = self.canvas
+        canvas.delete("a_state_overlay")
+        status = getattr(self, "a_status", None)
+        value = status.get() if status is not None else "A UNKNOWN"
+        shade = "#e7f4ff" if value == "A PRESSED" else "#b4bed1"
+        canvas.create_text(max(canvas.winfo_width()-16, 16), 17, anchor="ne",
+                           text=value, fill=shade, font=("Segoe UI", 19, "bold"),
+                           tags=("a_state_overlay",))
+
     def draw_path(self) -> None:
         canvas = self.canvas
         canvas.delete("all")
         if self.replay is None:
+            self.draw_a_overlay()
             return
         width, height = max(canvas.winfo_width(), 1), max(canvas.winfo_height(), 1)
         upto = self.index.get()
@@ -429,6 +453,7 @@ class Inspector:
         points = [p for p, _ in path + caches] + list(landmarks.values()) + (list(aim_ray) if aim_ray else [])
         if not points:
             canvas.create_text(width // 2, height // 2, text="No finite source-qualified ball/cache/pin/tee candidates", fill="white")
+            self.draw_a_overlay()
             return
         axes = [project(p, self.yaw, self.pitch) for p in points]
         low_x, high_x = min(p[0] for p in axes), max(p[0] for p in axes)
@@ -486,6 +511,9 @@ class Inspector:
             canvas.create_text(x + 23, y - 14, anchor="nw", text="PIN / FLAG (candidate)",
                                fill="#44d7ef", tags=("pin_candidate",))
         canvas.create_text(12, height - 15, text="Left/right drag: orbit view. Initial aim assumed TEE→FLAG; Δ+0x3C radian/sign unverified; TEE ≠ player.", anchor="sw", fill="#bacbe1")
+        # Overlay is intentionally last in Tk's display list, so trajectory
+        # geometry cannot conceal the user-requested A text.
+        self.draw_a_overlay()
 
 
 def launch(capture: str = "", manifest: str = "") -> int:
