@@ -36,6 +36,8 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_fast.py -v
       - name: Auto A candidate regressions
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_a_live.py -v
+      - name: Focused scene camera navigation checks
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_navigation.py -v
       - name: Focused private collision terrain OBJ checks
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_terrain.py -v
       - name: Full offline regression suite

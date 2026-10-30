@@ -212,3 +212,27 @@ private material-bearing OBJ export or active-collision octree status.
 In all cases the 3D rendering is a **candidate source-component scene, not a
 verified visual-world alignment or trainable physics map**.
 `training_approved=false`.
+
+## Scene-style 3D camera navigation (viewer-only)
+
+The terrain/ball/flag inspector now supports Unity Scene-view-inspired camera
+interaction, independent of game input or source-component data:
+
+- **Scroll wheel up/down** over the 3D canvas: continuous multiplicative zoom
+  **toward the mouse pointer**, bounded to 0.04×–64× of the automatically
+  fitted scene. Windows/macOS MouseWheel and Linux/X11 buttons 4/5 are
+  supported; the amount is proportional to normal wheel notches.
+- **Middle mouse drag**: pan the viewport in screen pixels. Pan persists as
+  new live source-qualified samples arrive; it does not translate the course
+  or affect any memory reading.
+- **Left or right mouse drag**: orbit as before (orthographic yaw/pitch,
+  no game-camera calibration). A-button text stays screen-anchored.
+- **F** when the canvas has keyboard focus (click/drag/scroll inside it) or
+  **Frame view (F)** button: restore fitted zoom and centered pan while
+  keeping your current viewing orientation. Terrain focus checkbox still
+  controls which collision faces are included in the fit.
+
+This is orthographic canvas navigation, **not full Unity's perspective/flight
+camera**, and it does not modify Dolphin, source coordinates, contact/physics,
+terrain identity, or training eligibility. Camera functions are synthetic-tested
+with zoom-pointer invariants, bounds, platform wheel events and UI interactions.

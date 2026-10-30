@@ -13,6 +13,7 @@ from .live import LiveSampler
 from .a_reference import discover_reference
 from .a_live import LiveAIndicator
 from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE
+from .navigation import pan_by, wheel_steps, zoom_at_cursor
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -102,6 +103,8 @@ class Inspector:
         self.replay: Replay | None = None
         self.index = tk.IntVar(value=0)
         self.yaw, self.pitch = 0.65, 0.48
+        self.camera_zoom = 1.0
+        self.camera_pan = (0.0, 0.0)
         self.drag_origin: tuple[int, int] | None = None
         self.drag_button: int | None = None
         self.live_worker: LiveSampler | None = None
@@ -144,7 +147,7 @@ class Inspector:
         main = ttk.PanedWindow(self.root, orient="horizontal")
         main.pack(fill="both", expand=True, padx=10)
         left = ttk.LabelFrame(main, text="Phase / sample", padding=8)
-        center = ttk.LabelFrame(main, text="3D candidate view — left/right drag to rotate", padding=8)
+        center = ttk.LabelFrame(main, text="3D scene view — wheel zoom · middle pan · left/right orbit · F frame", padding=8)
         right = ttk.LabelFrame(main, text="Raw source candidates", padding=8)
         main.add(left, weight=1)
         main.add(center, weight=3)
@@ -165,6 +168,14 @@ class Inspector:
         self.canvas.bind("<ButtonPress-3>", self.drag_start)
         self.canvas.bind("<B3-Motion>", self.drag_move)
         self.canvas.bind("<ButtonRelease-3>", self.drag_end)
+        self.canvas.bind("<ButtonPress-2>", self.drag_start)
+        self.canvas.bind("<B2-Motion>", self.drag_move)
+        self.canvas.bind("<ButtonRelease-2>", self.drag_end)
+        self.canvas.bind("<MouseWheel>", self.scene_wheel)  # Windows / macOS
+        self.canvas.bind("<Button-4>", self.scene_wheel)    # Linux X11 scroll up
+        self.canvas.bind("<Button-5>", self.scene_wheel)    # Linux X11 scroll down
+        self.canvas.bind("<KeyPress-f>", self.frame_view)
+        self.canvas.bind("<KeyPress-F>", self.frame_view)
         mesh_actions = ttk.Frame(center)
         mesh_actions.pack(fill="x", pady=3)
         ttk.Button(mesh_actions, text="Load PRIVATE terrain OBJ", command=self.load_terrain).pack(side="left")
@@ -172,6 +183,7 @@ class Inspector:
         ttk.Checkbutton(mesh_actions, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Color source surface IDs", variable=self.terrain_colors, command=self.draw_path).pack(side="left")
+        ttk.Button(mesh_actions, text="Frame view (F)", command=self.frame_view).pack(side="left", padx=4)
         ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
         source_legend = ttk.Frame(center)
         source_legend.pack(fill="x")
@@ -437,6 +449,10 @@ class Inspector:
     def drag_start(self, event: tk.Event) -> None:
         self.drag_origin = (event.x, event.y)
         self.drag_button = getattr(event, "num", 1)
+        # Only the scene canvas owns F-to-frame; shortcuts never reach Dolphin.
+        canvas = getattr(self, "canvas", None)
+        if canvas is not None and hasattr(canvas, "focus_set"):
+            canvas.focus_set()
 
     def drag_end(self, event: tk.Event) -> None:
         if self.drag_button == getattr(event, "num", 1):
@@ -447,9 +463,34 @@ class Inspector:
         if self.drag_origin is None:
             return
         x, y = self.drag_origin
-        self.yaw += (event.x - x) * 0.01
-        self.pitch = min(1.4, max(-1.4, self.pitch + (event.y - y) * 0.01))
+        if self.drag_button == 2:
+            self.camera_pan = pan_by(getattr(self, "camera_pan", (0.0, 0.0)),
+                                     event.x - x, event.y - y)
+        else:
+            # Left/right orbit existing source-coordinate orthographic camera.
+            self.yaw += (event.x - x) * 0.01
+            self.pitch = min(1.4, max(-1.4, self.pitch + (event.y - y) * 0.01))
         self.drag_origin = (event.x, event.y)
+        self.draw_path()
+
+    def scene_wheel(self, event: tk.Event) -> None:
+        """Scene-style scroll zoom anchored to the pointer, not source data."""
+        steps = wheel_steps(getattr(event, "delta", None), getattr(event, "num", None))
+        if steps == 0:
+            return
+        canvas = self.canvas
+        self.camera_zoom, self.camera_pan = zoom_at_cursor(
+            getattr(self, "camera_zoom", 1.0), getattr(self, "camera_pan", (0.0, 0.0)),
+            (event.x, event.y), (max(canvas.winfo_width(), 1), max(canvas.winfo_height(), 1)),
+            steps)
+        if hasattr(canvas, "focus_set"):
+            canvas.focus_set()
+        self.draw_path()
+
+    def frame_view(self, event: tk.Event | None = None) -> None:
+        """Like Unity's F: frame the currently visible, qualified scene."""
+        self.camera_zoom = 1.0
+        self.camera_pan = (0.0, 0.0)
         self.draw_path()
 
     def draw_a_overlay(self) -> None:
@@ -545,9 +586,13 @@ class Inspector:
         scale = min(max(1, width - 100) / max(1e-7, high_x - low_x),
                     max(1, height - 90) / max(1e-7, high_y - low_y))
         cx, cy = (low_x + high_x) / 2, (low_y + high_y) / 2
+        # Fit geometry once, then apply persistent screen-space camera zoom/pan.
+        # These never modify source vectors or the game; the A overlay stays fixed.
+        camera_zoom = getattr(self, "camera_zoom", 1.0)
+        pan_x, pan_y = getattr(self, "camera_pan", (0.0, 0.0))
         def xy(p):
             u, v = project(p, self.yaw, self.pitch)
-            return width / 2 + (u - cx) * scale, height / 2 - (v - cy) * scale
+            return width / 2 + pan_x + (u - cx) * scale * camera_zoom, height / 2 + pan_y - (v - cy) * scale * camera_zoom
         canvas.create_text(12, 12, text="Rotatable 3D source-coordinate projection · unknown units", anchor="nw", fill="#bacbe1")
         # Behind source-qualified ball, tee, pin and screen-anchored A text.
         for face, source_attr in colored_faces:
@@ -602,7 +647,7 @@ class Inspector:
                                fill="#44d7ef", outline="", tags=("pin_candidate",))
             canvas.create_text(x + 23, y - 14, anchor="nw", text="PIN / FLAG (candidate)",
                                fill="#44d7ef", tags=("pin_candidate",))
-        canvas.create_text(12, height - 15, text="Left/right drag: orbit view. Initial aim assumed TEE→FLAG; Δ+0x3C radian/sign unverified; TEE ≠ player.", anchor="sw", fill="#bacbe1")
+        canvas.create_text(12, height - 15, text="Wheel: zoom at cursor · Middle drag: pan · Left/right drag: orbit · F: frame · Source units unknown", anchor="sw", fill="#bacbe1")
         # Overlay is intentionally last in Tk's display list, so trajectory
         # geometry cannot conceal the user-requested A text.
         self.draw_a_overlay()
