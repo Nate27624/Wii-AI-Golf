@@ -40,7 +40,7 @@ Reproduce against original private seven-pair archive using the same exact PR #4
 
 ```powershell
 $originalArchive = Read-Host 'Absolute path to ORIGINAL seven-pair private archive'
-& py -3 -I (Join-Path $work 'scripts\audit_p0_club_player_byte_source_private.py') --archive $originalArchive --capture 5 --limit 22 --context 6
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_player_byte_source_private.py') --archive $originalArchive --capture 5 --target-offset 0x34 --limit 22 --context 6
 ```
 
 Next: source-review the five +0x34 byte stores and corresponding `lbz` reads, trace what value and object base register feed them, and only then decide whether a single operator D-pad change/no-change runtime test is needed. Zero training promotion.
