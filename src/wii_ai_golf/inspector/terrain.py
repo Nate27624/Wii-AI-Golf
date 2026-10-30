@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import math
+import subprocess
 from pathlib import Path
 
 MAX_OBJ_BYTES = 16 * 1024 * 1024
@@ -42,14 +43,46 @@ class TerrainMesh:
         return tuple(tuple(self.vertices[i] for i in f) for f in chosen[::stride][:limit])
 
 
+def _ignored_project_private_obj(path: Path) -> bool:
+    """Allow a single project Data/derived OBJ ONLY if Git cannot stage it.
+
+    The user may keep a private Data directory under a larger Git workspace.
+    In that case validate both Git ignore and untracked status, not merely a
+    marker named .gitignore. No shell, no network, bounded checks.
+    """
+    derived = path.parent
+    data = derived.parent
+    if (derived.name != "derived" or data.name != "Wii-AI-Golf-Data"
+            or not path.name.endswith("-PRIVATE.obj")
+            or any(p.is_symlink() for p in (derived, data))):
+        return False
+    try:
+        ignored = subprocess.run(
+            ["git", "-C", str(derived), "check-ignore", "--no-index", "-q",
+             "--", str(path)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=5, check=False,
+        )
+        tracked = subprocess.run(
+            ["git", "-C", str(derived), "ls-files", "--error-unmatch",
+             "--", str(path)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=5, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return ignored.returncode == 0 and tracked.returncode == 1
+
+
 def load_private_obj(filename: str | Path) -> TerrainMesh:
     """Only ordinary local ASCII v/f triangle OBJ outside Git; SHA and size bound."""
     path = Path(filename)
     if path.suffix.lower() != '.obj' or path.is_symlink() or not path.is_file():
         raise TerrainError('Choose a regular local private .obj file')
     path = path.resolve(strict=True)
-    if any((parent/'.git').exists() for parent in (path.parent,*path.parents)):
-        raise TerrainError('Terrain OBJ must be located outside Git checkouts')
+    if (any((parent/'.git').exists() for parent in (path.parent,*path.parents))
+            and not _ignored_project_private_obj(path)):
+        raise TerrainError('Git-contained private OBJ must be ignored and untracked under Wii-AI-Golf-Data/derived')
     start = path.stat()
     if not 1 <= start.st_size <= MAX_OBJ_BYTES:
         raise TerrainError('Terrain OBJ outside safe file bound')
