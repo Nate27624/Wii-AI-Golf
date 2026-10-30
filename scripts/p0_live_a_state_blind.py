@@ -185,19 +185,22 @@ def run(args, *, rpc_class=None, clock=time):
                     except (ImportError,RuntimeError,OSError):
                         print('HIGH BEEP',flush=True)
                     windows[phase] = []
-                    for index in range(args.samples_per_window):
-                        event = capture(rpc,phase,index,expected,idle_ball,idle_aim)
-                        if expected is None:
-                            expected = event['identity'];idle_ball=event['ball'];idle_aim=event['aim']
-                        windows[phase].append(event)
-                        private = serialize_packet(event, phase, index)
-                        out.write(json.dumps(private,separators=(',',':'))+'\n')
-                        out.flush();packet_count += 1
                     try:
-                        import winsound
-                        winsound.Beep(500, 300)
-                    except (ImportError,RuntimeError,OSError):
-                        print('LOW BEEP',flush=True)
+                        for index in range(args.samples_per_window):
+                            event = capture(rpc,phase,index,expected,idle_ball,idle_aim)
+                            if expected is None:
+                                expected = event['identity'];idle_ball=event['ball'];idle_aim=event['aim']
+                            windows[phase].append(event)
+                            private = serialize_packet(event, phase, index)
+                            out.write(json.dumps(private,separators=(',',':'))+'\n')
+                            out.flush();packet_count += 1
+                    finally:
+                        # Always signal STOP, including source-identity or schema abort.
+                        try:
+                            import winsound
+                            winsound.Beep(500, 300)
+                        except (ImportError,RuntimeError,OSError):
+                            print('LOW BEEP / STOP',flush=True)
                     print('Captured',phase,'with',len(windows[phase]),'source-qualified packets.')
                     if phase == 'R3':
                         model,fit_report=choose_model(windows)
@@ -212,7 +215,7 @@ def run(args, *, rpc_class=None, clock=time):
                     else:
                         print('Calibration phase label is OPERATOR INTENT ONLY, not game A proof.')
         status='COMPLETE';code='CONTROL_STUDY_COMPLETED'
-    except (Abstain,OSError,RuntimeError,ValueError,TimeoutError,EOFError,TypeError) as exc:
+    except (Abstain,OSError,RuntimeError,ValueError,TimeoutError,EOFError,TypeError,KeyError,IndexError) as exc:
         code=str(exc) if isinstance(exc,Abstain) else type(exc).__name__
         print('ABSTAIN',code,flush=True)
     finally:
