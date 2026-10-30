@@ -174,3 +174,46 @@ next independent step is compare the private 94 source-component translations
 to the terrain bbox and record topology, plus inspect constructor/array writer
 PPC. If unresolved, investigate native allocation/pointer buffer layout
 directly from source disassembly. No training promotion.
+
+## Real operator pointer-table falsification and direct PPC follow-up
+
+Operator ran `p0_tree_pointer_table_private.py --captures 7` against the
+original SHA- and source-gated private RAM cohort. Result was
+`POINTER_TABLE_UNRESOLVED`. For the four top hypotheses (12/24/48-byte
+entries slot+4, and 12-byte slot+8), the current probe's aggregate
+structural diagnostics reported only 27/27/26/24 unique MEM2 candidate
+object pointers, **zero objects with its strictly expected MEM1 vtables**
+and therefore zero accepted position vectors. This shows neither
+hypothesized pointer-table encoding is source-proven. It does NOT disprove
+the independently reported `FieldManager+0x1C=94` trees. It may be a
+contiguous tree object array with a different stride, pointer indirection,
+header/element offset, or incompatible vtable/linkage assumptions.
+
+Instead of further broad stride guessing, the next probe is
+`scripts/p0_tree_ppc_indexing_private.py` in PR #411. It examines only
+the Rev1 **original source .text** bounded by public ogws splits and
+symbol labels:
+- `RPGolFieldManager` `0x80290B44..0x80294184` split into windows
+  near named **`PmpProc2` (0x802917D4)**,
+  **`Golf::PmpProc` (0x80291F34)** and
+  **`Golf::LoadCurrentHoleResources` (0x80293008)**;
+- `RPGolMapObjTree` `0x80296238..0x80296EA8`;
+- `RPGolMapObjTreeWater` `0x80296EA8..0x80296F50`;
+- `RPGolMapObjBase` `0x8028F9FC..0x80290B44`.
+
+The parser decodes only selected static PPC `mulli`, `mullw`,
+`slwi`, field-related D-form `lwz/stw/lfs/stfs` and direct `b/bl`
+to tree/base code. It returns public unit-relative offsets and
+immediate multiplicands/counts **without** original native words,
+heap pointers or private coordinates. The presence of, for example,
+an immediate size `0x80` alone is NOT proof of `sizeof(Tree)`; the
+next stage must check register dataflow from the field tree-count and
+array pointer through the allocation/callsite instructions.
+No runtime gameplay execution is proven by static code scans.
+
+Use same original phase7 archive, no Dolphin or new capture:
+```powershell
+py -3 -I scripts/p0_tree_ppc_indexing_private.py --archive 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures\p0-new-cohort-20261028-063011392-955fd483-PRIVATE' --capture 7
+```
+See [ogws public source splits](https://github.com/doldecomp/ogws/blob/master/config/RSPE01_01/splits.txt)
+and [Wii Sports public Rev1 symbol map](https://github.com/kiwi515/ogws_info/blob/main/RSPE_r1.map.csv).
