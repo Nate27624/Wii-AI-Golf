@@ -147,7 +147,7 @@ def join_memory_input_observation(
     def is_penalty_label(label: object) -> bool:
         if not isinstance(label, str):
             return False
-        compact = re.sub(r"[\\s_:\\-]+", "", label).casefold()
+        compact = re.sub(r"[\s_:\-]+", "", label).casefold()
         return compact in {"m100ft", "offgreen100ftpenalty"}
 
     if (type(outcome.censored) is not bool or outcome.censored
