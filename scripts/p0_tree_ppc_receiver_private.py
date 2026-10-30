@@ -100,7 +100,7 @@ def inspect(read):
         kind,val,reg,displacement=op
         for other in prior.get((reg,0x3C-displacement),[]):
             if abs(pc-other[0])<=0x90 and pc != other[0]:
-                if pc<BASE or other[0]<BASE:
+                if pc<FIELD_LO or other[0]<FIELD_LO:
                     continue
                 pairs.append({
                     "source_unit_relative_sites":[
