@@ -206,5 +206,60 @@ class CliTest(unittest.TestCase):
             self.assertEqual(len(called),2)
 
 
+class SourceReaderIntegrationTest(unittest.TestCase):
+    """Faked typed Rev1 source-reader boundaries, not RAM scans or game data."""
+    def _call(self, global_ptr: int, config_valid: bool = True):
+        ball=0x90010000
+        config=0x90020000
+        pm=0x90030000
+        src=types.SimpleNamespace(
+            selected_index=0,
+            selected_ball_obj=ball,
+            whole_record=tuple(range(51)),
+            pin=(1,2,3),
+            cfg_bc=1, cfg_c0=2, cfg_c4=3,
+            triplets={k:(4,5,6) for k in (
+                'ball_object_0x030','ball_cache_0x0cc','ball_cache_0x0f0',
+                'ball_cache_0x0fc','record_0x054','record_0x060',
+                'source_current_start')},
+        )
+        seven=types.SimpleNamespace(_get=lambda rd: dict(vars(src)))
+        roster=types.SimpleNamespace(GOLF_CONFIG_STATIC=0x804BF8C4,
+            PLAYER_MANAGER_STATIC_CANDIDATE=0x804BF8D0,
+            ROSTER_STRIDE=0xCC,
+            _bank=lambda p,size: 'MEM2' if p>=0x90000000 and config_valid else None)
+        def word(addr):
+            if addr==roster.GOLF_CONFIG_STATIC: return config
+            if addr==roster.PLAYER_MANAGER_STATIC_CANDIDATE: return pm
+            return 0
+        reader=types.SimpleNamespace(u32=word)
+        g=types.ModuleType('audit_p0_cache_global_receiver_private')
+        g.source_global_slot=lambda fn: {'static_source_global_slot_supported':True}
+        g.sample_runtime=lambda fn,shot,proof: {
+            'supported':True, '_private_runtime_source_global_pointer':global_ptr,
+            '_private_runtime_global_current_words':(7,8,9)}
+        gr=types.ModuleType('audit_p0_global_ball_roster_receiver_private')
+        gr.roster_global_membership=lambda fn,shot,pointer: {
+            'global_matches_exactly_zero_player_slots':True,
+            '_private_roster_ball_pointers':(ball,0x90050000,0x90070000,0x90090000)}
+        with patch.dict(sys.modules,{
+            'audit_p0_cache_global_receiver_private':g,
+            'audit_p0_global_ball_roster_receiver_private':gr}):
+            return audit._read_one(reader,seven,None,roster)
+
+    def test_source_reader_accepts_disjoint_global_object_without_xyz_claim(self):
+        row=self._call(0x90040000)
+        self.assertEqual(row['global_current'],(7,8,9))
+        self.assertTrue(row['source_gate'])
+
+    def test_source_reader_rejects_disjoint_pointer_but_overlapping_object_spans(self):
+        with self.assertRaisesRegex(ValueError,'overlap'):
+            self._call(0x9001009C)
+
+    def test_source_reader_rejects_invalid_source_config_pointer(self):
+        with self.assertRaisesRegex(ValueError,'config identity'):
+            self._call(0x90040000,config_valid=False)
+
+
 if __name__=='__main__':
     unittest.main()
