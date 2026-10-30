@@ -82,11 +82,16 @@ A is **RELEASED**, and keep A released for the first **two completed stable
 samples** (not two display frames). These define a tentative same-boot
 RELEASED signature, with no dialogs or A calibration buttons. Afterwards,
 a stable **two-sample** change in **all eight offsets** is shown as
-`A PRESSED`, and a stable return to baseline as `A RELEASED`. Partial,
-nonfinite/missing, moving ball or aim, actor/scene mismatch, stale or changed
-source produces `A UNKNOWN`. After a game/aim/ball context change the A
-classifier abstains until a new explicit live connection; it never assumes
-that movement means release. The chart's upper-right shows the A status and a
+`A PRESSED`. A stable two-sample **partial change in 1–7 of the eight offsets**
+shows `A RELEASED`, following the operator's observation that the partial
+readings they checked occurred while A was released. A stable exact baseline
+match also shows `A RELEASED`. This partial→released rule is an adjustable
+**operator-specified UI heuristic**, not a proven native A-button latch or
+training label. Transient/disagreeing samples, missing source data, moving ball
+or aim, actor/scene mismatch, stale or changed source still produce `A UNKNOWN`.
+After aim or ball motion, classification resumes once two stable same-source
+reads agree; a changed selected actor/scene still requires a new connection.
+Motion never by itself means release. The chart's upper-right shows the A status and a
 small explanation of the inference mode / reason for UNKNOWN.
 
 **Crucial**: This is an explicit **operator-observation-based candidate**, not
@@ -101,10 +106,10 @@ static roots, the player manager, selected player, ball, field, scene and
 config into **bounded contiguous reads** and groups the post-packet link
 rechecks. This retains the source/actor/hole/type identity validations and
 returns the same original candidate fields. Host RPC calls are reduced and
-the fixed poll idle period is now 30 ms, but **actual Dolphin latency is not
+the fixed post-read idle period is now zero, but **actual Dolphin latency is not
 predictable from synthetic tests**. The LIVE status provides measured read
-milliseconds, RPC calls per sample, and achieved samples/s to compare with the
-operator's ~700 ms baseline. The bridge polls on emulator frames, so changing
+milliseconds, RPC calls per sample, and achieved samples/s; the operator
+reported approximately 230 ms per complete read on the prior version. The bridge polls on emulator frames, so changing
 Dolphin speed or `poll_pause_s` alone is not a substitute for fewer round trips.
 
 ## P0 live A recovery and opt-in private KCL terrain (after #408)
