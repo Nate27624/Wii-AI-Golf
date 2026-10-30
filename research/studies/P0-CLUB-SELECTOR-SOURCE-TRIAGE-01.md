@@ -161,3 +161,24 @@ Operator-local exact PR #412 worktree command, original private **seven-pair** a
 
 The next proof must identify a source-qualified path from the observed D-pad input register via conditional branches and the +1/-1 arithmetic into the **live selected-club owner field**, not merely a bit mask adjacent to a counter. Validate player/scene identity, aim-only negative controls and heldout club switching before any training claim.
 
+
+
+## Sixth stage: actual direction-call argument witness and two unrelated manager counters
+
+Original archive's source-qualified PPC handler flow contains **four** directional branch sites in `RPGolPlayerManager::fn_802A28DC`: Up masks +0x0081C and +0x00910; Down masks +0x00834 and +0x00928. In **both branches** the same static callee `RPGolScene_unsplit.o::fn_802A9BC8` (absolute public source function start 0x802A9BC8, size **1048** bytes) receives `r4=0` after the Up test and `r4=1` after Down, at manager public source +0x0082C/+0x00844 and +0x00920/+0x00938 respectively. `r3` is loaded from a `r13` global immediately before these calls, whose object identity is unproven. Button-word source is repeated `lwz r0,+0x18(r31)` then exact `rlwinm` mask; `r31` remains an unverified pointer to an actual controller-status buffer.
+
+The nearby signed ordinal steps **do not write the same field**:
+- manager source +0x0085C `addi r0,r3,-1`, then +0x00860 `stw r0,+0x4F4(r29)` after loading `+0x4F4(r29)`;
+- manager source +0x008A8 `addi r0,r3,+1`, then +0x008AC `stw r0,+0x340(r29)` after loading `+0x340(r29)`.
+
+Therefore, the original scanner's proximity score 20 is not proof of symmetric `club--` / `club++`. Source reports also reveal writes `+0x340(r29)` initialized to zero elsewhere and bytes +0x33C/+0x33D; these must be traced separately from the Up/Down dispatch.
+
+New `scripts/audit_p0_club_direction_dispatch_private.py` uses **only** the canonically SHA-verified original private seven-pair archive and exact published Rev1 function bounds to inspect `fn_802A9BC8` (public upstream function length 1048 bytes), with optional `--focus post-direction` for `fn_802A8850`. It prints bounded decoded instruction windows around the shared callee's entry `r4` parameter, small integer compares and non-stack stores, and lists its source-resolved direct calls and writes. No native instruction words, heap values or emulator writes escape. A direct call with `r4=0/1` does **not** establish whether the callee changes a club, plays a UI sound, or changes another mode. The new test suite checks relative source call boundaries, r4 comparisons, possible writes and refusal gates. Never promote club field, D-pad runtime, or training without a separately proven receiver chain and heldout evidence.
+
+Clean PR #412 worktree, original seven-pair archive only:
+
+```powershell
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_direction_dispatch_private.py') --selftest
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_direction_dispatch_private.py') --archive $originalArchive --capture 5 --focus direction-dispatch --max-lines 120
+```
+
