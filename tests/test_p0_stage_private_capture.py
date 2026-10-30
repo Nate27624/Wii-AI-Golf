@@ -163,12 +163,18 @@ class WindowsCaptureStageTests(unittest.TestCase):
         self.assertEqual(first.returncode, 0, first.stderr)
         self.assertEqual(self.stage(mem1=a, mem2=b).returncode, 2,
                          "Overwrite must be refused")
+        mismatched = self.stage(phase="A0", mem1=a, mem2=b,
+                                G0EvidenceToken="DifferentCrashReview-02")
+        self.assertEqual(mismatched.returncode, 2, "Mixed-session G0 identity refused")
+        self.assertFalse((self.session / "A0-MEM1.bin").exists())
         second = self.stage(phase="F0", mem1=a, mem2=b)
         self.assertEqual(second.returncode, 0, second.stderr)
         for label, index in (("B0", 1), ("F0", 2)):
             note = json.loads((self.session / (label + "-observation-PRIVATE.json"))
                               .read_text(encoding="utf-8-sig"))
             self.assertEqual(note["capture_order"], index)
+            self.assertEqual(note["dolphin_sha256_private"], self.exe_sha)
+            self.assertEqual(note["g0_evidence_token_private"], "B1CrashReviewed-01")
             self.assertFalse(note["guest_frame_verified"])
             self.assertFalse(note["contact_verified"])
             self.assertFalse(note["training_approved"])
