@@ -203,3 +203,24 @@ Run in PR #412 worktree:
 
 Next P0: resolve the original code’s `r13` static small-data base for this exact Rev1 executable or read current r13 from an explicitly source-qualified Dolphin register interface; follow `lwz r3,-0x5A80(r13)` read-only, check RAM object identity and `lwz current_index,0x1c(r3)` for valid 0..3, then independently check visible four clubs with a no-change and aim-only control. Operator's original 26-packet study sampled different objects and is not proof of this field. **Do not collect more shot or A-button captures for club mapping**.
 
+
+
+## Live test authorized: four-state source index against visible clubs
+
+The original seven-pair source audit `audit_p0_club_four_state_writer_private.py` passed against the operator's preserved original Rev1 private archive and established a **source-code bounded 4-state writer at `+0x1C(r3)`**. It does NOT prove r3 is the selected club object, or index order. Earlier console JSON reversed the directional labels (`r4_eq_0` vs `r4_ne_0`) despite decoding `beq`; the correct PPC source is **D-pad Up(r4=0) -> decrement** and **D-pad Down(r4=1) -> increment**, both bounded [0..3].
+
+Original source-side callee r3 is loaded `lwz r3,-0x5A80(r13)`. Independently the canonical existing source-gated live experiment reader maps `PLAYER_MANAGER_STATIC = 0x804BF8D0`, validating its pointed-to MEM2 PlayerManager vtable, active Golf scene, mode 4, selected player and ball. The arithmetic `0x804BF8D0 + 0x5A80 = 0x804C5350` is an **inferred possible static r13**, not a directly read runtime register or proof that this is the identical global slot. The new live experiment deliberately reads the already validated PlayerManager root; it must NOT claim r13 registration certainty.
+
+`scripts/p0_live_four_state_club_index_private.py` uses only loopback `memory.read_u32`, `memory.read_bytes`, `frame.get_count`, `bridge.ping`; no Dolphin launch, button injection, memory writes, savestate, or automated swing. Operator controls the visible clubs and confirms label for every phase. It reads the candidate `pm+0x1C` twice, cross-checks scene/config/hole/selected owner and ball position for unchanged trial identity, and refuses a non-[0..3] index. One idle negative control; manual Up and Down single-step tests; aim-only negative control; full four-club training pass forward and reverse; four withheld self-selected club trials with labels reported only after selecting. The event stream and SHA manifest stay in a fresh PRIVATE directory outside Git, with only label/index status in stdout.
+
+The result `LIVE_FOUR_STATE_CANDIDATE_VALIDATED` means all of these local observational checks passed; **`game_club_id_verified` and `training_approved` remain false** until explicit science-owner review of source/global receiver join and independent hidden validation. `LIVE_FOUR_STATE_CANDIDATE_NOT_VALIDATED` and any `ABSTAIN_*` must not be promoted.
+
+Command in exact pinned detached PR #412 worktree (operator launches Dolphin manually and gets to ready-to-hit Golf mode 4):
+
+```powershell
+& py -3 -I (Join-Path $work 'scripts\p0_live_four_state_club_index_private.py') --selftest
+& py -3 -I (Join-Path $work 'scripts\p0_live_four_state_club_index_private.py') --private-root 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures' --port 55355
+```
+
+This is **only** selected-club index research. Do not collect ball/aim/power repeated sweeps, press A, or launch unsolicited controller automation.
+
