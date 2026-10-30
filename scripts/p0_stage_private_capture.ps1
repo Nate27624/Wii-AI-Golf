@@ -10,7 +10,7 @@
 .EXAMPLE
   .\scripts\p0_stage_private_capture.ps1 -Action Prepare -PrivateRoot 'C:\WiiGolfPrivate' -SessionId 'GOLF-20261030-01'
 .EXAMPLE
-  .\scripts\p0_stage_private_capture.ps1 -Action Stage -PrivateRoot 'C:\WiiGolfPrivate' -SessionId 'GOLF-20261030-01' -Phase B0 -Mem1Path 'C:\WiiExports\mem1.bin' -Mem2Path 'C:\WiiExports\mem2.bin' -DolphinExe 'C:\ApprovedDolphin\Dolphin.exe' -ExpectedDolphinSha256 '<independently-approved-64-hex-sha256>' -G0Status Cleared -G0EvidenceToken 'B1CrashReviewed-01' -RevisionEvidenceToken 'RSPE01Rev1Checked-01' -ExportMethod ManualPausedExport -PairSamePauseAttested -Observation 'Baseline; phase is operator-labelled only.'
+  .\scripts\p0_stage_private_capture.ps1 -Action Stage -PrivateRoot 'C:\WiiGolfPrivate' -SessionId 'GOLF-20261030-01' -Phase B0 -Mem1Path 'C:\WiiExports\mem1.bin' -Mem2Path 'C:\WiiExports\mem2.bin' -DolphinExe 'C:\ApprovedDolphin\Dolphin.exe' -ExpectedDolphinSha256 '<independently-approved-64-hex-sha256>' -G0Status Cleared -G0EvidenceToken 'B1CrashReviewed-01' -RevisionEvidenceToken 'RSPE01Rev1Checked-01' -ExportMethod ManualPausedExport -PairSamePauseAttested -StagedInCaptureOrderAttested -Observation 'Baseline; phase is operator-labelled only.'
 .EXAMPLE
   .\scripts\p0_stage_private_capture.ps1 -Action Finalize -PrivateRoot 'C:\WiiGolfPrivate' -SessionId 'GOLF-20261030-01' -PythonCommand py
 .EXAMPLE
@@ -33,6 +33,7 @@ param(
     [string]$RevisionEvidenceToken,
     [ValidateSet('ManualPausedExport','ManualMemoryViewer')][string]$ExportMethod='ManualPausedExport',
     [switch]$PairSamePauseAttested,
+    [switch]$StagedInCaptureOrderAttested,
     [string]$Observation='',
     [string]$Uncertainty='Operator-labelled phase, not a verified guest frame or physical contact.',
     [string]$PythonCommand='py'
@@ -98,6 +99,7 @@ function Assert-OperatorGates {
         throw 'GAME_REVISION_NOT_OPERATOR_ATTESTED'
     }
     if (-not $PairSamePauseAttested) { throw 'PAIR_SAME_PAUSE_NOT_ATTESTED' }
+    if (-not $StagedInCaptureOrderAttested) { throw 'CAPTURE_ORDER_NOT_ATTESTED' }
     if ($ExpectedDolphinSha256 -cnotmatch '^[a-fA-F0-9]{64}$') { throw 'MISSING_APPROVED_DOLPHIN_DIGEST' }
     $exe = Assert-LocalPrivate $DolphinExe $true
     if (-not (Test-Path -LiteralPath $exe -PathType Leaf) -or
@@ -170,6 +172,7 @@ try {
     $session = Assert-LocalPrivate $session $true
     if (-not (Test-Path -LiteralPath $session -PathType Container) -or
         -not [IO.File]::Exists($metaFile)) { throw 'SESSION_NOT_PREPARED' }
+    $null = Assert-LocalPrivate $metaFile $true
     $meta = Get-Content -LiteralPath $metaFile -Raw | ConvertFrom-Json
     if ($meta.kind -ne 'private-operator-capture-staging' -or $meta.game_id_declared -ne 'RSPE01' -or
         $meta.revision_declared -ne 1 -or $meta.export_method_declared -ne $ExportMethod -or
@@ -177,7 +180,8 @@ try {
     if ([IO.File]::Exists((Join-Path $session $manifestName))) { throw 'SESSION_ALREADY_FINALIZED' }
 
     # Exclusive local session lock; never uses Git, network, emulator processes or a watcher.
-    $lock = [IO.File]::Open((Join-Path $session 'p0-stage.lock'),
+    $lockPath = Assert-LocalPrivate (Join-Path $session 'p0-stage.lock') $false
+    $lock = [IO.File]::Open($lockPath,
                            [IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
     try {
         if ([IO.File]::Exists((Join-Path $session $manifestName))) { throw 'SESSION_ALREADY_FINALIZED' }
@@ -201,12 +205,14 @@ try {
             if ($prior.Count -ge 5) { throw 'MAX_PHASES' }
             # One session must not silently mix binaries, crash decisions or revisions.
             foreach ($existingNote in $prior) {
+                $null = Assert-LocalPrivate $existingNote.FullName $true
                 $previous = Get-Content -LiteralPath $existingNote.FullName -Raw | ConvertFrom-Json
                 if ($previous.dolphin_sha256_private -ne $ExpectedDolphinSha256.ToLowerInvariant() -or
                     $previous.g0_evidence_token_private -ne $G0EvidenceToken -or
                     $previous.revision_evidence_token_private -ne $RevisionEvidenceToken -or
                     $previous.export_method -ne $ExportMethod -or
                     $previous.pair_same_pause_operator_attestation -ne $true -or
+                    $previous.capture_order_operator_attestation -ne $true -or
                     $previous.guest_frame_verified -ne $false) {
                     throw 'MIXED_SESSION_PROVENANCE'
                 }
@@ -218,7 +224,8 @@ try {
                 Write-PrivateNew $note ([ordered]@{
                     phase=$Phase; capture_order=($prior.Count + 1);
                     human_label=(@{B0='baseline';A0='aim-only';C0='contact candidate';F0='flight candidate';S0='settled candidate'}[$Phase]);
-                    observed_utc_wall_clock=[DateTime]::UtcNow.ToString('o');
+                    staged_utc_wall_clock=[DateTime]::UtcNow.ToString('o');
+                    capture_order_operator_attestation=$true;
                     observation=$Observation; uncertainty=$Uncertainty;
                     g0_cleared_operator_attestation=$true;
                     game_revision_operator_attestation=$true;
@@ -241,6 +248,7 @@ try {
             $notes = @(Get-ChildItem -LiteralPath $session -Filter '*-observation-PRIVATE.json' -File)
             if ($notes.Count -lt 1 -or $notes.Count -gt 5) { throw 'NO_VALID_PHASE_NOTES' }
             foreach ($item in $notes) {
+                $null = Assert-LocalPrivate $item.FullName $true
                 $p = $item.Name.Split('-')[0]
                 if (-not [IO.File]::Exists((Join-Path $session ($p + '-MEM1.bin'))) -or
                     -not [IO.File]::Exists((Join-Path $session ($p + '-MEM2.bin')))) {
