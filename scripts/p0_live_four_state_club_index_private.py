@@ -146,7 +146,7 @@ def run(args,rpc_class=None):
     if rpc_class is None:
         from wii_ai_golf.integration.rpc import FelkRPC
         rpc_class=FelkRPC
-    require(not str(args.private_root).lower().startswith(str(ROOT).lower()),
+    require(not args.private_root.resolve().is_relative_to(ROOT.resolve()),
             "PRIVATE_ROOT_MUST_BE_OUTSIDE_REPO")
     folder=args.private_root/("p0-club-four-state-live-"+
          datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")+
