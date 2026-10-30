@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import re
 
 
 class Rejection(str, Enum):
@@ -133,15 +134,25 @@ def join_memory_input_observation(
     if not all(generations) or len(set(generations)) != 1:
         reject(Rejection.OBJECT_REPLACED)
 
-    if not (input_receipt.requested_a and input_receipt.callback_seen
-            and input_receipt.game_side_a_accepted and input_receipt.contact_witness):
+    if not all(type(flag) is bool and flag for flag in (
+            input_receipt.requested_a, input_receipt.callback_seen,
+            input_receipt.game_side_a_accepted, input_receipt.contact_witness)):
         reject(Rejection.CONTACT_UNVERIFIED)
 
     if actor.human_label.lower() == "airborne" and actor.source_state.upper() == "START":
         reject(Rejection.D1_CONTRADICTION)
 
-    if (outcome.censored or outcome.distance_label == "offgreen_100ft_penalty"
-            or outcome.measurement == "offgreen_100ft_penalty"):
+    # Never interpret raw display penalty tokens as measured carry, even when
+    # a caller incorrectly sets censored=False or uses non-boolean flags.
+    def is_penalty_label(label: object) -> bool:
+        if not isinstance(label, str):
+            return False
+        compact = re.sub(r"[\s_:\-]+", "", label).casefold()
+        return compact in {"m100ft", "offgreen100ftpenalty"}
+
+    if (type(outcome.censored) is not bool or outcome.censored
+            or is_penalty_label(outcome.distance_label)
+            or is_penalty_label(outcome.measurement)):
         reject(Rejection.CENSORED_OUTCOME)
     if outcome.source != "synthetic" or outcome.measurement != "synthetic_distance":
         reject(Rejection.OUTCOME_UNVERIFIED)
