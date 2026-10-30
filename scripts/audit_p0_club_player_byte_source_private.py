@@ -22,6 +22,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import audit_p0_club_selection_code_private as prior
 
 PLAYER = "Pack/RPSports/RPGolScene/RPGolPlayer.cpp"
+CONFIG = "Pack/RPSports/RPGolScene/RPGolConfig.cpp"
+UNITS = {"player": PLAYER, "config": CONFIG}
 WATCH = (0x34, 0x94, 0x98, 0x9C, 0xA0, 0xA4, 0xA8,
          0xAC, 0xB0, 0xB4, 0xB8, 0xBC, 0xC0)
 FP = {48: "lfs", 50: "lfd", 52: "stfs", 54: "stfd"}
@@ -83,10 +85,11 @@ def decode(pc, word, unit_lo, unit_hi):
         return "op31 xo=%d registers=r%d,r%d,r%d" % (xo, rd, ra, rb)
     return "opcode=%d (not decoded)" % opcode
 
-def describe_player(code, address, limit=18, context=6, target_offset=None):
+def describe_player(code, address, limit=18, context=6, target_offset=None, source_unit=PLAYER):
     prior.require(address % 4 == 0 and len(code) % 4 == 0
                   and len(code) > 0 and len(code) <= 0x40000,
                   "BAD_PLAYER_SOURCE_WINDOW")
+    prior.require(source_unit in UNITS.values(), "UNQUALIFIED_SOURCE_UNIT")
     prior.require(target_offset is None or target_offset in WATCH,
                   "UNQUALIFIED_TARGET_OFFSET")
     prior.require(1 <= limit <= 50 and 1 <= context <= 12,
@@ -137,7 +140,7 @@ def describe_player(code, address, limit=18, context=6, target_offset=None):
         })
     return {
         "status": "SOURCE_PLAYER_CLUB_CONTEXT",
-        "unit": PLAYER,
+        "unit": source_unit,
         "requested_target_offset": ("+0x%03X" % target_offset if target_offset is not None else "ALL_WATCHED"),
         "monitored_displacements": ["+0x%03X" % x for x in WATCH],
         "matching_access_counts_by_offset": counts,
@@ -157,6 +160,7 @@ def main(argv=None):
     ap.add_argument("--limit", type=int, default=18)
     ap.add_argument("--context", type=int, default=6)
     ap.add_argument("--target-offset", type=lambda x: int(x, 0), choices=WATCH, default=0x34)
+    ap.add_argument("--source-unit", choices=tuple(UNITS), default="player")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args(argv)
     if args.selftest:
@@ -175,11 +179,12 @@ def main(argv=None):
     try:
         bank = prior.sealed_bank(args.archive, args.capture)
         index = prior.source_units(json.loads(prior.INDEX.read_text("utf-8")))
-        lo, hi = index[PLAYER]
+        chosen = UNITS[args.source_unit]
+        lo, hi = index[chosen]
         with bank.open("rb") as fh, closing(mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)) as mm:
             prior.require(hi <= prior.MEM1 + len(mm), "WINDOW_OUTSIDE_MEM1")
             result = describe_player(bytes(mm[lo-prior.MEM1:hi-prior.MEM1]),
-                                     lo, args.limit, args.context, args.target_offset)
+                                     lo, args.limit, args.context, args.target_offset, chosen)
         result["original_archive_sha_preflight_passed"] = True
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
