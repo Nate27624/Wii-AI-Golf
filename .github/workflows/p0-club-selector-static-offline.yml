@@ -5,8 +5,11 @@ on:
       - agent/p0-club-source-selector-triage-20261030
   pull_request:
     paths:
+      - 'research/source_maps/RSPE01_01_public_golf_controller_functions.json'
+      - 'scripts/audit_p0_club_controller_callgraph_private.py'
       - 'scripts/audit_p0_club_selection_code_private.py'
       - 'scripts/audit_p0_club_player_byte_source_private.py'
+      - 'tests/test_p0_club_controller_callgraph_private.py'
       - 'tests/test_p0_club_selection_code_private.py'
       - 'tests/test_p0_club_player_byte_source_private.py'
       - 'research/studies/P0-CLUB-SELECTOR-SOURCE-TRIAGE-01.md'
@@ -30,11 +33,15 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_club_selection_code_private.py -v
       - name: Focused RPGolPlayer byte source checks
         run: python -m unittest discover -s tests -p test_p0_club_player_byte_source_private.py -v
+      - name: Exact public function caller graph tests
+        run: python -m unittest discover -s tests -p test_p0_club_controller_callgraph_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
       - name: Script selftest
         run: python scripts/audit_p0_club_selection_code_private.py --selftest
       - name: Player source selftest
         run: python scripts/audit_p0_club_player_byte_source_private.py --selftest
+      - name: Controller callgraph selftest
+        run: python scripts/audit_p0_club_controller_callgraph_private.py --selftest
       - name: Syntax check
-        run: python -m compileall -q scripts/audit_p0_club_selection_code_private.py scripts/audit_p0_club_player_byte_source_private.py tests/test_p0_club_selection_code_private.py tests/test_p0_club_player_byte_source_private.py
+        run: python -m compileall -q scripts/audit_p0_club_controller_callgraph_private.py tests/test_p0_club_controller_callgraph_private.py scripts/audit_p0_club_selection_code_private.py scripts/audit_p0_club_player_byte_source_private.py tests/test_p0_club_selection_code_private.py tests/test_p0_club_player_byte_source_private.py
