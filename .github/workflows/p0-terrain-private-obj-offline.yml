@@ -1,0 +1,38 @@
+name: P0 private terrain OBJ export offline
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/p0_kcl_obj_export_private.py'
+      - 'scripts/p0_kcl_surface_labels_private.py'
+      - 'tests/test_p0_kcl_obj_export_private.py'
+      - 'tests/test_p0_kcl_surface_labels_private.py'
+      - 'research/studies/P0-TERRAIN-PRIVATE-OBJ-EXPORT-01.md'
+      - '.github/workflows/p0-terrain-private-obj-offline.yml'
+  push:
+    branches:
+      - agent/terrain-kcl-obj-private-20261030
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: offline-${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Focused private OBJ synthetic tests
+        run: python -m unittest discover -s tests -p test_p0_kcl_obj_export_private.py -v
+      - name: Focused unchanged-OBJ original-source labels synthetic tests
+        run: python -m unittest discover -s tests -p test_p0_kcl_surface_labels_private.py -v
+      - name: Full offline repository regression
+        run: python -m unittest discover -s tests -v
