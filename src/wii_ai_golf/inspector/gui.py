@@ -14,6 +14,7 @@ from .a_reference import discover_reference
 from .a_live import LiveAIndicator
 from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE
 from .terrain_solid import back_to_front, shaded_hex
+from .terrain_labels import apply_private_surface_labels
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -77,7 +78,7 @@ def project(point: tuple[float, float, float], yaw: float, pitch: float) -> tupl
 
 class Inspector:
     def __init__(self, root: tk.Tk, initial_capture: str = "", initial_manifest: str = "",
-                 initial_terrain_obj: str = ""):
+                 initial_terrain_obj: str = "", initial_terrain_labels: str = ""):
         self.root = root
         root.title("Wii Golf · P0 Memory Inspector — OFFLINE CANDIDATES")
         root.geometry("1320x850")
@@ -101,6 +102,7 @@ class Inspector:
         self.terrain_solid = tk.BooleanVar(value=True)
         self.terrain_edges = tk.BooleanVar(value=False)
         self.terrain_status = tk.StringVar(value="Terrain: select a locally exported PRIVATE collision OBJ to display.")
+        self.surface_label_status = tk.StringVar(value="Surface colors: no original KCL labels loaded (neutral shading only).")
         self.a_reason = tk.StringVar(value="Connect LIVE with A released; 2 stable samples initialize candidate")
         self.baseline: float | None = None
         self.replay: Replay | None = None
@@ -116,7 +118,9 @@ class Inspector:
         self.live_port = tk.StringVar(value="55355")
         self._draw_controls()
         if initial_terrain_obj:
-            self.load_terrain_path(initial_terrain_obj, show_dialog=False)
+            loaded = self.load_terrain_path(initial_terrain_obj, show_dialog=False)
+            if loaded and initial_terrain_labels:
+                self.load_terrain_labels_path(initial_terrain_labels, show_dialog=False)
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(200, self.poll_live)
         if initial_capture and initial_manifest:
@@ -174,6 +178,7 @@ class Inspector:
         mesh_actions = ttk.Frame(center)
         mesh_actions.pack(fill="x", pady=3)
         ttk.Button(mesh_actions, text="Load PRIVATE terrain OBJ", command=self.load_terrain).pack(side="left")
+        ttk.Button(mesh_actions, text="Load source colors", command=self.load_terrain_labels).pack(side="left", padx=4)
         ttk.Button(mesh_actions, text="Clear terrain", command=self.clear_terrain).pack(side="left", padx=4)
         ttk.Checkbutton(mesh_actions, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
@@ -181,6 +186,7 @@ class Inspector:
         ttk.Checkbutton(mesh_actions, text="Solid terrain", variable=self.terrain_solid, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Triangle edges", variable=self.terrain_edges, command=self.draw_path).pack(side="left")
         ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
+        ttk.Label(center, textvariable=self.surface_label_status, wraplength=650).pack(anchor="w")
         source_legend = ttk.Frame(center)
         source_legend.pack(fill="x")
         for label, color in (SURFACE_STYLE[v] for v in (0x0001,0x0002,0x0003,0x0006,0x0007,0x0009)):
@@ -232,6 +238,8 @@ class Inspector:
             self.terrain_status.set("Terrain: private OBJ declined by path/format verification.")
             return False
         self.terrain_mesh = mesh
+        # New OBJ invalidates any earlier face-index/source-label association.
+        self.surface_label_status.set("Surface colors: no original KCL labels loaded (neutral shading only).")
         self.terrain_visible.set(True)
         self.terrain_status.set(
             f"PRIVATE terrain OBJ: {len(mesh.faces)} candidate triangles, SHA {mesh.sha256[:12]}… "
@@ -239,8 +247,37 @@ class Inspector:
         self.draw_path()
         return True
 
+    def load_terrain_labels(self) -> None:
+        """Operator opt-in: select source labels independently of mesh bytes."""
+        filename = filedialog.askopenfilename(
+            title="Select SHA-bound PRIVATE KCL source surface labels",
+            filetypes=[("Private source label JSON", "*.json")])
+        if filename:
+            self.load_terrain_labels_path(filename, show_dialog=True)
+
+    def load_terrain_labels_path(self, filename: str, *, show_dialog: bool = False) -> bool:
+        """Style the existing loaded OBJ in memory; never modify its file."""
+        mesh = self.terrain_mesh
+        if mesh is None:
+            self.surface_label_status.set("Surface colors: load the private terrain OBJ first.")
+            return False
+        try:
+            labeled = apply_private_surface_labels(mesh, filename)
+        except (TerrainError, OSError) as exc:
+            if show_dialog:
+                messagebox.showerror("Private source colors declined", str(exc))
+            self.surface_label_status.set("Source colors: rejected (OBJ SHA, face count, or private-path proof failed).")
+            return False
+        self.terrain_mesh = labeled
+        self.surface_label_status.set(
+            f"Source colors: {len(labeled.faces)} original KCL per-face IDs linked by OBJ SHA "
+            "· candidate visual categories, not physics")
+        self.draw_path()
+        return True
+
     def clear_terrain(self) -> None:
         self.terrain_mesh = None
+        self.surface_label_status.set("Surface colors: no original KCL labels loaded.")
         self.terrain_status.set("Terrain: no private OBJ loaded.")
         self.draw_path()
 
@@ -635,8 +672,9 @@ class Inspector:
         self.draw_a_overlay()
 
 
-def launch(capture: str = "", manifest: str = "", terrain_obj: str = "") -> int:
+def launch(capture: str = "", manifest: str = "", terrain_obj: str = "",
+           terrain_labels: str = "") -> int:
     root = tk.Tk()
-    Inspector(root, capture, manifest, terrain_obj)
+    Inspector(root, capture, manifest, terrain_obj, terrain_labels)
     root.mainloop()
     return 0
