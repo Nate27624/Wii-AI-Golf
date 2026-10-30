@@ -75,6 +75,62 @@ class SourceLabelsTests(unittest.TestCase):
         self.assertFalse(d["training_approved"])
         self.assertFalse(d["allowed_to_publish"])
 
+    def test_standalone_projects_obj_and_labels_without_git(self):
+        with tempfile.TemporaryDirectory() as folder:
+            external = Path(folder) / "Projects"
+            external.mkdir()
+            original = external / self.obj.name
+            output = external / self.target.name
+            original.write_bytes(self.blob)
+            before = original.read_bytes()
+            import audit_selected_ball_start_link_private as selected
+            import audit_p0_seven_numbered_source_pairs_private as seven
+            def fake(_, number, *args, **kwargs):
+                return self.fact(number)
+            with patch.object(selected,"DATA_ROOT",self.root), \
+                 patch.object(seven,"_check_archive",return_value={}), \
+                 patch.object(geometry,"_source_qualified_mesh",side_effect=fake):
+                result = labels.make_labels(self.root,original,output)
+            self.assertEqual(result["status"], "PRIVATE_LABELS_CREATED")
+            self.assertEqual(original.read_bytes(), before)
+            saved=json.loads(output.read_text(encoding="ascii"))
+            self.assertEqual(saved["geometry_obj_sha256"],
+                             hashlib.sha256(before).hexdigest())
+            self.assertEqual(saved["source_attributes"], [6,2])
+
+    def test_standalone_projects_inside_git_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            external = Path(folder) / "Projects"
+            external.mkdir()
+            (external / ".git").mkdir()
+            original = external / self.obj.name
+            output = external / self.target.name
+            original.write_bytes(self.blob)
+            with self.assertRaises(labels.LabelsGate) as exc:
+                self._run_standalone(original, output)
+            self.assertEqual(exc.exception.stage, "PROJECTS_ROOT_INSIDE_GIT")
+            self.assertFalse(output.exists())
+
+    def _run_standalone(self, original, output):
+        import audit_selected_ball_start_link_private as selected
+        import audit_p0_seven_numbered_source_pairs_private as seven
+        with patch.object(selected,"DATA_ROOT",self.root), \
+             patch.object(seven,"_check_archive",return_value={}), \
+             patch.object(geometry,"_source_qualified_mesh",
+                          side_effect=lambda _, n, *a, **kw: self.fact(n)):
+            return labels.make_labels(self.root,original,output)
+
+    def test_standalone_projects_labels_in_other_folder_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            external = Path(folder) / "Projects"
+            external.mkdir()
+            original = external / self.obj.name
+            original.write_bytes(self.blob)
+            with self.assertRaises(labels.LabelsGate) as exc:
+                self._run_standalone(original,self.target)
+            self.assertEqual(exc.exception.stage, "LABELS_MUST_BE_NEXT_TO_OBJ")
+            self.assertFalse(self.target.exists())
+
     def test_cross_capture_mismatch_rejects(self):
         with self.assertRaises(labels.LabelsGate):
             self._run(changed=True)
