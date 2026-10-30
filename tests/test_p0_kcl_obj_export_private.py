@@ -5,6 +5,7 @@ from contextlib import redirect_stdout
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -58,6 +59,29 @@ class TestPrivateObj(unittest.TestCase):
             obj._safe_output_path(self.derived/"bad-PRIVATE.ply", self.data)
         with self.assertRaises(ValueError):
             obj._safe_output_path(self.derived/"nested"/"x-PRIVATE.obj", self.data)
+
+    def test_local_appdata_destination_when_data_parent_is_git(self):
+        # Private source remains in sibling Data, while generated OBJ is
+        # outside a Git-controlled enclosing workspace.
+        (self.data.parent / ".git").mkdir()
+        with tempfile.TemporaryDirectory() as home:
+            private = Path(home) / "WiiGolfAI" / "private" / "derived"
+            private.mkdir(parents=True)
+            target = private / "hole01-collision-candidate-PRIVATE.obj"
+            with patch.dict(os.environ, {"LOCALAPPDATA": home}):
+                approved = obj._safe_output_path(target, self.data)
+            self.assertEqual(approved, target.resolve())
+            self.assertFalse(approved.exists())
+
+    def test_local_appdata_destination_still_rejects_git_ancestor(self):
+        with tempfile.TemporaryDirectory() as home:
+            private = Path(home) / "WiiGolfAI" / "private" / "derived"
+            private.mkdir(parents=True)
+            (Path(home) / ".git").mkdir()
+            target = private / "hole01-collision-candidate-PRIVATE.obj"
+            with patch.dict(os.environ, {"LOCALAPPDATA": home}):
+                with self.assertRaises(ValueError):
+                    obj._safe_output_path(target, self.data)
 
     def test_never_overwrite_existing_file(self):
         payload = obj._obj_bytes(TRIANGLES)
