@@ -9,6 +9,9 @@ on:
       - 'tests/test_p0_stage_private_capture.py'
       - 'scripts/p0_archive_variable_differential_private.py'
       - 'tests/test_p0_archive_variable_differential_private.py'
+      - 'scripts/p0_live_no_contact_compare.py'
+      - 'scripts/run_p0_live_no_contact_compare.ps1'
+      - 'tests/test_p0_live_no_contact_compare.py'
       - 'scripts/p0_variable_validation_matrix.py'
       - 'tests/test_p0_variable_validation_matrix.py'
       - '.github/workflows/p0-capture-manifest-preflight.yml'
@@ -36,5 +39,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_archive_variable_differential_private.py -v
       - name: S003 P0 variable falsification tests (synthetic metadata only)
         run: python -m unittest discover -s tests -p test_p0_variable_validation_matrix.py -v
+      - name: S000 local no-contact read-only source-candidate experiment tests
+        run: python -m unittest discover -s tests -p test_p0_live_no_contact_compare.py -v
       - name: Full offline Python suite
         run: python -m unittest discover -s tests -v
