@@ -269,3 +269,66 @@ distinct near-source-coordinate result supports subsequent PRIVATE
 tree proxy overlay with position calibration, separately owned by S002 UI.
 Do not merge the script or publish source private pointers/vector/OBJ.
 Trainable status remains false.
+
+## Real original captures 1/5/7 confirm 94 stable source translations
+
+Operator ran `p0_tree_stride84_private.py --captures 1 5 7` at exact
+SHA-qualified source head, and returned:
+`status=SOURCE_LOOP_VERIFIED`,
+`private_guest_ppc_tree_loop_exact_match=true`,
+`candidate_position_words_identical_across_selected_captures=true`.
+All three capture records reported **94/94 finite, 94/94 distinct**
+`RPGolMapObjBase.mTrans+0x30` candidate vectors, consistent spans
+`[2484.353,158.981,3511.46]`, and source spatial sanity PASS.
+The existing KCL triangle mesh spans
+`[3373.222,192.513,4258.662]` source-component units. All 94 were
+within the scan's loose 2500-unit tee/pin distance threshold; **not proof**
+of individual tree-to-terrain surface alignment.
+All 94 firstwords were broadly MEM1-like pointers, while +4/+8
+optional bounded model/PMP tests yielded zero. These do not establish
+that actual model art/placement is absent.
+
+## Local-only, UI-consumable 94-point source-candidate export (new)
+
+`scripts/p0_tree_position_export_private.py` exclusively writes local
+`Wii-AI-Golf-Data/derived/golf-tree-positions-source-94-PRIVATE.json`.
+The operator must run this script explicitly; it never starts Dolphin,
+writes RAM, or transfers private coordinates to Git/network. First it
+rechecks canonical 14-bank SHA, all 10 PPC loop opcode fingerprints,
+selected scene, 1/5/7 source count/stride, **94 unique finite source
+transforms each capture**, coarse spatial consistency, and bitwise
+equality of all 94 VEC3 words across 1/5/7. It then reopens only 7's
+selected source pointers to export 94 `[x,y,z]` values in exact
+source-component form. A pre-existing output is an error, never
+overwritten. Symlinked destinations/refused; file must be under
+sibling private `Data/derived` outside Git.
+
+Private JSON schema for S002 UI:
+```json
+{
+  "kind": "wii_sports_golf_private_tree_positions_v1",
+  "schema_version": 1,
+  "game_id": "RSPE01",
+  "disc_revision": 1,
+  "source_captures": [1, 5, 7],
+  "source_count": 94,
+  "source_element_stride_bytes": 84,
+  "source_translation_offset_bytes": 48,
+  "position_frame": "original_source_components_no_transform",
+  "tree_positions": [[0.0, 0.0, 0.0]],
+  "source_positions_bitwise_identical_across_captures": true,
+  "world_visual_alignment_verified": false,
+  "original_tree_meshes_verified": false,
+  "collision_hitboxes_verified": false,
+  "training_approved": false
+}
+```
+The single point above is **illustrative schema shape only**; real output
+has exactly 94 private vectors and must never be checked into Git.
+UI must validate exact count, finite bounded values, JSON size, source
+version/flags, SHA/path and private scope, and render optional **nonphysical
+point markers labeled candidate tree positions** behind ball/tee/flag/A.
+Do not invent height, radius, model mesh or obstacle physics.
+Cross-check loaded points with actual KCL mesh and screenshots in the
+live inspector before promoting source-to-visible coordinate alignment.
+An offset/transform mismatch must remain clearly marked.
