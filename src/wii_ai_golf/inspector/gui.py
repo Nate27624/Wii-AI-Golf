@@ -1,4 +1,4 @@
-"""Offline-only Tkinter source-coordinate replay UI (never connects to Dolphin)."""
+"""Source-coordinate Tkinter replay and opt-in read-only live candidate inspector."""
 from __future__ import annotations
 
 import math
@@ -10,6 +10,23 @@ from tkinter import filedialog, messagebox, ttk
 
 from .replay import AIM, BALL, CACHE, Replay, Sample, float_hypothesis, load_replay
 from .live import LiveSampler
+
+# Source-qualified candidate channels already captured by the existing read-only
+# P0 packet reader.  These are hypotheses, not calibrated screen positions.
+PIN = "pin_candidate"
+TEE = "tee_start_candidate"
+
+
+def candidate_landmarks(sample: Sample) -> dict[str, tuple[float, float, float]]:
+    """Qualified per-sample pin/tee only; never join actors or invent positions.
+
+    A missing or malformed channel remains absent. No carry-forward between
+    packets: a pin in a different source epoch cannot leak into this view.
+    """
+    if not sample.source_qualified or not sample.source_digest:
+        return {}
+    return {key: point for key in (PIN, TEE)
+            if (point := sample.vec(key)) is not None}
 
 
 def project(point: tuple[float, float, float], yaw: float, pitch: float) -> tuple[float, float]:
@@ -32,6 +49,7 @@ class Inspector:
         self.detail = tk.StringVar(value="Source candidates are NOT verified physics measurements.")
         self.phase = tk.StringVar(value="—")
         self.aim = tk.StringVar(value="Aim candidate: —")
+        self.landmark_status = tk.StringVar(value="Pin / flag: not sampled   ·   Tee: not sampled")
         self.baseline: float | None = None
         self.replay: Replay | None = None
         self.index = tk.IntVar(value=0)
@@ -89,7 +107,8 @@ class Inspector:
         self.canvas.bind("<Configure>", lambda _: self.draw_path())
         self.canvas.bind("<ButtonPress-1>", self.drag_start)
         self.canvas.bind("<B1-Motion>", self.drag_move)
-        ttk.Label(center, text="White: selected ball candidate   |   Amber: cache +0xCC   |   No verified axes / screen projection", wraplength=640).pack(anchor="w")
+        ttk.Label(center, text="White: ball +0x30  |  Amber: cache +0xCC  |  Cyan flag: PIN candidate  |  Green diamond: TEE candidate", wraplength=640).pack(anchor="w")
+        ttk.Label(center, textvariable=self.landmark_status, wraplength=640).pack(anchor="w")
         self.slider = ttk.Scale(center, from_=0, to=1, command=self.scrub)
         self.slider.pack(fill="x", pady=4)
         buttons = ttk.Frame(center)
@@ -130,6 +149,7 @@ class Inspector:
             self.phase_list.delete(0, "end")
             self.rows.delete(*self.rows.get_children())
             self.canvas.delete("all")
+            self.landmark_status.set("Pin / flag: capture unavailable   ·   Tee: capture unavailable")
             messagebox.showerror("Integrity / capture error", str(exc))
             return
         self.replay = replay
@@ -195,6 +215,7 @@ class Inspector:
         self.phase_list.delete(0, "end")
         self.rows.delete(*self.rows.get_children())
         self.canvas.delete("all")
+        self.landmark_status.set("Pin / flag: awaiting read-only sample   ·   Tee: awaiting sample")
         self.status.set("CONNECTING read-only to EXISTING Dolphin. No controller, savestate, boot or guest writes.")
         worker.start()
 
@@ -283,14 +304,25 @@ class Inspector:
         path = [(p, s) for p, s in path if p is not None]
         caches = [(s.vec(CACHE), s) for s in samples]
         caches = [(p, s) for p, s in caches if p is not None]
-        points = [p for p, _ in path + caches]
+        current = self.replay.samples[upto]
+        landmarks = candidate_landmarks(current)
+        if not current.source_qualified or not current.source_digest:
+            self.landmark_status.set("Pin / flag and tee: HIDDEN — source qualification/identity unavailable")
+        else:
+            pin_state = "sampled" if PIN in landmarks else "not sampled / invalid float"
+            tee_state = "sampled" if TEE in landmarks else "not sampled / invalid float"
+            self.landmark_status.set(f"Pin / flag: {pin_state}   ·   Tee: {tee_state}   (candidate coordinates, units unknown)")
+        # Include the stationary pin and tee in fitting the projection.  Without
+        # this they can be silently clipped when the ball never approaches them.
+        points = [p for p, _ in path + caches] + list(landmarks.values())
         if not points:
-            canvas.create_text(width // 2, height // 2, text="No finite 3-component ball/cache candidates", fill="white")
+            canvas.create_text(width // 2, height // 2, text="No finite source-qualified ball/cache/pin/tee candidates", fill="white")
             return
         axes = [project(p, self.yaw, self.pitch) for p in points]
         low_x, high_x = min(p[0] for p in axes), max(p[0] for p in axes)
         low_y, high_y = min(p[1] for p in axes), max(p[1] for p in axes)
-        scale = min((width - 100) / max(1e-7, high_x - low_x), (height - 90) / max(1e-7, high_y - low_y))
+        scale = min(max(1, width - 100) / max(1e-7, high_x - low_x),
+                    max(1, height - 90) / max(1e-7, high_y - low_y))
         cx, cy = (low_x + high_x) / 2, (low_y + high_y) / 2
         def xy(p):
             u, v = project(p, self.yaw, self.pitch)
@@ -307,12 +339,31 @@ class Inspector:
                 r = 5 if sample is samples[-1] else 2.5
                 canvas.create_oval(pos[0]-r, pos[1]-r, pos[0]+r, pos[1]+r, fill=color, outline="")
                 previous, previous_source = pos, sample.source_digest
-        current = self.replay.samples[upto]
         for name, color in ((BALL, "#f1f6ff"), (CACHE, "#f5b942")):
             position = current.vec(name)
             if position is not None:
                 x, y = xy(position)
                 canvas.create_text(x + 8, y - 12, anchor="w", text=("ball +0x30" if name == BALL else "cache +0xCC"), fill=color)
+        # Draw the flag LAST, over ball/cache trails: the pin should remain
+        # unmistakable even when a cache value exactly equals the pin candidate.
+        if TEE in landmarks:
+            x, y = xy(landmarks[TEE])
+            canvas.create_polygon(x, y - 8, x + 8, y, x, y + 8, x - 8, y,
+                                  fill="#59d47d", outline="#173a23", width=1,
+                                  tags=("tee_candidate",))
+            canvas.create_text(x + 11, y + 11, anchor="nw", text="TEE (candidate)",
+                               fill="#59d47d", tags=("tee_candidate",))
+        if PIN in landmarks:
+            x, y = xy(landmarks[PIN])
+            canvas.create_line(x, y + 13, x, y - 14, fill="#44d7ef", width=3,
+                               tags=("pin_candidate",))
+            canvas.create_polygon(x, y - 14, x + 20, y - 8, x, y - 2,
+                                  fill="#44d7ef", outline="#e3fcff", width=1,
+                                  tags=("pin_candidate",))
+            canvas.create_oval(x - 3, y + 10, x + 3, y + 16,
+                               fill="#44d7ef", outline="", tags=("pin_candidate",))
+            canvas.create_text(x + 23, y - 14, anchor="nw", text="PIN / FLAG (candidate)",
+                               fill="#44d7ef", tags=("pin_candidate",))
         canvas.create_text(12, height - 15, text="Drag to rotate. Component0 / 1 / 2 are not verified X/Y/Z or screen pixels.", anchor="sw", fill="#bacbe1")
 
 
