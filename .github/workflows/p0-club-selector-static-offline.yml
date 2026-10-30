@@ -11,6 +11,7 @@ on:
       - 'scripts/audit_p0_club_dpad_integer_selector_private.py'
       - 'scripts/audit_p0_club_dpad_handler_flow_private.py'
       - 'scripts/audit_p0_club_direction_dispatch_private.py'
+      - 'scripts/audit_p0_club_four_state_writer_private.py'
       - 'scripts/audit_p0_club_selection_code_private.py'
       - 'scripts/audit_p0_club_player_byte_source_private.py'
       - 'tests/test_p0_club_controller_callgraph_private.py'
@@ -18,6 +19,7 @@ on:
       - 'tests/test_p0_club_dpad_integer_selector_private.py'
       - 'tests/test_p0_club_dpad_handler_flow_private.py'
       - 'tests/test_p0_club_direction_dispatch_private.py'
+      - 'tests/test_p0_club_four_state_writer_private.py'
       - 'tests/test_p0_club_selection_code_private.py'
       - 'tests/test_p0_club_player_byte_source_private.py'
       - 'research/studies/P0-CLUB-SELECTOR-SOURCE-TRIAGE-01.md'
@@ -51,6 +53,8 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_club_dpad_handler_flow_private.py -v
       - name: Shared direction callee source tests
         run: python -m unittest discover -s tests -p test_p0_club_direction_dispatch_private.py -v
+      - name: Four state source writer witness tests
+        run: python -m unittest discover -s tests -p test_p0_club_four_state_writer_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
       - name: Script selftest
@@ -67,5 +71,7 @@ jobs:
         run: python scripts/audit_p0_club_dpad_handler_flow_private.py --selftest
       - name: Shared direction callee selftest
         run: python scripts/audit_p0_club_direction_dispatch_private.py --selftest
+      - name: Four-state source proof selftest
+        run: python scripts/audit_p0_club_four_state_writer_private.py --selftest
       - name: Syntax check
-        run: python -m compileall -q scripts/audit_p0_club_direction_dispatch_private.py tests/test_p0_club_direction_dispatch_private.py scripts/audit_p0_club_dpad_handler_flow_private.py tests/test_p0_club_dpad_handler_flow_private.py scripts/audit_p0_club_dpad_integer_selector_private.py tests/test_p0_club_dpad_integer_selector_private.py scripts/audit_p0_club_controller_status_consumers_private.py tests/test_p0_club_controller_status_consumers_private.py scripts/audit_p0_club_controller_callgraph_private.py tests/test_p0_club_controller_callgraph_private.py scripts/audit_p0_club_selection_code_private.py scripts/audit_p0_club_player_byte_source_private.py tests/test_p0_club_selection_code_private.py tests/test_p0_club_player_byte_source_private.py
+        run: python -m compileall -q scripts/audit_p0_club_four_state_writer_private.py tests/test_p0_club_four_state_writer_private.py scripts/audit_p0_club_direction_dispatch_private.py tests/test_p0_club_direction_dispatch_private.py scripts/audit_p0_club_dpad_handler_flow_private.py tests/test_p0_club_dpad_handler_flow_private.py scripts/audit_p0_club_dpad_integer_selector_private.py tests/test_p0_club_dpad_integer_selector_private.py scripts/audit_p0_club_controller_status_consumers_private.py tests/test_p0_club_controller_status_consumers_private.py scripts/audit_p0_club_controller_callgraph_private.py tests/test_p0_club_controller_callgraph_private.py scripts/audit_p0_club_selection_code_private.py scripts/audit_p0_club_player_byte_source_private.py tests/test_p0_club_selection_code_private.py tests/test_p0_club_player_byte_source_private.py
