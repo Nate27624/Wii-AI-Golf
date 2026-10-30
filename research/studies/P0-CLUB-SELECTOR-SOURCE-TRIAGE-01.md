@@ -182,3 +182,24 @@ Clean PR #412 worktree, original seven-pair archive only:
 & py -3 -I (Join-Path $work 'scripts\audit_p0_club_direction_dispatch_private.py') --archive $originalArchive --capture 5 --focus direction-dispatch --max-lines 120
 ```
 
+
+
+## Seventh stage — four-state index write source evidence (not club-ID validation)
+
+A new operator ORIGINAL SHA-qualified exact function decode for `RPGolScene_unsplit::fn_802A9BC8` shows a **symmetric read/modify/write of the SAME field** `+0x01C(r3)` with integer bounds 0 and 3. This is the first robust discrete-state writer found (unlike the earlier unrelated manager +0x4F4 and +0x340 counters). Four manager callsites load `r3` from `-0x5A80(r13)`, set `r4` to literal 0 on the Up(0x0008) branch and literal 1 on the Down(0x0004) branch, then directly `bl fn_802A9BC8`.
+
+**Precise semantics of the callee:** At handler function +0x0E8, `cmpwi r4,0`, then **PPC BO=12 BI=2 is `beq`**, so `r4 == 0` (Up caller) branches to +0x234. That arm loads `lwz r4,0x1c(r3)`, compares to 0, applies `addi r0,r4,-1` and `stw r0,0x1c(r3)`. The other arm (`r4 != 0`, Down caller) loads the same field, compares to 3, applies `addi r0,r4,+1` and writes to the same field. This matters: reversing the equal/not-equal branch would erroneously invert the directions. The upstream trace also showed source calls into PlayerManager and Golf Scene after index changes, as well as audio/indirect-dispatch paths. Actual receiver object identity must still be established.
+
+**Likely semantics:** source-qualified **four-state integer index** (0..3), consistent with 4 visible clubs. It is **not yet a game-owned verified club selection ID**, because user-visible Driver/Iron/Wedge/Putter value mapping, live receiver pointer, Hitting-the-Green state, and heldout controls are not established for this object. No training promotion.
+
+A new narrowly scoped source proof `scripts/audit_p0_club_four_state_writer_private.py` performs original seven-pair SHA preflight, reads exact public Rev1 PlayerManager and Scene function ranges, fails closed unless all four manager callsite argument and r13 global loads match, and unless both comparison bounds, `+1/-1` instructions, PPC equality branch target, and both same-object `stw +0x01C(r3)` instructions match. It emits only short decoded code context and source-based pointer expressions, no native data or executable code bytes. Synthetic tests reject changed bounds, different field offsets, fake direction arguments, wrong branch targets and wrong global roots.
+
+Run in PR #412 worktree:
+
+```powershell
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_four_state_writer_private.py') --selftest
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_four_state_writer_private.py') --archive $originalArchive --capture 5
+```
+
+Next P0: resolve the original code’s `r13` static small-data base for this exact Rev1 executable or read current r13 from an explicitly source-qualified Dolphin register interface; follow `lwz r3,-0x5A80(r13)` read-only, check RAM object identity and `lwz current_index,0x1c(r3)` for valid 0..3, then independently check visible four clubs with a no-change and aim-only control. Operator's original 26-packet study sampled different objects and is not proof of this field. **Do not collect more shot or A-button captures for club mapping**.
+
