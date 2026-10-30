@@ -40,10 +40,19 @@ Reproduce against original private seven-pair archive using the same exact PR #4
 
 ```powershell
 $originalArchive = Read-Host 'Absolute path to ORIGINAL seven-pair private archive'
-& py -3 -I (Join-Path $work 'scripts\audit_p0_club_player_byte_source_private.py') --archive $originalArchive --capture 5 --target-offset 0x34 --limit 22 --context 6
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_player_byte_source_private.py') --archive $originalArchive --capture 5 --source-unit player --target-offset 0x34 --limit 22 --context 6
 ```
 
 Next: source-review the five +0x34 byte stores and corresponding `lbz` reads, trace what value and object base register feed them, and only then decide whether a single operator D-pad change/no-change runtime test is needed. Zero training promotion.
+
+
+### Additional coverage gap: Config+0xBC
+
+The original 26-packet live club collector's `golf_config` layout reads 39 words (4*39 = 156 bytes), i.e. offsets **+0x00..+0x98 inclusive**; it did **not** record Config+0xBC. The broad source scan ranked multiple `stw` sites at displacement +0xBC within the **RPGolConfig.cpp** text interval (source relative +0x00790,+0x007B4,+0x007D4,+0x007F0). Their base registers are unproven; there is no demonstrated receiver-to-config join, nor club semantics. Do not misinterpret this as an established config field. Nevertheless, code context is worth checking before any further operator capture. Second-stage decoder can isolate this with `--source-unit config --target-offset 0xBC` and `--source-unit player --target-offset 0x34`. This is a source-only analysis requiring no Dolphin session.
+
+```powershell
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_player_byte_source_private.py') --archive $originalArchive --capture 5 --source-unit config --target-offset 0xBC --limit 15 --context 7
+```
 
 ## Tests
 
