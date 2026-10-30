@@ -151,10 +151,20 @@ class TestPrivateObj(unittest.TestCase):
             derived = data / "derived"
             derived.mkdir(parents=True)
             target = derived / "hole01-collision-candidate-PRIVATE.obj"
-            with self.assertRaises(ValueError):
+            with self.assertRaises(obj.ExportGate) as exc:
                 obj._safe_output_path(target, data)
+            self.assertEqual(exc.exception.stage, "OUTPUT_GIT_IGNORE_UNVERIFIED")
             (derived / ".gitignore").write_text("*.obj\n", encoding="ascii")
             self.assertEqual(obj._safe_output_path(target, data), target.resolve())
+
+    def test_git_index_failure_has_safe_categorical_stage(self):
+        # .git marker without a valid Git index must never count as proof
+        # that a private OBJ is untracked or safe to place.
+        (self.data / ".git").mkdir()
+        (self.derived / ".gitignore").write_text("*.obj\n", encoding="ascii")
+        with self.assertRaises(obj.ExportGate) as exc:
+            obj._safe_output_path(self.output, self.data)
+        self.assertEqual(exc.exception.stage, "OUTPUT_GIT_IGNORE_UNVERIFIED")
 
     def test_git_tracked_project_obj_not_approved(self):
         with tempfile.TemporaryDirectory() as temp:
