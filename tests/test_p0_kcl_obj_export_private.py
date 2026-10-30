@@ -6,6 +6,7 @@ import importlib.util
 import io
 import json
 import os
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -117,6 +118,36 @@ class TestPrivateObj(unittest.TestCase):
             obj._obj_bytes([((0,0,0), (0,1,0))])
         with self.assertRaises(ValueError):
             obj._obj_bytes([])
+
+    def test_allow_project_obj_only_when_git_ignored(self):
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp)
+            subprocess.run(["git", "init", "-q", str(project)], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            data = project / "Wii-AI-Golf-Data"
+            derived = data / "derived"
+            derived.mkdir(parents=True)
+            target = derived / "hole01-collision-candidate-PRIVATE.obj"
+            with self.assertRaises(ValueError):
+                obj._safe_output_path(target, data)
+            (derived / ".gitignore").write_text("*.obj\n", encoding="ascii")
+            self.assertEqual(obj._safe_output_path(target, data), target.resolve())
+
+    def test_git_tracked_project_obj_not_approved(self):
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp)
+            subprocess.run(["git", "init", "-q", str(project)], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            data = project / "Wii-AI-Golf-Data"
+            derived = data / "derived"
+            derived.mkdir(parents=True)
+            target = derived / "hole01-collision-candidate-PRIVATE.obj"
+            target.write_text("existing", encoding="ascii")
+            subprocess.run(["git", "-C", str(project), "add", "-f", "--", str(target)],
+                           check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            (derived / ".gitignore").write_text("*.obj\n", encoding="ascii")
+            with self.assertRaises(ValueError):
+                obj._safe_output_path(target, data)
 
     def test_missing_private_derived_rejected(self):
         self.derived.rmdir()
