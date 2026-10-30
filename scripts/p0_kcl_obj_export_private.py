@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+"""Export one source-qualified PRIVATE KCL collision candidate to local ASCII OBJ.
+
+Original RAM remains read-only, SHA-verified, and outside Git. A private mesh
+is a *visual candidate*, not proof of active golf collision or training data.
+The export is deliberately independent of octree, trees, and material analysis.
+"""
+from __future__ import annotations
+
+import argparse
+from contextlib import ExitStack
+import hashlib
+import json
+import mmap
+import os
+from pathlib import Path
+import stat
+import struct
+import sys
+
+HERE = Path(__file__).resolve().parent
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+import p0_kcl_private_probe as kcl
+import p0_kcl_full_validation_private as full
+
+MAX_OBJ_BYTES = 16 * 1024 * 1024
+MAX_OBJ_FACES = 30000
+MAX_OBJ_VERTICES = 90000
+CAPTURE_NUMBER = 5
+CONTROL_NUMBERS = (1, 7)
+
+
+def _safe_output_path(output: Path, data_root: Path) -> Path:
+    """Only a new regular .obj directly in sibling ignored Data/derived.
+
+    Data/derived must already exist; never use untrusted paths as directory
+    creation targets, and never allow publication in the Git working tree.
+    """
+    root = data_root.resolve(strict=True)
+    if not root.is_dir() or root.is_symlink():
+        raise ValueError('private Data root invalid')
+    parent = root / 'derived'
+    if not parent.is_dir() or parent.is_symlink():
+        raise ValueError('private Data derived directory missing or linked')
+    parent = parent.resolve(strict=True)
+    if parent.parent != root:
+        raise ValueError('output must be directly in private Data derived')
+    if output.suffix.lower() != '.obj' or not output.name.endswith('-PRIVATE.obj'):
+        raise ValueError('private OBJ name must end in -PRIVATE.obj')
+    if output.name in ('.', '..') or output.is_symlink() or output.exists():
+        raise ValueError('refusing existing, linked, or invalid OBJ target')
+    if output.parent.resolve(strict=True) != parent:
+        raise ValueError('OBJ must be placed directly under private Data/derived')
+    path = parent / output.name
+    if any((p / '.git').exists() for p in (parent, *parent.parents)):
+        raise ValueError('OBJ output must never be inside Git')
+    return path
+
+
+def _source_qualified_mesh(folders, capture: int, seven, roster, *, keep_mesh: bool):
+    """One original pair; verify source scene and every prism before writing."""
+    with ExitStack() as stack:
+        banks = []
+        for i, size in enumerate(seven.SIZE, 1):
+            path = seven.src._file(folders[capture], f'{capture}.{i}.raw', size)
+            before = path.lstat()
+            fd = os.open(path, os.O_RDONLY | getattr(os, 'O_BINARY', 0)
+                         | getattr(os, 'O_NOFOLLOW', 0))
+            stack.callback(os.close, fd)
+            after = os.fstat(fd)
+            if not stat.S_ISREG(after.st_mode) or (
+                    after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns
+                ) != (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns):
+                raise ValueError('original bank identity changed')
+            mm = mmap.mmap(fd, 0, access=mmap.ACCESS_READ)
+            stack.callback(mm.close)
+            banks.append(mm)
+        reader = roster.TwoBankReader(*banks)
+        source = seven._get(reader)
+        # Independent source-field ownership presence gates; pointer values
+        # stay in memory and are never sent to stdout or the OBJ file.
+        roots = kcl._source_model_category(reader, source['field'], roster)
+        if any(roots.get(label) != 'non_null_in_guest_ram' for label in (
+                'placement_pmp', 'course_model_object',
+                'course_visual_model_g3d', 'minimap_object')):
+            raise ValueError('course source roots not qualified')
+        _, count1 = kcl.scan_bank(banks[0], limit=1)
+        hits, count2 = kcl.scan_bank(banks[1], limit=2)
+        if count1 != 0 or count2 != 1 or len(hits) != 1:
+            raise ValueError('unique MEM2 KCL candidate not established')
+        start, header = hits[0]
+        tee = source['triplets']['source_current_start']
+        pin = source['pin']
+        report = full.analyze_blob(banks[1], start, tee_words=tee, pin_words=pin)
+        count = report['prism_slot_upper_bound']
+        if (count != header['prism_count_upper_bound']
+                or not 2 <= count <= MAX_OBJ_FACES
+                or 3*count > MAX_OBJ_VERTICES
+                or not report['all_prism_slots_reconstructed']
+                or report['prism_index_slots_valid'] != count
+                or report['prism_referenced_normals_unit'] != count
+                or report['prism_reconstructed_non_degenerate'] != count
+                or report['tee_untransformed_proximity'] != 'WITHIN_2PCT_OF_MESH_BBOX_DIAGONAL'
+                or report['pin_untransformed_proximity'] != 'WITHIN_2PCT_OF_MESH_BBOX_DIAGONAL'):
+            raise ValueError('full-prism or tee/pin alignment qualification failed')
+        triangles = None
+        if keep_mesh:
+            po, no, prism_offset, _ = struct.unpack_from('>IIII', banks[1], start)
+            positions = [kcl._v3(banks[1], start + po + 12*i)
+                         for i in range((no-po)//12)]
+            normals = [kcl._v3(banks[1], start + no + 12*i)
+                       for i in range((prism_offset+0x10-no)//12)]
+            # Require all reconstructed faces, not a decimated preview, and
+            # never use a geometry 'repair' that changes source coordinates.
+            triangles = []
+            for i in range(count):
+                tri = kcl._triangle(banks[1], start, positions, normals, prism_offset, i)
+                if tri is None:
+                    raise ValueError('candidate triangle changed during conversion')
+                triangles.append(tri[:3])
+        return {
+            'hole': source['hole'],
+            'count': count,
+            'private_geometry_fingerprint': report['fingerprint_PRIVATE'],
+            'triangles_PRIVATE': triangles,
+        }
+
+
+def _obj_bytes(triangles) -> bytes:
+    """Produce strictly v/f triangle OBJ compatible with S002's terrain.py."""
+    if not 2 <= len(triangles) <= MAX_OBJ_FACES or 3*len(triangles) > MAX_OBJ_VERTICES:
+        raise ValueError('OBJ face or vertex bound exceeded')
+    lines = [
+        '# PRIVATE KCL collision candidate - not verified visible terrain',
+        '# Original source coordinate components; no transform or materials',
+    ]
+    for face in triangles:
+        if len(face) != 3:
+            raise ValueError('OBJ requires source triangles')
+        for vertex in face:
+            if len(vertex) != 3 or any(
+                not isinstance(v, (int, float)) or
+                not __import__('math').isfinite(v) or abs(v) >= 1e7
+                for v in vertex
+            ):
+                raise ValueError('nonfinite or unsafe OBJ vertex')
+            lines.append('v ' + ' '.join(format(v, '.9g') for v in vertex))
+    for i in range(len(triangles)):
+        j = 3*i+1
+        lines.append(f'f {j} {j+1} {j+2}')
+    payload = ('\n'.join(lines) + '\n').encode('ascii')
+    if not 1 <= len(payload) <= MAX_OBJ_BYTES:
+        raise ValueError('OBJ payload size exceeds private viewer bound')
+    return payload
+
+
+def _write_new_private_obj(output: Path, payload: bytes) -> None:
+    """Exclusive-create protects existing private exports; remove partial only."""
+    fd = os.open(output, os.O_CREAT | os.O_EXCL | os.O_WRONLY
+                 | getattr(os, 'O_BINARY', 0), 0o600)
+    try:
+        with os.fdopen(fd, 'wb') as out:
+            out.write(payload)
+            out.flush()
+            os.fsync(out.fileno())
+    except BaseException:
+        output.unlink(missing_ok=True)
+        raise
+
+
+def export(archive: Path, output: Path, *, capture=CAPTURE_NUMBER,
+           controls=CONTROL_NUMBERS) -> dict:
+    import audit_p0_seven_numbered_source_pairs_private as seven
+    from audit_p0_seven_numbered_source_pairs_private import roster
+    if (type(capture) is not int or capture not in range(1,8)
+            or len(controls) != 2 or
+            any(type(n) is not int or n not in range(1,8) for n in controls)
+            or len({capture, *controls}) != 3):
+        raise ValueError('source capture/control numbers must be distinct')
+    from audit_selected_ball_start_link_private import DATA_ROOT
+    target = _safe_output_path(output, DATA_ROOT)
+    folders = seven._check_archive(archive)
+    findings = {}
+    # Independently read both controls as well as requested selected capture.
+    for number in (*controls, capture):
+        findings[number] = _source_qualified_mesh(
+            folders, number, seven, roster, keep_mesh=(number == capture))
+    baseline = findings[capture]
+    if any(
+        findings[n]['hole'] != baseline['hole'] or
+        findings[n]['count'] != baseline['count'] or
+        findings[n]['private_geometry_fingerprint'] !=
+        baseline['private_geometry_fingerprint']
+        for n in controls
+    ):
+        raise ValueError('independent source-qualified controls disagree')
+    payload = _obj_bytes(baseline['triangles_PRIVATE'])
+    # Recheck every original bank after mappings have closed, BEFORE write.
+    seven._check_archive(archive)
+    if target.exists():
+        raise ValueError('private output already exists')
+    _write_new_private_obj(target, payload)
+    return {
+        'kind': 'P0_PRIVATE_KCL_OBJ_EXPORT',
+        'status': 'PRIVATE_OBJ_CREATED',
+        'capture_number': capture,
+        'control_captures': list(controls),
+        'source_hole_index': baseline['hole'],
+        'triangle_faces': baseline['count'],
+        'vertex_records': 3*baseline['count'],
+        'cross_capture_geometry_identical': True,
+        'source_component_coordinates_untransformed': True,
+        'viewer_compatible_ascii_triangle_obj': True,
+        'filename': target.name,
+        'obj_sha256': hashlib.sha256(payload).hexdigest(),
+        'octree_reachability_verified': False,
+        'game_collision_ownership_verified': False,
+        'surface_materials_or_trees_included': False,
+        'training_approved': False,
+        'allowed_to_publish': False,
+    }
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--archive', required=True, type=Path)
+    parser.add_argument('--output', required=True, type=Path)
+    parser.add_argument('--capture', type=int, default=CAPTURE_NUMBER)
+    parser.add_argument('--controls', nargs=2, type=int, default=CONTROL_NUMBERS)
+    args = parser.parse_args(argv)
+    try:
+        print(json.dumps(export(args.archive, args.output,
+                               capture=args.capture, controls=tuple(args.controls)),
+                         indent=2, sort_keys=True))
+        return 0
+    except (OSError, ValueError, IndexError, KeyError, TypeError,
+            AttributeError, OverflowError, struct.error):
+        print(json.dumps({
+            'kind': 'P0_PRIVATE_KCL_OBJ_EXPORT',
+            'status': 'ABSTAIN_SOURCE_GEOMETRY_OR_OUTPUT_GATE',
+            'private_obj_created': False,
+            'training_approved': False,
+            'allowed_to_publish': False,
+        }))
+        return 3
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
