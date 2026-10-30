@@ -121,9 +121,11 @@ function Assert-OperatorGates {
     try {
         if ($reader.ReadByte() -ne 77 -or $reader.ReadByte() -ne 90) { throw 'DOLPHIN_NOT_PE' }
     } finally { $reader.Dispose() }
-    $script:safeStage='ATTEST_DOLPHIN_DIGEST'
-    if (-not [string]::Equals((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash,
-                              $ExpectedDolphinSha256, [StringComparison]::OrdinalIgnoreCase)) {
+    $script:safeStage='ATTEST_DOLPHIN_HASH_READ'
+    $actualDolphinHash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
+    $script:safeStage='ATTEST_DOLPHIN_HASH_COMPARE'
+    if ([string]::IsNullOrWhiteSpace($actualDolphinHash) -or
+        $actualDolphinHash.ToUpperInvariant() -cne $ExpectedDolphinSha256.ToUpperInvariant()) {
         throw 'DOLPHIN_DIGEST_MISMATCH'
     }
 }
