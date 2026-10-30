@@ -52,6 +52,16 @@ class TestPlayerClubSource(unittest.TestCase):
     def test_signed_immediate(self):
         self.assertIn("-1",scan.decode(PC,d(14,3,3,-1),PC,PC+16))
 
+
+    def test_target_offset_filter(self):
+        source=words(d(38,3,4,0x34),d(52,1,31,0xC0))
+        for off, expected in ((0x34,"stb"),(0xC0,"stfs")):
+            out=scan.describe_player(source,PC,10,1,off)
+            self.assertEqual(out["matching_access_total"],1)
+            self.assertEqual(out["sites_in_report"][0]["access"],expected)
+        with self.assertRaises(scan.prior.Abstain):
+            scan.describe_player(source,PC,10,1,0x42)
+
     def test_bad_native_window_abstains(self):
         with self.assertRaises(scan.prior.Abstain):
             scan.describe_player(b"\x00",PC)
