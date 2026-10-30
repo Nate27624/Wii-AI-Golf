@@ -110,6 +110,7 @@ class EvidenceMatrixTest(unittest.TestCase):
         self.assertEqual(report['control_summary']['wedge_pin_changed_counts'],[0,0,0])
         self.assertTrue(report['control_summary']['D1_selected_current_equals_start'])
         self.assertFalse(report['training_approved'])
+        self.assertFalse(report['native_sha_pre_post_checked_by_existing_reader'])
         rows={v['id']:v for v in report['p0_rows']}
         self.assertEqual(rows['golf.ball_object.current_translation_candidate']
                          ['wedge_5_6_6_7_5_7_changed_word_counts'],[3,3,3])
