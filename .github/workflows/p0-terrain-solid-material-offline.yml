@@ -1,0 +1,38 @@
+name: P0 source-material solid terrain inspector offline
+
+on:
+  pull_request:
+    paths:
+      - 'src/wii_ai_golf/inspector/terrain_solid.py'
+      - 'src/wii_ai_golf/inspector/terrain.py'
+      - 'src/wii_ai_golf/inspector/gui.py'
+      - 'scripts/p0_memory_inspector.py'
+      - 'tests/test_p0_memory_inspector_terrain.py'
+      - 'tests/test_p0_memory_inspector_terrain_solid.py'
+      - '.github/workflows/p0-terrain-solid-material-offline.yml'
+  push:
+    branches:
+      - agent/terrain-solid-material-ui-20261030
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Source group and private project loader
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_terrain.py -v
+      - name: Solid render and startup regressions
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_terrain_solid.py -v
+      - name: Full offline repository regression
+        run: python -m unittest discover -s tests -v
