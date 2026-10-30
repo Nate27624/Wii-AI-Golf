@@ -13,6 +13,7 @@ from .live import LiveSampler
 from .a_reference import discover_reference
 from .a_live import LiveAIndicator
 from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE
+from .terrain_solid import back_to_front, shaded_hex
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -75,7 +76,8 @@ def project(point: tuple[float, float, float], yaw: float, pitch: float) -> tupl
 
 
 class Inspector:
-    def __init__(self, root: tk.Tk, initial_capture: str = "", initial_manifest: str = ""):
+    def __init__(self, root: tk.Tk, initial_capture: str = "", initial_manifest: str = "",
+                 initial_terrain_obj: str = ""):
         self.root = root
         root.title("Wii Golf · P0 Memory Inspector — OFFLINE CANDIDATES")
         root.geometry("1320x850")
@@ -96,6 +98,8 @@ class Inspector:
         self.terrain_visible = tk.BooleanVar(value=True)
         self.terrain_focus = tk.BooleanVar(value=True)
         self.terrain_colors = tk.BooleanVar(value=True)
+        self.terrain_solid = tk.BooleanVar(value=True)
+        self.terrain_edges = tk.BooleanVar(value=False)
         self.terrain_status = tk.StringVar(value="Terrain: select a locally exported PRIVATE collision OBJ to display.")
         self.a_reason = tk.StringVar(value="Connect LIVE with A released; 2 stable samples initialize candidate")
         self.baseline: float | None = None
@@ -111,6 +115,8 @@ class Inspector:
         self.live_location = ""
         self.live_port = tk.StringVar(value="55355")
         self._draw_controls()
+        if initial_terrain_obj:
+            self.load_terrain_path(initial_terrain_obj, show_dialog=False)
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(200, self.poll_live)
         if initial_capture and initial_manifest:
@@ -172,6 +178,8 @@ class Inspector:
         ttk.Checkbutton(mesh_actions, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Color source surface IDs", variable=self.terrain_colors, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(mesh_actions, text="Solid terrain", variable=self.terrain_solid, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(mesh_actions, text="Triangle edges", variable=self.terrain_edges, command=self.draw_path).pack(side="left")
         ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
         source_legend = ttk.Frame(center)
         source_legend.pack(fill="x")
@@ -211,19 +219,25 @@ class Inspector:
         filename = filedialog.askopenfilename(
             title="Select local source-coordinate private KCL collision OBJ",
             filetypes=[("Wavefront OBJ", "*.obj")])
-        if not filename:
-            return
+        if filename:
+            self.load_terrain_path(filename, show_dialog=True)
+
+    def load_terrain_path(self, filename: str, *, show_dialog: bool = False) -> bool:
+        """Load user-selected private OBJ and its validated source material groups."""
         try:
             mesh = load_private_obj(filename)
         except (TerrainError, OSError) as exc:
-            messagebox.showerror("Private terrain declined", str(exc))
-            return
+            if show_dialog:
+                messagebox.showerror("Private terrain declined", str(exc))
+            self.terrain_status.set("Terrain: private OBJ declined by path/format verification.")
+            return False
         self.terrain_mesh = mesh
         self.terrain_visible.set(True)
         self.terrain_status.set(
-            f"PRIVATE collision OBJ: {len(mesh.faces)} candidate triangles, SHA {mesh.sha256[:12]}… "
+            f"PRIVATE terrain OBJ: {len(mesh.faces)} candidate triangles, SHA {mesh.sha256[:12]}… "
             "· visual alignment/active collision UNVERIFIED")
         self.draw_path()
+        return True
 
     def clear_terrain(self) -> None:
         self.terrain_mesh = None
@@ -525,7 +539,7 @@ class Inspector:
             if hasattr(self, "terrain_status"):
                 labeled = sum(n for code,n in mesh.material_counts().items() if code is not None)
                 self.terrain_status.set(
-                    f"PRIVATE collision wireframe: {len(terrain_faces)}/{len(mesh.faces)} "
+                    f"PRIVATE terrain preview: {len(terrain_faces)}/{len(mesh.faces)} "
                     f"triangles drawn · {labeled}/{len(mesh.faces)} source-ID labeled · "
                     "alignment/active collision UNVERIFIED")
         elif mesh is not None and hasattr(self, "terrain_status"):
@@ -549,14 +563,27 @@ class Inspector:
             u, v = project(p, self.yaw, self.pitch)
             return width / 2 + (u - cx) * scale, height / 2 - (v - cy) * scale
         canvas.create_text(12, 12, text="Rotatable 3D source-coordinate projection · unknown units", anchor="nw", fill="#bacbe1")
-        # Behind source-qualified ball, tee, pin and screen-anchored A text.
-        for face, source_attr in colored_faces:
+        # Painter's-order solid triangles (not a Z-buffer), beneath all
+        # source-qualified actor/aim/A overlays. Never infer missing IDs.
+        solid_setting = getattr(self, "terrain_solid", None)
+        edges_setting = getattr(self, "terrain_edges", None)
+        solid = solid_setting is not None and solid_setting.get()
+        edges = edges_setting is None or edges_setting.get()
+        palette = getattr(self, "terrain_colors", None)
+        use_colors = palette is None or palette.get()
+        for face, source_attr in back_to_front(colored_faces, self.yaw, self.pitch):
             xy_face = [xy(v) for v in face]
-            palette = getattr(self, "terrain_colors", None)
-            use_colors = palette is None or palette.get()
-            color = surface_style(source_attr)[1] if use_colors else "#3c7366"
-            canvas.create_line(*xy_face[0], *xy_face[1], *xy_face[2], *xy_face[0],
-                               fill=color, width=1, tags=("terrain_collision_candidate",))
+            flat = tuple(value for p in xy_face for value in p)
+            base = surface_style(source_attr)[1] if use_colors else "#536778"
+            if solid:
+                canvas.create_polygon(
+                    *flat, fill=shaded_hex(base, face),
+                    outline=base if edges else "", width=1 if edges else 0,
+                    tags=("terrain_collision_candidate", "terrain_solid_face"))
+            elif edges:
+                canvas.create_line(
+                    *flat, *xy_face[0], fill=base, width=1,
+                    tags=("terrain_collision_candidate", "terrain_wire_edge"))
         # Recenter per displayed prefix; do not imply screen-space projection or verified spatial units.
         for sequence, color in ((path, "#f1f6ff"), (caches, "#f5b942")):
             previous = None
@@ -608,8 +635,8 @@ class Inspector:
         self.draw_a_overlay()
 
 
-def launch(capture: str = "", manifest: str = "") -> int:
+def launch(capture: str = "", manifest: str = "", terrain_obj: str = "") -> int:
     root = tk.Tk()
-    Inspector(root, capture, manifest)
+    Inspector(root, capture, manifest, terrain_obj)
     root.mainloop()
     return 0
