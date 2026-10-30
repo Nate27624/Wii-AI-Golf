@@ -73,3 +73,27 @@ accepts both legacy and exact tagged forms. Source surface colors are
 original-game categorical hypotheses, not visual game textures or real
 coefficient-of-friction measurements. Camera lock and unknown IDs stay neutral;
 training remains false.
+
+
+## Preferred UI-only color workflow (operator correction)
+
+Do **not** rewrite, re-export, or embed material groups into the successfully
+created original private geometry OBJ. Its SHA stays stable. To make
+categorical material colors a presentation concern, use
+scripts/p0_kcl_surface_labels_private.py on the original SHA-gated capture
+with --original-obj pointing to existing D: private Data/derived
+hole01-collision-candidate-PRIVATE.obj. It verifies exactly the same
+source-coordinate v/f face order and 2498 per-prism original attributes
+against capture 5 and controls 1,7. It emits only a small, **separate**
+hole01-collision-candidate-labels-PRIVATE.json in the same ignored/private
+Data/derived folder, containing one source BE16 attribute per existing face
+and the exact unchanged OBJ SHA. The no-overwrite and Git-ignore +
+not-indexed requirements still apply. This is data only, no colors or geometry.
+
+The inspector PR #419 takes --terrain-obj (the unchanged original) and
+--terrain-labels (this separate source JSON), verifies SHA and face count,
+then colors the existing triangle faces entirely within Tkinter at runtime.
+Its Solid terrain and Triangle edges controls remain purely display toggles.
+There are no inferred fairway/rough/green labels. Neither source file nor
+private JSON/OBJ is committed. Octree reachability/active collision remain
+unproven; training false.
