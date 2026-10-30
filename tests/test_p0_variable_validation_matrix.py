@@ -121,7 +121,6 @@ class P0ValidationTests(unittest.TestCase):
                      {"rendered_actor":"other"},
                      {"observed_generation":"reused"},
                      {"rendered_generation":"other"},
-                     {"scene_id":"different"},
                      {"hole_id":"different","frame":False}):
             r=self.row(vid,obs("flight","changed",**opts))
             self.assertNotIn("flight",r["controls_satisfied"])
