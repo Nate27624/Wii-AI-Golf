@@ -99,10 +99,15 @@ def evidence(manager_blob,handler_blob,funcs,units):
     # Source branch determines r4=0 path and r4!=0 path.
     require_cmpwi(word_at(handler_blob,BRANCH_A),4,0)
     gate=word_at(handler_blob,BRANCH_A+4)
-    base.require(((gate>>21)&31)==12 and ((gate>>16)&31)==2\n                 and not (gate & 2),\n                 "SOURCE_EQUALITY_BRANCH_SEMANTICS_MISMATCH")\n    base.require(branch_target(HANDLER_PC+BRANCH_A+4,gate)
+    base.require(((gate>>21)&31)==12 and ((gate>>16)&31)==2
+                 and not (gate & 2),
+                 "SOURCE_EQUALITY_BRANCH_SEMANTICS_MISMATCH")
+    base.require(branch_target(HANDLER_PC+BRANCH_A+4,gate)
                  ==HANDLER_PC+DECREMENT[0],
                  "SOURCE_DIRECTION_BRANCH_TARGET_MISMATCH")
-    # PPC BO=12 BI=2 branches on equality: r4==0 takes the\n    # decrement arm at +0x234, r4!=0 falls through to increment.\n    # Increment arm is guarded by a comparison to index 3.
+    # PPC BO=12 BI=2 branches on equality: r4==0 takes the
+    # decrement arm at +0x234, r4!=0 falls through to increment.
+    # Increment arm is guarded by a comparison to index 3.
     require_access(word_at(handler_blob,INCREMENT[0]),"lwz",4,3,0x1C)
     require_cmpwi(word_at(handler_blob,INCREMENT[1]),4,3)
     base.require(base.op(word_at(handler_blob,INCREMENT[2]))==16,
