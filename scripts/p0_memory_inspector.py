@@ -13,12 +13,13 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--capture", default="", help="Local SHA-verified JSONL candidate events")
     parser.add_argument("--manifest", default="", help="Matching SHA-256 manifest")
+    parser.add_argument("--terrain-obj", default="", help="Explicit private terrain OBJ to load into the 3D inspector")
     args = parser.parse_args(argv)
     if bool(args.capture) != bool(args.manifest):
         parser.error("--capture and --manifest must be supplied together")
     from wii_ai_golf.inspector.gui import launch
     try:
-        return launch(args.capture, args.manifest)
+        return launch(args.capture, args.manifest, args.terrain_obj)
     except (OSError, RuntimeError) as exc:
         print(f"Offline inspector could not start: {exc}", file=sys.stderr)
         return 2
