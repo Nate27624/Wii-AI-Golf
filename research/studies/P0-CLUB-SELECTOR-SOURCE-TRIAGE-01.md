@@ -224,3 +224,13 @@ Command in exact pinned detached PR #412 worktree (operator launches Dolphin man
 
 This is **only** selected-club index research. Do not collect ball/aim/power repeated sweeps, press A, or launch unsolicited controller automation.
 
+
+
+### Five-phase fast live candidate check before full study
+
+Prefer the new `--quick` path first, using the SAME source-gated PlayerManager root and read-only RPC. It asks the operator for five phases: B0 visible club, unchanged IDLE, exactly one manual D-pad UP, one manual D-pad DOWN, and an AIM-only change retaining the current visible club. It reads `pm+0x1C` twice per phase, checks global pointers, scene/mode/hole, selected player and ball position, and rejects mode/player changes. The result must agree with UP index decrement, DOWN index increment (each bounded 0..3) **and each club-name change must match whether the index changed**. At least one club must visibly change. No claim of a full 4-club mapping from this quick check. Only then run the same script without `--quick` to obtain two full club passes and four operator-labelled heldout selections.
+
+```powershell
+& py -3 -I (Join-Path $work 'scripts\p0_live_four_state_club_index_private.py') --private-root 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures' --port 55355 --quick
+```
+
