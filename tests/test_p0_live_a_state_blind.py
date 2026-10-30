@@ -1,23 +1,14 @@
 """Synthetic-only no-Dolphin tests for blind live A-state study."""
 from __future__ import annotations
 from pathlib import Path
-import importlib.util
 import sys
-import types
 import unittest
 from unittest.mock import patch
 
+# Use the real source-gated reader imports; never poison sys.modules in full CI.
 ROOT = Path(__file__).resolve().parents[1]
-sys.modules.setdefault('p0_live_directional_aim_series',
-                       types.SimpleNamespace(packet=lambda *a: None,
-                                             end_epoch_matches=lambda *a: True))
-sys.modules.setdefault('p0_live_no_contact_compare',
-                       types.SimpleNamespace(in_bank=lambda *args: True))
-spec=importlib.util.spec_from_file_location('blind_study',
-                                            ROOT/'scripts'/'p0_live_a_state_blind.py')
-module=importlib.util.module_from_spec(spec)
-sys.modules['blind_study']=module
-spec.loader.exec_module(module)
+sys.path[:0] = [str(ROOT / 'src'), str(ROOT / 'scripts')]
+import p0_live_a_state_blind as module
 
 class FakeRPC:
     def __init__(self,words):
