@@ -103,6 +103,39 @@ class MemoryInputJoinTests(unittest.TestCase):
                 self.assertFalse(d.synthetic_consistent)
                 self.assertFalse(d.real_training_eligible)
 
+    def test_truthy_non_boolean_input_flags_are_not_accepted_contact(self):
+        for field in ("requested_a", "callback_seen", "game_side_a_accepted", "contact_witness"):
+            for value in (1, "True", "yes", [True]):
+                with self.subTest(field=field, value=value):
+                    decision = self.decide(input=replace(self.input, **{field: value}))
+                    self.assertIn(Rejection.CONTACT_UNVERIFIED, decision.rejected)
+                    self.assertFalse(decision.synthetic_consistent)
+                    self.assertFalse(decision.real_training_eligible)
+
+    def test_non_boolean_censored_flag_is_always_rejected(self):
+        for value in (0, 1, "False", "True", None):
+            with self.subTest(value=value):
+                decision = self.decide(result=replace(self.result, censored=value))
+                self.assertIn(Rejection.CENSORED_OUTCOME, decision.rejected)
+                self.assertFalse(decision.synthetic_consistent)
+                self.assertFalse(decision.real_training_eligible)
+
+    def test_raw_m_100ft_and_mixed_penalty_labels_rejected(self):
+        for label in ("M:100ft", "m:100ft", "M:100 FT",
+                      " OFFGREEN 100FT PENALTY ", "offgreen_100ft_penalty"):
+            for field in ("distance_label", "measurement"):
+                with self.subTest(label=label, field=field):
+                    decision = self.decide(result=replace(self.result, **{field: label}))
+                    self.assertIn(Rejection.CENSORED_OUTCOME, decision.rejected)
+                    self.assertFalse(decision.synthetic_consistent)
+                    self.assertFalse(decision.real_training_eligible)
+
+    def test_uncensored_synthetic_outcome_remains_accepted_only_as_toy(self):
+        decision = self.decide(result=replace(self.result, censored=False, distance_label="42ft"))
+        self.assertTrue(decision.synthetic_consistent)
+        self.assertFalse(decision.real_training_eligible)
+        self.assertEqual(decision.rejected, (Rejection.NO_PHYSICAL_PROOF,))
+
     def test_unverified_human_result_abstains(self):
         d = self.decide(result=replace(self.result, source="human"))
         self.assertIn(Rejection.OUTCOME_UNVERIFIED, d.rejected)
