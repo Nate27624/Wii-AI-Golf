@@ -71,10 +71,15 @@ def _git_ignored_private_obj(path: Path) -> bool:
         # versions. --cached -z is stable: 0 + empty stdout proves the file
         # does not already occur in the repository index. A Git failure
         # cannot be mistaken for "untracked".
-        return (ignored.returncode == 0 and tracked.returncode == 0
-                and tracked.stdout == b"")
+        if ignored.returncode != 0:
+            raise ExportGate('OUTPUT_GIT_IGNORE_UNVERIFIED')
+        if tracked.returncode != 0:
+            raise ExportGate('OUTPUT_GIT_INDEX_CHECK_FAILED')
+        if tracked.stdout != b"":
+            raise ExportGate('OUTPUT_GIT_TRACKED_REJECTED')
+        return True
     except (OSError, subprocess.TimeoutExpired):
-        return False
+        raise ExportGate('OUTPUT_GIT_COMMAND_FAILED') from None
 
 
 def _safe_output_path(output: Path, data_root: Path) -> Path:
@@ -276,6 +281,8 @@ def export(archive: Path, output: Path, *, capture=CAPTURE_NUMBER,
     from audit_selected_ball_start_link_private import DATA_ROOT
     try:
         target = _safe_output_path(output, DATA_ROOT)
+    except ExportGate:
+        raise
     except (OSError, ValueError, TypeError) as exc:
         stage = {
             'private Data root invalid': 'OUTPUT_DATA_ROOT',
