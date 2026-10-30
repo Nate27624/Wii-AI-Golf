@@ -97,7 +97,26 @@ Operator-local command in PR worktree:
 
 Avoid repeat A-button/shot test or unbounded raw memory uploads. Training approval remains false.
 
-## Tests
+## Expanded 994-Golf-function controller-call results and source consumer audit
+
+Operator SHA-qualified read-only trace with 1,342 public function-symbol entries scanned 994 Golf functions and found **3,925 static BL edges**, only 14 direct calls into named input-related code units (not necessarily D-pad!). Two early leading calls were disambiguated:
+
+- `RPGolMain::fn_8028E0E4` -> `WPADControlMotor` at Main source +0x0009C: motor control, not a direct club-selection read.
+- `RPGolPlayer::fn_8029EC30` -> `getNthController__Q23EGG17CoreControllerMgrFi` at Player +0x006B4: obtains an EGG controller object; **not** proof of a pressed button or selected club. This function nevertheless has three previously described Player +0x34/+0x35 flag writes; its upstream static chain remains Main fn_8028E158 -> PlayerManager fn_802A28DC -> Player fn_8029EC30.
+
+More plausible controller-*status* consumers include Golf Scene `fn_802B4794` (three direct `getExCoreStatus__19RPSysCoreControllerFii` calls), `fn_802B439C` (one `getExCoreStatus` and one `getAccel`), and `fn_802B4474` (one `getAccel`). They could just as well service swing/acceleration rather than D-pad. Direct calls miss vtable dispatch, inlined EGG CoreStatus buffer reads and scene object handlers.
+
+New `scripts/audit_p0_club_controller_status_consumers_private.py` inspects only these explicit published Rev1 function boundaries in the original SHA-qualified MEM1 bank. It emits bounded **decoded instruction** windows around the status getter calls with nearby return-value reads, bit-mask/rotate shapes, branch conditions and receiver-base stores. No original PPC instruction bytes, native RAM values, or executable addresses are emitted. `--focus scene-status` (default), `--focus player-controller`, and `--focus all`; `--limit 4` limits getter windows per function. It treats any unrecognized PPC op as *not decoded* rather than inventing semantics. It never claims an input-button bit, code execution, receiver ownership or club enum.
+
+Operator-local offline example, using original seven-pair archive and a detached PR #412 checkout:
+
+```powershell
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_controller_status_consumers_private.py') --selftest
+& py -3 -I (Join-Path $work 'scripts\audit_p0_club_controller_status_consumers_private.py') --archive $originalArchive --capture 5 --focus scene-status --limit 4
+```
+
+Decision: inspect status-dependent branches and writes *before* another live experiment. If code only interprets accelerometer/pose data, explicitly drop this branch and pivot to static UI selection handlers with inlined status load patterns. Even a convincing static branch must be linked to the source-selected active club state and validated with an independent D-pad change/no-change test before training.
+
 
 Synthetic unit tests cover big-endian PPC load/store decoding, signed displacements, negative branches, ordinal-store selection, negative stack and absolute base controls, unbounded displacements, unrelated copies, controller BL edge, public source map guard, and bad MEM1 guard. Windows and Ubuntu full offline CI required before merge.
 
