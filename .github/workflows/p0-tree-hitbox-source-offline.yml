@@ -1,0 +1,29 @@
+name: P0 Wii Golf Tree Hitbox Source Audit Offline
+on:
+  push:
+    branches:
+      - agent/p0-tree-hitbox-source-audit-20261030
+  pull_request:
+    paths:
+      - scripts/p0_tree_hitbox_source_callgraph_private.py
+      - tests/test_p0_tree_hitbox_source_callgraph_private.py
+      - research/studies/P0-GOLF-TREE-HITBOX-01.md
+      - .github/workflows/p0-tree-hitbox-source-offline.yml
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Focused native PPC source callgraph and static falsification
+        run: python -m unittest discover -s tests -p test_p0_tree_hitbox_source_callgraph_private.py -v
+      - name: Full offline regression
+        run: python -m unittest discover -s tests -v
