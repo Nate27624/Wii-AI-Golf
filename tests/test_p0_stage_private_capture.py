@@ -37,7 +37,7 @@ class CaptureStageContractTests(unittest.TestCase):
         self.assertIn("guest_frame_verified=$false", source)
         self.assertIn("same_shot_verified=$false", source)
         self.assertIn("contact_verified=$false", source)
-        self.assertIn("G0_STOP_NATIVE_CRASH_UNRESOLVED", source)
+        self.assertIn("WORKING_DOLPHIN_SCENE_NOT_OPERATOR_ATTESTED", source)
         self.assertIn("CLEAN_PORTABLE_DOLPHIN_REQUIRED", source)
         self.assertIn("GIT_CHECKOUT_FORBIDDEN", source)
 
@@ -91,13 +91,14 @@ class WindowsCaptureStageTests(unittest.TestCase):
             stream.truncate(size)  # Synthetic bank fixture, no real game memory.
         return path
 
-    def stage(self, phase="B0", *, mem1=None, mem2=None, g0="Cleared",
+    def stage(self, phase="B0", *, mem1=None, mem2=None, runtime="Working",
               same_pause=True, **extra):
         base = dict(
             Phase=phase,
             Mem1Path=str(mem1 if mem1 is not None else self.bank("mem1.bin", MEM1)),
             Mem2Path=str(mem2 if mem2 is not None else self.bank("mem2.bin", MEM2)),
-            G0Status=g0, G0EvidenceToken="B1CrashReviewed-01",
+            RuntimeStatus=runtime, WorkingSessionToken="WorkingDolphin-01",
+            SceneHoleToken="SameHoleScene-01",
             RevisionEvidenceToken="RSPE01Rev1Checked-01",
             DolphinExe=str(self.exe), ExpectedDolphinSha256=self.exe_sha,
             PythonCommand=sys.executable, ExportMethod="ManualPausedExport",
@@ -109,11 +110,11 @@ class WindowsCaptureStageTests(unittest.TestCase):
         base.update(extra)
         return self.execute("Stage", **base)
 
-    def test_prepare_while_g0_blocked_and_no_automatic_dolphin(self):
+    def test_prepare_without_working_runtime_attestation_and_no_auto_dolphin(self):
         self.prepare()
         self.assertFalse((self.session / "B0-MEM1.bin").exists())
         self.assertFalse((self.session / "p0-capture-manifest-PRIVATE.json").exists())
-        result = self.stage(g0="Blocked", mem1=self.export / "absent1",
+        result = self.stage(runtime="Unknown", mem1=self.export / "absent1",
                             mem2=self.export / "absent2")
         self.assertEqual(result.returncode, 2)
         self.assertNotIn(str(self.work), result.stdout + result.stderr)
@@ -166,8 +167,8 @@ class WindowsCaptureStageTests(unittest.TestCase):
         self.assertEqual(self.stage(mem1=a, mem2=b).returncode, 2,
                          "Overwrite must be refused")
         mismatched = self.stage(phase="A0", mem1=a, mem2=b,
-                                G0EvidenceToken="DifferentCrashReview-02")
-        self.assertEqual(mismatched.returncode, 2, "Mixed-session G0 identity refused")
+                                WorkingSessionToken="DifferentWorkingSession-02")
+        self.assertEqual(mismatched.returncode, 2, "Mixed-session working-runtime identity refused")
         self.assertFalse((self.session / "A0-MEM1.bin").exists())
         second = self.stage(phase="F0", mem1=a, mem2=b)
         self.assertEqual(second.returncode, 0, second.stderr)
@@ -179,7 +180,8 @@ class WindowsCaptureStageTests(unittest.TestCase):
             self.assertIn("staged_utc_wall_clock", note)
             self.assertNotIn("guest_frame_timestamp", note)
             self.assertEqual(note["dolphin_sha256_private"], self.exe_sha)
-            self.assertEqual(note["g0_evidence_token_private"], "B1CrashReviewed-01")
+            self.assertEqual(note["working_session_token_private"], "WorkingDolphin-01")
+            self.assertEqual(note["scene_hole_token_private"], "SameHoleScene-01")
             self.assertFalse(note["guest_frame_verified"])
             self.assertFalse(note["contact_verified"])
             self.assertFalse(note["training_approved"])
