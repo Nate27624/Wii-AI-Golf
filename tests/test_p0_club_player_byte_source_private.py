@@ -73,6 +73,49 @@ class TestPlayerClubSource(unittest.TestCase):
         with self.assertRaises(scan.prior.Abstain):
             scan.describe_player(code,0x8029ca4c,5,1,0xBC,"UNKNOWN_UNIT")
 
+
+    def test_ppc_li_not_addi_r0(self):
+        self.assertEqual(scan.decode(PC,d(14,0,0,0),PC,PC+16),"li r0,+0")
+        self.assertEqual(scan.decode(PC,d(14,3,0,1),PC,PC+16),"li r3,+1")
+        self.assertEqual(scan.decode(PC,d(14,3,3,1),PC,PC+16),"addi r3,r3,+1")
+
+    def test_two_adjacent_flag_bytes_extract_constant_pair(self):
+        # The original source has analogous pairs in RPGolPlayer.
+        raw=words(d(14,3,0,1),d(14,0,0,0),
+                  d(38,3,31,0x34),d(38,0,31,0x35))
+        pairs=scan.flag_pair_summary(struct.unpack(">4I",raw))
+        self.assertEqual(len(pairs),1)
+        self.assertEqual(pairs[0]["store_34_local_li_or_unknown"],1)
+        self.assertEqual(pairs[0]["store_35_local_li_or_unknown"],0)
+        self.assertFalse(pairs[0]["dpad_state_or_club_index_verified"])
+
+    def test_reverse_pair_zero_one_and_unknown_input(self):
+        raw=words(d(14,3,0,0),d(14,0,0,1),
+                  d(38,3,31,0x34),d(14,3,0,1),
+                  d(38,0,31,0x35))
+        row=scan.flag_pair_summary(struct.unpack(">5I",raw))[0]
+        self.assertEqual((row["store_34_local_li_or_unknown"],
+                          row["store_35_local_li_or_unknown"]),(0,1))
+        incoming=words(d(14,0,0,0),d(38,4,3,0x35),d(38,0,3,0x34))
+        row=scan.flag_pair_summary(struct.unpack(">3I",incoming))[0]
+        self.assertEqual(row["store_34_local_li_or_unknown"],0)
+        self.assertIsNone(row["store_35_local_li_or_unknown"])
+
+    def test_config_16_slot_counted_loop(self):
+        seq=words(d(32,6,3,0xBC),d(14,0,6,1),
+                  d(36,0,3,0xBC),d(32,0,3,0xBC),
+                  d(11,0,0,16),0x41800008)
+        matches=scan.counted_loop_summary(struct.unpack(">6I",seq))
+        self.assertEqual(len(matches),1)
+        self.assertEqual(matches[0]["observed_compare_bound"],16)
+        self.assertFalse(matches[0]["selected_club_semantics_verified"])
+
+    def test_no_false_positive_for_non_loop(self):
+        seq=words(d(32,6,3,0xBC),d(14,0,6,1),
+                  d(36,0,3,0xBC),d(32,0,3,0xBC),
+                  d(11,0,0,4),0x41800008)
+        self.assertFalse(scan.counted_loop_summary(struct.unpack(">6I",seq)))
+
     def test_bad_native_window_abstains(self):
         with self.assertRaises(scan.prior.Abstain):
             scan.describe_player(b"\x00",PC)
