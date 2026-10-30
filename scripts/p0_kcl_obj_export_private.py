@@ -178,6 +178,7 @@ def _source_qualified_mesh(folders, capture: int, seven, roster, *, keep_mesh: b
                 or report['pin_untransformed_proximity'] != 'WITHIN_2PCT_OF_MESH_BBOX_DIAGONAL'):
             raise ExportGate('FULL_PRISM_OR_TEE_PIN_GATE', capture)
         triangles = None
+        attributes = None
         if keep_mesh:
             po, no, prism_offset, _ = struct.unpack_from('>IIII', banks[1], start)
             positions = [kcl._v3(banks[1], start + po + 12*i)
@@ -187,26 +188,38 @@ def _source_qualified_mesh(folders, capture: int, seven, roster, *, keep_mesh: b
             # Require all reconstructed faces, not a decimated preview, and
             # never use a geometry 'repair' that changes source coordinates.
             triangles = []
+            attributes = []
             for i in range(count):
                 tri = kcl._triangle(banks[1], start, positions, normals, prism_offset, i)
                 if tri is None:
                     raise ExportGate('TRIANGLE_CONVERSION', capture)
+                # Canonical _triangle returns original prism attribute at
+                # +0x0E. No histogram join or inferred terrain semantics.
+                attr = tri[3]
+                if type(attr) is not int or not 0 <= attr <= 0xFFFF:
+                    raise ExportGate('PRISM_SURFACE_ATTRIBUTE', capture)
                 triangles.append(tri[:3])
+                attributes.append(attr)
         return {
             'hole': source['hole'],
             'count': count,
             'private_geometry_fingerprint': report['fingerprint_PRIVATE'],
             'triangles_PRIVATE': triangles,
+            'attributes_PRIVATE': attributes,
         }
 
 
-def _obj_bytes(triangles) -> bytes:
+def _obj_bytes(triangles, *, attributes=None) -> bytes:
     """Produce strictly v/f triangle OBJ compatible with S002's terrain.py."""
     if not 2 <= len(triangles) <= MAX_OBJ_FACES or 3*len(triangles) > MAX_OBJ_VERTICES:
         raise ValueError('OBJ face or vertex bound exceeded')
+    if attributes is not None and (
+            len(attributes) != len(triangles) or
+            any(type(x) is not int or not 0 <= x <= 0xFFFF for x in attributes)):
+        raise ValueError('Source KCL attribute cardinality/typing invalid')
     lines = [
         '# PRIVATE KCL collision candidate - not verified visible terrain',
-        '# Original source coordinate components; no transform or materials',
+        '# Source coordinate components unchanged; OGWS groups are source IDs only',
     ]
     for face in triangles:
         if len(face) != 3:
@@ -221,6 +234,8 @@ def _obj_bytes(triangles) -> bytes:
             lines.append('v ' + ' '.join(format(v, '.9g') for v in vertex))
     for i in range(len(triangles)):
         j = 3*i+1
+        if attributes is not None:
+            lines.append(f'g KCL_OGWS_{attributes[i]:04X}')
         lines.append(f'f {j} {j+1} {j+2}')
     payload = ('\n'.join(lines) + '\n').encode('ascii')
     if not 1 <= len(payload) <= MAX_OBJ_BYTES:
@@ -243,9 +258,11 @@ def _write_new_private_obj(output: Path, payload: bytes) -> None:
 
 
 def export(archive: Path, output: Path, *, capture=CAPTURE_NUMBER,
-           controls=CONTROL_NUMBERS) -> dict:
+           controls=CONTROL_NUMBERS, surface_groups=False) -> dict:
     import audit_p0_seven_numbered_source_pairs_private as seven
     from audit_p0_seven_numbered_source_pairs_private import roster
+    if type(surface_groups) is not bool:
+        raise ValueError('Surface groups option must be boolean')
     if (type(capture) is not int or capture not in range(1,8)
             or len(controls) != 2 or
             any(type(n) is not int or n not in range(1,8) for n in controls)
@@ -291,7 +308,9 @@ def export(archive: Path, output: Path, *, capture=CAPTURE_NUMBER,
     ):
         raise ExportGate('CROSS_CAPTURE_GEOMETRY_CONSISTENCY')
     try:
-        payload = _obj_bytes(baseline['triangles_PRIVATE'])
+        payload = _obj_bytes(
+            baseline['triangles_PRIVATE'],
+            attributes=(baseline['attributes_PRIVATE'] if surface_groups else None))
     except (ValueError, TypeError, OverflowError, AttributeError):
         raise ExportGate('OBJ_ASCII_ENCODING') from None
     # Recheck every original bank after mappings have closed, BEFORE write.
@@ -316,6 +335,7 @@ def export(archive: Path, output: Path, *, capture=CAPTURE_NUMBER,
         'cross_capture_geometry_identical': True,
         'source_component_coordinates_untransformed': True,
         'viewer_compatible_ascii_triangle_obj': True,
+        'original_prism_ogws_groups_included': surface_groups,
         'filename': target.name,
         'obj_sha256': hashlib.sha256(payload).hexdigest(),
         'octree_reachability_verified': False,
@@ -332,10 +352,13 @@ def main(argv=None) -> int:
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--capture', type=int, default=CAPTURE_NUMBER)
     parser.add_argument('--controls', nargs=2, type=int, default=CONTROL_NUMBERS)
+    parser.add_argument('--surface-groups', action='store_true',
+                        help='Include original KCL prism OGWS attribute group per triangle')
     args = parser.parse_args(argv)
     try:
         print(json.dumps(export(args.archive, args.output,
-                               capture=args.capture, controls=tuple(args.controls)),
+                               capture=args.capture, controls=tuple(args.controls),
+                               surface_groups=args.surface_groups),
                          indent=2, sort_keys=True))
         return 0
     except ExportGate as exc:
