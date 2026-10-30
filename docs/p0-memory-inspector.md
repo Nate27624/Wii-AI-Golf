@@ -60,3 +60,49 @@ The 51-word selected-player scan, source gates, post-scan ball+aim checks and GU
 - The live inspector now defaults to an **inspector-local batched reader** matching the canonical source-gated P0 packet's word names, pointer/scene/Rev1/selected-player checks and before/after source epoch checks. It replaces ten 3-word vectors with ten `memory.read_bytes` calls rather than thirty scalar `memory.read_u32` calls. The optional 51-word A candidate record is now a single bounded 204-byte `memory.read_bytes` call instead of 51 separate RPCs, and the post-record ball recheck uses one bounded 12-byte read instead of three. The host brackets still cover non-atomic sequential operations, not guest frame/physics.
 - The top LIVE line displays measured achieved **samples/s**, full **read cycle ms**, and **RPCs per sample**, to distinguish polling sleep from actual bridge latency. The pause remains 150 ms; reducing sleep cannot overcome bridge-side round-trip delay. Real-world sampling improvements must be measured locally; 600 ms before optimization is an operator observation, not an offline benchmark. The bridge polls on Dolphin's emulator thread and can stall if paused.
 - Fail closed on malformed/short/non-hex read responses, source identity changes, post-probe ball/aim changes or RPC disconnects. No write, controller or pause/launch operations. No background recorder, training or capture publication. If your local bridge does not support these bounded byte reads, the inspector reports a source/bridge failure instead of presenting stale data; diagnostics can be run with the existing canonical collector separately.
+
+
+## Live A candidate automatic fallback + reduced source round trips (follow-up)
+
+The operator reported **A UNKNOWN** despite the earlier one-boot blind study and
+**~700 ms** full sampling at their local Felk bridge. Prior UI required exact
+pointer-derived SHA source identity from a stored private trial, so a new
+Dolphin boot or a missing local file could permanently force UNKNOWN.
+
+The inspector now always requests a bounded source-qualified 51-word selected
+player record **as part of the same bulk-read packet**, rather than doing a
+second series of 51 individual reads. It first prefers the previous
+SHA-verified per-session blind trial if the full actor identity matches.
+Otherwise, in a fresh ready-to-hit source epoch it uses the *eight selected
+player offsets* published by the successful earlier operator trial:
++0x74, +0x94, +0x9C, +0xA0, +0xA8, +0xB0, +0xB8 and +0xC0.
+
+**To see the automatic candidate**: before clicking Connect LIVE, ensure
+A is **RELEASED**, and keep A released for the first **two completed stable
+samples** (not two display frames). These define a tentative same-boot
+RELEASED signature, with no dialogs or A calibration buttons. Afterwards,
+a stable **two-sample** change in **all eight offsets** is shown as
+`A PRESSED`, and a stable return to baseline as `A RELEASED`. Partial,
+nonfinite/missing, moving ball or aim, actor/scene mismatch, stale or changed
+source produces `A UNKNOWN`. After a game/aim/ball context change the A
+classifier abstains until a new explicit live connection; it never assumes
+that movement means release. The chart's upper-right shows the A status and a
+small explanation of the inference mode / reason for UNKNOWN.
+
+**Crucial**: This is an explicit **operator-observation-based candidate**, not
+a confirmed native A-button bit. The initial released baseline is a human
+operating assumption, not a game-attested input state; starting the viewer
+while A is already held can invalidate the labels. No A button commands,
+input injection, saved raw private words, power or training approval are added.
+Do not use this readout to timestamp game input or train a model.
+
+The inspector's compact source-packet reader groups the four known MEM1
+static roots, the player manager, selected player, ball, field, scene and
+config into **bounded contiguous reads** and groups the post-packet link
+rechecks. This retains the source/actor/hole/type identity validations and
+returns the same original candidate fields. Host RPC calls are reduced and
+the fixed poll idle period is now 30 ms, but **actual Dolphin latency is not
+predictable from synthetic tests**. The LIVE status provides measured read
+milliseconds, RPC calls per sample, and achieved samples/s to compare with the
+operator's ~700 ms baseline. The bridge polls on emulator frames, so changing
+Dolphin speed or `poll_pause_s` alone is not a substitute for fewer round trips.

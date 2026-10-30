@@ -10,7 +10,8 @@ from tkinter import filedialog, messagebox, ttk
 
 from .replay import AIM, BALL, CACHE, Replay, Sample, float_hypothesis, load_replay
 from .live import LiveSampler
-from .a_reference import PassiveAIndicator, discover_reference
+from .a_reference import discover_reference
+from .a_live import LiveAIndicator
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -88,8 +89,9 @@ class Inspector:
         self.aim_status = tk.StringVar(value="Aim ray: set a tee→flag baseline first; no player position.")
         self.aim_baseline_source: str | None = None
         self.aim_baseline_mode = "assumed first packet"
-        self.a_indicator = PassiveAIndicator(None)
+        self.a_indicator = LiveAIndicator(None)
         self.a_status = tk.StringVar(value="A UNKNOWN")
+        self.a_reason = tk.StringVar(value="Connect LIVE with A released; 2 stable samples initialize candidate")
         self.baseline: float | None = None
         self.replay: Replay | None = None
         self.index = tk.IntVar(value=0)
@@ -130,7 +132,7 @@ class Inspector:
         a_panel = ttk.Frame(head)
         a_panel.pack(fill="x", pady=3)
         ttk.Label(a_panel, textvariable=self.a_status, font=("Segoe UI", 17, "bold")).pack(side="left")
-        ttk.Label(a_panel, text="  Live read-only candidate · may be UNKNOWN across sessions",
+        ttk.Label(a_panel, text="  Candidate only · start with A RELEASED · press after two baseline samples",
                   foreground="#566171").pack(side="left")
 
         main = ttk.PanedWindow(self.root, orient="horizontal")
@@ -208,7 +210,7 @@ class Inspector:
         self.replay = replay
         self.baseline = None
         self.aim_baseline_source = None
-        self.a_indicator = PassiveAIndicator(None)
+        self.a_indicator = LiveAIndicator(None)
         self.a_status.set("A UNKNOWN")
         self.phase_list.delete(0, "end")
         self.phases: list[tuple[str, int]] = []
@@ -267,10 +269,10 @@ class Inspector:
             return
         # Discover only a cryptographically sealed local trial from the
         # sibling PRIVATE Data/captures directory. No calibration controls.
-        self.a_indicator = PassiveAIndicator(discover_reference(Path(__file__).resolve().parents[3]))
+        self.a_indicator = LiveAIndicator(discover_reference(Path(__file__).resolve().parents[3]))
         try:
             port = int(self.live_port.get())
-            worker = LiveSampler(port=port, include_a_state=self.a_indicator.reference is not None)
+            worker = LiveSampler(port=port, include_a_state=True)
         except ValueError as exc:
             messagebox.showerror("Invalid bridge port", str(exc))
             return
@@ -280,6 +282,7 @@ class Inspector:
         self.baseline = None
         self.aim_baseline_source = None
         self.a_status.set("A UNKNOWN")
+        self.a_reason.set("Connecting; first two samples assume A is RELEASED")
         self.replay = None
         self.phases = []
         self.phase_list.delete(0, "end")
@@ -319,18 +322,21 @@ class Inspector:
                     self.status.set("LIVE FAILED: " + event.reason + " Existing sample trace frozen. Check RSPE01 Rev1 and bridge.")
                     self.live_last = None
                     self.a_status.set("A UNKNOWN")
+                    self.a_reason.set("bridge disconnected, stale, or error")
                     self.draw_a_overlay()
                     self.a_indicator.clear()
                 elif event.kind == "disconnected":
                     self.status.set("LIVE DISCONNECTED. Existing sample trace retained; no background retries.")
                     self.live_last = None
                     self.a_status.set("A UNKNOWN")
+                    self.a_reason.set("bridge disconnected, stale, or error")
                     self.draw_a_overlay()
                     self.a_indicator.clear()
             if self.live_last is not None:
                 age = time.monotonic() - self.live_last
                 if age > 3.0:
                     self.a_status.set("A UNKNOWN")
+                    self.a_reason.set("bridge disconnected, stale, or error")
                     self.draw_a_overlay()
                     self.a_indicator.clear()
                     self.status.set(f"STALE LIVE SAMPLE {age:.1f}s ago · {self.live_location} · check source/bridge · training_approved=false")
@@ -367,6 +373,7 @@ class Inspector:
             event.a_record, sample.source_digest,
             sample.words.get(BALL), sample.words.get(AIM))
         self.a_status.set("A " + state)
+        self.a_reason.set(self.a_indicator.mode)
         self.draw_a_overlay()
 
 
@@ -413,9 +420,15 @@ class Inspector:
         status = getattr(self, "a_status", None)
         value = status.get() if status is not None else "A UNKNOWN"
         shade = "#e7f4ff" if value == "A PRESSED" else "#b4bed1"
-        canvas.create_text(max(canvas.winfo_width()-16, 16), 17, anchor="ne",
+        right = max(canvas.winfo_width()-16, 16)
+        canvas.create_text(right, 17, anchor="ne",
                            text=value, fill=shade, font=("Segoe UI", 19, "bold"),
                            tags=("a_state_overlay",))
+        reason = getattr(self, "a_reason", None)
+        if reason is not None:
+            canvas.create_text(right, 47, anchor="ne",
+                               text=reason.get(), fill="#a9b8cd", font=("Segoe UI", 9),
+                               tags=("a_state_overlay",))
 
     def draw_path(self) -> None:
         canvas = self.canvas

@@ -51,7 +51,7 @@ class LiveEvent:
 
 class LiveSampler:
     """Bounded queue + single background worker; no unattended reconnect."""
-    def __init__(self, *, port: int = 55355, poll_pause_s: float = 0.15,
+    def __init__(self, *, port: int = 55355, poll_pause_s: float = 0.03,
                  connector: Callable | None = None, packet_reader: Callable | None = None,
                  include_a_state: bool = False, source_gate: Callable | None = None,
                  use_batched_reads: bool = True):
@@ -102,7 +102,9 @@ class LiveSampler:
                     sys.path.insert(0, scripts)
                 from p0_live_directional_aim_series import packet as canonical_packet, end_epoch_matches
                 from .fast import packet as batched_packet
-                packet = batched_packet if self.use_batched_reads else canonical_packet
+                packet = (lambda rpc, phase, index: batched_packet(
+                    rpc, phase, index, include_a_state=self.include_a_state
+                )) if self.use_batched_reads else canonical_packet
                 source_gate = self.source_gate or end_epoch_matches
             else:
                 packet = self.packet_reader
@@ -149,7 +151,14 @@ class LiveSampler:
                         raise ValueError("invalid bridge frame bracket")
                     owner_digest = hashlib.sha256(repr(identity).encode("ascii")).hexdigest()
                     a_words, probe_start = None, None
-                    if self.include_a_state:
+                    if self.include_a_state and self.use_batched_reads and self.packet_reader is None:
+                        a_words = data.get('a_record')
+                        if a_words is not None and (type(a_words) is not tuple
+                                or len(a_words) != RECORD_WORDS
+                                or any(type(bit) is not int or not 0 <= bit <= 0xFFFFFFFF for bit in a_words)):
+                            raise ValueError('batched A record invalid')
+                        probe_start = data['start_ns']
+                    elif self.include_a_state:
                         probe_start = time.monotonic_ns()
                         # Must be the selected record in qualified MEM2; only
                         # READ 51 words + independent post-record epoch/ball/aim.
