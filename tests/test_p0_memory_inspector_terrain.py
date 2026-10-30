@@ -34,8 +34,22 @@ class TerrainTests(unittest.TestCase):
         self.path.write_text(GOOD.replace('f 1 2 3','f 1 2 3 2'))
         with self.assertRaises(TerrainError):load_private_obj(self.path)
     def test_symlink(self):
-        link=self.path.with_name('alias.obj');link.symlink_to(self.path)
-        with self.assertRaises(TerrainError):load_private_obj(link)
+        link = self.path.with_name('alias.obj')
+        try:
+            link.symlink_to(self.path)
+        except (OSError, NotImplementedError):
+            # Non-admin Windows accounts commonly lack symlink privileges.
+            # The guard is tested independently without creating a link.
+            self.skipTest('Host does not allow symlink creation')
+        with self.assertRaises(TerrainError):
+            load_private_obj(link)
+
+    def test_symlink_guard_without_host_privileges(self):
+        # The security behavior is still checked on every OS even when
+        # WinError 1314 prevents constructing a filesystem symlink.
+        with patch.object(Path, 'is_symlink', return_value=True):
+            with self.assertRaises(TerrainError):
+                load_private_obj(self.path)
     def test_git_inside_forbidden(self):
         (self.path.parent/'.git').mkdir()
         with self.assertRaises(TerrainError):load_private_obj(self.path)
