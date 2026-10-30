@@ -10,7 +10,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from .replay import AIM, BALL, CACHE, Replay, Sample, float_hypothesis, load_replay
 from .live import LiveSampler
-from .a_button import AButtonStudy, LABELS
+from .a_reference import PassiveAIndicator, discover_reference
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -88,9 +88,8 @@ class Inspector:
         self.aim_status = tk.StringVar(value="Aim ray: set a tee→flag baseline first; no player position.")
         self.aim_baseline_source: str | None = None
         self.aim_baseline_mode = "assumed first packet"
-        self.a_study = AButtonStudy()
-        self.a_status = tk.StringVar(value="A BUTTON: UNKNOWN — connect LIVE, then calibrate")
-        self.a_instructions = tk.StringVar(value="A study: R0 released → H0 held → R1 → H1 → R2 → H2 → R3 (3 samples each). No swing.")
+        self.a_indicator = PassiveAIndicator(None)
+        self.a_status = tk.StringVar(value="A UNKNOWN")
         self.baseline: float | None = None
         self.replay: Replay | None = None
         self.index = tk.IntVar(value=0)
@@ -130,10 +129,7 @@ class Inspector:
         ttk.Label(head, textvariable=self.status, foreground="#9b271d", wraplength=1190).pack(anchor="w")
         a_panel = ttk.Frame(head)
         a_panel.pack(fill="x", pady=3)
-        ttk.Label(a_panel, textvariable=self.a_status, font=("Segoe UI", 13, "bold")).pack(side="left")
-        ttk.Button(a_panel, text="Capture next A window", command=self.capture_a_window).pack(side="left", padx=12)
-        ttk.Button(a_panel, text="Reset A detector", command=self.reset_a_detector).pack(side="left")
-        ttk.Label(head, textvariable=self.a_instructions, wraplength=1200).pack(anchor="w")
+        ttk.Label(a_panel, textvariable=self.a_status, font=("Segoe UI", 17, "bold")).pack(side="left")
 
         main = ttk.PanedWindow(self.root, orient="horizontal")
         main.pack(fill="both", expand=True, padx=10)
@@ -210,8 +206,8 @@ class Inspector:
         self.replay = replay
         self.baseline = None
         self.aim_baseline_source = None
-        self.a_study = AButtonStudy()
-        self.a_status.set("A BUTTON: UNKNOWN — offline capture has no validated live A state")
+        self.a_indicator = PassiveAIndicator(None)
+        self.a_status.set("A UNKNOWN")
         self.phase_list.delete(0, "end")
         self.phases: list[tuple[str, int]] = []
         for i, sample in enumerate(replay.samples):
@@ -267,9 +263,12 @@ class Inspector:
     def connect_live(self) -> None:
         if self.live_worker is not None and self.live_worker.thread is not None and self.live_worker.thread.is_alive():
             return
+        # Discover only a cryptographically sealed local trial from the
+        # sibling PRIVATE Data/captures directory. No calibration controls.
+        self.a_indicator = PassiveAIndicator(discover_reference(Path(__file__).resolve().parents[3]))
         try:
             port = int(self.live_port.get())
-            worker = LiveSampler(port=port, include_a_state=True)
+            worker = LiveSampler(port=port, include_a_state=self.a_indicator.reference is not None)
         except ValueError as exc:
             messagebox.showerror("Invalid bridge port", str(exc))
             return
@@ -278,8 +277,7 @@ class Inspector:
         self.live_last = None
         self.baseline = None
         self.aim_baseline_source = None
-        self.a_study = AButtonStudy()
-        self.a_status.set("A BUTTON: UNKNOWN — calibration required")
+        self.a_status.set("A UNKNOWN")
         self.replay = None
         self.phases = []
         self.phase_list.delete(0, "end")
@@ -316,18 +314,18 @@ class Inspector:
                 elif event.kind == "error":
                     self.status.set("LIVE FAILED: " + event.reason + " Existing sample trace frozen. Check RSPE01 Rev1 and bridge.")
                     self.live_last = None
-                    self.a_status.set("A BUTTON: UNKNOWN — bridge/source error")
-                    self.a_study.invalidate("bridge/source error")
+                    self.a_status.set("A UNKNOWN")
+                    self.a_indicator.clear()
                 elif event.kind == "disconnected":
                     self.status.set("LIVE DISCONNECTED. Existing sample trace retained; no background retries.")
                     self.live_last = None
-                    self.a_status.set("A BUTTON: UNKNOWN — disconnected")
-                    self.a_study.invalidate("disconnected")
+                    self.a_status.set("A UNKNOWN")
+                    self.a_indicator.clear()
             if self.live_last is not None:
                 age = time.monotonic() - self.live_last
                 if age > 3.0:
-                    self.a_status.set("A BUTTON: UNKNOWN — stale live sample")
-                    self.a_study.history.clear()
+                    self.a_status.set("A UNKNOWN")
+                    self.a_indicator.clear()
                     self.status.set(f"STALE LIVE SAMPLE {age:.1f}s ago · {self.live_location} · check source/bridge · training_approved=false")
         self.root.after(200, self.poll_live)
 
@@ -351,53 +349,17 @@ class Inspector:
                 self.aim_baseline_mode = "OPERATOR set pointed-at-flag reference"
                 self.show(self.index.get())
 
-    def reset_a_detector(self) -> None:
-        self.a_study = AButtonStudy()
-        self.a_status.set("A BUTTON: UNKNOWN — not calibrated")
-        self.a_instructions.set("A study reset: R0 released → H0 held → R1 → H1 → R2 → H2 → R3; 3 reads each. Hold input BEFORE clicking Capture.")
-
-    def capture_a_window(self) -> None:
-        if (self.live_worker is None or self.live_worker.thread is None
-                or not self.live_worker.thread.is_alive() or self.live_last is None):
-            self.a_instructions.set("Connect to a responsive live bridge first; no automatic A inputs.")
-            return
-        if time.monotonic() - self.live_last > 3.0:
-            self.a_status.set("A BUTTON: UNKNOWN — stale source")
-            return
-        phase = self.a_study.next_phase
-        if phase is None:
-            self.a_instructions.set("Calibration already completed; Reset to repeat.")
-            return
-        try:
-            # Give the human time to return focus to Dolphin and set the
-            # requested A state BEFORE any calibration sample is accepted.
-            self.a_study.arm(time.monotonic_ns() + 3_000_000_000)
-        except ValueError:
-            self.a_instructions.set("A window still collecting or calibration failed. Reset to retry.")
-            return
-        self.a_status.set("A BUTTON: UNKNOWN — sampling " + phase)
-        self.a_instructions.set("FOCUS DOLPHIN NOW: set A " + LABELS[phase] +
-                                " within 3 seconds. Then HOLD that state until 3 valid samples are captured. No swing.")
-
     def process_a_sample(self, event: object) -> None:
+        """Passive text only. No calibration buttons or inferred input labels."""
         sample = event.sample
         if sample is None:
+            self.a_status.set("A UNKNOWN")
+            self.a_indicator.clear()
             return
-        ball, aim = sample.words.get(BALL), sample.words.get(AIM)
-        record = event.a_record
-        if self.a_study.phase_active:
-            progress = self.a_study.observe(record, sample.source_digest, ball, aim,
-                                            event.a_read_start_ns or 0)
-            self.a_instructions.set("A study: " + progress)
-            if self.a_study.verified:
-                self.a_instructions.set("A study passed repeated fit + withheld R2/H2/R3; candidate only, not native A latch.")
-        if self.a_study.verified:
-            state = self.a_study.predict(record, sample.source_digest, ball, aim)
-            self.a_status.set("A BUTTON: " + state + " (CALIBRATED CANDIDATE; non-atomic, ~2 reads to settle)")
-        elif self.a_study.failure:
-            self.a_status.set("A BUTTON: UNKNOWN — " + self.a_study.failure)
-        elif not self.a_study.phase_active:
-            self.a_status.set("A BUTTON: UNKNOWN — calibrate " + (self.a_study.next_phase or "A state"))
+        state = self.a_indicator.observe(
+            event.a_record, sample.source_digest,
+            sample.words.get(BALL), sample.words.get(AIM))
+        self.a_status.set("A " + state)
 
 
     def select_phase(self, _: object) -> None:
