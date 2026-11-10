@@ -234,3 +234,23 @@ Prefer the new `--quick` path first, using the SAME source-gated PlayerManager r
 & py -3 -I (Join-Path $work 'scripts\p0_live_four_state_club_index_private.py') --private-root 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures' --port 55355 --quick
 ```
 
+
+
+## Eighth stage — corrected distinct SDA global after live falsification
+
+Operator live five-phase source-gated test from 2026-11-10 explicitly **falsified PlayerManager+0x1C as a selected-club indicator**: Wedge index 0 (baseline/idle), then manual Up changed visible Wedge -> Iron but PlayerManager+0x1C stayed 0, then Down changed Iron -> Wedge with PlayerManager+0x1C still 0; aim-only Wedge index also 0. The script correctly reported `QUICK_DPAD_FOUR_STATE_CANDIDATE_NOT_SUPPORTED`; do **not** re-label this failure as a successful club detector or merge data into training.
+
+The failure exposed an earlier invalid pointer join: original code's four Up/Down callsites pass `r3=lwz(-0x5A80(r13))` to four-state selector `fn_802A9BC8`. Separately, that handler loads `r3=lwz(-0x5AB0(r13))` before calling the **PlayerManager** function `fn_802A2798`. Those are **distinct** global pointer slots, +0x30 apart. The source-gated live reader's `PLAYER_MANAGER_STATIC=0x804BF8D0` is credible evidence for `r13-0x5AB0`, **NOT** `r13-0x5A80`. Algebraically conditional on this join, `r13=0x804BF8D0+0x5AB0=0x804C5380`, selector pointer-slot `r13-0x5A80=0x804BF900`. Public ogws Rev1 `symbols.txt` independently contains `lbl_804BF900 = .sbss:0x804BF900; type:object size:0x8 data:4byte` (i.e. credible source-level static slot), not a verified runtime selector pointer. Neither native r13 nor exact object ownership has been read directly.
+
+A **separate** script `scripts/p0_live_club_selector_global_private.py` leaves prior rejected experiment untouched, and performs only source-gated read-only Felk calls in Rev1 Golf mode 4. `--probe` reads one pair of the distinct selector's `[ptr+0x1c]` and the old manager negative control, checking original player-manager root, scene, hole, selected actor, stationary ball and consistent pointer. `--quick` repeats operator baseline, idle, one D-pad Up, one D-pad Down and aim-only negative control against **distinct global owner**; the longer default does two labelled four-club passes plus heldout. It never inputs buttons, presses A, alters game memory, loads savestates, or promotes training. The source object pointer must be guest-RAM-aligned, disjoint from live PlayerManager, and remain unchanged throughout each window. All raw identity roots remain inside private local evidence; only indexed observations appear on stdout. Host synthetic tests check invalid pointer, root alias, moving ball, changed pointer and aim-only confounding. **All labels remain hypotheses until observations pass.**
+
+Example local calls after Dolphin ready, using pinned PR #412 source worktree:
+
+```powershell
+& py -3 -I (Join-Path $work 'scripts\p0_live_club_selector_global_private.py') --selftest
+& py -3 -I (Join-Path $work 'scripts\p0_live_club_selector_global_private.py') --probe --port 55355
+& py -3 -I (Join-Path $work 'scripts\p0_live_club_selector_global_private.py') --quick --port 55355 --private-root 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures'
+```
+
+**Scientific status:** original **source code** four-state writer corroborated; `PlayerManager+0x1c` contradicted as selected club; distinct `0x804BF900` global pointer UNVERIFIED until live `--probe` and multi-phase; `game_club_id_verified=false`, `training_approved=false`.
+
