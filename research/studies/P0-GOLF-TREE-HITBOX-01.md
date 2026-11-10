@@ -193,3 +193,61 @@ py -3 -I scripts/p0_ball_kcol_twelve_calls_private.py --archive 'D:\Projects\Wii
 Next: source-based receiver provenance, which function actually processes
 a *tree* rather than terrain triangles, and any independently verified
 collision geometry. No physical tree hitbox or response model is trainable.
+
+## Operator original 12-call PPC evidence: KCL query chain, not tree hitbox yet
+
+The operator ran the original-capture 7 `p0_ball_kcol_twelve_calls_private.py
+--detail` with strict native SHA/source gates. Returned 5 Ball -> GolfKCol
+BL and 7 GolfKCol -> Ball BL. Actual source-relative PPC results:
+
+- **Ball+0x05C0, +0x14D0, +0x27B0 -> GolfKCol+0x0000**:
+  caller passes likely position/segment vectors through stack/args,
+  then on first two paths compares returned `r3` against 0 and uses
+  conditional branches. Native `GolfKCol+0x0000` is a function prologue
+  and immediately calls `GolfKCol+0x1540` at `+0x0034`. **Likely KCL
+  collision query path**, but still unproven whether it includes trees,
+  the active course mesh, or only terrain/other intersections.
+- **Ball+0x0B60 -> GolfKCol+0x1AC4**: native caller repeatedly queries
+  based on return `r3` and a returned halfword `+0x0A(r1)`.
+  `GolfKCol+0x1AC4` reads float `+0x54(r3)`, arranges pointers
+  (including `r3+0x40`) and unconditional branches at `+0x1AE4` to
+  **GolfKCol+0x2090**. This is an especially promising collision-query
+  wrapper but **`+0x54` must not yet be labeled radius** without
+  receiver field documentation and comparisons. Nearby
+  `GolfKCol+0x21D4` indexes actual KCL triangle vertices by 12-byte
+  coordinate vectors and calls a generic subtraction helper.
+- **Ball+0x0AFC -> GolfKCol+0x1BB8**: KCL callee calls its own
+  `+0x31F0` and loads a 3-float vector from argument `r4`;
+  likely source-world/physics initialization but no contact proof.
+- **Seven GolfKCol -> Ball direct BL** at GolfKCol `+0x1ED0,
+  +0x24C8,+0x24D8,+0x251C,+0x252C,+0x2570,+0x2580`
+  ALL target **Ball+0x15C4**. Native source PPC uses paired-single
+  loads, multiplications, and paired-single stores: a *generic vector
+  scaling helper*, not itself a physics response mutation. Do not
+  classify as bounce/velocity update merely from code-unit name.
+
+**Interpretation:** The KCL engine has demonstrable Ball caller links
+that implement conditional geometric queries and contains indexed
+triangle processing. But there is **still no source proof that the
+94 tree objects are included in the KCL geometry**. Terrain has 2498
+typed prisms with no explicit tree flag; that alone does not exclude
+tree-containing triangles with other flags or other collision resources.
+No leaf/trunk split, hitbox size, restitution or attenuation proven.
+
+New purpose-built narrow source audit:
+`scripts/p0_golf_kcol_collision_windows_private.py` verifies
+source-native code fingerprints `GolfKCol+0x0034 -> +0x1540`,
+`GolfKCol+0x1AE4 -> +0x2090`, and the `+0x21D4` vertex math helper
+call, against original phase7 RAM SHA/scene and 84-byte source tree loop.
+It then prints five **bounded** source-relative code windows:
+`+0x0000..+0x00AC`, `+0x1540..+0x161C`,
+`+0x1AC4..+0x1B3C`, `+0x2090..+0x21F4`,
+`+0x31F0..+0x326C`, totaling **253** annotated words.
+Outputs no RAM geometry, tree coordinates or code bytes to Git;
+operator can invoke `--detail` to see private native words locally.
+
+Next code review should establish caller r3 object class, KCL header/prism
+pointer and active collision-geometry resource owner, and whether
+tree positions participate in that source. If no provenance to tree
+structures, avoid generalizing terrain KCL collision into tree hitboxes.
+Training false.
