@@ -27,11 +27,11 @@ class LabelsTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.repo = Path(self.tmp.name)
-        subprocess.run(["git", "init", "-q", str(self.repo)], check=True,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.folder = self.repo/"Wii-AI-Golf-Data"/"derived"
+        # Most source-label tests concern SHA/face identity, not Git plumbing.
+        # Use a standalone Projects folder so Windows Git index differences
+        # cannot cause unrelated schema/UI tests to fail.
+        self.folder = self.repo/"Projects"
         self.folder.mkdir(parents=True)
-        (self.folder/".gitignore").write_text("*.obj\n*-PRIVATE.json\n",encoding="ascii")
         self.obj = self.folder/"hole01-collision-candidate-PRIVATE.obj"
         self.obj.write_text(OBJ,encoding="ascii")
         self.labels = self.folder/"hole01-collision-candidate-labels-PRIVATE.json"
@@ -80,15 +80,26 @@ class LabelsTests(unittest.TestCase):
             apply_private_surface_labels(self.mesh,self.labels)
 
     def test_unignored_or_tracked_json_rejected(self):
-        self.save(self.data())
-        (self.folder/".gitignore").write_text("*.obj\n",encoding="ascii")
+        # Exercise the actual Git-containing private Data/derived exception
+        # separately from the standalone D:\\Projects happy path.
+        git_root = self.repo / "isolated-git"
+        git_root.mkdir()
+        subprocess.run(["git", "init", "-q", str(git_root)], check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        private = git_root / "Wii-AI-Golf-Data" / "derived"
+        private.mkdir(parents=True)
+        target = private / self.labels.name
+        target.write_text(json.dumps(self.data()), encoding="ascii")
+        (private / ".gitignore").write_text("*.obj\n", encoding="ascii")
         with self.assertRaises(TerrainError):
-            apply_private_surface_labels(self.mesh,self.labels)
-        (self.folder/".gitignore").write_text("*.obj\n*-PRIVATE.json\n",encoding="ascii")
-        subprocess.run(["git","-C",str(self.repo),"add","-f","--",str(self.labels)],
-                       check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            apply_private_surface_labels(self.mesh, target)
+        (private / ".gitignore").write_text(
+            "*.obj\n*-PRIVATE.json\n", encoding="ascii")
+        subprocess.run(["git", "-C", str(git_root), "add", "-f", "--", str(target)],
+                       check=True, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL)
         with self.assertRaises(TerrainError):
-            apply_private_surface_labels(self.mesh,self.labels)
+            apply_private_surface_labels(self.mesh, target)
 
     def test_standalone_projects_obj_and_labels_ui_only(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -123,6 +134,21 @@ class LabelsTests(unittest.TestCase):
             private_labels.write_text(json.dumps(self.data()),encoding="ascii")
             with self.assertRaises(TerrainError):
                 apply_private_surface_labels(self.mesh,private_labels)
+
+    def test_git_ignored_untracked_private_data_sidecar_accepted(self):
+        with tempfile.TemporaryDirectory() as isolated:
+            git_root = Path(isolated)
+            subprocess.run(["git", "init", "-q", str(git_root)], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            private = git_root / "Wii-AI-Golf-Data" / "derived"
+            private.mkdir(parents=True)
+            (private / ".gitignore").write_text(
+                "*.obj\n*-PRIVATE.json\n", encoding="ascii")
+            target = private / self.labels.name
+            target.write_text(json.dumps(self.data()), encoding="ascii")
+            self.assertEqual(
+                apply_private_surface_labels(self.mesh, target).face_materials,
+                (6,))
 
     def test_outside_private_data_folder_rejected(self):
         self.save(self.data())
