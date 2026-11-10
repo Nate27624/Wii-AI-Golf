@@ -264,10 +264,19 @@ class Inspector:
             return False
         try:
             labeled = apply_private_surface_labels(mesh, filename)
-        except (TerrainError, OSError) as exc:
+        except TerrainError as exc:
+            # These messages are authored static validation categories:
+            # surface only the category, never paths or native RAM values.
             if show_dialog:
                 messagebox.showerror("Private source colors declined", str(exc))
-            self.surface_label_status.set("Source colors: rejected (OBJ SHA, face count, or private-path proof failed).")
+            self.surface_label_status.set(f"Source colors: rejected — {exc}")
+            return False
+        except OSError:
+            # OSError text may contain a sensitive absolute private path.
+            if show_dialog:
+                messagebox.showerror("Private source colors declined",
+                                     "Local labels could not be read safely.")
+            self.surface_label_status.set("Source colors: rejected — local file read error")
             return False
         self.terrain_mesh = labeled
         self.surface_label_status.set(
