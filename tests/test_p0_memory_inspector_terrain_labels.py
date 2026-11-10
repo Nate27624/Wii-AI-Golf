@@ -33,7 +33,9 @@ class LabelsTests(unittest.TestCase):
         self.folder = self.repo/"Projects"
         self.folder.mkdir(parents=True)
         self.obj = self.folder/"hole01-collision-candidate-PRIVATE.obj"
-        self.obj.write_text(OBJ,encoding="ascii")
+        # Write raw bytes, not write_text: Windows text mode converts LF to CRLF.
+        # The test SHA must cover the exact bytes the loader actually reads.
+        self.obj.write_bytes(OBJ.encode("ascii"))
         self.labels = self.folder/"hole01-collision-candidate-labels-PRIVATE.json"
         self.mesh = load_private_obj(self.obj)
 
@@ -44,6 +46,21 @@ class LabelsTests(unittest.TestCase):
 
     def save(self, record):
         self.labels.write_text(json.dumps(record),encoding="ascii")
+
+    def test_fixture_sha_matches_written_obj_on_every_os(self):
+        self.assertEqual(self.obj.read_bytes(), OBJ.encode("ascii"))
+        self.assertEqual(self.mesh.sha256, SHA)
+        self.assertEqual(self.data()["geometry_obj_sha256"], self.mesh.sha256)
+
+    def test_line_ending_change_requires_new_sha(self):
+        # A different OBJ byte stream must fail source-label SHA binding.
+        # This is a negative control; never normalize real OBJ content.
+        self.obj.write_bytes(OBJ.replace("\\n", "\\r\\n").encode("ascii"))
+        different = load_private_obj(self.obj)
+        self.assertNotEqual(different.sha256, SHA)
+        self.save(self.data())
+        with self.assertRaises(TerrainError):
+            apply_private_surface_labels(different, self.labels)
 
     def test_apply_original_labels_without_touching_obj(self):
         before = self.obj.read_bytes()
