@@ -140,13 +140,43 @@ def main(argv=None) -> int:
             # must NOT be ignored or scored against guessed mesh positions.
             # Source-derived audit counts are safe to print; raw XML, paths,
             # vertices, node IDs and original game art are not.
+            # All listed rigid-skin errors are literal, code-owned messages
+            # (never source node names, coordinates, paths or original art).
+            # Map to a stable finite allowlist, not an arbitrary exception
+            # string that could disclose private asset details.
+            skin_gates = {
+                "Source rigid skin joint unresolved or ambiguous": "JOINT_REFERENCE",
+                "Source rigid skin skeleton unresolved": "SKELETON_REFERENCE",
+                "Source rigid skin requires one skeleton": "SKELETON_CARDINALITY",
+                "Source rigid skin POSITION count invalid": "POSITION_COUNT",
+                "Source rigid skin vertex counts mismatch": "VERTEX_COUNT",
+                "Source rigid skin requires one influence per vertex": "INFLUENCE_COUNT",
+                "Source rigid skin joint/weight unverified": "WEIGHT_BINDING",
+                "Original skin controller unresolved or duplicated": "CONTROLLER_REFERENCE",
+                "Original rigid skin geometry reference ambiguous": "GEOMETRY_REFERENCE",
+                "Source rigid skin joint arrays unresolved": "JOINT_ARRAY",
+                "Source rigid skin supports exactly one joint": "JOINT_COUNT",
+                "Source rigid skin joint-name array ambiguous": "JOINT_NAME_ARRAY",
+                "Source rigid skin vcount/v count invalid": "INFLUENCE_ARRAY",
+                "Source rigid skin weight index count invalid": "WEIGHT_INDEX_ARRAY",
+                "Source rigid skin weight source missing": "WEIGHT_ARRAY",
+                "Source rigid skin source array count mismatch": "SOURCE_ARRAY_COUNT",
+                "Source rigid skin accessor dimension invalid": "SOURCE_ACCESSOR",
+                "Source rigid skin accessor not source-bound": "SOURCE_BINDING",
+                "Source rigid skin matrix nonaffine": "NONAFFINE_MATRIX",
+            }
+            skin_gate = next(
+                (value for label, value in skin_gates.items()
+                 if label in str(exc)), None)
             print(json.dumps({
                 "status": "ABSTAIN_SOURCE_VISUAL_MODEL",
                 "reason": (
-                    "UNSUPPORTED_OR_UNRESOLVED_SOURCE_SCENE_GRAPH"
+                    "STRICT_RIGID_SKIN_SOURCE_GATE_FAILED" if skin_gate
+                    else "UNSUPPORTED_OR_UNRESOLVED_SOURCE_SCENE_GRAPH"
                     if "scene" in str(exc).lower()
                     else "ORIGINAL_VISUAL_LOADER_REFUSED"
                 ),
+                "skin_source_gate": skin_gate,
                 "dae_visual_scene": scene,
                 "strict_source_kcl": {
                     "sha256": terrain.sha256,
