@@ -19,6 +19,8 @@ on:
       - scripts/p0_ball_kcol_active_resource_private.py
       - scripts/p0_ball_kcol_prism_dummy_layout_private.py
       - scripts/p0_ball_kcol_seven_capture_active_kcl_private.py
+      - scripts/p0_tree_ball_indirect_dispatch_private.py
+      - tests/test_p0_tree_ball_indirect_dispatch_private.py
       - tests/test_p0_ball_kcol_seven_capture_active_kcl_private.py
       - tests/test_p0_ball_kcol_prism_dummy_layout_private.py
       - tests/test_p0_ball_kcol_active_resource_private.py
@@ -109,5 +111,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_ball_kcol_prism_dummy_layout_private.py -v
       - name: Seven capture active KCL resource and class13 native material audit
         run: python -m unittest discover -s tests -p test_p0_ball_kcol_seven_capture_active_kcl_private.py -v
+      - name: Original Ball tree firstword table and indirect dispatch strict evidence gate
+        run: python -m unittest discover -s tests -p test_p0_tree_ball_indirect_dispatch_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
