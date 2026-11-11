@@ -43,6 +43,15 @@ CALL_GATES = {
     0x802B4938: 0x802B3BA0,
     0x802B3D04: 0x802B2F90,
 }
+# PPC "mr" is OR rA,rS,rS (primary31, XO444). Earlier original
+# operator source trace showed a calc receiver preserved through two calls.
+# This proves register copies only; branches/guest invocation still matter.
+MR_GATES = {
+    0x802B4928: (3, 24),
+    0x802B3BD0: (29, 3),
+    0x802B3CFC: (3, 29),
+    0x802B2FB8: (27, 3),
+}
 # EXACT bounded source ranges within the compiled GolfScene_unsplit.o;
 # the broad target names are annotations, not evidence of execution.
 PEAK_WINDOW = (0x802B4794, 0x802B493C)
@@ -97,8 +106,16 @@ def _dform_match(read, pc: int, op: int, fr: int,
     return _dform(read(pc)) == (op, fr, base, offset & 0xFFFF)
 
 
+def _mr_matches(word: int, target: int, source_reg: int) -> bool:
+    return bool((word >> 26) == 31
+                and (word >> 1) & 1023 == 444
+                and (word >> 16) & 31 == target
+                and (word >> 21) & 31 == source_reg
+                and (word >> 11) & 31 == source_reg)
+
+
 def verify_static_gates(read) -> dict:
-    for pc in (*STFS_GATES, *LFS_GATES, *STW_GATES, *CALL_GATES):
+    for pc in (*STFS_GATES, *LFS_GATES, *STW_GATES, *CALL_GATES, *MR_GATES):
         _pc_check(pc)
     for pc, (fr, base, disp) in STFS_GATES.items():
         if not _dform_match(read, pc, 52, fr, base, disp):
@@ -114,6 +131,9 @@ def verify_static_gates(read) -> dict:
         if (read(pc) >> 26 != 18 or b is None or not b["link"]
                 or b["absolute"] or b["dest"] != target):
             raise Abstain("calc_call_chain_gate_failed")
+    for pc, (dest, src) in MR_GATES.items():
+        if not _mr_matches(read(pc), dest, src):
+            raise Abstain("calc_receiver_identity_chain_gate_failed")
     # Source owner: both writer and latch lie in same unsplit Golf text unit.
     if any(not OWNER_START <= pc < OWNER_END for pc in (*STFS_GATES, *CALL_GATES)):
         raise Abstain("source_owner_invalid")
@@ -124,6 +144,7 @@ def verify_static_gates(read) -> dict:
         "calc_state3_latch_writer_at": "0x802B31C4",
         "calc_state3_writer_at": "0x802B31C0",
         "two_direct_bl_edges_exact": True,
+        "four_explicit_mr_receiver_copies_exact": True,
         "writer_instruction_gates_exact": True,
     }
 
