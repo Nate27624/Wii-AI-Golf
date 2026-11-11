@@ -12,6 +12,10 @@ on:
       - 'src/wii_ai_golf/inspector/navigation.py'
       - 'src/wii_ai_golf/inspector/scene_camera.py'
       - 'src/wii_ai_golf/inspector/unified_source_view.py'
+      - 'src/wii_ai_golf/inspector/source_markers.py'
+      - 'src/wii_ai_golf/inspector/tree_positions.py'
+      - 'tests/test_p0_inspector_source_markers.py'
+      - 'tests/test_p0_memory_inspector_tree_positions.py'
       - 'tests/test_p0_inspector_unified_source_view.py'
       - 'src/wii_ai_golf/inspector/fast_texture_render.py'
       - 'scripts/p0_benchmark_private_uv_acceleration.py'
@@ -53,6 +57,10 @@ jobs:
         run: python -m py_compile scripts/p0_benchmark_private_uv_acceleration.py
       - name: Native accelerated TEX0 raster identity and full-source tests
         run: python -m unittest discover -s tests -p test_p0_inspector_fast_render.py -v
+      - name: Strict original source 94-tree private JSON adversarial safety tests
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_tree_positions.py -v
+      - name: Opt-in source-backed trees/ball/tee/pin/player metadata tests
+        run: python -m unittest discover -s tests -p test_p0_inspector_source_markers.py -v
       - name: Unified visual / SHA-bound collision source test, arrow keys, playable camera
         run: python -m unittest discover -s tests -p test_p0_inspector_unified_source_view.py -v
       - name: Fixed-position Unity camera and integrated perspective scene tests
