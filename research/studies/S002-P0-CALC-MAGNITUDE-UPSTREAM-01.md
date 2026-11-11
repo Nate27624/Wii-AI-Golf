@@ -33,6 +33,54 @@ unknown game-consumed motion samples / mode / state   UNRESOLVED
 
 The bottom half is source-traced but **not a matched guest-executed shot/selected-ball transfer**. `+0x08/+0x0C/+0x10` are currently calc state candidates, not proven gauge percentages or "power 101."
 
+## 2026-11-11 operator original-archive result — **SOURCE PASS**
+
+User executed the source-only script on the existing untouched original 7-pair archive, and pasted the sanitized JSON. The audit returned:
+- `status: REV1_CALC_UPSTREAM_STATIC_SOURCE_PASS`
+- `original_14_bank_sha_pre_and_post_verified: true`
+- `native_mem1_code_phases_1_5_7_identical: true`
+- `four_explicit_mr_receiver_copies_exact: true`
+- `two_direct_bl_edges_exact: true`
+- `calc_0x0C_accepted_power_verified: false`
+- `game_input_consumption_verified: false`
+
+**New arithmetic decoded from that original sanitized source excerpt:** PowerPC single-precision `fmuls` has primary opcode 59, XO 25; `fsubs` is 59/20; `fadds` is 59/21; `fcmpo` 63/32. IBM PowerPC instruction reference: https://www.ibm.com/docs/en/aix/7.2.0?topic=reference-appendix-f-powerpc-instructions
+
+There are **two virtual `bcctrl` calls** at `0x802B48B8` and `0x802B48EC`. Each is preceded by a `lwz r12,56(r12)` virtual slot load. The actual callee address, whether these calls return equivalent signals, and whether either sees raw Wii Remote movement are **not** source-verified.
+
+Downstream of those two return values, original native PPC corresponds to these **per-update source expressions** (grouped as real single-precision multiplications, not exact real-number equivalence):
+
+~~~python
+# This is an interpretation of original instruction semantics, NOT game source.
+R1 = float_returned_by_virtual_call_at_0x802B48B8
+R2 = float_returned_by_virtual_call_at_0x802B48EC
+
+candidate_A = (calc[0x18] * R1) * calc[0x28]  # fmuls at 48C8, 48DC
+candidate_B = (calc[0x1C] * R2) * calc[0x2C]  # fmuls at 48F8, 4908
+
+old_A = calc[0x08]
+calc[0x98] = candidate_A - old_A              # fsubs 4900 / stfs 490C
+if candidate_A > old_A:                      # fcmpo 4904; bc BO=4 BI=1 4910
+    calc[0x08] = candidate_A                  # stfs 4914
+if candidate_B > calc[0x0C]:                 # fcmpo 491C; bc BO=4 BI=1 4920
+    calc[0x0C] = candidate_B                  # stfs 4924
+~~~
+
+This shows **conditional running-maximum updates on this path**, not an arbitrary static scalar or a proven in-game power percentage. No assertion about resetting those maxima at the beginning/end of a shot is warranted yet. Both `+0x28`/`+0x2C` are also subject to earlier compare-and-conditionally-store instructions at `0x802B487C/4880` and `0x802B4890/4894`, making their earlier update definitions the next critical subproblem.
+
+**New exact opcodes/branch guards:** The draft audit now checks those five arithmetic sites, two ordered comparisons, both BO4/BI1 skip branches, two `lwz r12,56(r12)` slot loads and two linked `bcctrl` instructions; it fails closed if a different native source is used. This is a reproducible source-math check and NOT executable game-frame confirmation.
+
+### Most useful next operator-only read (no new code required)
+
+The original source audit was run without `--detailed` and therefore did **not include 0x802B4820–0x802B485C** in the public output; that missing segment contains the earlier definitions of `f2/f3` and `calc+0x18/+0x1C/+0x28/+0x2C`. Run from the existing isolated **Calc-Source-Audit** checkout:
+
+~~~powershell
+py -3 -I scripts/p0_calc_magnitude_upstream_private.py --detailed
+~~~
+
+This does not start Dolphin or send controller input. It re-checks all original archive SHA gates and prints symbolic PC, relative field and FP operand information only. The next reverse trace should identify `r31` source-object provenance and the indirect vtable +56 callee for each virtual call.
+
+
 ## What the microaudit actually checks
 
 New-only `scripts/p0_calc_magnitude_upstream_private.py`:
