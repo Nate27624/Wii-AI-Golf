@@ -92,7 +92,10 @@ def _node_transform(node: ET.Element) -> tuple[float, ...]:
     return matrix
 
 
-def source_scene_instances(root: ET.Element) -> dict[str, tuple[tuple[float, ...], ...]] | None:
+def source_scene_instances(
+    root: ET.Element, *, omit_unsupported: bool = False,
+    limitations: list[str] | None = None,
+) -> dict[str, tuple[tuple[float, ...], ...]] | None:
     """Source-authored scene hierarchy and internal static node references.
 
     Every instance_node resolves only an internal, uniquely defined <node>.
@@ -100,6 +103,10 @@ def source_scene_instances(root: ET.Element) -> dict[str, tuple[tuple[float, ...
     Controller/skin, lookat and skew are NOT guessed: they raise a typed
     limitation, distinguishable from malformed/hostile source assets.
     """
+    if type(omit_unsupported) is not bool:
+        raise VisualAssetError("Invalid scene compatibility mode")
+    if limitations is None:
+        limitations = []
     scenes = [n for lib in root if _tag(lib)=="library_visual_scenes"
               for n in lib if _tag(n)=="visual_scene"]
     bindings = [(child.get("url") or "") for scene in root if _tag(scene)=="scene"
@@ -168,13 +175,19 @@ def source_scene_instances(root: ET.Element) -> dict[str, tuple[tuple[float, ...
                 url=element.get("url","")
                 if not url.startswith("#") or not 2 <= len(url) <= 130:
                     raise VisualAssetError("External/invalid Collada controller reference")
+                if omit_unsupported:
+                    limitations.append("instance_controller skin/joint draw omitted")
+                    continue
                 raise UnsupportedSceneFeature(
                     "Unsupported original scene graph <instance_controller>; "
                     "skin/joint transform not reconstructed")
             if kind in ("lookat","skew"):
-                # Validate actual authored numeric syntax even if the UI
-                # chooses a source geometry-only compatibility view.
+                # Validate numeric original transforms; skip their *entire*
+                # affected node, not its geometry with an invented matrix.
                 _numbers(element,9 if kind=="lookat" else 7)
+                if omit_unsupported:
+                    limitations.append(kind+" node omitted (unknown transform)")
+                    return
                 raise UnsupportedSceneFeature(
                     "Unsupported original scene graph <"+kind+">; "
                     "native node transform not inferred")
@@ -216,6 +229,9 @@ def source_scene_instances(root: ET.Element) -> dict[str, tuple[tuple[float, ...
                 raise VisualAssetError("Collada root instance_node target unavailable")
             visit(target, IDENTITY, 1, frozenset())
     if not refs:
+        if omit_unsupported and limitations:
+            raise UnsupportedSceneFeature(
+                "Unsupported original scene leaves no static geometry instances")
         raise VisualAssetError("Original Collada scene has no supported geometry instances")
     return {key:tuple(matrices) for key,matrices in refs.items()}
 
