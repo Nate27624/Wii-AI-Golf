@@ -120,7 +120,7 @@ def scan(root: Path) -> dict:
                 })
         if truncated:
             break
-    unresolved_tex0 = sorted(str(p) for p in raw_tex0
+    unresolved_tex0 = sorted(p.as_posix() for p in raw_tex0
                             if Path(str(p) + ".png") not in base_pngs)
     if valid_models:
         stage = "UV_VISUAL_MODELS_READY_TO_PREVIEW_HOLE_UNVERIFIED"
