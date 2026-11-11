@@ -724,7 +724,7 @@ class Inspector:
             canvas.create_line(*start, *tip, fill="#e39bff", width=3,
                                dash=(8, 5), arrow=tk.LAST, arrowshape=(10, 12, 4),
                                tags=("aim_hypothesis",))
-            canvas.create_text(tip[0] + 7, tip[1] - 10, text="AIM? (90° − record+0x3C)",
+            canvas.create_text(tip[0] + 7, tip[1] - 10, text=f"Flag offset: {flag_error:+.2f}°",
                                anchor="sw", fill="#e39bff", tags=("aim_hypothesis",))
         for name, color in ((BALL, "#f1f6ff"), (CACHE, "#f5b942")):
             position = current.vec(name)
