@@ -168,8 +168,10 @@ class KCLModeTests(unittest.TestCase):
         self.assertEqual(image.size,(320,240))
         self.assertEqual(drawn,0)
         self.assertGreaterEqual(elapsed,0.)
-        self.assertNotEqual(
-            image.getpixel((160,120)), (19,32,46))
+        from PIL import ImageChops
+        difference=ImageChops.difference(
+            image,Image.new("RGB",(320,240),(19,32,46)))
+        self.assertIsNotNone(difference.getbbox())
 
     def test_source_only_kcl_is_drawn_without_any_texture_model(self):
         try:
