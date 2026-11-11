@@ -137,7 +137,7 @@ class MaterialFitTests(unittest.TestCase):
         view.set_collision_terrain(terrain)
         self.assertEqual(view.mode.get(),"Textures")
         self.assertIsNone(view.comparison_kcl)
-        self.assertIn("HIDDEN",view.comparison_status.get())
+        self.assertIn("AUTO-OVERLAY DECLINED",view.comparison_status.get())
         self.assertIn("No independent",view.comparison_status.get())
         # Explicit operator yaw remains separately labeled as unverified.
         view.set_display_rotation(180)
