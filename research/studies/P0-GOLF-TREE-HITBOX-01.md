@@ -1579,3 +1579,50 @@ all game courses, tree collision geometry,
 or that an unobserved class 13 is a tree.
 The separate inspector PR #431/#432
 remains untouched.
+
+
+## Original all-seven active terrain KCL audit passed
+
+The operator executed `p0_ball_kcol_seven_capture_active_kcl_private.py`
+at the pinned `42c0d4f5d7f02eba9118e968c9c2ad38c6bb2155`
+head against the original seven-pair archived private
+RSPE01 Rev1 captures; all seven independently passed
+original RAM SHA, selected scene, source 94×0x54 trees
+and native PPC 5+7 Ball/GolfKCol, primitive+0x0E and
+SDA global identity gates. For **each capture 1 through 7**:
+- exactly **2498 usable active KCL prisms** with the native
+  dummy-inclusive +0x0C index-base convention;
+- **active vertices, normals, and full usable prism bytes
+  exactly equal the same unique recovered terrain resource**;
+- all seven native active KCL primitive class histograms
+  equal the original histogram:
+  `1:208,2:585,3:301,4:508,5:44,6:478,7:7,9:99,12:268`;
+- **class 13 count = 0** in every verified active usable
+  prism array;
+- same KCol collision object pointer and same native
+  prism table pointer as phase 1 (temporal equality, NOT
+  evidence of velocity/physics stability).
+
+`all_seven_active_kcl_same_2498_terrain_resource=true`;
+`all_seven_active_prism_class13_counts_zero=true`;
+`all_seven_native_classification_histograms_match_known_terrain=true`;
+`same_collision_object_address_in_all_captures=true`.
+All other potentially-active resources globally, tree
+colliders, other courses, indirect object callbacks and
+non-KCL geometric mechanisms remain UNEXCLUDED.
+The native Ball class-13 event branch exists, but
+this capture cohort contains no original active
+terrain prism capable of supplying it directly.
+
+**Do not search for a second KCL on the basis of
+the old 16-byte prism comparison mistake.** The
+original first-word 94-tree record candidate
+method-table and Ball/FieldManager indirect
+call targets are the next falsifiable source
+path; native object table membership alone does
+not establish collision semantics.
+
+No original native bytes, heap addresses,
+tree XYZ, per-object values or assets
+were added to the repository. No
+training or physical tree geometry approved.
