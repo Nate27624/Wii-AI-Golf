@@ -174,6 +174,78 @@ def _angle_diff(a: float, b: float) -> float:
     return ((a-b+180.) % 360.)-180.
 
 
+def _audit_display_fit_contrast(terrain, visual, k, v) -> dict:
+    """Measure the viewer's existing four *display-only* fits; never select one.
+
+    Green/fairway/bunker area-weighted centroids are coarse source-material
+    summaries, not surveyed common vertices or native correspondence pairs.
+    This reports only scalar XZ residuals; it does not emit native coordinates,
+    change the GUI rotation, or calibrate the game/physics reference frame.
+    """
+    names = tuple(n for n in ("green", "fairway", "bunker")
+                  if k[n] is not None and v[n] is not None)
+    evidence = {
+        "status": "ABSTAIN_FEWER_THAN_TWO_MATCHED_SURFACE_CLASSES",
+        "matched_material_classes": list(names),
+        "independent_point_correspondences_proven": False,
+        "native_collision_visual_alignment_verified": False,
+        "auto_apply_rotation": False,
+        "surface_centroids_are_not_exact_landmarks": True,
+    }
+    if len(names) < 2:
+        return evidence
+
+    # Use the IDENTICAL display fit used by the inspector, rather than a
+    # separate fitting/rotation convention that could silently disagree.
+    from .scene_camera import playable_source_vertices
+    from .unified_source_view import (
+        prepare_comparison_kcl, source_to_visual_display,
+    )
+    playing = playable_source_vertices(visual)
+    width = max(p[0] for p in playing) - min(p[0] for p in playing)
+    depth = max(p[2] for p in playing) - min(p[2] for p in playing)
+    diagonal = math.hypot(width, depth)
+    if not math.isfinite(diagonal) or diagonal <= 1e-7:
+        evidence["status"] = "ABSTAIN_VISUAL_PLAY_AREA_DEGENERATE"
+        return evidence
+
+    trials = []
+    for yaw in (0, 90, 180, 270):
+        try:
+            comp = prepare_comparison_kcl(terrain, visual, rotation_degrees=yaw)
+            errors = {}
+            for name in names:
+                source = source_to_visual_display(k[name][0], comp)
+                target = v[name][0]
+                residual = math.hypot(source[0] - target[0],
+                                      source[2] - target[2])
+                if not math.isfinite(residual):
+                    raise ValueError("Nonfinite source surface contrast")
+                errors[name] = residual
+            rms = math.sqrt(sum(e*e for e in errors.values()) / len(errors))
+        except ValueError:
+            trials.append({"display_yaw_degrees": yaw,
+                           "status": "ABSTAIN_UNUSABLE_DISPLAY_FIT"})
+            continue
+        trials.append({
+            "display_yaw_degrees": yaw,
+            "status": "DISPLAY_ONLY_NOT_NATIVE_WORLD_ALIGNMENT",
+            "surface_centroid_residual_xz": {
+                name: round(errors[name], 4) for name in names},
+            "surface_centroid_rms_xz": round(rms, 4),
+            "surface_centroid_rms_over_visual_diagonal": round(rms / diagonal, 6),
+            "uniform_display_scale": round(comp.source_scale, 6),
+        })
+    evidence["status"] = (
+        "DISPLAY_ONLY_COARSE_MATERIAL_CONTRAST"
+        if all(t["status"] == "DISPLAY_ONLY_NOT_NATIVE_WORLD_ALIGNMENT"
+               for t in trials)
+        else "PARTIAL_DISPLAY_ONLY_COARSE_MATERIAL_CONTRAST"
+    )
+    evidence["trial_displays"] = trials
+    return evidence
+
+
 def audit_surface_registration(terrain, visual, *,
                                tee: tuple[float, float, float] | None = None,
                                pin: tuple[float, float, float] | None = None) -> dict:
@@ -207,6 +279,8 @@ def audit_surface_registration(terrain, visual, *,
         "source_geometry_identity_proven": False,
         "native_game_world_transform_proven": False,
     }
+    report["display_fit_surface_contrast"] = _audit_display_fit_contrast(
+        terrain, visual, k, v)
     # Green-to-fairway centroids yield only a coarse relative heading, not
     # an exact tee/pin correspondence. Do not silently optimize/draw from it.
     if all(k.get(n) is not None and v.get(n) is not None for n in ("green", "fairway")):
