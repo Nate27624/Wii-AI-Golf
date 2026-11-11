@@ -31,6 +31,7 @@ class AssetSelections:
     terrain_obj: str | None = None
     tree_json: str | None = None
     auto_find_trees: bool = True
+    visual_dae: str | None = None
 
 
 def local_settings_path() -> Path:
@@ -74,7 +75,9 @@ def _safe_path(value: object) -> bool:
 def _validate(selections: AssetSelections) -> None:
     if type(selections) is not AssetSelections:
         raise SavedAssetError("Unexpected saved selections object")
-    if not _safe_path(selections.terrain_obj) or not _safe_path(selections.tree_json):
+    if (not _safe_path(selections.terrain_obj) or
+            not _safe_path(selections.tree_json) or
+            not _safe_path(selections.visual_dae)):
         raise SavedAssetError("Invalid saved local asset path")
     if type(selections.auto_find_trees) is not bool:
         raise SavedAssetError("Invalid tree auto-discovery setting")
@@ -91,11 +94,17 @@ def load_asset_selections(path: Path | None = None) -> AssetSelections:
         raw = json.loads(file.read_text("utf-8"), parse_constant=lambda _: (_ for _ in ()).throw(ValueError("Nonfinite JSON")))
     except (UnicodeError, ValueError) as exc:
         raise SavedAssetError("Malformed local inspector settings") from exc
-    if type(raw) is not dict or set(raw) != {"version", "terrain_obj", "tree_json", "auto_find_trees"}:
+    legacy = {"version", "terrain_obj", "tree_json", "auto_find_trees"}
+    current = legacy | {"visual_dae"}
+    # Seamless migration: previous saved source-94 JSON and terrain OBJ
+    # MUST survive adding the remembered optional visual source filename.
+    if type(raw) is not dict or set(raw) not in (legacy, current):
         raise SavedAssetError("Unexpected inspector asset settings schema")
     if type(raw["version"]) is not int or raw["version"] != SETTINGS_VERSION:
         raise SavedAssetError("Unsupported inspector asset settings version")
-    selections = AssetSelections(raw["terrain_obj"], raw["tree_json"], raw["auto_find_trees"])
+    selections = AssetSelections(
+        raw["terrain_obj"], raw["tree_json"], raw["auto_find_trees"],
+        raw.get("visual_dae"))
     _validate(selections)
     return selections
 
@@ -111,6 +120,7 @@ def save_asset_selections(selections: AssetSelections, path: Path | None = None)
     payload = json.dumps({
         "version": SETTINGS_VERSION,
         "terrain_obj": selections.terrain_obj,
+        "visual_dae": selections.visual_dae,
         "tree_json": selections.tree_json,
         "auto_find_trees": selections.auto_find_trees,
     }, sort_keys=True).encode("utf-8")
@@ -134,11 +144,13 @@ def save_asset_selections(selections: AssetSelections, path: Path | None = None)
 
 def remember_asset(selections: AssetSelections, kind: str, filename: str | Path | None) -> AssetSelections:
     """Pure preference update; the GUI validates every asset before calling."""
-    if kind not in ("terrain_obj", "tree_json"):
+    if kind not in ("terrain_obj", "tree_json", "visual_dae"):
         raise SavedAssetError("Unknown inspector asset type")
     value = None if filename is None else str(Path(filename).resolve(strict=True))
     if kind == "tree_json":
         updated = replace(selections, tree_json=value, auto_find_trees=value is not None)
+    elif kind == "visual_dae":
+        updated = replace(selections, visual_dae=value)
     else:
         updated = replace(selections, terrain_obj=value)
     _validate(updated)
