@@ -10,13 +10,18 @@ from __future__ import annotations
 import hashlib
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .visual_model import PrivateVisualModel, VisualAssetError, _read_local, MAX_PNG_BYTES
 
 MAX_VIEW_WIDTH = 1280
 MAX_VIEW_HEIGHT = 800
-MAX_PREVIEW_FACES = 4_000
+# The source loader admits at most 100k triangles. Never stride-drop faces.
+MAX_PREVIEW_FACES = 100_000
+
+
+class PreviewCancelled(Exception):
+    """A newer camera request superseded this CPU render (not an asset error)."""
 
 
 def _dependencies():
@@ -61,7 +66,8 @@ def render_preview(model: PrivateVisualModel, width: int, height: int, *,
                    yaw: float = 0.65, pitch: float = 0.48, zoom: float = 1.0,
                    pan: tuple[float, float] = (0., 0.),
                    textures: dict[str, Any] | None = None,
-                   max_faces: int = MAX_PREVIEW_FACES):
+                   max_faces: int = MAX_PREVIEW_FACES,
+                   cancelled: Callable[[], bool] | None = None):
     """Depth-tested UV raster preview with repeated nearest-neighbor PNG texels.
 
     Explicit limits prevent a single malformed triangle from allocating an
@@ -73,9 +79,24 @@ def render_preview(model: PrivateVisualModel, width: int, height: int, *,
             type(max_faces) is not int or not 1 <= max_faces <= MAX_PREVIEW_FACES or
             not all(math.isfinite(v) for v in (yaw,pitch,zoom,*pan)) or not 0.04 <= zoom <= 64):
         raise VisualAssetError('Invalid preview dimensions or camera')
+    if len(model.faces) > max_faces:
+        # A source mesh must never be presented as complete after
+        # drawing a random/stride-thinned subset of its native faces.
+        raise VisualAssetError('Original visual mesh exceeds full-face preview budget')
+    if cancelled is not None and cancelled():
+        raise PreviewCancelled()
     if textures is None:
         textures = prepare_textures(model)
-    xyz = np.asarray([_project_point(p, yaw, pitch) for p in model.vertices], dtype='float64')
+    # Project the whole model in vectorized NumPy to reduce per-drag overhead.
+    src = np.asarray(model.vertices, dtype=np.float64)
+    if src.ndim != 2 or src.shape[1] != 3 or not len(src):
+        raise VisualAssetError('No valid preview geometry')
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    cp, sp = math.cos(pitch), math.sin(pitch)
+    forward = src[:, 2]*cy - src[:, 0]*sy
+    xyz = np.column_stack((src[:, 0]*cy + src[:, 2]*sy,
+                           src[:, 1]*cp + forward*sp,
+                           forward*cp - src[:, 1]*sp))
     if not np.isfinite(xyz).all():
         raise VisualAssetError('Model projection not finite')
     x_min, y_min = xyz[:,:2].min(axis=0)
@@ -89,9 +110,10 @@ def render_preview(model: PrivateVisualModel, width: int, height: int, *,
     result = np.empty((height,width,3),dtype=np.uint8)
     result[:,:,:] = (19,32,46)
     zbuf = np.full((height,width), -np.inf, dtype=np.float32)
-    step=max(1,(len(model.faces)+max_faces-1)//max_faces)
     drawn = 0
-    for face in model.faces[::step][:max_faces]:
+    for face_index, face in enumerate(model.faces):
+        if cancelled is not None and face_index % 32 == 0 and cancelled():
+            raise PreviewCancelled()
         # Preserve source-exported MTL Kd as a solid face where original
         # Collada material has no texture slot; no fabricated texture image.
         is_textured = face.material in textures
@@ -109,40 +131,49 @@ def render_preview(model: PrivateVisualModel, width: int, height: int, *,
         bottom=min(height,int(math.ceil(max(y0,y1,y2)))+1)
         if left >= right or top >= bottom:
             continue
-        yy,xx=np.mgrid[top:bottom,left:right]
-        xp=xx+.5; yp=yy+.5
+        # Sparse pixel shading: bound the triangle with broadcasted grid
+        # coordinates, then sample PNG only for actually visible pixels.
+        # Avoid RGBA arrays over enormous thin-triangle bounding rectangles.
+        xp=np.arange(left,right,dtype=np.float64)[None,:]+.5
+        yp=np.arange(top,bottom,dtype=np.float64)[:,None]+.5
         b0=((y1-y2)*(xp-x2)+(x2-x1)*(yp-y2))/det
         b1=((y2-y0)*(xp-x2)+(x0-x2)*(yp-y2))/det
         b2=1-b0-b1
-        on=(b0>=-1e-6)&(b1>=-1e-6)&(b2>=-1e-6)
-        if not on.any():
+        inside=(b0>=-1e-6)&(b1>=-1e-6)&(b2>=-1e-6)
+        if not inside.any():
             continue
-        z=(b0*p0[2]+b1*p1[2]+b2*p2[2]).astype(np.float32)
         current=zbuf[top:bottom,left:right]
-        visible=on&(z>current)
+        depth=(b0*p0[2]+b1*p1[2]+b2*p2[2]).astype(np.float32)
+        visible=inside&(depth>current)
         if not visible.any():
             continue
+        iy,ix=np.nonzero(visible)
         if is_textured:
             uv=np.asarray([model.uvs[i] for i in face.uvs],dtype=np.float64)
-            u=b0*uv[0,0]+b1*uv[1,0]+b2*uv[2,0]
-            v=b0*uv[0,1]+b1*uv[1,1]+b2*uv[2,1]
+            u=b0[iy,ix]*uv[0,0]+b1[iy,ix]*uv[1,0]+b2[iy,ix]*uv[2,0]
+            v=b0[iy,ix]*uv[0,1]+b1[iy,ix]*uv[1,1]+b2[iy,ix]*uv[2,1]
             texture=textures[face.material]
             th,tw=texture.shape[:2]
-            # OBJ V=0 is bottom, PNG raster y=0 is top; repeat UVs safely.
-            tx=(np.floor((u-np.floor(u))*tw).astype(np.int64))%tw
-            ty=(np.floor((1-v-np.floor(1-v))*th).astype(np.int64))%th
+            tx=np.floor(np.mod(u,1.)*tw).astype(np.intp)%tw
+            ty=np.floor(np.mod(1.-v,1.)*th).astype(np.intp)%th
             pixels=texture[ty,tx]
-            visible &= pixels[:,:,3]>16
+            alpha_ok=pixels[:,3]>16
+            if not alpha_ok.any():
+                continue
+            iy,ix=iy[alpha_ok],ix[alpha_ok]
+            pixels=pixels[alpha_ok]
         else:
-            pixels=np.empty((bottom-top,right-left,4),dtype=np.uint8)
-            pixels[:,:,:3] = model.solid_colors[face.material]
-            pixels[:,:,3] = 255
-        if not visible.any():
-            continue
+            pixels=np.empty((len(iy),4),dtype=np.uint8)
+            pixels[:,:3]=model.solid_colors[face.material]
+            pixels[:,3]=255
         dest=result[top:bottom,left:right]
-        alpha=(pixels[:,:,3:4].astype(np.float32)/255.)
-        blended=(pixels[:,:,:3].astype(np.float32)*alpha+dest.astype(np.float32)*(1-alpha)).astype(np.uint8)
-        dest[visible]=blended[visible]
-        current[visible]=z[visible]
+        if np.all(pixels[:,3]==255):
+            dest[iy,ix]=pixels[:,:3]
+        else:
+            alpha=pixels[:,3:4].astype(np.float32)/255.
+            prior=dest[iy,ix].astype(np.float32)
+            blended=pixels[:,:3].astype(np.float32)*alpha+prior*(1.-alpha)
+            dest[iy,ix]=blended.astype(np.uint8)
+        current[iy,ix]=depth[iy,ix]
         drawn+=1
     return Image.fromarray(result,mode='RGB'),drawn
