@@ -69,6 +69,9 @@ class TestPosePilot(unittest.TestCase):
 
     def row(self, arm="B1", pose="back", power=75, sha="hash", scenario="same01"):
         return {"arm": arm, "expected_pose": pose, "initial_pose_human": pose,
+                "expected_pose_detail": "partial-back",
+                "initial_pose_detail_human": "partial-back",
+                "human_power_confidence": "clear",
                 "scenario": scenario, "wind": 0, "bridge_sha256": sha,
                 "expected_club": "unknown", "aim_marker": "unknown",
                 "contact_human": "yes", "terminal_seen_human": True,
@@ -108,37 +111,37 @@ class TestPosePilot(unittest.TestCase):
         self.assertEqual(p.pose_gate("back", "Press ENTER to execute: ", lambda _: "q"), "q")
 
     def test_first_baseline_requires_empty_ledger(self):
-        p.precheck([], p.setup("B1", "back", "same01"), "hash")
+        p.precheck([], p.setup("B1", "back", "same01", pose_detail="partial-back"), "hash")
         with self.assertRaises(p.RefuseTrial):
-            p.precheck([self.row()], p.setup("B1", "back", "same01"), "hash")
+            p.precheck([self.row()], p.setup("B1", "back", "same01", pose_detail="partial-back"), "hash")
 
     def test_second_baseline_requires_valid_first(self):
-        p.precheck([self.row()], p.setup("B2", "back", "same01"), "hash")
+        p.precheck([self.row()], p.setup("B2", "back", "same01", pose_detail="partial-back"), "hash")
         with self.assertRaises(p.RefuseTrial):
-            p.precheck([self.row(power=None)], p.setup("B2", "back", "same01"), "hash")
+            p.precheck([self.row(power=None)], p.setup("B2", "back", "same01", pose_detail="partial-back"), "hash")
 
     def test_contrast_requires_two_stable_controls(self):
         p.precheck([self.row(), self.row(arm="B2", power=78)],
-                   p.setup("X1", "back", "same01"), "hash")
+                   p.setup("X1", "back", "same01", pose_detail="partial-back"), "hash")
         with self.assertRaises(p.RefuseTrial):
             p.precheck([self.row(), self.row(arm="B2", power=85)],
-                       p.setup("X1", "back", "same01"), "hash")
+                       p.setup("X1", "back", "same01", pose_detail="partial-back"), "hash")
 
     def test_pose_and_bridge_consistency(self):
         with self.assertRaises(p.RefuseTrial):
-            p.precheck([self.row(pose="center")], p.setup("B2", "back", "same01"), "hash")
+            p.precheck([self.row(pose="center")], p.setup("B2", "back", "same01", pose_detail="partial-back"), "hash")
         with self.assertRaises(p.RefuseTrial):
-            p.precheck([self.row(sha="other")], p.setup("B2", "back", "same01"), "hash")
+            p.precheck([self.row(sha="other")], p.setup("B2", "back", "same01", pose_detail="partial-back"), "hash")
 
     def test_club_and_aim_consistency(self):
         changed = self.row()
         changed["expected_club"] = "iron"
         with self.assertRaises(p.RefuseTrial):
-            p.precheck([changed], p.setup("B2", "back", "same01"), "hash")
+            p.precheck([changed], p.setup("B2", "back", "same01", pose_detail="partial-back"), "hash")
         changed = self.row()
         changed["aim_marker"] = "left05"
         with self.assertRaises(p.RefuseTrial):
-            p.precheck([changed], p.setup("B2", "back", "same01"), "hash")
+            p.precheck([changed], p.setup("B2", "back", "same01", pose_detail="partial-back"), "hash")
 
     def test_no_censored_carry_claim(self):
         human = {"initial_club_pose_human": "back", "contact_human": "yes",
@@ -151,7 +154,7 @@ class TestPosePilot(unittest.TestCase):
         with patch.object(p, "datetime") as clock:
             clock.now.return_value.isoformat.return_value = "2026-11-10T00:00:00Z"
             r = p.summarize({"human_observation": human, "known_good_swing_request": request},
-                            p.setup("B1", "back", "same01"), bridge_sha="sha",
+                            p.setup("B1", "back", "same01", pose_detail="partial-back"), bridge_sha="sha",
                             payload={"baseline_trace_sha256": "hash", "contrast_trace_sha256": "other"})
         self.assertEqual(r["displayed_distance_source"], "offgreen_100ft_penalty")
         self.assertFalse(r["score_carry_verified"])
@@ -183,7 +186,7 @@ class TestPosePilot(unittest.TestCase):
         with patch.object(p, "assert_payload_contrast",
                           side_effect=AssertionError("never run")):
             with self.assertRaisesRegex(p.RefuseTrial, "requires the isolated atomic A45"):
-                p.run_live(p.setup("B1", "back", "firstball02"),
+                p.run_live(p.setup("B1", "back", "firstball02", pose_detail="partial-back"),
                            port=55355, bridge_source=Path("not-loaded.py"),
                            atomic=False)
 
@@ -232,13 +235,103 @@ class TestPosePilot(unittest.TestCase):
                  patch.object(p, "assert_payload_contrast", return_value={"test": "fake"}), \
                  patch.object(p, "inspect_bridge", return_value=bridge_sha):
                 with self.assertRaisesRegex(RuntimeError, "RUNTIME_CAPABILITY_ABSENT"):
-                    p.run_live(p.setup("B1", "back", "firstball02"),
+                    p.run_live(p.setup("B1", "back", "firstball02", pose_detail="partial-back"),
                                port=55355, bridge_source=bridge,
                                atomic=True, data_dir=home,
                                reader=lambda _: (_ for _ in ()).throw(
                                    AssertionError("no prompt before capability")))
             self.assertEqual(events, ["capability"])
             self.assertFalse((home / "pose-power-firstball02.jsonl").exists())
+
+
+    def test_power_over_100_is_retained(self):
+        self.assertEqual(p.parse_power_observation("120"), (120.0, "clear"))
+        self.assertEqual(p.parse_power_observation("120%"), (120.0, "clear"))
+        self.assertEqual(p.parse_power_observation("120?"), (120.0, "uncertain"))
+        self.assertEqual(p.parse_power_observation(">100"), (100.0, "lower_bound"))
+        self.assertEqual(p.parse_power_observation("100+"), (100.0, "lower_bound"))
+        self.assertEqual(p.parse_power_observation(""), (None, "unknown"))
+
+    def test_no_promotion_of_uncertain_or_bound_power(self):
+        row = self.row(power=120)
+        self.assertTrue(p.eligible(row))
+        for confidence in ("uncertain", "lower_bound", "unknown"):
+            row["human_power_confidence"] = confidence
+            self.assertFalse(p.eligible(row))
+        row["human_power_confidence"] = "clear"
+        row["human_power_pct"] = None
+        self.assertFalse(p.eligible(row))
+
+    def test_power_parser_rejects_nonfinite_and_invalid(self):
+        for bad in ("NaN", "inf", "-1", "501", "more than 100", "120??"):
+            with self.assertRaises(p.RefuseTrial):
+                p.parse_power_observation(bad)
+
+    def test_partial_back_pose_detail_checked_before_a(self):
+        plan = p.setup("B1", "back", "firstball03",
+                       pose_detail="partial-back")
+        messages = []
+        answers = iter(("back", "partial-back"))
+        got = p.gated_pose_reader(plan, "BEFORE pressing A, initial club position [back/center/forward/unknown]: ",
+                                  reader=lambda prompt: (messages.append(prompt), next(answers))[1],
+                                  observed={})
+        self.assertEqual(got, "back")
+        self.assertEqual(len(messages), 2)
+
+    def test_full_back_cannot_masquerade_as_partial(self):
+        plan = p.setup("B1", "back", "firstball03",
+                       pose_detail="partial-back")
+        answers = iter(("back", "full-back"))
+        with self.assertRaisesRegex(p.RefuseTrial, "Detailed starting club pose"):
+            p.gated_pose_reader(
+                plan, "BEFORE pressing A, initial club position [back/center/forward/unknown]: ",
+                reader=lambda _: next(answers), observed={})
+
+    def test_pose_detail_consistency_between_trials(self):
+        control = self.row()
+        control["expected_pose_detail"] = "full-back"
+        control["initial_pose_detail_human"] = "full-back"
+        with self.assertRaises(p.RefuseTrial):
+            p.precheck([control], p.setup("B2", "back", "same01",
+                                         pose_detail="partial-back"), "hash")
+
+    def test_reduced_backswing_arm(self):
+        self.assertEqual(p.setup("XLOW", "back", "firstball03",
+                                 pose_detail="partial-back")["backswing_scale"], .8)
+        self.assertIn("reduced_trace_sha256", self.payload())
+        controls = [self.row(power=110), self.row(arm="B2", power=113)]
+        p.precheck(controls, p.setup("XLOW", "back", "same01",
+                                     pose_detail="partial-back"), "hash")
+
+    def test_no_reuse_of_old_uncertain_b1_as_calibration_control(self):
+        old = self.row(power=100, scenario="firstball02")
+        old["expected_pose_detail"] = None
+        old["initial_pose_detail_human"] = None
+        old["human_power_confidence"] = None
+        self.assertFalse(p.eligible(old))
+        with self.assertRaises(p.RefuseTrial):
+            p.precheck([old], p.setup("B2", "back", "firstball02",
+                                     pose_detail="partial-back"), "hash")
+
+    def test_summary_preserves_uncertain_above_hundred(self):
+        human = {"initial_club_pose_human": "back", "contact_human": "yes",
+                 "terminal_screen_seen_before_transition_human": True,
+                 "finished_on_green_human": "no",
+                 "displayed_distance_source": "offgreen_100ft_penalty"}
+        request = {"trace_sha256": "trace", "generated_trace_frames": 89,
+                   "backswing_scale": 1.0, "a_lead_requested_frames": 45}
+        record = p.summarize(
+            {"human_observation": human, "known_good_swing_request": request},
+            p.setup("B1", "back", "firstball03", pose_detail="partial-back"),
+            bridge_sha="bridge", payload={"baseline_trace_sha256": "trace",
+                                           "contrast_trace_sha256": "high",
+                                           "reduced_trace_sha256": "low"},
+            observed_pose_detail="partial-back", power=(120, "uncertain"))
+        self.assertEqual(record["human_power_pct"], 120)
+        self.assertEqual(record["human_power_confidence"], "uncertain")
+        self.assertFalse(p.eligible(record))
+        self.assertEqual(record["initial_pose_detail_human"], "partial-back")
+        self.assertFalse(record["training_approved"])
 
     def test_symlink_rejected(self):
         """Use a real link where permitted; simulate Windows WinError 1314 otherwise.
