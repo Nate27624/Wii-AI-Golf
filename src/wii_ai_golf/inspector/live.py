@@ -208,7 +208,12 @@ class LiveSampler:
                         if (ball_after == words.get("selected_ball_plus_0x30")
                                 and aim_after == words.get("aim_candidate_plus_0x3c")):
                             a_words = candidate
-                    raw_club = data.get('club_index')
+                    # Only the built-in source/epoch-gated batched reader may
+                    # supply a live selected-club label. Arbitrary injected
+                    # packet readers cannot promote a fabricated index.
+                    raw_club = (data.get('club_index')
+                                if self.packet_reader is None and self.use_batched_reads
+                                else None)
                     if raw_club is not None and (type(raw_club) is not int or not 0 <= raw_club <= 3):
                         raise ValueError('unqualified selected-club index')
                     selected_club_label = club_label(raw_club)
