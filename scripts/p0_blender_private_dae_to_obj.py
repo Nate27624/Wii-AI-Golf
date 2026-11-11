@@ -88,12 +88,19 @@ def main():
         if any(poly.material_index >= len(mesh.data.materials) for poly in mesh.data.polygons):
             raise ValueError("Source mesh polygon has no material binding")
 
-    used_materials = {material for mesh in meshes
-                      for material in mesh.data.materials if material is not None}
+    used_materials = {}
+    for mesh in meshes:
+        for face in mesh.data.polygons:
+            if (face.material_index >= len(mesh.data.materials)
+                    or mesh.data.materials[face.material_index] is None):
+                raise ValueError("Source model polygon material unavailable")
+        for material in mesh.data.materials:
+            if material is not None:
+                used_materials[material.name] = material
     if not used_materials:
         raise ValueError("Source model has no imported materials")
     recognized = set()
-    for mat in used_materials:
+    for mat in used_materials.values():
         # Blender adds .001 etc for duplicate imported materials. Never
         # reinterpret unrelated material names as a source mapping.
         key = re.sub(r"\.\d{3}$", "", mat.name)
