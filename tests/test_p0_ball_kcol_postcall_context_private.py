@@ -28,9 +28,9 @@ def fixture():
     words={}
     blo=m.units.UNITS["Ball"][0]
     klo=m.units.UNITS["GolfKCol"][0]
-    for i in range(5):
-        site=blo+0x0400+0x400*i
-        target=klo+0x0200+0x180*i
+    for site_offset,target_offset in m.EXPECTED_CALLS.items():
+        site=blo+site_offset
+        target=klo+target_offset
         words[site]=bl(site,target)
         words[site-4]=d(48,1,31,0x30)  # lfs f1,0x30(r31)
         words[site+4]=d(32,3,30,0x40)  # lwz r3,0x40(r30)
@@ -53,7 +53,7 @@ class BallKcolPostCallTests(unittest.TestCase):
         self.assertEqual(r["status"],"ORIGINAL_BALL_KCOL_POSTCALL_CONTEXT")
         self.assertEqual(len(r["call_contexts"]),5)
         self.assertEqual(r["source_ball_to_kcol_call_count"],5)
-        self.assertEqual(len(r["distinct_kcol_target_function_entry_offsets"]),5)
+        self.assertEqual(len(r["distinct_kcol_target_function_entry_offsets"]),3)
         self.assertEqual([x["calls"] for x in r["native_direct_call_gate"]],[5,7])
 
     def test_bounded_code_snapshots_have_expected_lengths(self):
@@ -90,7 +90,7 @@ class BallKcolPostCallTests(unittest.TestCase):
 
     def test_missing_forward_edge_abstains(self):
         words,read=fixture()
-        words[m.units.UNITS["Ball"][0]+0x400]=0
+        words[m.units.UNITS["Ball"][0]+0x05C0]=0
         with self.assertRaises(ValueError):
             m.inspect(read)
 
@@ -110,14 +110,14 @@ class BallKcolPostCallTests(unittest.TestCase):
 
     def test_synthetic_indirect_branch_not_called_a_direct_callee(self):
         words,read=fixture()
-        at=m.units.UNITS["Ball"][0]+0x400
+        at=m.units.UNITS["Ball"][0]+0x05C0
         words[at]=0x4E800421
         with self.assertRaises(ValueError):
             m.inspect(read)
 
     def test_branch_is_bounded_does_not_walk_next_function(self):
         words,read=fixture()
-        site=m.units.UNITS["Ball"][0]+0x400
+        site=m.units.UNITS["Ball"][0]+0x05C0
         words[site+4]=(18<<26)|0x18
         row=m.inspect(read)["call_contexts"][0]
         self.assertEqual(len(row["post_call_status_syntax"]["post_call_branches"]),1)
@@ -134,8 +134,8 @@ class BallKcolPostCallTests(unittest.TestCase):
     def test_callsite_source_offsets_only(self):
         words,read=fixture()
         r=m.inspect(read)
-        self.assertEqual(r["call_contexts"][0]["caller_site"],"+0x0400")
-        self.assertEqual(r["call_contexts"][0]["callee_site"],"+0x0200")
+        self.assertEqual(r["call_contexts"][0]["caller_site"],"+0x05C0")
+        self.assertEqual(r["call_contexts"][0]["callee_site"],"+0x0000")
         for item in r["call_contexts"]:
             self.assertTrue(item["callee_site"].startswith("+0x"))
             self.assertFalse(item["return_type_proven"])
