@@ -141,6 +141,37 @@ def prepare_comparison_kcl(terrain: "TerrainMesh",
         rotation_degrees, v_mid, material_alignment)
 
 
+def prepare_source_only_kcl(terrain: "TerrainMesh") -> ComparisonKCL:
+    """Draw ORIGINAL source OBJ XYZ, WITHOUT fitting to any visual DAE.
+
+    Unlike the x-ray overlay, this Collision view is always available once
+    the strict private source KCL has loaded. Source tree bases use the same
+    identity map. No inferred scale, rotation, or Wii collision semantics.
+    """
+    if not 1 <= len(terrain.faces) <= 30_000:
+        raise ValueError("Source KCL faces outside safe viewing bound")
+    points = tuple(terrain.vertices)
+    if not points or any(
+            len(p) != 3 or not all(math.isfinite(v) and abs(v) < 1e7 for v in p)
+            for p in points):
+        raise ValueError("Original KCL positions invalid for source-only mode")
+    source_colors = tuple(
+        surface_style(terrain.face_materials[i]
+                      if terrain.face_materials else None)[1]
+        for i in range(len(terrain.faces)))
+    edges = set()
+    for tri in terrain.faces:
+        if len(tri) != 3 or any(type(v) is not int or not 0 <= v < len(points)
+                                for v in tri):
+            raise ValueError("Invalid original KCL face indices")
+        for a, b in ((tri[0],tri[1]),(tri[1],tri[2]),(tri[2],tri[0])):
+            edges.add((min(a,b),max(a,b)))
+    return ComparisonKCL(
+        terrain.sha256, points, terrain.faces, source_colors,
+        1.0, (0.,0.,0.), (1.,1.), tuple(sorted(edges)),
+        0, (0.,0.,0.))
+
+
 def overlay_summary(comp: ComparisonKCL) -> str:
     if comp.source_material_fit is not None:
         fit = comp.source_material_fit
