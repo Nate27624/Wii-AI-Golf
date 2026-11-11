@@ -5,7 +5,7 @@ import tempfile
 import json
 import unittest
 from unittest.mock import patch
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import sys
 import types
@@ -27,7 +27,7 @@ class Sample:
 
 
 def build(*, motion_scale, speed_scale, backswing_scale):
-    assert motion_scale == 1.0 and speed_scale == 1.0
+    assert motion_scale in (1.0, 0.6) and speed_scale == 1.0
     trace = (
         [Sample(True, (0., 0., 0.), 0, 0, 0, 0)] * 12
         + [Sample(True, (0., -1., 0.), 0.25 * backswing_scale, 1.2, 1.2, 0)] * 15
@@ -35,6 +35,11 @@ def build(*, motion_scale, speed_scale, backswing_scale):
         + [Sample(True, (0., 0., 0.), 0, 0, 0, 0)] * 30
         + [Sample(False, (0., 0., 0.), 0, 0, 0, 0)] * 12
     )
+    if motion_scale != 1.0:
+        trace = [replace(x, distance_m=x.distance_m * motion_scale,
+                         speed_m_s=x.speed_m_s * motion_scale,
+                         return_speed_m_s=x.return_speed_m_s * motion_scale)
+                 for x in trace]
     raw = json.dumps([[s.hold_a, *s.direction, s.distance_m,
                       s.speed_m_s, s.return_speed_m_s, s.angle_rad]
                       for s in trace], separators=(",", ":"))
@@ -150,7 +155,8 @@ class TestPosePilot(unittest.TestCase):
                  "finished_on_green_human": "no",
                  "displayed_distance_source": "offgreen_100ft_penalty"}
         request = {"trace_sha256": "hash", "generated_trace_frames": 89,
-                   "backswing_scale": 1.0, "a_lead_requested_frames": 45}
+                   "backswing_scale": 1.0, "motion_scale": 1.0,
+                   "speed_scale": 1.0, "a_lead_requested_frames": 45}
         with patch.object(p, "datetime") as clock:
             clock.now.return_value.isoformat.return_value = "2026-11-10T00:00:00Z"
             r = p.summarize({"human_observation": human, "known_good_swing_request": request},
@@ -320,7 +326,8 @@ class TestPosePilot(unittest.TestCase):
                  "finished_on_green_human": "no",
                  "displayed_distance_source": "offgreen_100ft_penalty"}
         request = {"trace_sha256": "trace", "generated_trace_frames": 89,
-                   "backswing_scale": 1.0, "a_lead_requested_frames": 45}
+                   "backswing_scale": 1.0, "motion_scale": 1.0,
+                   "speed_scale": 1.0, "a_lead_requested_frames": 45}
         record = p.summarize(
             {"human_observation": human, "known_good_swing_request": request},
             p.setup("B1", "back", "firstball03", pose_detail="partial-back"),
@@ -374,7 +381,8 @@ class TestPosePilot(unittest.TestCase):
     def test_summary_retains_club_transition_as_human(self):
         human = {"initial_club_pose_human": "back"}
         request = {"trace_sha256": "trace", "generated_trace_frames": 89,
-                   "backswing_scale": 1.0, "a_lead_requested_frames": 45}
+                   "backswing_scale": 1.0, "motion_scale": 1.0,
+                   "speed_scale": 1.0, "a_lead_requested_frames": 45}
         record = p.summarize(
             {"human_observation": human, "known_good_swing_request": request},
             p.setup("B2", "back", "firstball03", club="iron",
@@ -454,7 +462,8 @@ class TestPosePilot(unittest.TestCase):
         human = {"initial_club_pose_human": "back", "contact_human": "yes",
                  "terminal_screen_seen_before_transition_human": True}
         req = {"trace_sha256": "trace", "generated_trace_frames": 89,
-               "backswing_scale": 0.8, "a_lead_requested_frames": 45}
+               "backswing_scale": 0.8, "motion_scale": 1.0,
+               "speed_scale": 1.0, "a_lead_requested_frames": 45}
         record = p.summarize(
             {"human_observation": human, "known_good_swing_request": req},
             p.setup("XLOW", "back", "firstball03", club="iron",
@@ -473,6 +482,77 @@ class TestPosePilot(unittest.TestCase):
         self.assertTrue(p.eligible(record))
         self.assertFalse(p.outcome_eligible(record))
         self.assertFalse(record["training_approved"])
+
+    def test_motion06_serialized_compound_difference_receipt(self):
+        receipt = self.payload()
+        self.assertEqual(receipt["motion06_changed_fields"], 105)
+        self.assertEqual(receipt["samples"], 89)
+        self.assertNotEqual(receipt["baseline_trace_sha256"],
+                            receipt["motion06_trace_sha256"])
+        plan = p.setup("XM06", "back", "firstball03",
+                       pose_detail="partial-back")
+        self.assertEqual(plan["motion_scale"], 0.6)
+        self.assertEqual(plan["backswing_scale"], 1.0)
+        self.assertEqual(plan["speed_scale"], 1.0)
+        self.assertEqual(plan["wind"], 0)
+
+    def test_motion06_only_after_unchanged_power_XLOW(self):
+        rows = [self.row("B1", power=101),
+                self.row("B2", power=101),
+                self.row("XLOW", power=101)]
+        rows[-1]["terminal_seen_human"] = False
+        rows[-1]["result_entered_while_visible_human"] = "no"
+        p.precheck(rows, p.setup("XM06", "back", "same01",
+                                 pose_detail="partial-back"), "hash")
+        self.assertFalse(p.outcome_eligible(rows[-1]))
+        self.assertTrue(p.eligible(rows[-1]))
+
+    def test_motion06_refuses_wrong_order_or_existing_power_effect(self):
+        plan = p.setup("XM06", "back", "same01",
+                       pose_detail="partial-back")
+        rows = [self.row("B1", power=101),
+                self.row("B2", power=101)]
+        with self.assertRaisesRegex(p.RefuseTrial, "wrong trial order"):
+            p.precheck(rows, plan, "hash")
+        rows.append(self.row("X1", power=101))
+        with self.assertRaises(p.RefuseTrial):
+            p.precheck(rows, plan, "hash")
+        rows[-1] = self.row("XLOW", power=92)
+        with self.assertRaisesRegex(p.RefuseTrial, "XLOW already changed gauge"):
+            p.precheck(rows, plan, "hash")
+
+    def test_motion06_summarize_matches_actual_trace_and_scales(self):
+        human = {"initial_club_pose_human": "back", "contact_human": "yes"}
+        sha = "motion06"
+        requested = {"trace_sha256": sha,
+                     "generated_trace_frames": 89,
+                     "backswing_scale": 1.0, "motion_scale": 0.6,
+                     "speed_scale": 1.0, "a_lead_requested_frames": 45}
+        plan = p.setup("XM06", "back", "firstball03", club="iron",
+                       pose_detail="partial-back",
+                       club_change="wedge-to-iron")
+        report = p.summarize(
+            {"human_observation": human,
+             "known_good_swing_request": requested},
+            plan, bridge_sha="bridge",
+            payload={"motion06_trace_sha256": sha},
+            observed_pose_detail="partial-back",
+            observed_club="iron",
+            observed_club_change="wedge-to-iron",
+            power=(72.0, "clear"))
+        self.assertEqual(report["motion_scale"], 0.6)
+        self.assertEqual(report["human_power_pct"], 72.0)
+        self.assertTrue(p.eligible(report))
+        self.assertFalse(p.outcome_eligible(report))
+        requested["motion_scale"] = 1.0
+        with self.assertRaisesRegex(p.RefuseTrial, "trace identity"):
+            p.summarize({"human_observation": human,
+                         "known_good_swing_request": requested},
+                        plan, bridge_sha="bridge",
+                        payload={"motion06_trace_sha256": sha},
+                        observed_pose_detail="partial-back",
+                        observed_club="iron",
+                        observed_club_change="wedge-to-iron")
 
     def test_symlink_rejected(self):
         """Use a real link where permitted; simulate Windows WinError 1314 otherwise.
