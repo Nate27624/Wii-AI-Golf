@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import math
+import stat
 from pathlib import Path
 
 MAX_TREE_BYTES = 64 * 1024
@@ -66,20 +67,36 @@ def _reject_nonfinite_constant(value: str) -> None:
     raise TreePositionsError("Invalid numeric constant in tree JSON")
 
 
+def _linked_component(path: Path) -> bool:
+    """Check actual symlinks/reparse points, not Windows path spelling/case.
+
+    Path.resolve() may produce a canonical name that differs from Path.absolute()
+    even for a regular file on Windows. That comparison was not a reliable
+    symlink test and rejected legitimate local PRIVATE artifacts.
+    """
+    try:
+        info = path.lstat()
+    except OSError:
+        return True
+    return path.is_symlink() or bool(
+        getattr(info, "st_file_attributes", 0)
+        & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0))
+
+
 def _check_local_path(filename: str | Path) -> Path:
     path = Path(filename)
     if path.name != EXPECTED_NAME or path.suffix.lower() != ".json":
         raise TreePositionsError("Choose the specific source-qualified PRIVATE tree JSON")
     if not path.is_file() or path.is_symlink():
         raise TreePositionsError("Private tree JSON must be a regular, nonsymlink file")
+    # Parent components must be actual local directories. Reject source-file
+    # symlinks, private-data symlinks and Windows NTFS junction/reparse points
+    # rather than relying on path-case comparisons.
+    if any(_linked_component(part) for part in (path, path.parent, path.parent.parent)):
+        raise TreePositionsError("Private tree file or Data directory is linked")
     resolved = path.resolve(strict=True)
-    if resolved != path.absolute():
-        # Avoid junction/link resolution surprises and path relocation.
-        raise TreePositionsError("Private tree file contains a linked path component")
     if resolved.parent.name != "derived" or resolved.parent.parent.name != "Wii-AI-Golf-Data":
         raise TreePositionsError("Tree JSON must be in Wii-AI-Golf-Data/derived")
-    if any(part.is_symlink() for part in (resolved.parent, resolved.parent.parent)):
-        raise TreePositionsError("Private Data directory cannot be a symlink")
     if any((parent / ".git").exists() for parent in resolved.parents):
         raise TreePositionsError("Private tree JSON must be outside Git checkout")
     return resolved
