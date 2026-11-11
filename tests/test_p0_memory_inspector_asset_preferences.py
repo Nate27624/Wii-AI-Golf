@@ -109,6 +109,59 @@ class SelectionTests(unittest.TestCase):
             with self.subTest(bad=bad),self.assertRaises(SavedAssetError):
                 save_asset_selections(AssetSelections(visual_dae=bad),self.settings)
 
+    def test_source_kcl_label_path_persists_across_restart(self):
+        labels=self.base / "hole01-collision-candidate-labels-PRIVATE.json"
+        labels.write_text("synthetic-placeholder", encoding="ascii")
+        state=remember_asset(AssetSelections(), "terrain_obj", self.obj)
+        state=remember_asset(state, "terrain_labels", labels)
+        state=remember_asset(state, "tree_json", self.tree)
+        save_asset_selections(state, self.settings)
+        read=load_asset_selections(self.settings)
+        self.assertEqual(read.terrain_labels,str(labels.resolve()))
+        self.assertEqual(read.terrain_obj,str(self.obj.resolve()))
+        self.assertEqual(read.tree_json,str(self.tree.resolve()))
+        self.assertEqual(json.loads(self.settings.read_text("utf-8"))[
+            "terrain_labels"],str(labels.resolve()))
+        # Persist absolute PATH only: no game labels, SHA digest, or XYZ in JSON.
+        self.assertNotIn("synthetic-placeholder",self.settings.read_text("utf-8"))
+
+    def test_changing_source_kcl_obj_clears_stale_sidecar_but_keeps_tree(self):
+        labels=self.base/"source-labels-PRIVATE.json"
+        labels.write_text("{}",encoding="ascii")
+        changed=self.base/"other-collision-PRIVATE.obj"
+        changed.write_bytes(self.obj.read_bytes())
+        source=remember_asset(AssetSelections(), "terrain_obj", self.obj)
+        source=remember_asset(source, "terrain_labels", labels)
+        source=remember_asset(source, "tree_json", self.tree)
+        changed_sel=remember_asset(source,"terrain_obj", changed)
+        self.assertIsNone(changed_sel.terrain_labels)
+        self.assertEqual(changed_sel.tree_json,source.tree_json)
+        self.assertEqual(remember_asset(
+            source,"terrain_obj",self.obj).terrain_labels,source.terrain_labels)
+        self.assertIsNone(remember_asset(source,"terrain_obj",None).terrain_labels)
+
+    def test_previous_original_visual_v1_settings_migrate_to_labels_key(self):
+        dae=self.base/"private-visual.dae"
+        dae.write_text("<COLLADA/>",encoding="ascii")
+        self.settings.parent.mkdir(parents=True)
+        state={"version":1,"terrain_obj":str(self.obj.resolve()),
+               "tree_json":str(self.tree.resolve()),"auto_find_trees":True,
+               "visual_dae":str(dae.resolve())}
+        self.settings.write_text(json.dumps(state),encoding="utf-8")
+        loaded=load_asset_selections(self.settings)
+        self.assertEqual(loaded.visual_dae,str(dae.resolve()))
+        self.assertEqual(loaded.tree_json,str(self.tree.resolve()))
+        self.assertIsNone(loaded.terrain_labels)
+        save_asset_selections(loaded,self.settings)
+        self.assertIsNone(json.loads(self.settings.read_text("utf-8"))[
+            "terrain_labels"])
+
+    def test_label_path_rejects_malformed_values(self):
+        for bad in ("relative-labels.json", "", True, 7, "bad\\npath"):
+            with self.subTest(bad=bad), self.assertRaises(SavedAssetError):
+                save_asset_selections(
+                    AssetSelections(terrain_labels=bad),self.settings)
+
     def test_tree_clear_prevents_auto_rediscovery(self):
         saved = remember_asset(AssetSelections(), "tree_json", self.tree)
         cleared = remember_asset(saved, "tree_json", None)
