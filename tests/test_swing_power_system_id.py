@@ -21,4 +21,10 @@ class CalibrationTests(unittest.TestCase):
         self.assertIsNone(result["power_percent_human"])
         self.assertFalse(result["power_verified_by_memory"])
         self.assertFalse(result["contact_verified_by_memory"])
+        self.assertEqual(result["initial_club_pose_human"],"unknown")
+        self.assertEqual(result["power_observation_source_human"],"unavailable")
+    def test_observed_start_pose_and_power_source(self):
+        result=public_record("baseline",waveform("baseline"),{},"yes",45.0,"back","meter")
+        self.assertEqual(result["initial_club_pose_human"],"back")
+        self.assertEqual(result["power_observation_source_human"],"meter")
 if __name__=="__main__": unittest.main()
