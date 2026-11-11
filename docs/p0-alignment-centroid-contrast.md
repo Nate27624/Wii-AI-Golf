@@ -193,6 +193,52 @@ The nested `dae_visual_scene.controllers.*static_skinning_evaluated=false`
 is intentionally an *inventory-only* field and does not describe the later
 full visual-model loader call. Neither flag verifies the KCL/world mapping.
 
+## Operator follow-up: material patch fragmentation (November 2026)
+
+The original private operator audit returned the following counts:
+
+| Source category | KCL edge-connected patches | DAE edge-connected patches |
+| --- | ---: | ---: |
+| Green | 435 / 478 triangles | 1 / 1206 triangles |
+| Fairway | 207 / 208 triangles | 2 / 1123 triangles |
+| Bunker | 257 / 301 triangles | 4 / 946 triangles |
+
+The KCL source exporter emitted **7,494 vertex records for 2,498
+triangles**, exactly three vertex records per face. Vertex-index reuse in
+this OBJ is therefore impossible; lack of shared vertex indices does not
+imply disjoint original geometry. The earlier footprint diagnostic
+already welded fully matching source coordinates at four decimal places.
+Most reconstructed KCL faces still appear separate under that precise
+test, but this is **not yet native-topology evidence**.
+
+The new `source_material_footprints.whole_mesh_connectivity` and
+`categories.<class>.source_triangle_contact_sensitivity` distinguish:
+
+- KCL connectivity **across all OGWS source categories** versus
+  within green, fairway and bunker categories, so material-boundary edges
+  are not mistaken for literal gaps.
+- True shared source coordinate endpoints versus near-misses at
+  `0`, `1e-8`, `1e-6`, and `1e-4` of each mesh's own XZ diagonal,
+  checking complete **3D** shared edges separately from one shared corner.
+- Whether the original exported mesh uses one distinct **vertex index**
+  per triangle corner. This is a characteristic of export formatting,
+  not of physics contact.
+- Source-local median and 90th-percentile triangle surface areas and
+  absolute projected XZ surface area totals, normalized by each mesh's
+  own squared XZ diagonal. These distinguish coarse sparse KCL faces
+  from much more densely tessellated visual faces without assuming the
+  two sources have the same physical material coverage.
+
+All statistics remain aggregate, source-local, nontrainable and
+**do not reveal original XYZ or transform matrices**. A larger loose-
+tolerance match is not a license to weld collision triangles or align
+textures; quantization can merge unrelated source corners. The main
+next check is whether the KCL is disconnected **even across all materials**
+under exact and conservative relative thresholds. If yes, investigate
+the original KCL prism-to-triangle reconstruction and verified hole
+identity; if not, inspect surface-class adjacency and original OGWS
+labels. Do not auto-select a display yaw.
+
 ## Interpreting `geometry.display_fit_surface_contrast`
 
 The report tests 0°, 90°, 180°, and 270° using exactly the same uniform
