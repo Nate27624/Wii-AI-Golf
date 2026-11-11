@@ -532,7 +532,8 @@ class TexturedPreviewWindow:
 
 
     def frame(self, event=None):
-        if (self.mode.get() == "Collision" and
+        view_mode = getattr(self, "mode", None)
+        if (view_mode is not None and view_mode.get() == "Collision" and
                 getattr(self, "source_collision_kcl", None) is not None):
             self.camera = fit_camera(self.source_collision_kcl.vertices)
         else:
@@ -540,7 +541,8 @@ class TexturedPreviewWindow:
         self.schedule()
 
     def frame_all(self, event=None):
-        if (self.mode.get() == "Collision" and
+        view_mode = getattr(self, "mode", None)
+        if (view_mode is not None and view_mode.get() == "Collision" and
                 getattr(self, "source_collision_kcl", None) is not None):
             self.camera = fit_camera(self.source_collision_kcl.vertices)
         else:
@@ -677,9 +679,10 @@ class TexturedPreviewWindow:
         if terrain is not None:
             mapped, status = self._source_comparison(terrain, value)
             self.comparison_kcl = mapped
-            if mapped is None:
+            if mapped is None and self.mode.get() == "Both":
                 self.mode.set("Textures")
-            self.comparison_status.set(status)
+            if self.mode.get() != "Collision":
+                self.comparison_status.set(status)
         self.schedule()
 
     def set_collision_terrain(self, terrain):
