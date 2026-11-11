@@ -144,6 +144,31 @@ class NativeSourceRasterTests(unittest.TestCase):
         sampled=bilinear_wrapped_rgba(chain[level],u,v)
         self.assertLess(abs(int(sampled[0,0])-128),4)
 
+    def test_smooth_alpha_cutout_preserves_color_and_compiled_parity(self):
+        from wii_ai_golf.inspector.texture_sampling import (
+            build_rgba_mips, bilinear_wrapped_rgba)
+        model, textures = synthetic_scene()
+        mask=np.zeros((8,8,4),dtype=np.uint8)
+        mask[:,:,:] = (0,0,0,0)
+        mask[2:6,2:6,:] = (235,175,55,255)
+        textures["grass"]=mask
+        chain=build_rgba_mips(mask)
+        self.assertTrue(np.array_equal(chain[0],mask))
+        # Premultiplied filtering should not create a black border
+        # where the source original texture becomes transparent.
+        filtered_pixel=bilinear_wrapped_rgba(chain[0],
+            np.array([0.31]),np.array([0.31]))
+        self.assertGreaterEqual(int(filtered_pixel[0,0]),200)
+        cam=fit_camera(model.vertices)
+        native,nf=render_fast(prepare_fast_scene(model,textures),
+                              200,156,cam,filtered=True)
+        cpu,sf=render_preview(model,200,156,camera=cam,
+                              textures=textures,filtered=True)
+        self.assertEqual(nf,sf)
+        err=np.abs(np.asarray(native).astype(np.int16)-
+                   np.asarray(cpu).astype(np.int16))
+        self.assertLessEqual(int(err.max()),2)
+
     def test_source_texture_arrays_are_byte_identical(self):
         model, textures = synthetic_scene()
         textures["grass"][:, :4, :3] = (200, 32, 75)
