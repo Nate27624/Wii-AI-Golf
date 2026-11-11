@@ -365,3 +365,69 @@ The operator should now see the source texture 3D viewer, rather than
 the gray fallback. To reconstruct the actual Wii scene transform and
 controllers, inspect source MDL0/BRRES and the specific DAE controller
 later, rather than rotating/stretching an incomplete visual model.
+
+
+## 2026-11-11 confirmed wrong scale of blue KCL/94-tree x-ray
+
+Operator screenshot shows a geometry-only source-DAE texture preview with a
+grossly over-scaled cyan KCL overlay. The previous default
+`prepare_comparison_kcl()` blindly applied a uniform fit to the original
+DAE *playable material bounding box* vs full source KCL bounds. With
+an unsupported source `instance_controller`, and a visually very large
+original background/course library, that bound is **not a native coordinate
+or gameplay scale**. A guessed rotation cannot correct it.
+
+**New behavior:** source-material category evidence gets priority.
+Read-only `material_alignment.py` finds exact KCol OGWS green 0x0006,
+fairway 0x0001 and an independently reserved original bunker 0x0003
+(or rough 0x0002 if bunker unavailable), alongside independently
+source-authored Collada material identifiers `M_Green`, `M_Fairway`,
+`M_Bunker` (or `M_Rough`). Green/fairway horizontal area-weighted
+centroids determine candidate translation/scale/Y-yaw. It independently
+requires the transformed **green footprint area ratio** to agree within
+bounded tolerance, and **holds out bunker/rough** centroid with error
+at most 12% of green-to-fairway span. If any material is absent,
+ambiguously grouped or the independent checks fail, the inspector
+**automatically chooses Textures mode**, hides cyan KCL/tree x-ray
+rather than displaying an obviously wrong-sized one, and prints
+`KCL/TREES AUTO-OVERLAY HIDDEN` with reason.
+
+If the source material evidence passes, the resulting *measured, still
+display-only* similarity is applied once and **identically** to original
+KCL triangles and all 94 exact source tree bases and crown stand-ins.
+The viewport status prints the source-derived scale, relative yaw,
+independent holdout residual and green footprint ratio. This mapping
+does NOT certify native game world axes, collision physics or
+botanical models. Original source KCL/DAE/PNG/tree JSON never change.
+Nonzero yaw radio choices remain explicitly labeled manual bounds-fit
+trials and can never be mistaken for independently measured scale.
+
+The existing original Collada `instance_controller` may contain
+real static `<bind_shape_matrix>` scale that was lost in the
+geometry-only preview. Source-only
+`collada_controller_scale.py` reads original DAE skin controller
+bind-shape matrices and reports bounded X/Y/Z basis scale ratios,
+controller/scene instance counts, nonidentity and nonuniform
+transform indicators, with no raw source vertices or XML text.
+**This is evidence for a future native controller implementation,
+not a replacement for actual joint skinning, source root matrices
+or an authoritative KCL alignment.**
+
+Operator command:
+
+```powershell
+cd 'D:\Projects\Wii-Golf-Tree-PR432'
+py -3 -I scripts/diagnose_inspector_visual_loading.py
+```
+
+The JSON now includes `original_controller_scale_audit` and
+`kcl_to_visual_display_fit`. If fit status is
+`SOURCE_MATERIAL_DISPLAY_FIT_CANDIDATE`, the live UI may draw a
+numerically checked material overlay. If `SOURCE_DISPLAY_REGISTRATION_DECLINED`,
+we must inspect source controller data and corresponding original
+hole/material regions before trying a native scale, rather than
+tuning a magic multiplier.
+
+An independent comparison to the *actual* Dolphin course image is
+still required, with test and holdout hole views, before claiming
+accurate source registration or real Wii visual fidelity.
