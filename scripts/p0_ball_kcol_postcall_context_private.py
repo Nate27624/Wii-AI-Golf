@@ -34,7 +34,15 @@ BEFORE=15
 AFTER=36
 TARGET=34
 MAX_CALLS=5
-FIVE_CALLS=(("Ball","GolfKCol",5),)
+# These original source-relative BL addresses/targets were already observed
+# on the operator's SHA-qualified phase7 output, not inferred from counts.
+EXPECTED_CALLS={
+    0x05C0:0x0000,
+    0x0AFC:0x1BB8,
+    0x0B60:0x1AC4,
+    0x14D0:0x0000,
+    0x27B0:0x0000,
+}
 BASIC_OPS={32:"lwz",33:"lwzu",34:"lbz",36:"stw",37:"stwu",38:"stb",
            40:"lhz",42:"lha",44:"sth",48:"lfs",49:"lfsu",
            50:"lfd",52:"stfs",53:"stfsu",54:"stfd"}
@@ -146,6 +154,10 @@ def inspect(read,detail=False):
              if entry["caller"]=="Ball" and entry["callee"]=="GolfKCol"]
     if len(records)!=MAX_CALLS:
         raise ValueError("Original Ball-to-KCol source call cardinality changed")
+    actual={int(x["caller_site"],16):int(x["callee_site"],16)
+            for x in records}
+    if actual!=EXPECTED_CALLS:
+        raise ValueError("Original five native BL site/target offsets changed")
     lo,hi=units.UNITS["Ball"]
     klo,khi=units.UNITS["GolfKCol"]
     output=[]
