@@ -249,6 +249,10 @@ def dolphin_window():
         return True
     callback=callback_type(cb)
     user32.EnumWindows(callback,0)
+    game=[item for item in matches
+          if "Wii Sports" in item[1] or "RSPE01" in item[1]]
+    if len(game)==1:
+        return game[0]
     return matches[0] if len(matches)==1 else None
 
 
@@ -347,6 +351,7 @@ def save_manifest(folder,data):
 def capture_trial(root,kind,args):
     folder=root/(kind+"-"+uuid.uuid4().hex[:8]+"-PRIVATE")
     folder.mkdir(mode=0o700)
+    print("Before this trial, restore the same pre-shot state and set the intended aim/club in Dolphin.",flush=True)
     raw=folder/"candidate-stream-RAW-PRIVATE.jsonl"
     with FelkRPC(port=args.port,timeout_s=10) as rpc:
         identity=preflight(rpc)
@@ -481,7 +486,9 @@ def main(argv=None):
                    "sample_count":x.get("sample_count",0),
                    "observed_contact_region":x.get("operator_observed_contact_region","unknown"),
                    "observed_trajectory_changed":x.get("operator_observed_trajectory_changed","unknown"),
-                   "video_created":x.get("video_created",False)}
+                   "video_created":x.get("video_created",False),
+                   "screenshot_count":x.get("screenshot_count",0),
+                   "visual_capture_note":x.get("visual_capture_mode_note","unknown")}
                   for x in summaries],
         "contact_verified_by_native_code":False,
         "ball_velocity_verified":False,"training_approved":False,
