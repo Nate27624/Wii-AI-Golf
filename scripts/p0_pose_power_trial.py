@@ -185,6 +185,11 @@ def summarize(result: dict, plan: dict, *, bridge_sha: str, payload: dict) -> di
 
 def run_live(plan: dict, *, port: int, bridge_source: Path, atomic: bool,
              data_dir: Path = DATA, reader=input) -> dict:
+    if not atomic:
+        raise RefuseTrial(
+            "Host-polled A45 can skip emulated frames (observed Win trial). "
+            "This pilot requires the isolated atomic A45 V1 bridge and --atomic-a45; "
+            "restart from a fresh first-ball state. No controller input sent.")
     if not 1 <= port <= 65535:
         raise RefuseTrial("invalid bridge port")
     hashes = assert_payload_contrast()
@@ -201,7 +206,11 @@ def run_live(plan: dict, *, port: int, bridge_source: Path, atomic: bool,
 
     from collect_outcome_transition import run_session
     from wii_ai_golf.integration.rpc import FelkRPC
+    from wii_ai_golf.integration.atomic_a45_client import AtomicA45SwingTraceClient
     with FelkRPC(port=port, timeout_s=15) as rpc:
+        # Verify the actually LOADED bridge responds to atomic capability
+        # BEFORE prompting the operator or requesting any controller input.
+        AtomicA45SwingTraceClient.require_capability(rpc)
         result = run_session(
             rpc, raw_path=data_dir / "UNUSED-POSE-PILOT-RAW-PRIVATE.jsonl",
             pre_samples=2, post_samples=2, settled_samples=2,
@@ -233,7 +242,7 @@ def main(argv=None):
     parser.add_argument("--aim-id", required=True, help="fixed human aim reference label; not source-verified")
     parser.add_argument("--send-live-swing", action="store_true", help="one real swing, only via canonical post-boot runner")
     parser.add_argument("--bridge-source", type=Path, help="must be the exact source supplied to outer --bridge")
-    parser.add_argument("--atomic-a45", action="store_true", help="requires matching isolated atomic V1 source")
+    parser.add_argument("--atomic-a45", action="store_true", help="REQUIRED for live trial: isolated atomic V1 bridge; host-polled A45 is refused")
     parser.add_argument("--port", type=int, default=55355)
     args = parser.parse_args(argv)
     try:
