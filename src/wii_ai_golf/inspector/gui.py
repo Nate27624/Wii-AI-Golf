@@ -479,9 +479,57 @@ class Inspector:
         self.terrain_status.set(
             f"PRIVATE terrain OBJ: {len(mesh.faces)} candidate triangles, SHA {mesh.sha256[:12]}… "
             "· visual alignment/active collision UNVERIFIED")
+        if hasattr(self, "saved_assets"):
+            Inspector._remember_private_asset(self, "terrain_obj", filename)
+        Inspector._restore_terrain_labels(self, filename)
         self.draw_path()
         Inspector._sync_visual_terrain(self)
         return True
+
+    def _restore_terrain_labels(self, terrain_filename: str) -> None:
+        """Restore SHA-bound OGWS IDs, or discover ONLY exact sibling sidecar.
+
+        A plain OBJ may have every OGWS face marked UNKNOWN. This was not
+        obvious from the textured view because the parent had remembered
+        terrain OBJ but discarded the separate operator-verified labels.
+        Never associate labels by basename alone: the strict validator
+        compares original source OBJ SHA and full face count.
+        """
+        if (getattr(self, "terrain_mesh", None) is None or
+                not hasattr(self, "surface_label_status")):
+            return
+        path = Path(terrain_filename).resolve()
+        saved = getattr(self, "saved_assets", AssetSelections())
+        same_obj = (saved.terrain_obj is not None and
+                    Path(saved.terrain_obj) == path)
+        # If a saved label was explicitly accepted for this exact OBJ,
+        # prefer it and REPORT any refusal. Do not silently switch source.
+        if same_obj and saved.terrain_labels:
+            candidate = Path(saved.terrain_labels)
+            self.load_terrain_labels_path(str(candidate), show_dialog=False)
+            return
+        # Historical private exporter pair:
+        # hole01-collision-candidate-PRIVATE.obj
+        # hole01-collision-candidate-labels-PRIVATE.json
+        # No directory scans, no guesses about other hole/course files.
+        if path.name.endswith("-PRIVATE.obj"):
+            candidate = path.with_name(
+                path.name.removesuffix("-PRIVATE.obj") +
+                "-labels-PRIVATE.json")
+            if candidate.is_file() and not candidate.is_symlink():
+                self.load_terrain_labels_path(
+                    str(candidate), show_dialog=False)
+                return
+        # If OGWS groups embedded in OBJ, face labels already exist.
+        from .terrain import SURFACE_STYLE
+        if any(a in SURFACE_STYLE
+               for a in self.terrain_mesh.face_materials):
+            return
+        self.surface_label_status.set(
+            "KCL source IDs MISSING: source OBJ has no recognized OGWS "
+            "green/fairway classes. Select Load KCL source IDs once "
+            "(SHA-bound PRIVATE label JSON) or export the original "
+            "matching -labels-PRIVATE.json sidecar.")
 
     def load_terrain_labels(self) -> None:
         """Operator opt-in: select source labels independently of mesh bytes."""
@@ -514,9 +562,15 @@ class Inspector:
             self.surface_label_status.set("Source colors: rejected — local file read error")
             return False
         self.terrain_mesh = labeled
+        from .terrain import SURFACE_STYLE
+        counts = labeled.material_counts()
         self.surface_label_status.set(
-            f"Source colors: {len(labeled.faces)} original KCL per-face IDs linked by OBJ SHA "
-            "· candidate visual categories, not physics")
+            f"Source colors: {len(labeled.faces)} SHA-bound KCL face IDs · "
+            f"green={counts.get(6, 0)}, fairway={counts.get(1, 0)}, "
+            f"bunker={counts.get(3, 0)}, rough={counts.get(2, 0)} · "
+            "native collision semantics NOT approved")
+        if hasattr(self, "saved_assets"):
+            Inspector._remember_private_asset(self, "terrain_labels", filename)
         self.draw_path()
         Inspector._sync_visual_terrain(self)
         return True
@@ -549,7 +603,8 @@ class Inspector:
             save_asset_selections(updated)
             self.saved_assets = updated
             self.asset_settings_status.set(
-                "Private terrain/tree selections saved locally; reloaded at next launch.")
+                "Private KCL/labels, visual DAE and tree paths remembered "
+                "locally; all source files revalidated on next launch.")
         except (SavedAssetError, OSError, ValueError) as exc:
             self.asset_settings_status.set(
                 f"Could not remember local asset path: {exc}. Current view remains loaded.")
@@ -563,6 +618,7 @@ class Inspector:
             "· visual alignment/active collision UNVERIFIED")
         if remember:
             self._remember_private_asset("terrain_obj", filename)
+        Inspector._restore_terrain_labels(self, filename)
         self.draw_path()
 
     def _load_tree_file(self, filename: str, *, remember: bool = False) -> None:
