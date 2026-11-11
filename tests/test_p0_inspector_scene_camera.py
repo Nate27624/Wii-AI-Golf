@@ -153,6 +153,7 @@ class SceneCameraTests(unittest.TestCase):
         self.assertEqual(view.camera.position, original)
         self.assertEqual(view.drag_origin, (120, 92))
         self.assertLess(view.camera.yaw, self.cam.yaw)
+        view.schedule.assert_called_once_with(navigation=True)
         self.assertEqual(view.key_move(SimpleNamespace(keysym="w", state=0)),
                          "break")
         # Keydown only sets held state; no discrete step.
