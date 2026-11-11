@@ -34,6 +34,12 @@ class TexturedPreviewWindow:
         head.pack(fill="x")
         ttk.Label(head,text=f"PRIVATE visual mesh: {model.source_name} · {len(model.faces):,} UV triangles · {len(model.textures)} PNG texture(s)",font=("Segoe UI",12,"bold")).pack(anchor="w")
         ttk.Label(head,text="Original-file preview only · NOT KCL collision/physics · Wii lighting/shaders & model-to-world transform UNVERIFIED",wraplength=990).pack(anchor="w")
+        if model.skipped_source_faces:
+            ttk.Label(
+                head,
+                text=f"Source DAE has {model.skipped_source_faces:,} face(s) with no recoverable original diffuse appearance: omitted, NOT recolored.",
+                wraplength=990,
+            ).pack(anchor="w")
         controls=ttk.Frame(self.top,padding=(8,2))
         controls.pack(fill="x")
         ttk.Button(controls,text="Frame visual model (F)",command=self.frame).pack(side="left")
