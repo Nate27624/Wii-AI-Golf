@@ -18,7 +18,8 @@ from wii_ai_golf.inspector.scene_camera import (
     fit_camera, frame_playable_camera, playable_source_vertices)
 from wii_ai_golf.inspector.textured_preview import TexturedPreviewWindow
 from wii_ai_golf.inspector.unified_source_view import (
-    prepare_comparison_kcl, overlay_summary, draw_comparison)
+    prepare_comparison_kcl, overlay_summary, draw_comparison,
+    source_to_visual_display)
 from wii_ai_golf.inspector.visual_model import PrivateVisualModel, VisualFace
 from wii_ai_golf.inspector.terrain import TerrainMesh
 
@@ -77,6 +78,84 @@ class UnifiedSourceTests(unittest.TestCase):
         self.assertIn("UNVERIFIED", overlay_summary(comp).upper())
         self.assertIn("display-only", overlay_summary(comp))
         self.assertEqual(collision.vertices[0], (0., 1., 0.))
+
+    def test_operator_180_yaw_rotates_kcl_about_visual_center(self):
+        model, collision = scene()
+        before_visual = model.vertices
+        before_native_kcl = collision.vertices
+        identity = prepare_comparison_kcl(collision, model, rotation_degrees=0)
+        turned = prepare_comparison_kcl(collision, model, rotation_degrees=180)
+        # The source replay/OBJ XYZ and genuine visual DAE stay immutable.
+        self.assertEqual(model.vertices, before_visual)
+        self.assertEqual(collision.vertices, before_native_kcl)
+        self.assertEqual(identity.vertices[0], (0., 0., 0.))
+        self.assertEqual(turned.vertices[0], (100., 0., 100.))
+        self.assertEqual(turned.vertices[3], (0., 0., 0.))
+        self.assertEqual(identity.source_sha256, turned.source_sha256)
+        self.assertEqual(identity.faces, turned.faces)
+        self.assertEqual(identity.colors, turned.colors)
+        self.assertEqual(turned.display_center, (50., 0., 50.))
+        self.assertEqual(turned.display_rotation_degrees, 180)
+        self.assertIn("yaw 180°", overlay_summary(turned))
+        self.assertIn("UNVERIFIED", overlay_summary(turned))
+
+    def test_source_tree_bases_share_identical_kcl_display_transform(self):
+        model, collision = scene()
+        for angle in (0, 90, 180, 270):
+            with self.subTest(display_yaw=angle):
+                comp = prepare_comparison_kcl(
+                    collision, model, rotation_degrees=angle)
+                # Same unmodified source vertex represents either a tree base
+                # or one KCL vertex. Both MUST project to the same XYZ.
+                for original, drawn in zip(collision.vertices, comp.vertices):
+                    self.assertEqual(
+                        source_to_visual_display(original, comp), drawn)
+                # KCL source center stays at visual source center under ALL
+                # trial rotations, including quarter turns.
+                mid = (5., 1., 5.)
+                self.assertEqual(
+                    source_to_visual_display(mid, comp),
+                    (50., 0., 50.))
+                xs = [v[0] for v in comp.vertices]
+                zs = [v[2] for v in comp.vertices]
+                self.assertAlmostEqual(max(xs)-min(xs), 100.)
+                self.assertAlmostEqual(max(zs)-min(zs), 100.)
+
+    def test_trial_display_yaw_rejects_invalid_values(self):
+        model, collision = scene()
+        for yaw in (45, -90, 360, "180", True, 90.0, float("nan")):
+            with self.subTest(yaw=yaw), self.assertRaises(ValueError):
+                prepare_comparison_kcl(collision, model,
+                                       rotation_degrees=yaw)
+
+    def test_visual_control_recomputes_existing_source_without_reloading(self):
+        model, collision = scene()
+        class Var:
+            def __init__(self, v): self.v = v
+            def get(self): return self.v
+            def set(self, v): self.v = v
+        view = object.__new__(TexturedPreviewWindow)
+        view.model = model
+        view.mode = Var("Textures")
+        view.display_rotation = Var(180)
+        view.comparison_status = Var("none")
+        view.schedule = Mock()
+        view.set_collision_terrain(collision)
+        self.assertEqual(view.mode.get(), "Both")
+        self.assertEqual(view.comparison_kcl.display_rotation_degrees, 180)
+        self.assertIn("yaw 180°", view.comparison_status.get())
+        before = collision.vertices
+        view.set_display_rotation(0)
+        self.assertEqual(view.display_rotation.get(), 0)
+        self.assertEqual(view.comparison_kcl.display_rotation_degrees, 0)
+        self.assertEqual(view._source_terrain.vertices, before)
+        view.set_display_rotation(90)
+        self.assertEqual(view.comparison_kcl.display_rotation_degrees, 90)
+        with self.assertRaises(ValueError):
+            view.set_display_rotation(22)
+        self.assertEqual(view.comparison_kcl.display_rotation_degrees, 90)
+        self.assertEqual(model.vertices, scene()[0].vertices)
+        self.assertEqual(view.schedule.call_count, 3)
 
     def test_same_canvas_modes_preserve_texture_image_bytes(self):
         try:
