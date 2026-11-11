@@ -288,3 +288,16 @@ hole-source association and native rendered-frame equivalence are NOT yet
 verified; no raw game textures or meshes are committed. Complete requirements,
 private path rules and extraction handoff: [P0 private original game visual
 textures](p0-private-visual-textures.md). Training remains false.
+
+
+## Live selected club (operator-confirmed Rev1 mapping)
+
+The inspector now displays **CLUB DRIVER / IRON / WEDGE / PUTTER** and the observed integer index as a separate read-only status below the A-button indicator. It reads this only while connected LIVE to the **existing** Felk bridge in the source-gated **RSPE01 US Rev1 Golf mode 4**. Offline replay, stale data, unsupported/custom sampler or invalid source reads display **CLUB UNKNOWN**. Changing the displayed club never sends inputs.
+
+**Provenance.** Operator's 2026-11-11 source-qualified Hitting-the-Green experiment: B0 Wedge=2, idle Wedge=2, manual Up Iron=1, manual Down Wedge=2, aim-only Wedge=2; two passes verified Driver=0 / Iron=1 / Wedge=2 / Putter=3, plus 4/4 held-out club predictions revealed after each read. The uninterrupted-source resume audit and private SHA artifacts live outside Git. Up/Down game code calls `fn_802A9BC8` with 0/1 and bounds a 32-bit field at `+0x1C` in its selected object. The **distinct** global pointer slot is `0x804BF900` (public Rev1 `.sbss`), and its dereferenced object `+0x1C` holds the live club index. `0x804BF8D0` is PlayerManager, **not** the selector; PlayerManager `+0x1C` was experimentally falsified as the club variable. Original live investigation draft PR #412 includes the full source trace, synthetic tests and unmodified private capture references.
+
+**Read-only implementation.** The existing batched `fast.packet` source check extends its already bounded MEM1 static-root read to include `0x804BF900` only when explicitly collecting the live club. The source owner must be a qualified, aligned **MEM2** guest pointer distinct from PlayerManager; index must be an exact integer 0..3. Bracket reads of index and the global pointer across the existing source-identity epoch check. If the pointer changes, index changes during the window, or the value is invalid, it becomes UNKNOWN without contaminating the independent ball/A display. Extra **two** bounded `memory.read_bytes` RPC calls are needed on a valid pointer; no full memory scan, no memory writes, no new connection, no file output. The main live sampler remains opt-in and its RPC allowlist still permits **only** memory reads and frame counts.
+
+**Status boundary.** These are operator-confirmed *club labels* in the tested Rev1 Hitting-the-Green scene, not a guarantee in other games/revisions/modes or a native CPU r13 register-read proof. The inspector is never a training approval authority: `training_approved=false`. Physics/aim calibration, A/button behavior and 3D terrain are unchanged. The UI must show UNKNOWN if the live sample is stale, disconnected, malformed, or no longer source-qualified.
+
+Tests: `python -m unittest discover -s tests -p test_p0_memory_inspector_club.py -v` and existing fast/live/inspector suites. The synthetic tests cover all club IDs, invalid/moving pointers, rejected PlayerManager alias, non-atomic index movement, custom/offline UNKNOWN and the read-only bridge contract.
