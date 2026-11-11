@@ -155,7 +155,9 @@ class VisualAssetTests(unittest.TestCase):
         win.model = Mock()
         win.model.faces = [None] * 9
         win.textures = {}
-        win.yaw, win.pitch, win.zoom, win.pan = .65, .48, 1., (0., 0.)
+        from wii_ai_golf.inspector.scene_camera import fit_camera, look_in_place
+        win.camera = fit_camera(((0., 0., 0.), (5., 5., 0.)))
+        win.home_camera = win.camera
         win._closed = False
         win._pending = None
         win._poll_id = None
@@ -178,7 +180,7 @@ class VisualAssetTests(unittest.TestCase):
 
         # The new request invalidates the running frame but does NOT queue
         # a second worker job until the cancelled first one completes.
-        win.yaw = 1.0
+        win.camera = look_in_place(win.camera, 22, -8)
         win.schedule()
         self.assertTrue(win._cancel_render.is_set())
         win._request_full_render()
@@ -292,18 +294,20 @@ class VisualAssetTests(unittest.TestCase):
         except ImportError:
             self.skipTest('Original inspector GUI not in isolated local stage')
         from unittest.mock import patch
+        from unittest.mock import Mock
         inspector = object.__new__(Inspector)
         inspector.root = object()
-        with patch('wii_ai_golf.inspector.gui.filedialog.askopenfilename', return_value=str(self.obj)) as picker, \
-             patch('wii_ai_golf.inspector.gui.load_private_visual_model') as load, \
-             patch('wii_ai_golf.inspector.textured_preview.TexturedPreviewWindow') as preview:
+        inspector.load_visual_path = Mock(return_value=True)
+        with patch('wii_ai_golf.inspector.gui.filedialog.askopenfilename',
+                   return_value=str(self.obj)) as picker:
             Inspector.open_textured_model(inspector)
             picker.assert_called_once()
-            load.assert_called_once_with(str(self.obj))
-            preview.assert_called_once_with(inspector.root, load.return_value)
-        with patch('wii_ai_golf.inspector.gui.filedialog.askopenfilename', return_value='') as picker, \
-             patch('wii_ai_golf.inspector.gui.load_private_visual_model') as load:
+            inspector.load_visual_path.assert_called_once_with(
+                str(self.obj), show_dialog=True)
+        inspector.load_visual_path.reset_mock()
+        with patch('wii_ai_golf.inspector.gui.filedialog.askopenfilename',
+                   return_value=''):
             Inspector.open_textured_model(inspector)
-            load.assert_not_called()
+            inspector.load_visual_path.assert_not_called()
 
 if __name__=='__main__':unittest.main()
