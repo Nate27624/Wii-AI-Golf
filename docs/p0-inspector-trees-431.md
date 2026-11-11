@@ -312,3 +312,52 @@ Open verification: run against the actual private DAE on the operator's
 Windows machine, confirm source texture viewport appears and movement
 is smooth, then compare filtered art with Dolphin native Wii rendering.
 Offline tests cannot prove original visual-model source fidelity.
+
+
+## 2026-11-11 original FC1 DAE scene-graph import rejection (operator evidence)
+
+Operator screenshot showed this precise red on-screen error:
+
+`TEXTURED MODEL FAILED — fallback collision-only canvas.
+VisualAssetError: Unsupported original scene graph transform/controller.`
+
+This error came from the new strict Collada `source_scene_instances()`
+rejecting any `lookat`, `skew`, `instance_node` or
+`instance_controller`, *before* a single otherwise-valid original PNG
+texture/UV mesh could be displayed. The old gray Tk fallback was merely
+covering for an original visual model **not imported at all**.
+
+Now resolved conservatively:
+- Original `instance_node` links in source `library_nodes` or
+  `library_visual_scenes` are traversed with the actual composed
+  hierarchical transforms. Bounded recursion, per-reference instance
+  counting, unique source IDs, cycle detection, and same-file-only
+  `#id` links prevent silent guessing or external includes.
+- Unsupported source `instance_controller` (skeleton/skin), `lookat`,
+  and `skew` are named explicitly by the strict importer rather than
+  folded into a generic error. External controller links and
+  malformed/nonfinite `lookat`/`skew` remain hard rejected.
+- For *only those well-formed but unsupported source scene features*,
+  the GUI uses an **explicitly labeled GEOMETRY-ONLY ORIGINAL-TEXTURE
+  PREVIEW** as a compatibility fallback. This reads the same verified
+  original DAE library POSITION/UV/materials and local source PNG files
+  without applying the unsupported scene hierarchy or skinning. It
+  does **NOT** represent native model/world alignment; original KCL
+  overlays are **not automatically enabled** in this mode.
+- The red warning appears INSIDE the now-visible source-texture
+  viewport; status labels NEVER claim a native original scene matrix
+  or hole registration was applied. Strict `load_private_dae_visual_model`
+  calls still fail closed unless a caller explicitly asks for this
+  bounded, non-authoritative compatibility display.
+- `py -3 -I scripts/diagnose_inspector_visual_loading.py` now returns
+  `VISUAL_DAE_GEOMETRY_ONLY_PREVIEW` (instead of a missing-art error)
+  and names the actual unsupported source element. The result proves
+  only exact local PNG/UV loader success, **not** Wii physics, KCL
+  registration, tree hitbox correctness, native animation, or game art
+  fidelity.
+
+The original source DAE/PNG/OBJ/JSON remain byte-identical and PRIVATE.
+The operator should now see the source texture 3D viewer, rather than
+the gray fallback. To reconstruct the actual Wii scene transform and
+controllers, inspect source MDL0/BRRES and the specific DAE controller
+later, rather than rotating/stretching an incomplete visual model.
