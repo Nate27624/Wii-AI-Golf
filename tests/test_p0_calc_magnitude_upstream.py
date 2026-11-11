@@ -19,6 +19,11 @@ def dform(op, rt, ra, disp):
     return ((op << 26) | (rt << 21) | (ra << 16) | (disp & 0xFFFF))
 
 
+def mr(dest, src):
+    return (31 << 26 | src << 21 | dest << 16 |
+            src << 11 | 444 << 1)
+
+
 def bl(pc, target):
     diff = target - pc
     if diff % 4 or not -(1 << 25) <= diff < (1 << 25):
@@ -38,6 +43,8 @@ def fixture():
         words[pc] = dform(36, reg, base, disp)
     for pc, dest in m.CALL_GATES.items():
         words[pc] = bl(pc, dest)
+    for pc, (dest, src) in m.MR_GATES.items():
+        words[pc] = mr(dest, src)
     # Known candidate intermediate r24-relative stores (synthetic payload).
     words[0x802B482C] = dform(52, 1, 24, 0x18)
     words[0x802B4840] = dform(52, 2, 24, 0x1C)
@@ -57,6 +64,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["calc_peak_writer_at"], "0x802B4924")
         self.assertEqual(result["calc_state3_latch_writer_at"], "0x802B31C4")
         self.assertTrue(result["two_direct_bl_edges_exact"])
+        self.assertTrue(result["four_explicit_mr_receiver_copies_exact"])
         self.assertEqual(m._branch(0x802B4938, words[0x802B4938])["dest"],
                          0x802B3BA0)
 
@@ -75,6 +83,14 @@ class Tests(unittest.TestCase):
                 m.verify_static_gates(words.__getitem__)
             words[pc] = bl(pc, m.CALL_GATES[pc]) & ~1
             with self.assertRaisesRegex(m.Abstain, "calc_call_chain"):
+                m.verify_static_gates(words.__getitem__)
+
+    def test_calc_receiver_four_mr_hops_are_exact(self):
+        for pc, (dest, source) in m.MR_GATES.items():
+            words = fixture()
+            self.assertTrue(m._mr_matches(words[pc], dest, source))
+            words[pc] = mr(dest, (source + 1) % 32)
+            with self.assertRaisesRegex(m.Abstain, "receiver_identity_chain"):
                 m.verify_static_gates(words.__getitem__)
 
     def test_rejects_uncorroborated_latch_state(self):
