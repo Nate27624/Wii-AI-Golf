@@ -219,8 +219,17 @@ def main(argv=None) -> int:
     report = {
         "status": "SOURCE_DIAGNOSTIC_ONLY_NO_NATIVE_ALIGNMENT_CLAIM",
         "strict_source_kcl": {"sha256":terrain.sha256, "faces":len(terrain.faces)},
-        "strict_source_visual": {"sha256":visual.obj_sha256,
-                                "renderable_faces":len(visual.faces)},
+        "strict_source_visual": {
+            "sha256": visual.obj_sha256,
+            "renderable_faces": len(visual.faces),
+            # This is the full DAE renderer's actual successful return,
+            # distinct from the source-only scene inventory (which never
+            # attempts joint evaluation and thus reports false there).
+            "source_authored_scene_loaded": True,
+            "strict_controller_instances_loaded": scene.get(
+                "controllers", {}).get("active_controller_instance_count", 0),
+            "native_collision_world_registration_proven": False,
+        },
         "private_source_tree_count": tree_count,
         "dae_visual_scene": scene,
         "live_memory": {"status":live_status},
