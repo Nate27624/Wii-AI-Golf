@@ -78,6 +78,37 @@ def surface_from_faces(vertices, faces) -> Surface | None:
     return Surface(area,center,count)
 
 
+def source_class_counts(terrain, visual) -> dict:
+    """Source face counts ONLY (not original vectors, camera, private art).
+
+    Crucially, `face_materials=(None, ...)` from a plain original OBJ is
+    *non-empty*. Treating that as proof of source OGWS material labels hid
+    the missing SHA-bound KCL labels after inspector restarts.
+    """
+    terrain_materials = getattr(terrain, "face_materials", ())
+    terrain_faces = getattr(terrain, "faces", ())
+    if terrain_materials and len(terrain_materials) != len(terrain_faces):
+        raise MaterialAlignmentError("KCL face/source-ID record count mismatch")
+    visual_faces = getattr(visual, "faces", ())
+    categories = {}
+    for label, (kcl_id, materials) in SURFACES.items():
+        categories[label] = {
+            "kcl_source_faces": sum(
+                x == kcl_id for x in terrain_materials),
+            "visual_source_faces": sum(
+                face.material in materials for face in visual_faces),
+        }
+    return {
+        "status": "ORIGINAL_SOURCE_CLASS_COUNTS",
+        "categories": categories,
+        "kcl_source_ogws_labels_recognized": any(
+            item["kcl_source_faces"] > 0 for item in categories.values()),
+        "visual_source_material_labels_recognized": any(
+            item["visual_source_faces"] > 0 for item in categories.values()),
+        "scene_or_course_identity_proven": False,
+    }
+
+
 def _landmarks(terrain, visual):
     if (len(terrain.faces)>30000 or len(visual.faces)>100000 or
             not terrain.face_materials or
@@ -103,11 +134,30 @@ def derive_material_alignment(terrain, visual) -> MaterialAlignment:
     triangles and all 94 original tree bases. They do not prove the original
     game root transform, texture unit scale, tree size or native Y axes.
     """
+    counts = source_class_counts(terrain, visual)
+    green = counts["categories"]["green"]
+    fairway = counts["categories"]["fairway"]
+    if any(n <= 0 for n in (
+            green["kcl_source_faces"], fairway["kcl_source_faces"],
+            green["visual_source_faces"], fairway["visual_source_faces"])):
+        hint = (
+            "KCL has no usable OGWS IDs: load the matching SHA-bound "
+            "-labels-PRIVATE.json (or choose Load KCL source IDs)."
+            if green["kcl_source_faces"] == fairway["kcl_source_faces"] == 0
+            else "DAE material regions and source KCL must be checked "
+                 "against the SAME course, not assumed from FC1 filename.")
+        raise MaterialAlignmentError(
+            "Cannot measure scale: original green/fairway labels missing. " +
+            f"KCL green={green['kcl_source_faces']} "
+            f"fairway={fairway['kcl_source_faces']}; "
+            f"DAE green={green['visual_source_faces']} "
+            f"fairway={fairway['visual_source_faces']}. " + hint)
     pairs=_landmarks(terrain,visual)
     if not all(name in pairs for name in ("green","fairway")):
         raise MaterialAlignmentError(
-            "Cannot measure scale: need source-labeled green AND fairway "
-            "triangles in both original KCL and DAE")
+            "Cannot measure scale: green/fairway source patches have "
+            "degenerate or zero horizontal footprint. Verify KCL source "
+            "geometry and original Collada skin transforms.")
     k_green,v_green=pairs["green"]
     k_fair,v_fair=pairs["fairway"]
     kg,kf=k_green.centroid,k_fair.centroid
@@ -164,11 +214,16 @@ def derive_material_alignment(terrain, visual) -> MaterialAlignment:
 def alignment_diagnostic(terrain, visual) -> dict:
     """Pure derived scalar summary, no original game vector/UV exposure."""
     try:
+        counts = source_class_counts(terrain, visual)
         a=derive_material_alignment(terrain,visual)
     except MaterialAlignmentError as exc:
+        counts = source_class_counts(terrain, visual)
         return {"status":"SOURCE_DISPLAY_REGISTRATION_DECLINED",
-                "reason":str(exc),"native_world_proven":False}
+                "reason":str(exc),
+                "source_class_counts":counts,
+                "native_world_proven":False}
     return {"status":"SOURCE_MATERIAL_DISPLAY_FIT_CANDIDATE",
+            "source_class_counts":counts,
             "uniform_scale":round(a.scale,6),
             "display_yaw_degrees":round(a.yaw_degrees,3),
             "independent_holdout_material":a.holdout_name,
