@@ -194,15 +194,16 @@ def draw_comparison(image, comp: ComparisonKCL | None, camera: "VisualCamera",
     """Draw KCL polygon / wire on SAME PhotoImage after original UV raster.
 
     Mode: Textures (no KCL), Collision (surface colors), Both (visual
-    PNG image plus cyan x-ray KCL wire edges). All are explicitly unverified
-    relative registration; no changes to source assets.
+    PNG image plus cyan x-ray KCL wire edges), Overlay (transparent source
+    material KCL over original PNG), Split (same camera textures left,
+    KCL-colored faces right). These are all display-only hypotheses.
     """
-    if mode not in {"Textures", "Collision", "Both"}:
+    if mode not in {"Textures", "Collision", "Both", "Overlay", "Split"}:
         raise ValueError("Unknown unified source view mode")
     if comp is None or mode == "Textures":
         return image
     import numpy as np
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageColor
 
     if mode == "Collision":
         image = Image.new("RGB", image.size, (19, 32, 46))
@@ -218,10 +219,17 @@ def draw_comparison(image, comp: ComparisonKCL | None, camera: "VisualCamera",
     xy = np.empty((len(coords), 2), dtype=np.float64)
     xy[:, 0] = width*.5+focal*(delta @ np.asarray(right))/denom
     xy[:, 1] = height*.5-focal*(delta @ np.asarray(up))/denom
-    draw = ImageDraw.Draw(image)
-    if mode == "Collision":
-        # Unverified source-category-colored candidate KCL polygons:
-        # painter sorting is for inspectability, NOT game native physics.
+    if mode in {"Collision", "Overlay", "Split"}:
+        # Per-vertex RGB is original OGWS-class *display color*, never a
+        # texture/collision semantic match. No DAE/KCL shared depth claim.
+        if mode == "Overlay":
+            tinted = Image.new("RGBA", image.size, (0, 0, 0, 0))
+            draw = ImageDraw.Draw(tinted, "RGBA")
+        elif mode == "Split":
+            panel = Image.new("RGB", image.size, (19, 32, 46))
+            draw = ImageDraw.Draw(panel)
+        else:
+            draw = ImageDraw.Draw(image)
         ordered = sorted(range(len(comp.faces)),
                          key=lambda i: float(sum(facing[v] for v in comp.faces[i])),
                          reverse=True)
@@ -232,9 +240,23 @@ def draw_comparison(image, comp: ComparisonKCL | None, camera: "VisualCamera",
             points = [tuple(xy[v]) for v in tri]
             if any(abs(x) > 1e6 for p in points for x in p):
                 continue
-            draw.polygon(points, fill=comp.colors[index])
+            color = comp.colors[index]
+            if mode == "Overlay":
+                draw.polygon(points, fill=(*ImageColor.getrgb(color), 90))
+            else:
+                draw.polygon(points, fill=color)
+        if mode == "Overlay":
+            return Image.alpha_composite(image.convert("RGBA"), tinted).convert("RGB")
+        if mode == "Split":
+            halfway = width // 2
+            image.paste(panel.crop((halfway, 0, width, height)),
+                        (halfway, 0))
+            ImageDraw.Draw(image).line(
+                (halfway, 0, halfway, height), fill="#f7e88a", width=2)
+            return image
         return image
 
+    draw = ImageDraw.Draw(image)
     # Both: source-textured DAE plus a thin cyan X-RAY KCL line overlay.
     # X-ray avoids a false claim that KCL and original TEV share a zbuffer.
     for v0, v1 in comp.edge_faces:
