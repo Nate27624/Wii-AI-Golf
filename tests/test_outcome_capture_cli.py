@@ -5,6 +5,7 @@ import struct
 from unittest.mock import patch
 import sys
 import tempfile
+import json
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -309,7 +310,14 @@ class OutcomeCaptureCliTests(unittest.TestCase):
                         input_fn=lambda _q: next(answers),
                         snapshot_fn=lambda _r, phase: row(phase, 1),
                         a_prime_requests=60)
-                release.assert_called_once_with(rpc, remote=0)
+                release.assert_called_once()
+                journal = release.call_args.args[0]
+                self.assertIs(journal.rpc, rpc)
+                self.assertEqual(release.call_args.kwargs, {"remote": 0})
+                # Even an interrupted swing must preserve a private diagnostic.
+                diagnostic = Path(d) / "RAW-a-commands.json"
+                self.assertTrue(diagnostic.exists())
+                self.assertEqual(json.loads(diagnostic.read_text())["continuity"]["status"], "unknown")
 
     def test_evidence_file_never_overwritten(self):
         with tempfile.TemporaryDirectory() as d:
