@@ -103,6 +103,65 @@ class DirectDAETests(unittest.TestCase):
         self.assertEqual(model.textures["M_Fairway"].sha256,
                          hashlib.sha256(self.png.read_bytes()).hexdigest())
 
+    def test_brawlcrate_collada15_nested_surface_init_from_ref(self):
+        # Reproduces the real original Wii Golf M_Bunker-fx failure:
+        # <init_from><ref>glf_sand01-image</ref></init_from> has no .text.
+        params = (
+            '<newparam sid="glf_fairway1-surface">'
+            '<surface type="2D"><init_from>'
+            '<ref>glf_fairway1-image</ref>'
+            '</init_from></surface></newparam>'
+            '<newparam sid="glf_fairway1-sampler">'
+            '<sampler2D><source>glf_fairway1-surface</source></sampler2D>'
+            '</newparam>'
+        )
+        patched = DAE.replace(
+            '<effect id="M_Fairway-fx"><profile_COMMON>',
+            '<effect id="M_Fairway-fx"><profile_COMMON>' + params
+        ).replace(
+            '<init_from>glf_fairway1.png</init_from>',
+            '<init_from><ref>glf_fairway1.png</ref></init_from>'
+        )
+        self.dae.write_bytes(patched.encode("utf-8"))
+        model = load_private_dae_visual_model(self.dae)
+        self.assertEqual(model.textures["M_Fairway"].sha256,
+                         hashlib.sha256(self.png.read_bytes()).hexdigest())
+
+    def test_brawlcrate_collada15_nested_surface_init_from_name(self):
+        params = (
+            '<newparam sid="glf_fairway1-surface">'
+            '<surface type="2D"><init_from>'
+            '<ref>glf_fairway1</ref>'
+            '</init_from></surface></newparam>'
+            '<newparam sid="glf_fairway1-sampler">'
+            '<sampler2D><source>glf_fairway1-surface</source></sampler2D>'
+            '</newparam>'
+        )
+        self.dae.write_bytes(DAE.replace(
+            '<effect id="M_Fairway-fx"><profile_COMMON>',
+            '<effect id="M_Fairway-fx"><profile_COMMON>' + params
+        ).encode("utf-8"))
+        self.assertIn("M_Fairway", load_private_dae_visual_model(self.dae).textures)
+
+    def test_brawlcrate_collada15_rejects_ambiguous_or_empty_ref(self):
+        params = (
+            '<newparam sid="glf_fairway1-surface">'
+            '<surface type="2D"><init_from><ref>ORIGINAL</ref></init_from></surface>'
+            '</newparam>'
+            '<newparam sid="glf_fairway1-sampler">'
+            '<sampler2D><source>glf_fairway1-surface</source></sampler2D>'
+            '</newparam>'
+        )
+        for source in ('', 'https://example.com/remote.png',
+                       'glf_fairway1-image</ref><ref>other'):
+            broken = DAE.replace(
+                '<effect id="M_Fairway-fx"><profile_COMMON>',
+                '<effect id="M_Fairway-fx"><profile_COMMON>' +
+                params.replace('ORIGINAL', source))
+            self.dae.write_bytes(broken.encode("utf-8"))
+            with self.subTest(ref=source), self.assertRaises(VisualAssetError):
+                load_private_dae_visual_model(self.dae)
+
     def test_brawlcrate_sampler_surface_ref_to_image_id(self):
         params = (
             '<newparam sid="glf_fairway1-surface">'
