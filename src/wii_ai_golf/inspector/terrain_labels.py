@@ -62,6 +62,20 @@ def _ignored_and_untracked(path: Path) -> bool:
     return (ignored.returncode == 0 and indexed.returncode == 0
             and indexed.stdout == b"")
 
+def paired_private_source_labels(terrain_obj: str | Path) -> Path | None:
+    """ONLY original exporter-paired private OBJ / labels filename.
+
+    This is a candidate PATH, not verification. Call the strict SHA-bound
+    apply_private_surface_labels before using any of its original OGWS IDs.
+    Never recurse, invent material classes or infer matching course identity.
+    """
+    obj=Path(terrain_obj)
+    if not obj.name.endswith("-PRIVATE.obj"):
+        return None
+    return obj.with_name(
+        obj.name.removesuffix("-PRIVATE.obj") + "-labels-PRIVATE.json")
+
+
 def apply_private_surface_labels(mesh: TerrainMesh, filename: str | Path) -> TerrainMesh:
     """Return a new in-memory mesh view, with original OBJ vertices unchanged."""
     path = Path(filename)
