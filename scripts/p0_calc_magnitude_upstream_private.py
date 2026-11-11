@@ -154,6 +154,15 @@ COHORT_PPC_WINDOWS = (PEAK_WINDOW, STATED_LATCH_WINDOW,
                       CONTROLLER_ACCESSOR_WINDOW, *SOURCE_CALL_WINDOWS)
 EXCERPT = (0x802B4820, 0x802B4938)
 PREPROCESSOR_WINDOW = (0x802B4474, 0x802B4504)
+# 832-unit census already found one direct BL in Golf Player, outside
+# the prior unsplit-only census. Re-verify its opcode and local context.
+PLAYER_OWNER = "Pack/RPSports/RPGolScene/RPGolPlayer.cpp"
+PLAYER_OWNER_START, PLAYER_OWNER_END = 0x8029E62C, 0x802A2210
+PLAYER_CALLSITE = 0x8029ECF0
+PLAYER_CONTEXT_WINDOW = (0x8029EBE0,0x8029ED40)
+EGG_HELPER_OWNER = "egg/core/eggController.cpp"
+EGG_HELPER_OWNER_START, EGG_HELPER_OWNER_END = 0x800A5AA0,0x800A7740
+EGG_HELPER_WINDOW = (0x800A63C0,0x800A6460)
 DIRECT_CALL_TARGETS = {
     0x802B4794: "calc_history_update",
     0x802B4474: "calc_preprocessor",
@@ -168,7 +177,9 @@ class Abstain(ValueError):
 def _pc_check(pc: int) -> None:
     if (type(pc) is not int or pc % 4 or not (
             OWNER_START <= pc < OWNER_END or
-            CONTROLLER_ACCESSOR_WINDOW[0] <= pc < CONTROLLER_ACCESSOR_WINDOW[1])):
+            CONTROLLER_ACCESSOR_WINDOW[0] <= pc < CONTROLLER_ACCESSOR_WINDOW[1] or
+            PLAYER_CONTEXT_WINDOW[0] <= pc < PLAYER_CONTEXT_WINDOW[1] or
+            EGG_HELPER_WINDOW[0] <= pc < EGG_HELPER_WINDOW[1])):
         raise Abstain("source_window_outside_verified_golf_unit_or_controller_accessor")
 
 
@@ -504,6 +515,73 @@ def symbolize(pc: int, word: int) -> dict:
     return line
 
 
+
+def verify_cross_unit_input_and_ring(read) -> dict:
+    """Source opcode gates; no proof that the associated game scene executes."""
+    for pc,target in ((PLAYER_CALLSITE,0x802B4794),
+                      (0x802B449C,0x800A6400)):
+        word=read(pc)
+        b=_branch(pc,word)
+        if (word>>26!=18 or (word&3)!=1 or b is None
+                or not b["link"] or b["absolute"] or b["dest"]!=target):
+            raise Abstain("cross_unit_player_or_egg_bl_gate_failed")
+    for pc, op, reg, base, disp in (
+        (0x802B44A0,34,0,31,0xA8),
+        (0x802B44AC,48,0,1,56),
+        (0x802B44B4,52,0,1,56),
+        (0x802B44B8,32,0,31,0xA4),
+        (0x802B44BC,48,1,1,60),
+        (0x802B44C8,32,3,31,0x9C),
+        (0x802B44D4,52,1,3,4),
+        (0x802B44DC,32,0,31,0xA0),
+        (0x802B44EC,36,3,31,0xA4),
+        (0x802B44F8,36,0,31,0xA4)):
+        if not _dform_match(read,pc,op,reg,base,disp):
+            raise Abstain("preprocessor_pair_ring_fields_gate_failed")
+    w=read(0x802B44C4)
+    if ((w>>26)!=21 or (w>>21)&31!=0 or (w>>16)&31!=0
+            or (w>>11)&31!=3 or (w>>6)&31!=0 or
+            (w>>1)&31!=28 or w&1):
+        raise Abstain("preprocessor_pair_ring_stride_gate_failed")
+    w=read(0x802B44D0)
+    if ((w>>26)!=31 or (w>>1)&1023!=695 or
+            (w>>21)&31!=0 or (w>>16)&31!=3 or
+            (w>>11)&31!=0 or w&1):
+        raise Abstain("preprocessor_pair_ring_indexed_float_store_gate_failed")
+    w=read(0x802B44B0)
+    if ((w>>26)!=63 or (w>>1)&1023!=40 or
+            (w>>21)&31!=0 or (w>>16)&31!=0 or
+            (w>>11)&31!=0 or w&1):
+        raise Abstain("preprocessor_first_float_sign_gate_failed")
+    for pc, dest, bo, bi in ((0x802B44A8,0x802B44B8,12,2),
+                             (0x802B44F0,0x802B44FC,12,0)):
+        w=read(pc);b=_branch(pc,w)
+        if ((w>>26)!=16 or (w>>21)&31!=bo or
+                (w>>16)&31!=bi or b is None or
+                b["dest"]!=dest or b["absolute"] or b["link"]):
+            raise Abstain("preprocessor_control_or_wrap_branch_gate_failed")
+    if not (PLAYER_OWNER_START<=PLAYER_CALLSITE<PLAYER_OWNER_END
+            and EGG_HELPER_OWNER_START<=0x800A6400<EGG_HELPER_OWNER_END):
+        raise Abstain("cross_unit_public_owner_gate_failed")
+    return {
+        "status":"REV1_PLAYER_TO_CALC_AND_PREPROCESSOR_RING_SOURCE_PASS",
+        "player_source_owner":PLAYER_OWNER,
+        "player_caller_pc":"0x8029ECF0",
+        "player_target_pc":"0x802B4794",
+        "preprocessor_helper_pc":"0x800A6400",
+        "preprocessor_helper_owner":EGG_HELPER_OWNER,
+        "ring_buffer_pointer_field":"+0x9C",
+        "ring_capacity_field":"+0xA0",
+        "ring_index_field":"+0xA4",
+        "ring_sign_flag_field":"+0xA8",
+        "ring_float_pair_stride_bytes":8,
+        "optional_first_float_sign_flip_source_gate":True,
+        "source_player_execution_or_power_commit_verified":False,
+        "preprocessor_vector_physical_meaning_verified":False,
+        "training_approved":False,
+    }
+
+
 def scan_direct_golf_call_sites(read, *, start=OWNER_START, end=OWNER_END) -> dict:
     """Direct BL coverage of this ONE source-owned text unit only.
 
@@ -647,7 +725,8 @@ def run(archive: Path, *, detailed: bool = False) -> dict:
         # This entire decomp-qualified Golf text unit is immutable native
         # CODE across the original source phases before scanning BL sites.
         for lo,hi in (*COHORT_PPC_WINDOWS,
-                      (OWNER_START,OWNER_END),PREPROCESSOR_WINDOW):
+                      (OWNER_START,OWNER_END),PREPROCESSOR_WINDOW,
+                      PLAYER_CONTEXT_WINDOW,EGG_HELPER_WINDOW):
             phase_windows.append([
                 bytes(mm[lo-MEM1_BASE:hi-MEM1_BASE])
                 for mm in readers
@@ -661,6 +740,11 @@ def run(archive: Path, *, detailed: bool = False) -> dict:
         result["calc_preprocessor_source_excerpt"]=[
             symbolize(pc,read(pc)) for pc in range(*PREPROCESSOR_WINDOW,4)]
         result["complete_golf_text_phases_1_5_7_identical"]=True
+        result["cross_unit_player_and_preprocessor_ring"]=verify_cross_unit_input_and_ring(read)
+        result["player_caller_context_source_excerpt"]=[
+            symbolize(pc,read(pc)) for pc in range(*PLAYER_CONTEXT_WINDOW,4)]
+        result["egg_controller_preprocessor_helper_source_excerpt"]=[
+            symbolize(pc,read(pc)) for pc in range(*EGG_HELPER_WINDOW,4)]
     # Verify originals again after reading, fail closed on races/altered hashes.
     try:
         private._check_archive(archive)
