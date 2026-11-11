@@ -110,6 +110,18 @@ class DirectAimTests(unittest.TestCase):
         self.assertAlmostEqual(a[1][0], b[1][0], delta=0.0001)
         self.assertAlmostEqual(a[1][2], b[1][2], delta=0.0001)
 
+    def test_onscreen_label_shows_signed_flag_offset_in_degrees(self):
+        from wii_ai_golf.inspector.gui import Inspector
+        gui_src = inspect.getsource(Inspector.draw_path)
+        self.assertIn('text=f"Flag offset: {flag_error:+.2f}°"', gui_src)
+        self.assertNotIn('AIM? (90° − record+0x3C)', gui_src)
+        for angle, expected in ((112.20093, "Flag offset: +0.19°"),
+                                (124.13273, "Flag offset: -11.74°"),
+                                (97.54178, "Flag offset: +14.85°")):
+            with self.subTest(angle=angle):
+                diff = candidate_flag_error_degrees(sample(angle), landmarks())
+                self.assertEqual(f"Flag offset: {diff:+.2f}°", expected)
+
     def test_actual_gui_default_uses_direct_ray_not_reference(self):
         from wii_ai_golf.inspector.gui import Inspector
         src = inspect.getsource(Inspector.draw_path)
