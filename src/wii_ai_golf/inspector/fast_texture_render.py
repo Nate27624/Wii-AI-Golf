@@ -55,7 +55,7 @@ def prepare_fast_scene(model: PrivateVisualModel,
     if not accelerated_available():
         raise VisualAssetError(
             "Accelerated UV viewer requires Numba: "
-            "py -3 -m pip install --user 'numba>=0.68.1,<0.69' "
+            "py -3 -m pip install 'numba>=0.68.1,<0.69' "
             "(Pillow and NumPy remain required)")
     if not 1 <= len(model.faces) <= MAX_FAST_FACES:
         raise VisualAssetError("Source UV triangle count outside compiled renderer bound")
