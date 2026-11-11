@@ -1,0 +1,28 @@
+name: P0 Private Golf Tree-Position UI Data Offline
+on:
+  push:
+    branches:
+      - agent/p0-private-tree-position-ui-loader-20261030
+  pull_request:
+    paths:
+      - src/wii_ai_golf/inspector/tree_positions.py
+      - tests/test_p0_memory_inspector_tree_positions.py
+      - .github/workflows/p0-inspector-tree-positions-offline.yml
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Focused private local tree position loader and source flags
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_tree_positions.py -v
+      - name: Full offline regression
+        run: python -m unittest discover -s tests -v
