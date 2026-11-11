@@ -38,6 +38,27 @@ def _one(n: ET.Element, kind: str) -> ET.Element:
     return cs[0]
 
 
+def _init_from_value(init: ET.Element) -> str:
+    """Collada 1.4 text or 1.5 <init_from><ref>source</ref></init_from>.
+
+    Reject ambiguous multi-child, embedded external URLs or empty references;
+    callers separately check source image identity or safe local PNG filename.
+    """
+    if _tag(init) != "init_from":
+        raise VisualAssetError("Expected Collada init_from")
+    children = list(init)
+    if not children:
+        value = (init.text or "").strip()
+    elif (len(children) == 1 and _tag(children[0]) == "ref"
+          and not (init.text or "").strip()
+          and not (children[0].tail or "").strip()
+          and not list(children[0])):
+        value = (children[0].text or "").strip()
+    else:
+        raise VisualAssetError("Ambiguous Collada 1.5 init_from reference")
+    return _id(value)
+
+
 def _id(v: str | None) -> str:
     if not v or not _NAME.fullmatch(v):
         raise VisualAssetError("Unsafe/unsupported Collada identifier")
@@ -112,12 +133,7 @@ def _materials(root: ET.Element, dae: Path):
             original_name = image.get("name")
             if original_name is not None:
                 _id(original_name)
-            init = _one(image, "init_from")
-            # Collada 1.4 allows direct text; Collada 1.5 may wrap in <ref>.
-            refs = _children(init, "ref")
-            if refs and len(refs) != 1:
-                raise VisualAssetError("Ambiguous Collada 1.5 image reference")
-            path = ((refs[0].text if refs else init.text) or "").strip()
+            path = _init_from_value(_one(image, "init_from"))
             if iid in images or not path.endswith(".png") or not _NAME.fullmatch(path):
                 raise VisualAssetError("Unsafe or duplicate Collada image reference")
             images[iid] = path
@@ -154,7 +170,8 @@ def _materials(root: ET.Element, dae: Path):
                     surface = params.get(surface_sid)
                     if surface is None:
                         raise VisualAssetError("Collada sampler has no source surface")
-                    image_id = (_one(_one(surface, "surface"), "init_from").text or "").strip()
+                    image_id = _init_from_value(
+                        _one(_one(surface, "surface"), "init_from"))
                 else:
                     if not sampler.endswith("-sampler"):
                         raise VisualAssetError("Unsupported original source sampler")
