@@ -233,11 +233,14 @@ def outcome_eligible(row: dict) -> bool:
 
 
 def answer_category(reader, prompt: str, categories: tuple[str, ...]) -> str:
-    """One fail-closed categorical human observation, never an inferred sensor."""
-    value = reader(prompt).strip().lower()
-    if value not in categories:
-        raise RefuseTrial("Invalid human observation; expected " + "/".join(categories))
-    return value
+    """After a dispatched shot, a typo must not discard an otherwise valid record."""
+    for _ in range(3):
+        value = reader(prompt).strip().lower()
+        if value in categories:
+            return value
+        print("Use one of " + "/".join(categories) + ".", flush=True)
+    print("Recording unknown after invalid responses.", flush=True)
+    return "unknown"
 
 
 def postshot_notes(reader, result: dict) -> dict[str, str]:
@@ -392,9 +395,15 @@ def run_live(plan: dict, *, port: int, bridge_source: Path, atomic: bool,
             ask_power=False, visual_first=True)
     if result.get("cancelled"):
         raise RefuseTrial("operator cancelled; no usable trial recorded")
-    raw_power = reader(
-        "Observed power gauge (120, 120?, >100, 100+, blank=unknown): ")
-    reported_power = parse_power_observation(raw_power)
+    reported_power = (None, "unknown")
+    for _ in range(3):
+        raw_power = reader(
+            "Observed power gauge (120, 120?, >100, 100+, blank=unknown): ")
+        try:
+            reported_power = parse_power_observation(raw_power)
+            break
+        except RefuseTrial as exc:
+            print(str(exc) + "; please re-enter or leave blank.", flush=True)
     annotations = postshot_notes(reader, result)
     if hashlib.sha256(bridge_source.read_bytes()).hexdigest() != bridge_sha:
         raise RefuseTrial("bridge changed during shot; quarantined")
