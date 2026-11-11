@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from wii_ai_golf.inspector.surface_footprint_audit import (
     _region, audit_material_footprints)
+from wii_ai_golf.inspector.source_connectivity_probe import probe_connectivity
 from wii_ai_golf.inspector.scene_alignment_audit import audit_surface_registration
 
 
@@ -73,6 +74,66 @@ class SourceFootprintAuditTests(unittest.TestCase):
                          ["source_triangle_count"], 1)
         self.assertFalse(r["same_hole_or_same_source_extent_verified"])
         self.assertFalse(r["source_visual_registration_verified"])
+
+    def test_full_edge_recovered_from_duplicate_per_face_source_vertices(self):
+        verts = ((0., 0., 0.), (2., 0., 0.), (0., 0., 2.),
+                 (2., 0., 0.), (2., 0., 2.), (0., 0., 2.))
+        data = probe_connectivity(verts, ((0,1,2),(3,4,5)), 4.)
+        self.assertEqual(data["status"],
+                         "SOURCE_LOCAL_CONNECTIVITY_SENSITIVITY_ONLY")
+        self.assertTrue(data["one_distinct_source_vertex_index_per_triangle_corner"])
+        exact = data["trial_tolerances_relative_to_each_source_mesh"][0]
+        self.assertEqual(exact["shared_full_edge_occurrences"], 1)
+        self.assertEqual(exact["edge_connected_component_count"], 1)
+        self.assertEqual(exact["vertex_touch_component_count"], 1)
+        self.assertFalse(data["native_adjacency_verified"])
+        self.assertFalse(data["same_original_game_hole_verified"])
+
+    def test_relative_weld_tolerance_distinguishes_near_miss_from_exact_edge(self):
+        verts = ((0., 0., 0.), (2., 0., 0.), (0., 0., 2.),
+                 (2.00012, 0., 0.), (2., 0., 2.), (0., 0., 2.00012))
+        data = probe_connectivity(verts, ((0,1,2),(3,4,5)), 4.)
+        results = data["trial_tolerances_relative_to_each_source_mesh"]
+        self.assertEqual([a["source_relative_endpoint_tolerance"] for a in results],
+                         [0., 1e-8, 1e-6, 1e-4])
+        self.assertEqual(results[0]["edge_connected_component_count"], 2)
+        self.assertEqual(results[1]["edge_connected_component_count"], 2)
+        self.assertEqual(results[2]["edge_connected_component_count"], 2)
+        self.assertEqual(results[3]["edge_connected_component_count"], 1)
+        self.assertNotIn("2.00012", json.dumps(data))
+
+    def test_original_material_triangles_do_not_implicitly_share_indices(self):
+        v = ((0., 0., 0.), (2., 0., 0.), (0., 0., 2.),
+             (2., 0., 0.), (2., 0., 2.), (0., 0., 2.))
+        kcl = SimpleNamespace(vertices=v, faces=((0,1,2),(3,4,5)),
+                              face_materials=(6,1))
+        visual = SimpleNamespace(
+            vertices=v,
+            faces=(SimpleNamespace(vertices=(0,1,2), material="M_Green"),
+                   SimpleNamespace(vertices=(3,4,5), material="M_Fairway")))
+        data = audit_material_footprints(kcl, visual)
+        self.assertEqual(data["whole_mesh_connectivity"]["kcl"]
+                         ["trial_tolerances_relative_to_each_source_mesh"][0]
+                         ["edge_connected_component_count"], 1)
+        self.assertEqual(data["categories"]["green"]
+                         ["source_triangle_contact_sensitivity"]["kcl"]
+                         ["trial_tolerances_relative_to_each_source_mesh"][0]
+                         ["edge_connected_component_count"], 1)
+        self.assertEqual(data["categories"]["fairway"]
+                         ["source_triangle_contact_sensitivity"]["kcl"]
+                         ["source_triangle_count"], 1)
+        self.assertTrue(data["whole_mesh_connectivity"]["kcl"]
+                        ["one_distinct_source_vertex_index_per_triangle_corner"])
+        self.assertFalse(data["whole_mesh_connectivity"]["kcl"]
+                         ["native_adjacency_verified"])
+
+    def test_unbounded_probe_abstains_not_guesses(self):
+        self.assertEqual(
+            probe_connectivity(((0.,0.,0.),), ((0,1,2),), 2.)["status"],
+            "ABSTAIN_INVALID_SOURCE_INDEX")
+        self.assertEqual(
+            probe_connectivity(((0.,0.,0.),), ((0,0,0),), 0.)["status"],
+            "ABSTAIN_SOURCE_GEOMETRY_BOUND")
 
     def test_missing_materials_abstain_and_do_not_produce_pseudolandmarks(self):
         r = _region(((0.,0.,0.),), (), diagonal=1.)
