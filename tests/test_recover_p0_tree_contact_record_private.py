@@ -162,6 +162,26 @@ class TreeContactRecoveryTests(unittest.TestCase):
                                      "status":"recorded","sample_count":2,
                                      "tree_snapshot_count":1}])
 
+    def test_zero_byte_optional_ffmpeg_output_does_not_block_raw_recovery(self):
+        # A failed FFmpeg invocation may leave an empty MP4, already
+        # SHA-inventoried by the original recorder. It must not erase or
+        # invalidate the valid original private RAM stream.
+        with tempfile.TemporaryDirectory() as temp:
+            session=synthetic_session(temp)
+            trial=next(session.glob("wood-*-PRIVATE"))
+            video=trial/"dolphin-window-PRIVATE.mp4"
+            video.touch()
+            path=trial/"trial-summary-PRIVATE.json"
+            payload=json.loads(path.read_text())
+            payload["files_private"].append({
+                "name":video.name,"bytes":0,
+                "sha256":m.file_sha(video)})
+            path.write_text(json.dumps(payload),encoding="utf-8")
+            result,_=recovery.recover(session)
+            self.assertEqual(result["total_source_packets"],9)
+            self.assertFalse(result["trials"][0]["video_created"])
+            self.assertFalse(result["contact_verified_by_native_code"])
+
     def test_recovery_refuses_git_folder_and_cloud_sync(self):
         with self.assertRaises(ValueError):
             recovery.qualified_session(ROOT)
