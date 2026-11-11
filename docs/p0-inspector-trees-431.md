@@ -202,3 +202,56 @@ that inspector window; initial orientation hypothesis is 180° on reopen.
 Visual validation against actual course landmarks (distinct tee, flag,
 bunkers, and ends of fairway) remains necessary. Matching by eye does not
 prove native scene graph transforms or tree hitboxes.
+
+
+## Source-verified course registration audit (2026-11-11)
+
+Further operator evidence showed that *neither* 0° nor the earlier
+180° bounding-box overlay matches the source course. The earlier
+display-yaw hypothesis is superseded: a scalar bounds fit and free
+yaw cannot prove two source assets share one active game coordinate
+frame. There is also a concrete exporter bug: `dae_visual.py` previously
+read only `library_geometries/POSITION` arrays and ignored source
+`library_visual_scenes` node matrix/rotate/translate/scale records.
+These original Collada **authored model transforms are now applied**,
+with bounded nested parent/child matrices and multiple source-authored
+instances; UV seams and materials retain their native texture bindings.
+Unsupported skinned/instance-node/ambiguous graph layouts fail closed
+rather than showing incorrectly positioned visual art. This is the
+correct source-authored *Collada model frame*, but does **NOT**
+establish the game's KCL/MDL0 matrix or native world-to-course mapping.
+The earlier guessed 180° comparison default is removed; optional
+0/90/180/270 viewer experiments remain and show UNVERIFIED.
+
+For further source registration, run:
+
+```powershell
+Set-Location 'D:\Projects\Wii-Golf-Tree-PR432'
+py -3 -I scripts/p0_inspect_course_alignment_private.py
+```
+
+The local-only **read-only memory probe** uses the existing tested
+`fast.packet` source and pointer provenance with two consecutively
+independent RSPE01 US Rev1 Golf scene/selected player/tee/pin/epoch gates.
+It accepts only `memory.read_u32`, `memory.read_bytes`, and
+`frame.get_count` via `ReadOnlyRPC`. Source identity and tee/pin
+memory words must agree across non-atomic host frame brackets; otherwise
+live memory evidence is declined. The script never launches Dolphin,
+presses a button, writes RAM, uploads or commits original vectors.
+An unavailable bridge does not cause a guessed fallback.
+
+This audit also checks actual DAE source-authored scene node transforms
+and counts, optional up-axis metadata, original private DAE/KCL source
+SHA, per-surface green/fairway/bunker triangle counts and centroids,
+and with qualified live RAM, native tee/pin versus KCL green/fairway
+displacements. `--require-live` returns a nonzero code if the bridge
+or source qualification is unavailable; `--offline` audits file
+structure without pretending to inspect running memory.
+
+The output **does not automatically change the KCL or tree transform**.
+It explicitly labels native world mapping as unverified. Review the
+source DAE scene matrix, actual active hole and source-paired tee/pin
+versus KCL geometry first; confirm the original visual file is
+the **same** native hole as the KCL. Only then may a source-qualified
+native world matrix or separately measured correspondence with residual
+and independent holdout be applied to collision/tree graphics.
