@@ -24,6 +24,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Install opt-in original visual renderer test deps
+        run: python -m pip install -e ".[visual]"
       - name: Focused synthetic replay checks
         run: python -m unittest discover -s tests -p test_p0_memory_inspector.py -v
       - name: Focused synthetic live worker checks
