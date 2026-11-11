@@ -80,7 +80,12 @@ def decode_transfer(pc,w):
                 "BO":(w>>21)&31,"BI":(w>>16)&31,
                 "has_link":bool(w&1)}
     if op==19 and ((w>>1)&1023) in (16,528):
+        bo=(w>>21)&31
+        # BO=20 is conventional unconditional bclr/bcctr;
+        # other BO values may fall through if condition fails.
+        # Direct target remains UNKNOWN (LR/CTR source not resolved).
         return {"kind":"indirect_bclr_or_bcctr","target":None,
+                "BO":bo,"conditional_fallthrough_possible":bo!=20,
                 "has_link":bool(w&1)}
     if op==17:
         return {"kind":"system_call_unknown","target":None,
@@ -104,7 +109,9 @@ def edges(pc,read,lo=LO,hi=HI):
         # Calls to other routines are assumed to return here.
         # Do not claim this represents true guest call/return behavior.
         successors=[nex]
-    elif kind in ("indirect_bclr_or_bcctr","system_call_unknown"):
+    elif kind=="indirect_bclr_or_bcctr":
+        successors=[nex] if transfer["conditional_fallthrough_possible"] else []
+    elif kind=="system_call_unknown":
         successors=[]
     else:
         successors=[nex]
@@ -224,7 +231,7 @@ def inspect(read):
         "kind":"P0_ORIGINAL_BALL_CACHE_ENTRY_BRANCH_REACHABILITY_V1",
         "status":"ORIGINAL_SOURCE_SHA_QUALIFIED_BOUNDED_PPC_CFG",
         "source_entry":src(ENTRY),
-        "bounded_published_source_window_end_exclusive":src(HI-4),
+        "bounded_published_source_window_last_included":src(HI-4),
         "qualified_unconditional_skip":{
             "source_site":src(BRANCH_SKIP),
             "destination_site":src(BRANCH_TARGET),
