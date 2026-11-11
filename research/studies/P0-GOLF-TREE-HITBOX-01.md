@@ -447,3 +447,56 @@ decide whether flag is LOD/visibility vs collision candidate.
 Even if the flag controls visibility, tree collisions could use an
 independent KCL or object pathway. No tree collision semantics proven;
 training remains false.
+
+## Original operator 145-word +0x48 consumer trace — strong FALSE RECEIVER warning
+
+Original SHA/scene/94-tree-gated capture7 `p0_tree_flag_consumer_trace_private.py
+--detail` showed that both previously suggested native +0x48 byte
+**readers require object identity verification** before attributing
+them to the 94-tree source objects. In fact, the code now points toward
+**different receiver types**:
+
+- `Tree+0x047C` establishes `mr r30,r3` at +0x049C. It then
+  reads `+0x24(r3)` as integer, passes `lwz +0x1C(r3)`,
+  `lwz +0x20(r30)`, `lwz +0x28(r30)` as pointer-like arguments
+  to the **same `RPGolMapObjBase.cpp+0x0B84` routine** at
+  `Tree+0x04B0,+0x04B8,+0x04C0`. It calls
+  `RPGolCamera.cpp+0x028C` at `Tree+0x04CC,+0x04EC`;
+  writes two resulting floats into `r30+0x4C` and `r30+0x50`,
+  then at `Tree+0x0504` loads byte `+0x48(r30)`.
+  The source tree 0x54-byte records have the +0x1C/+0x20/+0x24/
+  +0x28 space allocated to rotation matrix floats and +0x4C
+  consists of 94 mostly nonfinite raw-word float candidates.
+  **This receiver does not match the confirmed 94-tree structure**;
+  do not claim Tree+0x0504 reads the true per-tree proximity byte.
+  Its nonzero branch changes a shared global state and writes
+  another object byte (+0x02). This is compatible with camera/
+  animation/effect control, NOT proof of a collider.
+- `FieldManager+0x0768` saves its original r3 receiver to r31,
+  at +0x0784 **calls `RPGolCameraManager.cpp+0x02B0`**, then
+  at +0x0788 loads `lbz +0x48(r3)` from the **callee return
+  value**. There is NO source evidence that this r3 return points
+  to a source tree record. Again **NOT a proven per-tree flag reader**.
+- **The only definitively sourced per-tree byte +0x48 access remains
+  `Tree+0x0044: stb r0,+0x48(r31)` after
+  `PSVECSquareDistance` and a threshold comparison**, invoked by
+  FieldManager for the 94 tree records. No verified same-object
+  consumer. All 94 byte flags stayed zero in source phases 1/5/7.
+- Source code attribution to `RPGolMapObjTree.cpp` **does not
+  establish the class identity of r3/r30**, as previously demonstrated
+  with generic clamp/vector-sub helpers in that code unit.
+
+To falsify the alternative-struct interpretation using actual original
+memory, new read-only `scripts/p0_tree_flag_receiver_disambiguation_private.py`
+strictly fingerprints native code including these 6 BL target exact
+public units, and uses the 94x84 source records to count valid aligned
+MEM1/MEM2 pointers versus plausible 32-bit floats at
+`+0x1C,+0x20,+0x24,+0x28,+0x4C,+0x50`.
+It also inventories **direct callers** of true per-tree writer
+`Tree+0x000C`, the separate candidate reader
+`Tree+0x047C` and `FieldManager+0x0768` across seven
+source units. No native pointers/individual XYZ/instruction words
+are emitted, no live Dolphin or game writes. If the record fields do
+not resemble the consumer's expected pointer/float layout, the
+hypothesis is disfavored. All native tree collider radii, height,
+canopy response and contact physics remain unverified. Training false.
