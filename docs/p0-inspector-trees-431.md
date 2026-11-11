@@ -25,6 +25,16 @@ trees** forgets the JSON and disables automatic rediscovery until another
 manual selection. Invalid/missing files are reported without silently
 substituting unrelated geometry.
 
+If trees do not load automatically, use the **read-only local diagnostic**:
+`py -3 -I scripts/diagnose_inspector_tree_loading.py`.
+It reports which known private locations were checked, which file (if any)
+was previously saved, whether **Clear trees** disabled auto-discovery, and
+the strict loader's rejection reason. The inspector now also shows missing-
+file or rejection reasons directly beneath the tree controls instead of
+silently skipping the overlay. The diagnostic does **not** print any
+original game coordinates or copy source assets. A loaded source JSON does
+not render until source-qualified replay/live data is available.
+
 The settings record is **paths only**, never coordinates, textures, or art:
 on Windows `%LOCALAPPDATA%\WiiAIGolf\inspector-assets-v1.json`;
 on Linux `~/.config/wii-ai-golf/inspector-assets-v1.json` (or the XDG
