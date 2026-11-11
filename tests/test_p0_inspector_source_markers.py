@@ -72,8 +72,8 @@ class SourceMarkerTests(unittest.TestCase):
             self.assertIsNone(hidden.pin)
             self.assertIsNone(hidden.tee)
             self.assertIsNone(hidden.cache)
-            # Player ID metadata does NOT yield a body/world position.
-            self.assertEqual(hidden.selected_player_index,1)
+            # Unqualified source packet MUST NOT carry live player ID.
+            self.assertIsNone(hidden.selected_player_index)
 
     def test_unverified_display_only_transform_exact(self):
         comp=comparison()
