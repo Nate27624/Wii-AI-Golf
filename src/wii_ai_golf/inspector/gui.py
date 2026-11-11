@@ -177,18 +177,31 @@ class Inspector:
         self.canvas.bind("<ButtonPress-3>", self.drag_start)
         self.canvas.bind("<B3-Motion>", self.drag_move)
         self.canvas.bind("<ButtonRelease-3>", self.drag_end)
+        # Narrow center pane: split terrain controls into real rows rather
+        # than silently clipping checkboxes beyond the viewport width.
         mesh_actions = ttk.Frame(center)
-        mesh_actions.pack(fill="x", pady=3)
+        mesh_actions.pack(fill="x", pady=2)
         ttk.Button(mesh_actions, text="Load PRIVATE terrain OBJ", command=self.load_terrain).pack(side="left")
         ttk.Button(mesh_actions, text="Load source colors", command=self.load_terrain_labels).pack(side="left", padx=4)
         ttk.Button(mesh_actions, text="Clear terrain", command=self.clear_terrain).pack(side="left", padx=4)
-        ttk.Checkbutton(mesh_actions, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
-        ttk.Checkbutton(mesh_actions, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
-        ttk.Checkbutton(mesh_actions, text="All triangles", variable=self.terrain_full_detail, command=self.draw_path).pack(side="left")
-        ttk.Checkbutton(mesh_actions, text="Color source surface IDs", variable=self.terrain_colors, command=self.draw_path).pack(side="left")
-        ttk.Checkbutton(mesh_actions, text="Solid terrain", variable=self.terrain_solid, command=self.draw_path).pack(side="left")
-        ttk.Checkbutton(mesh_actions, text="Triangle edges", variable=self.terrain_edges, command=self.draw_path).pack(side="left")
-        ttk.Checkbutton(mesh_actions, text="Point labels", variable=self.terrain_point_labels, command=self.draw_path).pack(side="left")
+
+        quality_actions = ttk.Frame(center)
+        quality_actions.pack(fill="x", pady=2)
+        ttk.Checkbutton(quality_actions, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(quality_actions, text="Solid terrain", variable=self.terrain_solid, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(quality_actions, text="All triangles", variable=self.terrain_full_detail, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(quality_actions, text="Triangle edges", variable=self.terrain_edges, command=self.draw_path).pack(side="left")
+
+        overlay_actions = ttk.Frame(center)
+        overlay_actions.pack(fill="x", pady=2)
+        ttk.Checkbutton(overlay_actions, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(overlay_actions, text="Color source surface IDs", variable=self.terrain_colors, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(overlay_actions, text="Point labels", variable=self.terrain_point_labels, command=self.draw_path).pack(side="left")
+
+        view_actions = ttk.Frame(center)
+        view_actions.pack(fill="x", pady=2)
+        ttk.Button(view_actions, text="Top-down", command=lambda: self.set_terrain_view(0.0, 1.35)).pack(side="left")
+        ttk.Button(view_actions, text="Isometric", command=lambda: self.set_terrain_view(0.65, 0.60)).pack(side="left", padx=5)
         ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
         ttk.Label(center, textvariable=self.surface_label_status, wraplength=650).pack(anchor="w")
         source_legend = ttk.Frame(center)
@@ -498,6 +511,14 @@ class Inspector:
 
     def move(self, direction: int) -> None:
         self.show(self.index.get() + direction)
+
+    def set_terrain_view(self, yaw: float, pitch: float) -> None:
+        """Local viewer camera preset; never changes Dolphin/game state."""
+        if not (math.isfinite(yaw) and math.isfinite(pitch)
+                and -1.4 <= pitch <= 1.4):
+            return
+        self.yaw, self.pitch = yaw, pitch
+        self.draw_path()
 
     def drag_start(self, event: tk.Event) -> None:
         self.drag_origin = (event.x, event.y)
