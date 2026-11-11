@@ -661,13 +661,17 @@ class Inspector:
             canvas.create_line(*start, *tip, fill="#e39bff", width=3,
                                dash=(8, 5), arrow=tk.LAST, arrowshape=(10, 12, 4),
                                tags=("aim_hypothesis",))
-            canvas.create_text(tip[0] + 7, tip[1] - 10, text="AIM? (flag ref + Δ0x3C)",
-                               anchor="sw", fill="#e39bff", tags=("aim_hypothesis",))
-        for name, color in ((BALL, "#f1f6ff"), (CACHE, "#f5b942")):
-            position = current.vec(name)
-            if position is not None:
-                x, y = xy(position)
-                canvas.create_text(x + 8, y - 12, anchor="w", text=("ball +0x30" if name == BALL else "cache +0xCC"), fill=color)
+            if point_labels:
+                canvas.create_text(tip[0] + 7, tip[1] - 10, text="AIM? (flag ref + Δ0x3C)",
+                                   anchor="sw", fill="#e39bff", tags=("aim_hypothesis",))
+        if point_labels:
+            for name, color in ((BALL, "#f1f6ff"), (CACHE, "#f5b942")):
+                position = current.vec(name)
+                if position is not None:
+                    x, y = xy(position)
+                    canvas.create_text(x + 8, y - 12, anchor="w",
+                                       text=("ball +0x30" if name == BALL else "cache +0xCC"),
+                                       fill=color)
         # Draw the flag LAST, over ball/cache trails: the pin should remain
         # unmistakable even when a cache value exactly equals the pin candidate.
         if TEE in landmarks:
@@ -675,8 +679,9 @@ class Inspector:
             canvas.create_polygon(x, y - 8, x + 8, y, x, y + 8, x - 8, y,
                                   fill="#59d47d", outline="#173a23", width=1,
                                   tags=("tee_candidate",))
-            canvas.create_text(x + 11, y + 11, anchor="nw", text="TEE (candidate)",
-                               fill="#59d47d", tags=("tee_candidate",))
+            if point_labels:
+                canvas.create_text(x + 11, y + 11, anchor="nw", text="TEE (candidate)",
+                                   fill="#59d47d", tags=("tee_candidate",))
         if PIN in landmarks:
             x, y = xy(landmarks[PIN])
             canvas.create_line(x, y + 13, x, y - 14, fill="#44d7ef", width=3,
@@ -686,8 +691,9 @@ class Inspector:
                                   tags=("pin_candidate",))
             canvas.create_oval(x - 3, y + 10, x + 3, y + 16,
                                fill="#44d7ef", outline="", tags=("pin_candidate",))
-            canvas.create_text(x + 23, y - 14, anchor="nw", text="PIN / FLAG (candidate)",
-                               fill="#44d7ef", tags=("pin_candidate",))
+            if point_labels:
+                canvas.create_text(x + 23, y - 14, anchor="nw", text="PIN / FLAG (candidate)",
+                                   fill="#44d7ef", tags=("pin_candidate",))
         canvas.create_text(12, height - 15, text="Left/right drag: orbit view. Initial aim assumed TEE→FLAG; Δ+0x3C radian/sign unverified; TEE ≠ player.", anchor="sw", fill="#bacbe1")
         # Overlay is intentionally last in Tk's display list, so trajectory
         # geometry cannot conceal the user-requested A text.
