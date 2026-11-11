@@ -21,6 +21,7 @@ from .terrain_labels import apply_private_surface_labels
 from .navigation import pan_by, wheel_steps, zoom_at_cursor
 from .visual_model import VisualAssetError, load_private_visual_model
 from .dae_visual import load_private_dae_visual_model
+from .collada_scene_graph import UnsupportedSceneFeature
 from .startup import StartupError, occupied_bridge, powershell_command, runtime_checkout
 from .tree_positions import TreePositions, TreePositionsError, load_private_tree_positions
 from .tree_render import draw_tree_layer, fit_points
@@ -389,14 +390,28 @@ class Inspector:
     def load_visual_path(self, filename: str, *, show_dialog: bool = False) -> bool:
         """Embed original source art in the inspector WITHOUT KCL alignment."""
         try:
-            model = (load_private_dae_visual_model(filename)
-                     if Path(filename).suffix.lower() == ".dae"
-                     else load_private_visual_model(filename))
+            if Path(filename).suffix.lower() == ".dae":
+                try:
+                    model = load_private_dae_visual_model(filename)
+                except UnsupportedSceneFeature:
+                    # Important: this is NOT a verified source/world
+                    # registration. Show original texture/UV bytes instead
+                    # of silently rendering the gray collision fallback.
+                    # The user sees a conspicuous warning inside the viewer.
+                    model = load_private_dae_visual_model(
+                        filename,
+                        allow_geometry_only_for_unsupported_scene=True)
+            else:
+                model = load_private_visual_model(filename)
             from .textured_preview import TexturedPreviewWindow
             preview = TexturedPreviewWindow(self.visual_tab, model, embedded=True)
             if getattr(self, "terrain_mesh", None) is not None:
                 try:
                     preview.set_collision_terrain(self.terrain_mesh)
+                    if getattr(model, "source_scene_warning", None):
+                        # Geometry-library fallback lacks the original scene
+                        # orientation. Never auto-overlay KCL as "Both".
+                        preview.mode.set("Textures")
                 except ValueError as align_error:
                     preview.comparison_status.set(
                         "KCL source comparison unavailable: " + str(align_error))
@@ -415,10 +430,13 @@ class Inspector:
         self._sync_visual_trees()
         if prior is not None:
             prior.close()
+        scene_warning = getattr(model, "source_scene_warning", None)
         self.visual_status.set(
-            f"PRIVATE source preview: {model.source_name} · "
-            f"{len(model.faces):,} renderable UV triangles · "
-            "native hole/world/KCL alignment NOT verified")
+            ("WARNING: GEOMETRY-ONLY COMPATIBILITY VIEW · "
+             if scene_warning else "PRIVATE source preview: ") +
+            f"{model.source_name} · {len(model.faces):,} renderable UV triangles · "
+            (scene_warning if scene_warning else
+             "native hole/world/KCL alignment NOT verified"))
         if hasattr(self, "saved_assets"):
             Inspector._remember_private_asset(self, "visual_dae", filename)
         self.show_visual_tab()
