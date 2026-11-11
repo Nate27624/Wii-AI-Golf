@@ -66,7 +66,7 @@ def ppc_mtctr(rs):
 
 def fixture():
     words = {}
-    for pc in range(*m.EXCERPT, 4):
+    for pc in list(range(0x802B4794, 0x802B4820, 4)) + list(range(*m.EXCERPT, 4)):
         words[pc] = dform(14, 1, 1, 0)
     for pc, (freg, base, disp) in m.STFS_GATES.items():
         words[pc] = dform(52, freg, base, disp)
