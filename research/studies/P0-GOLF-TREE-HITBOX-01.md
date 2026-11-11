@@ -3155,3 +3155,120 @@ game asset/XYZ data and does not access Dolphin,
 video or live memory. No physics trained:
 `training_approved=false`. User requests
 **memory-only** progress; do not ask for videos.
+
+
+## Operator r27-lineage result — candidate CC input copy, possible FC downstream duplicate
+
+The user ran the original SHA-verified Rev1 capture **7**
+`P0_ORIGINAL_BALL_CACHE_R27_LINEAGE_V1` audit at
+`ea64d20bf59b3df022dfffda0067ba0f0c93b5ff`.
+Result `original_seven_pair_SHA_and_scene_qualified=true`,
+`training_approved=false`, and all native impact,
+Ball-world-velocity, wood/foliage material and
+active-selected-Ball receiver flags explicitly **false**.
+
+### Source-level register facts
+
+In the published Ball source unit:
+
+- Known cache routine entry `0x80299C70` corresponds
+  to Ball-unit `+0x2C98`. At `Ball+0x2CB8`
+  (`+0x20` relative to the routine's published entry),
+  PPC syntax is `mr r27,r3`. The existing partial
+  register-destination scanner found this to be the
+  **sole recognized r27 definition** prior to all three
+  cache triplet writers. This is a syntactic report,
+  not a complete CFG proof against unrecognized writes
+  or crossing a call.
+- Two exact calls to that native entry:
+  `Ball+0x2B8C` and `Ball+0x2C80`.
+  Their nearest preceding bounded `r3` assignments
+  are `mr r3,r31` at `Ball+0x2B80` and
+  `Ball+0x2C70`. If original r31 holds
+  the relevant Ball object in the caller, this
+  provides a plausible `caller r31 → incoming r3
+  → callee r27` receiver chain. **Caller r31
+  provenance and execution during tree impact
+  are not yet verified**.
+- In the first source cache triplet,
+  `Ball+0x2D00`: `lfs f0,0(r3)`,
+  `+0x2D04`: `stfs f0,+0xCC(r27)`,
+  `+0x2D08`: `lfs f0,4(r3)`,
+  `+0x2D0C`: `stfs f0,+0xD0(r27)`,
+  `+0x2D10`: `lfs f0,8(r3)`,
+  `+0x2D14`: `stfs f0,+0xD4(r27)`.
+  This is a **strong candidate for a 12-byte
+  vector copy** from the current r3 data source
+  to r27+0xCC, although r3's pointer
+  origin after callee prologue remains to
+  be proved and the stores are not known
+  to execute at tree impact.
+- In the later store group,
+  `Ball+0x2F98` is an `lfs f2,+0xCC(r27)`,
+  `+0x2F9C` `lfs f1,+0xD0(r27)`,
+  `+0x2FA0` `lfs f0,+0xD4(r27)`.
+  Then `+0x2FA8/+0x2FAC/+0x2FB0`
+  store `f2/f1/f0` to
+  `r27+0xFC/+0x100/+0x104`.
+  The *single* intervening instruction at
+  `Ball+0x2FA4` must be decoded and
+  checked for control/FPR/source-memory changes
+  before upgrading this from candidate
+  to a source-proven continuous copy.
+- The middle `Ball+0xF0/+0xF4/+0xF8`
+  store group has only partial input
+  provenance: a nearby `lfs f0,+0xD0(r27)`
+  at Ball `+0x2F64` feeds an
+  `stfs f0,+0xF4(r27)` at `+0x2F70`
+  in the bounded linear analysis.
+  Other components have unresolved prior
+  control flow, so **no complete copy
+  or velocity interpretation** follows.
+
+The live source-qualified 110 Ball packets independently
+prove `u32(Ball+0x4C)==Ball+0x30`, while
+`Ball+0xCC` differed from `Ball+0x30`
+during 20/26 movement packets. This
+is consistent with separate cache stages
+rather than additional independent object
+allocations, but the exact game/physics
+semantics of `+0xCC/+0xF0/+0xFC`
+and the selected Ball receiver during
+the original native stores are unproven.
+
+### New focused native memory-only audit
+
+Added
+`scripts/p0_ball_cc_fc_copy_receiver_private.py`
+with synthetic-only
+`tests/test_p0_ball_cc_fc_copy_receiver_private.py`
+and Windows/Ubuntu CI. On the original
+seven-pair SHA-verified Rev1 native archive,
+it demands the exact sequential 6 PPC
+`lfs/stfs` instruction pair sequence
+of the r3→r27+CC triplet, re-verifies
+six source/destination instructions around
+CC→FC, and checks the *intervening*
+`Ball+0x2FA4` native opcode syntax
+for possible control transfer and
+register clobber without printing native
+instruction bytes. It separately reports
+r3 register assignments between
+`Ball+0x2CB8` and the CC input lfs
+source, along with bounded possible
+definitions of caller r31 near the two
+exact cache routine BLs. It **will
+not** infer complete CFG/SSA,
+selected live Ball object,
+impact timing, velocity or
+wood-versus-leaf material branch
+from such static syntactic evidence.
+
+All outputs are public source-relative
+locations, register numbers, syntax
+classes and bounded counts. It does
+not open Dolphin, contact users for
+video, perform live RAM reads, modify
+capture files, embed original PPC code
+words, export private addresses or
+fit game physics. `training_approved=false`.
