@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
+import math
 import time
 import tkinter as tk
 from tkinter import ttk
@@ -15,7 +16,7 @@ from tkinter import ttk
 from .navigation import wheel_steps
 from .scene_camera import (
     fit_camera, frame_playable_camera, look_in_place, orbit, pan, dolly,
-    move_continuous)
+    move_continuous, camera_axes)
 from .unified_source_view import (
     prepare_comparison_kcl, draw_comparison, draw_tree_comparison, overlay_summary)
 from .material_alignment import (
@@ -59,6 +60,12 @@ class TexturedPreviewWindow:
         # Source-authored Collada scene node matrices are now applied. No extra
         # guessed yaw is authoritative; rotations remain visual trials.
         self.display_rotation = tk.IntVar(value=0)
+        # Opt-in visual review ONLY. Never saved as a native KCL transform.
+        self.review_manual = False
+        self.review_scale = 1.
+        self.review_offset_xz = (0., 0.)
+        self.review_status = tk.StringVar(
+            value="Visual check: choose Review top-down; overlay is UNVERIFIED.")
         self.tree_overlay = ()
         self.tree_overlay_visible = True
         self.tree_illustrations = True
@@ -123,7 +130,7 @@ class TexturedPreviewWindow:
                    command=self.frame).pack(side="left")
         ttk.Button(controls, text="Frame whole scene (Shift+F)",
                    command=self.frame_all).pack(side="left", padx=(3, 8))
-        for label in ("Textures", "Collision", "Both"):
+        for label in ("Textures", "Collision", "Both", "Overlay", "Split"):
             ttk.Radiobutton(
                 controls, text=label, value=label, variable=self.mode,
                 command=self.schedule).pack(side="left", padx=(1, 3))
@@ -153,6 +160,32 @@ class TexturedPreviewWindow:
             text=("INCOMPLETE SOURCE GRAPH: verify omitted scene features" if scene_warning
                   else "DAE authored matrices applied · yaw is only a display trial"),
         ).pack(side="left", padx=8)
+        review = ttk.LabelFrame(self.top, text="Visual alignment check — display only", padding=(6, 3))
+        review.pack(fill="x", padx=6, pady=(2, 2))
+        review_buttons = ttk.Frame(review)
+        review_buttons.pack(fill="x")
+        ttk.Button(review_buttons, text="Review top-down",
+                   command=self.start_visual_review).pack(side="left", padx=(0, 6))
+        ttk.Button(review_buttons, text="Reset display fit",
+                   command=self.reset_visual_review).pack(side="left")
+        ttk.Label(review_buttons,
+                  text="Modes: Both = cyan edges · Overlay = transparent KCL · Split = textures/KCL"
+                  ).pack(side="left", padx=10)
+        manual_controls = ttk.Frame(review)
+        manual_controls.pack(fill="x", pady=(3, 0))
+        ttk.Label(manual_controls, text="KCL + 94 trees:").pack(side="left")
+        for label, axis, step in (
+            ("Scale −", "scale", -1), ("Scale +", "scale", 1),
+            ("X −", "x", -1), ("X +", "x", 1),
+            ("Z −", "z", -1), ("Z +", "z", 1)):
+            ttk.Button(
+                manual_controls, text=label,
+                command=lambda a=axis, d=step: self.nudge_visual_review(a, d),
+            ).pack(side="left", padx=(3, 0))
+        ttk.Label(
+            review, textvariable=self.review_status, wraplength=1000
+        ).pack(anchor="w")
+
         ttk.Label(
             controls,
             text="RMB look · LMB orbit · MMB pan · arrows move forward/back/left/right · "
@@ -300,9 +333,11 @@ class TexturedPreviewWindow:
                 filtered=filtered, mipmaps=getattr(self,"texture_mips",None))
         if cancelled():
             raise PreviewCancelled()
-        if collision is not None and mode in {"Collision", "Both"}:
+        if collision is not None and mode in {"Collision", "Both", "Overlay", "Split"}:
             image = draw_comparison(image, collision, camera, mode=mode)
-            if tree_visible and tree_points:
+            # Split is a clean same-camera texture/KCL comparison. In Both
+            # and Overlay the original source tree base markers remain visible.
+            if mode != "Split" and tree_visible and tree_points:
                 image = draw_tree_comparison(
                     image, collision, camera, tree_points,
                     illustrations=tree_illustrations, labels=tree_labels)
@@ -513,6 +548,76 @@ class TexturedPreviewWindow:
         self.camera = self.full_camera
         self.schedule()
 
+    def _update_review_status(self):
+        status_var = getattr(self, "review_status", None)
+        if status_var is None:
+            return
+        if not getattr(self, "review_manual", False):
+            status_var.set(
+                "Visual review idle · show Both/Overlay/Split to inspect source KCL."
+                " Native game/KCL registration UNVERIFIED.")
+            return
+        dx, dz = getattr(self, "review_offset_xz", (0., 0.))
+        scale = getattr(self, "review_scale", 1.)
+        status_var.set(
+            f"MANUAL DISPLAY TRIAL · scale {scale:.4f}× of initial bounds fit"
+            f" · X {dx:+.3f}, Z {dz:+.3f} of visual diagonal"
+            " · no physical / Wii coordinate change. Tell me aligned YES/NO.")
+
+    def start_visual_review(self):
+        """One-click same-camera top-down inspection; no game/asset writes."""
+        self.review_manual = True
+        self.review_scale = 1.
+        self.review_offset_xz = (0., 0.)
+        # Top-down camera looks from visual-world +Y toward the course.
+        cam = self.home_camera
+        distance = math.dist(cam.position, cam.focus)
+        yaw, pitch = 0., -1.35
+        _, _, toward = camera_axes(yaw, pitch)
+        self.camera = cam._replace(
+            position=tuple(cam.focus[i] + toward[i] * distance for i in range(3)),
+            yaw=yaw, pitch=pitch)
+        # Hide illustrative crowns (not original tree meshes); source tree
+        # BASES continue to display with exactly the same manual KCL fit.
+        self.tree_illustrations = False
+        self.display_rotation.set(0)
+        self.mode.set("Overlay" if getattr(self, "_source_terrain", None)
+                      is not None else "Textures")
+        self._update_review_status()
+        self.set_display_rotation(0)
+
+    def nudge_visual_review(self, axis: str, direction: int):
+        """Small bounded reversible UI-only transform for operator A/B checks."""
+        if axis not in ("scale", "x", "z") or direction not in (-1, 1):
+            raise ValueError("Unknown manual display adjustment")
+        if getattr(self, "_source_terrain", None) is None:
+            self._update_review_status()
+            return
+        self.review_manual = True
+        scale = getattr(self, "review_scale", 1.)
+        dx, dz = getattr(self, "review_offset_xz", (0., 0.))
+        if axis == "scale":
+            scale = min(4., max(.25, scale * (1.05 if direction > 0 else 1./1.05)))
+        elif axis == "x":
+            dx = max(-1., min(1., round(dx + direction * .01, 6)))
+        else:
+            dz = max(-1., min(1., round(dz + direction * .01, 6)))
+        self.review_scale = scale
+        self.review_offset_xz = (dx, dz)
+        self._update_review_status()
+        self.set_display_rotation()
+
+    def reset_visual_review(self):
+        """Restore source-derived display candidate, discard all manual edits."""
+        self.review_manual = False
+        self.review_scale = 1.
+        self.review_offset_xz = (0., 0.)
+        self.display_rotation.set(0)
+        self._update_review_status()
+        self.mode.set("Both" if getattr(self, "_source_terrain", None)
+                      is not None else "Textures")
+        self.set_display_rotation(0)
+
     def _source_comparison(self, terrain, yaw: int):
         """Return a display-mapping and reason, never fake native alignment.
 
@@ -523,6 +628,18 @@ class TexturedPreviewWindow:
         """
         warning = getattr(self.model, "source_scene_warning", None)
         incomplete = isinstance(warning, str) and bool(warning)
+        if getattr(self, "review_manual", False):
+            # Review never calls centroid solver: the operator controls
+            # coarse yaw, bounded scale and XZ offsets explicitly.
+            mapped = prepare_comparison_kcl(
+                terrain, self.model, rotation_degrees=yaw,
+                display_scale_multiplier=getattr(self, "review_scale", 1.),
+                display_offset_fraction_xz=getattr(
+                    self, "review_offset_xz", (0., 0.)))
+            reason = ("INCOMPLETE ORIGINAL DAE SCENE · " if incomplete else "")
+            return mapped, (
+                reason + "MANUAL VISUAL TRIAL, NOT PHYSICS · "
+                + overlay_summary(mapped))
         if yaw == 0:
             try:
                 fitted = derive_material_alignment(terrain, self.model)
