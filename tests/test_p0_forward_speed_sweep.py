@@ -295,11 +295,19 @@ class Tests(unittest.TestCase):
             records = list((temp / "forward-speed-speedtrial01.jsonl").read_text().splitlines())
             self.assertEqual(len(records), 4)
             self.assertTrue(all(not row["training_approved"] for row in rows))
-            with self.assertRaisesRegex(p.RefuseTrial, "already exists"):
-                p.run_sweep(scenario="speedtrial01",
-                            catalog=temp / "catalog.json",
-                            bridge_source=bridge, reader=reply,
-                            data_dir=temp)
+            # Keep the synthetic catalog/source guards active on the second
+            # invocation. An already-existing ledger must refuse before any
+            # new user approval, reset, or controller call.
+            before = len(events)
+            with patch.object(p, "preflight_catalog", return_value=FakeProfile()), \
+                 patch.object(p, "preflight_source", return_value=hashlib.sha256(
+                     bridge.read_bytes()).hexdigest()):
+                with self.assertRaisesRegex(p.RefuseTrial, "already exists"):
+                    p.run_sweep(scenario="speedtrial01",
+                                catalog=temp / "catalog.json",
+                                bridge_source=bridge, reader=reply,
+                                data_dir=temp)
+            self.assertEqual(before, len(events))
 
 
 if __name__ == "__main__":
