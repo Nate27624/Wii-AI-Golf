@@ -164,12 +164,15 @@ class TexturedPreviewWindow:
             height = max(16, int(height * .68))
         mode = self.mode.get() if hasattr(self, "mode") else "Textures"
         kcl = getattr(self, "comparison_kcl", None)
+        # Preserve the existing six-field source frame request ABI.
+        # A separate immutable visual-only tree snapshot travels with it.
         self._queued = (self._request_version, width, height,
-                        self.camera, mode, kcl,
-                        getattr(self, "tree_overlay", ()),
-                        getattr(self, "tree_overlay_visible", True),
-                        getattr(self, "tree_illustrations", True),
-                        getattr(self, "tree_labels", False))
+                        self.camera, mode, kcl)
+        self._queued_tree_snapshot = (
+            getattr(self, "tree_overlay", ()),
+            getattr(self, "tree_overlay_visible", True),
+            getattr(self, "tree_illustrations", True),
+            getattr(self, "tree_labels", False))
         self.status.set(
             f"Rendering all {len(self.model.faces):,} native UV triangles "
             "(" + ("compiled CPU" if self.fast_active else "slow NumPy fallback") + ")")
@@ -178,9 +181,11 @@ class TexturedPreviewWindow:
     def _start_latest(self):
         if self._closed or self._render_future is not None or self._queued is None:
             return
-        (version, width, height, camera, mode, kcl,
-         tree_points, tree_visible, tree_illustrations, tree_labels) = self._queued
+        version, width, height, camera, mode, kcl = self._queued
+        tree_points, tree_visible, tree_illustrations, tree_labels = getattr(
+            self, "_queued_tree_snapshot", ((), True, True, False))
         self._queued = None
+        self._queued_tree_snapshot = None
         cancel = Event()
         self._cancel_render = cancel
         future = self._executor.submit(
