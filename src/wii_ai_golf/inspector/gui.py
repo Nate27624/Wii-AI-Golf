@@ -380,6 +380,8 @@ class Inspector:
         """One visible 3D viewport with source texture/KCL visibility modes."""
         if self.visual_preview is None:
             return
+        if getattr(self, "_fallback_held", None) is not None:
+            self._fallback_focus_out()
         self._legacy_terrain_tab.pack_forget()
         self.visual_tab.pack(fill="both", expand=True)
         self.visual_preview.schedule()
@@ -868,6 +870,8 @@ class Inspector:
         self.root.after(200, self.poll_live)
 
     def close(self) -> None:
+        if getattr(self, "_fallback_held", None) is not None:
+            self._fallback_focus_out()
         self.disconnect_live(silent=True)
         self.live_worker = None
         if self.visual_preview is not None:
@@ -926,6 +930,97 @@ class Inspector:
             return
         self.yaw, self.pitch = yaw, pitch
         self.draw_path()
+
+    def _fallback_key_press(self, event: tk.Event) -> str | None:
+        """Held arrows pan the collision-only fallback continuously.
+
+        This is screen-space navigation only. Original source X/Y/Z and
+        active Wii/Dolphin input are never touched.
+        """
+        key = getattr(event, "keysym", "").lower()
+        if key not in {"up", "down", "left", "right"}:
+            return None
+        if getattr(self, "visual_preview", None) is not None:
+            return None
+        pending = self._fallback_pending_release.pop(key, None)
+        if pending is not None:
+            try:
+                self.root.after_cancel(pending)
+            except tk.TclError:
+                pass
+        self._fallback_held.add(key)
+        if self._fallback_nav_timer is None:
+            self._fallback_last_tick = time.perf_counter()
+            self._fallback_nav_timer = self.root.after(
+                16, self._fallback_navigation_tick)
+        return "break"
+
+    def _fallback_key_release(self, event: tk.Event) -> str | None:
+        key = getattr(event, "keysym", "").lower()
+        if key not in self._fallback_held:
+            return None
+        pending = self._fallback_pending_release.pop(key, None)
+        if pending is not None:
+            try:
+                self.root.after_cancel(pending)
+            except tk.TclError:
+                pass
+        self._fallback_pending_release[key] = self.root.after(
+            45, lambda k=key: self._fallback_finish_key(k))
+        return "break"
+
+    def _fallback_finish_key(self, key: str) -> None:
+        self._fallback_pending_release.pop(key, None)
+        self._fallback_held.discard(key)
+        if not self._fallback_held:
+            self._fallback_stop_navigation()
+
+    def _fallback_navigation_tick(self) -> None:
+        """Time-based camera motion, independent of Windows key repeat."""
+        self._fallback_nav_timer = None
+        if not self._fallback_held or getattr(self, "visual_preview", None) is not None:
+            self._fallback_stop_navigation()
+            return
+        now = time.perf_counter()
+        dt = min(.05, max(0., now-self._fallback_last_tick))
+        self._fallback_last_tick = now
+        keys = self._fallback_held
+        dx = float(("right" in keys)-("left" in keys))
+        dy = float(("down" in keys)-("up" in keys))
+        mag = math.hypot(dx,dy)
+        if mag:
+            speed = 360.*dt/mag
+            self.camera_pan = pan_by(
+                self.camera_pan, -dx*speed, -dy*speed)
+            # Slow Tk fallback: cap redraw to ~10Hz rather than creating
+            # >3,500 full-quality canvas shapes at 60Hz. Key state keeps
+            # advancing smoothly, with a full redraw on key release.
+            if now-self._fallback_last_render >= .1:
+                self._fallback_last_render = now
+                self.draw_path()
+        self._fallback_nav_timer = self.root.after(
+            16, self._fallback_navigation_tick)
+
+    def _fallback_stop_navigation(self) -> None:
+        if self._fallback_nav_timer is not None:
+            try:
+                self.root.after_cancel(self._fallback_nav_timer)
+            except tk.TclError:
+                pass
+            self._fallback_nav_timer = None
+        if getattr(self, "visual_preview", None) is None:
+            self.draw_path()
+
+    def _fallback_focus_out(self, event: tk.Event | None = None) -> None:
+        for timer in self._fallback_pending_release.values():
+            try:
+                self.root.after_cancel(timer)
+            except tk.TclError:
+                pass
+        self._fallback_pending_release.clear()
+        self._fallback_held.clear()
+        if self._fallback_nav_timer is not None:
+            self._fallback_stop_navigation()
 
     def drag_start(self, event: tk.Event) -> None:
         self.drag_origin = (event.x, event.y)
@@ -1047,7 +1142,12 @@ class Inspector:
             # Users can explicitly select the bounded fast preview again.
             live_mode = bool(self.live_worker is not None and self.live_last is not None)
             full_setting = getattr(self, "terrain_full_detail", None)
-            request_complete = full_setting is not None and full_setting.get()
+            # Temporarily preview fewer native faces during held-key
+            # movement to keep Tk responsive. Release restores full mesh.
+            moving = bool(getattr(self, "_fallback_held", ())) or (
+                getattr(self, "drag_button", None) is not None)
+            request_complete = (
+                full_setting is not None and full_setting.get() and not moving)
             limit = min(len(mesh.faces), MAX_DRAW_FACES) if request_complete else (
                 600 if live_mode else 1200)
             colored_faces = mesh.drawing_colored_faces(
@@ -1067,7 +1167,9 @@ class Inspector:
         tree_toggle = getattr(self, "tree_visible", None)
         crown_toggle = getattr(self, "tree_illustrations", None)
         id_toggle = getattr(self, "tree_labels", None)
-        show_crowns = crown_toggle is not None and crown_toggle.get()
+        show_crowns = (crown_toggle is not None and crown_toggle.get()
+                       and not bool(getattr(self, "_fallback_held", ()))
+                       and getattr(self, "drag_button", None) is None)
         draw_tree_positions = (
             tree_data.drawing_positions()
             if tree_data is not None
