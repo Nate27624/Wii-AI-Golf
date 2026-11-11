@@ -377,7 +377,7 @@ class Inspector:
             f"PRIVATE terrain OBJ: {len(mesh.faces)} candidate triangles, SHA {mesh.sha256[:12]}… "
             "· visual alignment/active collision UNVERIFIED")
         self.draw_path()
-        self._sync_visual_terrain()
+        Inspector._sync_visual_terrain(self)
         return True
 
     def load_terrain_labels(self) -> None:
@@ -415,11 +415,14 @@ class Inspector:
             f"Source colors: {len(labeled.faces)} original KCL per-face IDs linked by OBJ SHA "
             "· candidate visual categories, not physics")
         self.draw_path()
-        self._sync_visual_terrain()
+        Inspector._sync_visual_terrain(self)
         return True
 
     def _sync_visual_terrain(self) -> None:
-        if self.visual_preview is None:
+        # Existing GUI source-inspector tests use small SimpleNamespace
+        # stubs without a visual preview. Terrain data must remain usable
+        # independently of the optional source texture viewer.
+        if getattr(self, "visual_preview", None) is None:
             return
         try:
             self.visual_preview.set_collision_terrain(self.terrain_mesh)
@@ -432,7 +435,7 @@ class Inspector:
         self.surface_label_status.set("Surface colors: no original KCL labels loaded.")
         self.terrain_status.set("Terrain: no private OBJ loaded.")
         self.draw_path()
-        self._sync_visual_terrain()
+        Inspector._sync_visual_terrain(self)
 
     def pick(self, var: tk.StringVar) -> None:
         name = filedialog.askopenfilename(title="Choose local file (not uploaded)")
