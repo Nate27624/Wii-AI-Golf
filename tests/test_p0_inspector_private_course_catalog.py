@@ -144,7 +144,7 @@ class PrivateCourseCatalogTests(unittest.TestCase):
                    return_value=missing):
             self.assertFalse(Inspector.try_visual_course_2(instance))
         instance.load_visual_path.assert_not_called()
-        self.assertIn("NOT YET EXPORTED",
+        self.assertIn("not exported/validated",
                       instance.visual_status.set.call_args.args[0])
         self.export.parent.mkdir(parents=True)
         self.export.write_text("synthetic")
