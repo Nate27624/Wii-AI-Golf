@@ -209,10 +209,13 @@ def read_rows(path: Path) -> list[dict]:
 
 
 def eligible(row: dict) -> bool:
-    """Human-only comparability requirement, NOT source-proven accepted power."""
+    """Human-only POWER repeatability; terminal landing is an independent gate.
+
+    A timed-out/late landing-result screen does not invalidate a separately
+    observed contact and power gauge. Neither establishes native shot power.
+    """
     power = row.get("human_power_pct")
     return (row.get("contact_human") == "yes"
-            and row.get("terminal_seen_human") is True
             and row.get("human_power_confidence") == "clear"
             and type(power) in (float, int) and math.isfinite(power)
             and 0 <= power <= 500
@@ -220,6 +223,42 @@ def eligible(row: dict) -> bool:
             and row.get("expected_pose_detail") not in (None, "unspecified", "unknown")
             and row.get("initial_pose_detail_human") == row.get("expected_pose_detail")
             and row.get("initial_pose_human") == row.get("expected_pose"))
+
+
+def outcome_eligible(row: dict) -> bool:
+    """Strict transient-result provenance; older reports cannot prove timing."""
+    return (eligible(row)
+            and row.get("terminal_seen_human") is True
+            and row.get("result_entered_while_visible_human") == "yes")
+
+
+def answer_category(reader, prompt: str, categories: tuple[str, ...]) -> str:
+    """One fail-closed categorical human observation, never an inferred sensor."""
+    value = reader(prompt).strip().lower()
+    if value not in categories:
+        raise RefuseTrial("Invalid human observation; expected " + "/".join(categories))
+    return value
+
+
+def postshot_notes(reader, result: dict) -> dict[str, str]:
+    """Ask AFTER the shared transient collector; never rewrite its raw label."""
+    label = result["human_observation"]
+    timing = answer_category(
+        reader,
+        "Was the result G/M entered BEFORE the next screen appeared? [yes/no/unknown]: ",
+        ("yes", "no", "unknown"))
+    if label.get("visible_result_class_human") not in ("green", "offgreen"):
+        # Cannot qualify a real screen observation from U/T regardless of answer.
+        timing = "no" if label.get("visible_result_class_human") == "transitioned" else "unknown"
+    red = answer_category(
+        reader, "Was the shot visibly marked RED? [yes/no/unknown]: ",
+        ("yes", "no", "unknown"))
+    curve = answer_category(
+        reader, "Observed left/right curve or rotation [left/right/both/none/unknown]: ",
+        ("left", "right", "both", "none", "unknown"))
+    return {"result_entered_while_visible_human": timing,
+            "red_shot_human": red,
+            "visible_curve_or_rotation_human": curve}
 
 
 def precheck(rows: list[dict], plan: dict, bridge_sha: str) -> None:
@@ -263,7 +302,8 @@ def summarize(result: dict, plan: dict, *, bridge_sha: str, payload: dict,
               observed_pose_detail: str | None = None,
               observed_club: str | None = None,
               observed_club_change: str = "unknown",
-              power: tuple[float | None, str] = (None, "unknown")) -> dict:
+              power: tuple[float | None, str] = (None, "unknown"),
+              notes: dict[str, str] | None = None) -> dict:
     human = result["human_observation"]
     requested = result["known_good_swing_request"]
     expected_hash = (payload["contrast_trace_sha256"] if plan["arm"] == "X1"
@@ -281,8 +321,16 @@ def summarize(result: dict, plan: dict, *, bridge_sha: str, payload: dict,
             or requested["a_lead_requested_frames"] != 45
             or human["initial_club_pose_human"] != plan["expected_pose"]):
         raise RefuseTrial("collector trace identity, A lead or initial pose changed")
+    if notes is None:
+        notes = {"result_entered_while_visible_human": "unknown",
+                 "red_shot_human": "unknown",
+                 "visible_curve_or_rotation_human": "unknown"}
+    if set(notes) != {
+        "result_entered_while_visible_human", "red_shot_human",
+        "visible_curve_or_rotation_human"}:
+        raise RefuseTrial("invalid post-shot annotation fields")
     return {"schema_version": 1, "source": "human-only-zero-wind-pose-pilot",
-            "utc": datetime.now(timezone.utc).isoformat(), **plan,
+            "utc": datetime.now(timezone.utc).isoformat(), **plan, **notes,
             "initial_pose_human": human["initial_club_pose_human"],
             "initial_pose_detail_human": observed_pose_detail,
             "selected_club_human": observed_club,
@@ -347,14 +395,16 @@ def run_live(plan: dict, *, port: int, bridge_source: Path, atomic: bool,
     raw_power = reader(
         "Observed power gauge (120, 120?, >100, 100+, blank=unknown): ")
     reported_power = parse_power_observation(raw_power)
+    annotations = postshot_notes(reader, result)
     if hashlib.sha256(bridge_source.read_bytes()).hexdigest() != bridge_sha:
         raise RefuseTrial("bridge changed during shot; quarantined")
     record = summarize(result, plan, bridge_sha=bridge_sha, payload=hashes,
                        observed_pose_detail=observed.get("pose_detail_human"),
                        observed_club=observed.get("selected_club_human"),
                        observed_club_change=observed.get("club_change_human", "unknown"),
-                       power=reported_power)
+                       power=reported_power, notes=annotations)
     record["calibration_eligible_human_only"] = eligible(record)
+    record["outcome_eligible_human_only"] = outcome_eligible(record)
     data_dir.mkdir(parents=True, exist_ok=True)
     if ledger.is_symlink():
         raise RefuseTrial("unsafe ledger target")
@@ -401,6 +451,10 @@ def main(argv=None):
                           "starting_pose": result["initial_pose_human"],
                           "source": result["source"],
                           "calibration_eligible_human_only": result["calibration_eligible_human_only"],
+                          "outcome_eligible_human_only": result["outcome_eligible_human_only"],
+                          "result_entered_while_visible_human": result["result_entered_while_visible_human"],
+                          "red_shot_human": result["red_shot_human"],
+                          "visible_curve_or_rotation_human": result["visible_curve_or_rotation_human"],
                           "training_approved": False}, indent=2))
         return 0 if result["calibration_eligible_human_only"] else 2
     except (RefuseTrial, RuntimeError, OSError, ValueError, KeyError) as err:
