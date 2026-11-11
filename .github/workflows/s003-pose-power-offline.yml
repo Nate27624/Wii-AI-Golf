@@ -27,6 +27,6 @@ jobs:
       - name: Focused synthetic pose and waveform tests (no Dolphin)
         run: python -m unittest discover -s tests -p test_p0_pose_power_trial.py -v
       - name: Actual repo trace-serializer dry run (fake RPC; no Dolphin)
-        run: python scripts/p0_pose_power_trial.py --arm B1 --pose back --pose-detail partial-back --scenario firstball03 --club iron --aim-id straight
+        run: python scripts/p0_pose_power_trial.py --arm B1 --pose back --pose-detail partial-back --club-change wedge-to-iron --scenario firstball03 --club iron --aim-id straight
       - name: Full offline regression (no Dolphin)
         run: python -m unittest discover -s tests -v
