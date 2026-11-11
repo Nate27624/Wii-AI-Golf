@@ -195,7 +195,17 @@ def plan(
                 "reviewing the saved V1 backup; no live experiment started.")
         if a_prime:
             raise ValueError("V1 diagnostic does not accept --a-prime; select A lead only")
+        # The reviewed V1 bridge booted ONLY with the separately isolated
+        # clean portable Felk. Without explicit paths, launch_golf.py defaults
+        # to the older crash-prone tools/FelkDolphin executable/User.
+        # Planning remains pure/read-only; missing live files fail closed in
+        # the existing canonical launcher rather than falling back to old.
+        clean_root = root.parent / "tools" / "FelkDolphin-Clean"
         command = _child("run_golf_experiment.py", "--send-live",
+                         "--dolphin", str(clean_root / "Dolphin.exe"),
+                         "--dolphin-user", str(clean_root / "User"),
+                         "--config", str(root / "research" / "launch.local.json"),
+                         "--catalog", str(root / "research" / "savestates.local.json"),
                          "--bridge", str(bridge.resolve()),
                          "--script", "collect_outcome_transition.py", "--",
                          "--send-live-swing", "--a-prime-requests", "0",

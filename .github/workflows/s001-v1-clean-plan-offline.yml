@@ -1,0 +1,32 @@
+name: S001 V1 clean portable baseline plan (offline only)
+
+on:
+  push:
+    branches:
+      - agent/review/s001-v1-clean-dolphin-plan-20261027
+  pull_request:
+    paths:
+      - src/wii_ai_golf/lab/core.py
+      - tests/test_lab_v1_clean_launch_plan.py
+      - .github/workflows/s001-v1-clean-plan-offline.yml
+
+permissions:
+  contents: read
+
+jobs:
+  clean-v1-plan:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e .
+      - name: Compile changed source and test
+        run: python -m compileall -q src/wii_ai_golf/lab/core.py tests/test_lab_v1_clean_launch_plan.py
+      - name: V1 clean boot path, legacy bridge, and dry-plan regressions
+        run: python -m unittest discover -s tests -p test_lab_v1_clean_launch_plan.py -v
