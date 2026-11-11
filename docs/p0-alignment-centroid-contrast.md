@@ -96,6 +96,55 @@ docstring is not related to this scene-graph rejection and does not
 indicate corruption of the private OBJ.
 
 
+## Strict static single-joint Collada skin support
+
+The operator's original DAE controller-only audit establishes **12 resolved
+`skin` instances**, each with exactly one joint, exactly one influence per
+vertex, an identity bind-shape matrix, and a source-bound inverse-bind matrix.
+There are **zero direct geometry instances**, so the raw library mesh is not
+an adequate substitute for authored controller rendering.
+
+The inspector now supports *only* this constrained static skin class:
+
+1. `instance_controller` must refer to a unique source `skin` and an
+   existing original `library_geometries` mesh.
+2. `skeleton` must reference a unique node in the **active** source scene.
+   The single joint must resolve exactly by SID (or unique exact ID when the
+   exporter uses an ID within a Name array).
+3. The original `JOINT` and `INV_BIND_MATRIX` arrays, source accessors,
+   original POSITION count, and `vertex_weights` indices must agree; each
+   original POSITION must have **one positive joint weight** with index 0.
+4. The actual source matrix is evaluated as
+   `joint_world @ inverse_bind @ bind_shape`, following the Collada static
+   skinning equation, without inventing a 180° transform.
+5. Multifluence/skeletal animation, morphing, external references,
+   missing/ambiguous joint identities, zero/invalid weights and unsupported
+   source matrices **remain rejected**.
+
+This is original *DAE scene* reconstruction only: the separate native game
+world and KCL alignment are still **unverified**. All private source geometry,
+textures and memory stay local and unchanged.
+
+When checked out at the implementation commit, rerun the existing combined
+local audit (from a PowerShell prompt, without launching Dolphin):
+
+```powershell
+$repo = 'D:\Projects\Wii-Golf-Alignment-PR434'
+py -3 -I "$repo\scripts\p0_inspect_course_alignment_private.py" `
+    --terrain-obj 'D:\Projects\hole01-collision-candidate-PRIVATE.obj' `
+    --terrain-labels 'D:\Projects\hole01-collision-candidate-labels-PRIVATE.json' `
+    --visual-dae 'D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1\glf_course_fc1.dae' `
+    --offline
+```
+
+On accepted source skins, examine the coarse
+`geometry.display_fit_surface_contrast.trial_displays` values and source
+category counts. On failure, provide the safe
+`ABSTAIN_SOURCE_VISUAL_MODEL` JSON, including `skin_source_gate`. That
+field identifies an exact **validation category** without printing bone
+names, source coordinates, original matrices or proprietary assets. A
+successful geometry audit alone never authorizes collision-physics training.
+
 ## Interpreting `geometry.display_fit_surface_contrast`
 
 The report tests 0°, 90°, 180°, and 270° using exactly the same uniform
