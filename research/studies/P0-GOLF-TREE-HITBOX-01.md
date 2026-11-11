@@ -1200,3 +1200,102 @@ No claimed tree-specific collision
 class, trunk/canopy dimensions,
 object contact, or ball velocity
 impulse. `training_approved=false`.
+
+
+## Original phase7 Ball-KCL prism type producer and state-copy falsification
+
+Operator ran the exact source-gated `p0_ball_kcol_result_provenance_private.py
+--capture 7 --detail` from commit
+`26a1fee208a5270640547d30834e53b0120a63f9`
+on the **original** private seven-pair archive; 94x84 tree loop,
+scene/SHA, prior 5+7 Ball/GolfKCol exact direct edges and original
+PPC source anchors all PASSED. The 592 bounded code words
+were observed **locally only**, not committed. This provides new
+positive classifications **and** a useful velocity hypothesis
+falsification:
+
+1. **Main KCol result classification is sourced from an indexed
+   16-byte primitive record's 16-bit offset +0x0E.**
+   At `GolfKCol+0x002C` the caller's r7 is retained
+   as r28. `GolfKCol+0x0104..+0x011C` selects the
+   current indexed primitive, loads `lhz +0x0E`,
+   and stores the halfword into `0(r28)`.
+   At the exact `Ball+0x14D0` call site r7
+   is `stack+0x08` (`Ball+0x14C4`),
+   and `Ball+0x14F0` reads **that exact stack+0x08**.
+   This is a concrete original native
+   `prism record+0x0E -> query output -> Ball class u16` route;
+   the physical meaning of the field and active KCL resource
+   are **not** yet independently established.
+2. **Triangle narrowphase likewise exports primitive +0x0E.**
+   At `GolfKCol+0x22EC` it loads `lhz
+   +0x0E(r27)`; at `+0x22F4` stores it to a
+   local stack halfword; `+0x2684/+0x2688`
+   reload and copy that value through the r22
+   output pointer (r9 entry in `GolfKCol+0x2114`).
+   This establishes another concrete producer/output link.
+   However, the `Ball+0x0B60` call enters the
+   **`GolfKCol+0x1AC4` wrapper**, not +0x2090 directly.
+   We still must trace wrapper register forwarding to
+   show that **Ball stack+0x0A** obtains exactly this
+   field from the active resource in that path.
+3. **Class 13 remains a special Ball event, not a tree.**
+   The previous `Ball+0x0B84..+0x0C14`
+   dispatch passes explicit 13 to the
+   `Ball+0x01B8` handler. Its deeper path
+   may call a routine attributed to public compiler
+   unit `Tree+0x0604` at `Ball+0x025C/+0x02C0`,
+   but **source-unit ownership is not a tree-instance
+   receiver or tree hitbox proof**. This is
+   another generic-helper confounder requiring
+   register/callee owner tracing.
+   Original candidate course KCL's 2498 prisms
+   contain no literal 13; source-relative code
+   alone does not establish whether 13 originates
+   in another KCL resource, special result, or
+   separate runtime environment.
+4. **The three-component Ball +0xAC/B0/B4 reader is a
+   *structural copy*, not an observed velocity use.**
+   At `Ball+0x3568/+0x356C/+0x3570`,
+   the fields are loaded from **r30**, followed by
+   `Ball+0x358C/+0x3590/+0x3594` stores to
+   **r29**. Nearby code copies +0xA8,
+   +0xB8/+0xBC/+0xC0/+0xC4/+0xC8,
+   counters and other state; previous
+   `+0x34F0..+0x3518` similarly updates
+   contiguous state members. This is source-proven
+   whole-object/state copying, **not a simulation
+   integration read nor velocity evidence**.
+   The actual meaning of the Ball+0x14D0
+   collision-conditioned stored vector is UNKNOWN.
+5. The Ball hit-loop code `+0x0C98..+0x0F3C`
+   performs floating-point and vector math,
+   clamps and repeated query operations.
+   PS paired-single operations are partly undecoded
+   in the lightweight tracer. **No exact ball
+   impulse, rebound coefficient, tree contact,
+   foliage/trunk geometry or velocity update
+   is established by this alone.**
+
+**New follow-up** `scripts/p0_ball_kcol_prism_type_origin_private.py`
+and `tests/test_p0_ball_kcol_prism_type_origin_private.py`
+reuse the existing full source/scene/SHA/PPC gates,
+require precise D-form field register/offset
+producer and state-copy assignments, and print
+only **322 bounded source words** in six as-yet
+unexamined contexts: Ball query resource owner,
+KCol wrapper/narrowphase forwarding, a secondary
+KCol callback, and Ball bulk copy entry/tail.
+The CLI strictly refuses to infer class 13=tree,
+an active resource identity or velocity. Original
+memory contents and code words remain local,
+`training_approved=false`; no inspector or tree
+visualization files are modified.
+
+**Next falsifiers:** trace `Ball+0x0B60`
+r27 KCol pointer to actual KCL backing resource;
+trace `GolfKCol+0x1AC4` output register
+mapping to the narrowphase r9 recipient;
+test class-13 presence against any independently
+verified active collision resources. Do not infer
+a tree hitbox from label/class alone.
