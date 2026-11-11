@@ -695,3 +695,46 @@ ball contact query traversing the tree-owned structures or KCL
 geometry associated with source tree positions and ball-velocity
 response. A camera-relative scalar used for visual/effect
 thresholds must never be treated as physical collision radius.
+
+## Source-owner recovery: RPGol tree second 84-byte loop is graphics/model update evidence, not contact response
+
+Public `research/source_maps/RSPE01_01_public_text_units.json` original
+Rev1 source map was used to resolve PPC relative targets from real
+operator disassembly:
+
+| Call | Original native destination source owner |
+|--|--|
+| `Tree+0x04B0/0x04B8/0x04C0 -> MapObjBase+0x0B84` | Helper loads `+4` from object and tail-branches to `RPGrpModel.cpp+0x02B0` (native `0x801A9B10`) |
+| `Tree+0x04CC/0x04EC -> Camera+0x028C` | `RPGolCamera.cpp+0x028C`; horizontal source position arithmetic (X/Z) using camera-owned reference pointer and float |
+| `Tree+0x0560` | `nw4r/math/math_arithmetic.cpp+0x0118` |
+| `MapObjBase+0x0BC4` (nearby separate model animation helper) | `RPGrpModelAnm.cpp+0x04A8`; indirect vtable dispatch also present in helper |
+
+The second `FieldManager+0x230C` loop's `Tree+0x047C`
+routine operates on three graphics/model objects from
+`tree+0x1C,+0x20,+0x28`; it accesses the tree location
+`+0x30`, calls camera-owned horizontal geometry math twice,
+stores scalar state at `tree+0x4C,+0x50`, conditionally
+checks byte flag `tree+0x48`, modifies a global timer-like
+state and writes a byte through another model/resource pointer.
+The larger evidence set now **strongly favors tree visual/update
+and effect/LOD state, NOT a ball-contact solver**. This does NOT
+prove the tree graphics never contribute to collision elsewhere
+or rule out a separate obstacle KCL resource/collider.
+
+**Implications for OGWS hitbox research:** Do not treat camera
+distance scalar `+0x4C/+0x50` as trunk radius, collision
+attenuation or foliage size. No code shown reads ball position,
+returns collision penetration, uses a geometric collider shape,
+or writes ball velocity in the `Tree+0x047C` path. The
+`Tree+0x000C` squared-distance flag producer is native source
+confirmed and the next reader now strongly source-linked to 94
+tree objects, but the flag's gameplay effect is visual/unknown,
+not a verified hitbox.
+
+**Next distinct direction:** source-proven ball→KCol query,
+KCL octree/triangle resource ownership and whether original
+candidate 2,498 KCL prisms include vertical/obstacle triangles
+spatially aligned with source-known 94 tree centres. If no
+evidence of tree triangles, inspect alternate collision
+resources rather than invent cylindrical hitbox proxies.
+Keep nonphysical inspector tree markers and training false.
