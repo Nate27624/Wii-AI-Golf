@@ -31,8 +31,8 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_input_discovery_sweep.py -v
       - name: Actual repository broad-input serializer dry run (fake RPC)
         run: python scripts/p0_input_discovery_sweep.py --scenario discover01
-      - name: True button-only bridge and two-shot fake-RPC tests (no Dolphin)
-        run: python -m unittest discover -s tests -p test_p0_true_neutral_control.py -v
+      - name: True button-only bridge and two-shot fake-RPC tests in isolated Python (no Dolphin)
+        run: python -I -m unittest discover -s tests -p test_p0_true_neutral_control.py -v
       - name: Two-arm true-neutral real serializer dry run (fake RPC)
         run: python scripts/p0_input_discovery_sweep.py --scenario neutral01 --true-neutral-control
       - name: Full offline regression (no Dolphin)
