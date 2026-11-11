@@ -22,6 +22,7 @@ except ImportError:
 
 from .scene_camera import VisualCamera, camera_axes
 from .visual_model import PrivateVisualModel, VisualAssetError
+from .texture_sampling import build_rgba_mips, MAX_MIP_LEVELS
 
 try:
     from numba import njit
@@ -48,6 +49,10 @@ class FastVisualScene:
     tex_widths: Any
     tex_heights: Any
     solid_colors: Any
+    mip_offsets: Any
+    mip_widths: Any
+    mip_heights: Any
+    mip_counts: Any
 
 
 def accelerated_available() -> bool:
@@ -93,6 +98,10 @@ def prepare_fast_scene(model: PrivateVisualModel,
     colors = np.zeros((len(names), 3), dtype=np.uint8)
     pixels = []
     byte_count = 0
+    mip_offsets = np.full((len(names), MAX_MIP_LEVELS), -1, dtype=np.int32)
+    mip_widths = np.zeros((len(names), MAX_MIP_LEVELS), dtype=np.int32)
+    mip_heights = np.zeros((len(names), MAX_MIP_LEVELS), dtype=np.int32)
+    mip_counts = np.zeros(len(names), dtype=np.int32)
 
     for name in names:
         index = mat_lookup[name]
@@ -102,12 +111,20 @@ def prepare_fast_scene(model: PrivateVisualModel,
                     len(tex) == 0 or len(tex[0]) == 0):
                 raise VisualAssetError("Original RGBA PNG array invalid")
             tex = np.ascontiguousarray(tex)
-            byte_count += tex.nbytes
-            if byte_count > MAX_PACKED_RGBA_BYTES:
-                raise VisualAssetError("Original texture pixels exceed fast-memory bound")
-            offsets[index] = (byte_count - tex.nbytes) // 4
-            heights[index], widths[index] = tex.shape[:2]
-            pixels.append(tex.reshape(-1, 4))
+            mip_levels = build_rgba_mips(tex)
+            mip_counts[index] = len(mip_levels)
+            for level, pixels_rgba in enumerate(mip_levels):
+                if byte_count + pixels_rgba.nbytes > MAX_PACKED_RGBA_BYTES:
+                    raise VisualAssetError(
+                        "Original + preview mip texture pixels exceed fast-memory bound")
+                level_offset = byte_count // 4
+                mip_offsets[index,level] = level_offset
+                mip_heights[index,level], mip_widths[index,level] = pixels_rgba.shape[:2]
+                if level == 0:
+                    offsets[index] = level_offset
+                    heights[index], widths[index] = pixels_rgba.shape[:2]
+                pixels.append(pixels_rgba.reshape(-1,4))
+                byte_count += pixels_rgba.nbytes
         elif name in model.solid_colors:
             color = model.solid_colors[name]
             if len(color) != 3 or any(
@@ -120,7 +137,8 @@ def prepare_fast_scene(model: PrivateVisualModel,
     texels = (np.ascontiguousarray(np.concatenate(pixels, axis=0))
               if pixels else np.empty((0, 4), dtype=np.uint8))
     return FastVisualScene(xyz, uv, faces, uv_faces, mat_ids, texels,
-                           offsets, widths, heights, colors)
+                           offsets, widths, heights, colors,
+                           mip_offsets, mip_widths, mip_heights, mip_counts)
 
 
 def _project(scene: FastVisualScene, width: int, height: int,
@@ -153,7 +171,8 @@ def _project(scene: FastVisualScene, width: int, height: int,
 
 def _raster_loop(screen, front, faces, face_uvs, uv, materials, texels,
                  tex_offsets, tex_widths, tex_heights, solid_colors,
-                 width, height):
+                 mip_offsets, mip_widths, mip_heights, mip_counts,
+                 width, height, filtered):
     """Bounded Z-buffer triangle loop; Numba compiles to native machine code."""
     image = np.empty((height, width, 3), dtype=np.uint8)
     image[:, :, 0] = 19
@@ -188,6 +207,27 @@ def _raster_loop(screen, front, faces, face_uvs, uv, materials, texels,
             u1, v1u = uv[t1, 0], uv[t1, 1]
             u2, v2u = uv[t2, 0], uv[t2, 1]
             tw, th = tex_widths[material], tex_heights[material]
+            if filtered:
+                # Source UV->screen derivatives estimate one bounded texture
+                # minification level per face. This is NOT native GX LOD.
+                du_dx = ((u0-u2)*(y1-y2)+(u1-u2)*(y2-y0))/det
+                du_dy = ((u0-u2)*(x2-x1)+(u1-u2)*(x0-x2))/det
+                dv_dx = ((v0u-v2u)*(y1-y2)+(v1u-v2u)*(y2-y0))/det
+                dv_dy = ((v0u-v2u)*(x2-x1)+(v1u-v2u)*(x0-x2))/det
+                rho = max(math.sqrt((du_dx*tw)**2+(dv_dx*th)**2),
+                          math.sqrt((du_dy*tw)**2+(dv_dy*th)**2))
+                level = 0
+                if not math.isfinite(rho):
+                    level = mip_counts[material]-1
+                elif rho > 1.:
+                    level = int(math.floor(math.log2(rho)+0.5))
+                    if level >= mip_counts[material]:
+                        level = mip_counts[material]-1
+                    if level < 0:
+                        level = 0
+                tex_offset = mip_offsets[material, level]
+                tw = mip_widths[material, level]
+                th = mip_heights[material, level]
         showed = False
         for y in range(top, bottom):
             py = y + .5
@@ -209,22 +249,59 @@ def _raster_loop(screen, front, faces, face_uvs, uv, materials, texels,
                         continue
                     u = (w0*u0+w1*u1+w2*u2)/denominator
                     v = (w0*v0u+w1*v1u+w2*v2u)/denominator
-                    tx = int(math.floor((u-math.floor(u))*tw)) % tw
-                    flipped = 1.0-v
-                    ty = int(math.floor((flipped-math.floor(flipped))*th)) % th
-                    texel = tex_offset+ty*tw+tx
-                    alpha = int(texels[texel, 3])
-                    if alpha <= 16:
-                        continue
-                    if alpha == 255:
-                        image[y, x, 0] = texels[texel, 0]
-                        image[y, x, 1] = texels[texel, 1]
-                        image[y, x, 2] = texels[texel, 2]
+                    if filtered:
+                        # Bilinear wrapped TEX0 PNG sampling, including alpha.
+                        # Premultiplication prevents dark halos at leaf edges.
+                        px = (u-math.floor(u))*tw-0.5
+                        fy_u = 1.0-v
+                        py = (fy_u-math.floor(fy_u))*th-0.5
+                        bx = math.floor(px)
+                        by = math.floor(py)
+                        ax, ay = px-bx, py-by
+                        xx0, xx1 = int(bx)%tw, (int(bx)+1)%tw
+                        yy0, yy1 = int(by)%th, (int(by)+1)%th
+                        t00 = tex_offset+yy0*tw+xx0
+                        t10 = tex_offset+yy0*tw+xx1
+                        t01 = tex_offset+yy1*tw+xx0
+                        t11 = tex_offset+yy1*tw+xx1
+                        wa=(1.0-ax)*(1.0-ay)
+                        wb=ax*(1.0-ay)
+                        wc=(1.0-ax)*ay
+                        wd=ax*ay
+                        a00=float(texels[t00,3])*wa
+                        a10=float(texels[t10,3])*wb
+                        a01=float(texels[t01,3])*wc
+                        a11=float(texels[t11,3])*wd
+                        a=a00+a10+a01+a11
+                        if a<=16.:
+                            continue
+                        for channel in range(3):
+                            component = (
+                                a00*float(texels[t00,channel])+
+                                a10*float(texels[t10,channel])+
+                                a01*float(texels[t01,channel])+
+                                a11*float(texels[t11,channel]))/a
+                            # Alpha over the existing visible texture/color.
+                            composed=(component*a+
+                                      float(image[y,x,channel])*(255.-a))/255.
+                            image[y,x,channel]=np.uint8(max(0.,min(255.,composed)))
                     else:
-                        for c in range(3):
-                            image[y, x, c] = np.uint8(
-                                (int(texels[texel, c])*alpha +
-                                 int(image[y, x, c])*(255-alpha))/255.)
+                        tx = int(math.floor((u-math.floor(u))*tw)) % tw
+                        flipped = 1.0-v
+                        ty = int(math.floor((flipped-math.floor(flipped))*th)) % th
+                        texel = tex_offset+ty*tw+tx
+                        alpha = int(texels[texel, 3])
+                        if alpha <= 16:
+                            continue
+                        if alpha == 255:
+                            image[y, x, 0] = texels[texel, 0]
+                            image[y, x, 1] = texels[texel, 1]
+                            image[y, x, 2] = texels[texel, 2]
+                        else:
+                            for c in range(3):
+                                image[y, x, c] = np.uint8(
+                                    (int(texels[texel, c])*alpha +
+                                     int(image[y, x, c])*(255-alpha))/255.)
                 else:
                     image[y, x, 0] = solid_colors[material, 0]
                     image[y, x, 1] = solid_colors[material, 1]
@@ -243,7 +320,7 @@ else:
 
 
 def render_fast(scene: FastVisualScene, width: int, height: int,
-                camera: VisualCamera):
+                camera: VisualCamera, *, filtered: bool = False):
     """Return (PIL source-textured image, visible native triangle count).
 
     First invocation JIT-compiles once; later launches reuse Numba disk cache.
@@ -257,6 +334,8 @@ def render_fast(scene: FastVisualScene, width: int, height: int,
         screen, front, scene.faces, scene.face_uvs, scene.uv,
         scene.material_ids, scene.rgba_pixels, scene.tex_offsets,
         scene.tex_widths, scene.tex_heights, scene.solid_colors,
-        width, height)
+        scene.mip_offsets, scene.mip_widths,
+        scene.mip_heights, scene.mip_counts,
+        width, height, bool(filtered))
     from PIL import Image
     return Image.fromarray(image, mode="RGB"), int(drawn)
