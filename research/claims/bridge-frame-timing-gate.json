@@ -1,0 +1,25 @@
+{
+  "worker": "S000 supporting coordination",
+  "issue": 121,
+  "branch": "agent/coordinator/bridge-frame-timing-oracle-20261025",
+  "status": "claimed_review_only",
+  "date_utc": "2026-10-25",
+  "owned_paths": [
+    "src/wii_ai_golf/research_bridge_timing_gate.py",
+    "tests/test_research_bridge_timing_gate.py",
+    "research/studies/S001-S002-FRAME-GATE-01.md",
+    "research/claims/bridge-frame-timing-gate.json"
+  ],
+  "upstream": [
+    "S001 PR #112",
+    "S002 PR #129",
+    "source gates PRs #122/#132"
+  ],
+  "downstream": [
+    "S003 PR #123",
+    "S000 public privacy PR #126"
+  ],
+  "owner_ack_required_before_integration": true,
+  "runtime_or_publisher_modified": false,
+  "evidence": "13/13 focused synthetic tests in isolated Linux source-equivalent tree; full Windows suite, emulator and domain owner signoff NOT performed"
+}
