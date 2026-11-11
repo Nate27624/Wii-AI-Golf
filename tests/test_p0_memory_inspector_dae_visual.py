@@ -112,13 +112,22 @@ class DirectDAETests(unittest.TestCase):
         self.assertAlmostEqual(result.vertices[1][0], 2.)
         self.assertAlmostEqual(result.vertices[1][2], 20.)
 
-    def test_duplicate_instances_never_silently_share_one_transform(self):
+    def test_duplicate_source_geometry_instances_render_all_original_faces(self):
         self.dae.write_text(DAE.replace(
             '</node></visual_scene>',
-            '<instance_geometry url="#grass"/></node></visual_scene>'),
+            '<node id="second"><translate>10 0 20</translate>'
+            '<instance_geometry url="#grass"/></node>'
+            '</node></visual_scene>'),
             encoding="utf-8")
-        with self.assertRaisesRegex(VisualAssetError, "instanced multiple times"):
-            load_private_dae_visual_model(self.dae)
+        visual = load_private_dae_visual_model(self.dae)
+        self.assertEqual(len(visual.faces), 4)
+        self.assertEqual(len(visual.vertices), 12)
+        # First instance retains original vertices, second receives authored
+        # local translation; source UV/materials preserved for every face.
+        self.assertEqual(visual.vertices[:3],
+                         ((0., 0., 0.), (8., 0., 0.), (0., 8., 0.)))
+        self.assertEqual(visual.vertices[6:9],
+                         ((10., 0., 20.), (18., 0., 20.), (10., 8., 20.)))
 
     def test_unsupported_source_scene_controller_fails_closed(self):
         self.dae.write_text(DAE.replace(
