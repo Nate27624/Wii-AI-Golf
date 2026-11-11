@@ -1,0 +1,30 @@
+name: P0 dual-source frame contract synthetic
+on:
+  push:
+    paths:
+      - 'scripts/review_p0_dual_source_frame_contract.py'
+      - 'tests/test_p0_dual_source_frame_contract.py'
+      - 'research/studies/P0-DUAL-SOURCE-GUEST-FRAME-CONTRACT-01.md'
+      - '.github/workflows/p0-dual-source-frame-contract.yml'
+  pull_request:
+    paths:
+      - 'scripts/review_p0_dual_source_frame_contract.py'
+      - 'tests/test_p0_dual_source_frame_contract.py'
+      - 'research/studies/P0-DUAL-SOURCE-GUEST-FRAME-CONTRACT-01.md'
+      - '.github/workflows/p0-dual-source-frame-contract.yml'
+  workflow_dispatch:
+jobs:
+  native-free-contract:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile safe offline reviewer
+        run: python -m py_compile scripts/review_p0_dual_source_frame_contract.py tests/test_p0_dual_source_frame_contract.py
+      - name: Synthetic-only safety checks
+        run: python -m unittest discover -s tests -p 'test_p0_dual_source_frame_contract.py' -v
