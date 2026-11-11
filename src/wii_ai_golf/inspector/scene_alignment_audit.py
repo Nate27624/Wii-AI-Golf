@@ -49,7 +49,8 @@ def audit_collada_scene(filename: str | Path) -> dict[str, object]:
 
     Report only transform types/counts and whether a scene transform is
     nonidentity. Collada matrix is column-major; translation is slots 12..14.
-    Current DAE UV loader does not apply library_visual_scenes node matrices.
+    Current DAE UV loader DOES apply supported authored scene node matrices;
+    this is not proof of a KCL/world-space transform.
     """
     path = _within_private_dir(Path(filename))
     if path.suffix.lower() != ".dae":
@@ -127,7 +128,8 @@ def audit_collada_scene(filename: str | Path) -> dict[str, object]:
         "nonidentity_transform_count": nonidentity,
         "matrix_xz_yaw_degrees_hypotheses": sorted(set(matrix_rotations))[:12],
         "up_axis": up_axis,
-        "current_loader_applies_visual_scene_transforms": False,
+        "current_loader_applies_visual_scene_transforms": True,
+        "source_authored_dae_transform_is_not_native_kcl_mapping": True,
     }
 
 
