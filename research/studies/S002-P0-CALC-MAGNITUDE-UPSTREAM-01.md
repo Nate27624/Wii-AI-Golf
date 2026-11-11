@@ -58,7 +58,7 @@ if (-not (Test-Path -LiteralPath $main -PathType Container)) {
 if (Test-Path -LiteralPath $work) {
     throw 'Audit worktree exists; do not overwrite'
 }
-git -C $main fetch origin refs/pull/CHILD_PR_NUMBER/head
+git -C $main fetch origin refs/pull/437/head
 if ($LASTEXITCODE -ne 0) { throw 'Source audit PR fetch failed' }
 $head = (git -C $main rev-parse FETCH_HEAD).Trim()
 if ($head -ne 'REVIEWED_EXACT_HEAD_SHA') {
