@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 import math
 from pathlib import Path
 import struct
@@ -98,6 +99,53 @@ class PrivateSceneAlignmentTests(unittest.TestCase):
         self.assertFalse(result["source_geometry_identity_proven"])
         self.assertFalse(result["native_game_world_transform_proven"])
         self.assertTrue(result["heading_is_not_a_source_matrix"])
+
+
+    def test_four_display_fits_score_source_materials_without_applying_a_yaw(self):
+        visual, terrain = scene()
+        before_terrain = terrain.vertices
+        before_visual = visual.vertices
+        audit = audit_surface_registration(terrain, visual)
+        contrast = audit["display_fit_surface_contrast"]
+        self.assertEqual(contrast["status"], "DISPLAY_ONLY_COARSE_MATERIAL_CONTRAST")
+        self.assertEqual(contrast["matched_material_classes"], ["green", "fairway"])
+        self.assertEqual([t["display_yaw_degrees"] for t in contrast["trial_displays"]],
+                         [0, 90, 180, 270])
+        trials = {t["display_yaw_degrees"]: t for t in contrast["trial_displays"]}
+        self.assertAlmostEqual(trials[0]["surface_centroid_rms_xz"], 0., places=4)
+        self.assertGreater(trials[180]["surface_centroid_rms_xz"], 40.)
+        self.assertFalse(contrast["auto_apply_rotation"])
+        self.assertFalse(contrast["native_collision_visual_alignment_verified"])
+        self.assertFalse(contrast["independent_point_correspondences_proven"])
+        self.assertEqual(terrain.vertices, before_terrain)
+        self.assertEqual(visual.vertices, before_visual)
+
+    def test_180_degree_synthetic_scene_changes_contrast_only_not_source_geometry(self):
+        visual, terrain = scene()
+        rotated_visual = replace(visual, vertices=tuple(
+            (100. - x, y, 100. - z) for x, y, z in visual.vertices))
+        contrast = audit_surface_registration(terrain, rotated_visual)[
+            "display_fit_surface_contrast"]
+        scores = {t["display_yaw_degrees"]: t["surface_centroid_rms_xz"]
+                  for t in contrast["trial_displays"]}
+        self.assertAlmostEqual(scores[180], 0., places=4)
+        self.assertGreater(scores[0], 40.)
+        # The audit never uses this lowest residual to move or rewrite an OBJ.
+        self.assertFalse(contrast["auto_apply_rotation"])
+        self.assertEqual(terrain.vertices[0], (0., 1., 0.))
+        self.assertEqual(visual.vertices[0], (0., 0., 0.))
+
+    def test_missing_matching_materials_abstains_without_inventing_alignment(self):
+        visual, terrain = scene()
+        unsupported = replace(visual, faces=tuple(
+            replace(face, material="M_Enkei") for face in visual.faces))
+        contrast = audit_surface_registration(terrain, unsupported)[
+            "display_fit_surface_contrast"]
+        self.assertEqual(contrast["status"],
+                         "ABSTAIN_FEWER_THAN_TWO_MATCHED_SURFACE_CLASSES")
+        self.assertEqual(contrast["matched_material_classes"], [])
+        self.assertNotIn("trial_displays", contrast)
+        self.assertFalse(contrast["native_collision_visual_alignment_verified"])
 
 
 class LiveReadOnlySourceTests(unittest.TestCase):
