@@ -53,6 +53,7 @@ ANCHORS={
     TREE+0x04D8:0xD03E004C, # stfs f1,+0x4c(r30)
     TREE+0x04F0:0xD03E0050, # stfs f1,+0x50(r30)
     TREE+0x0504:0x881E0048, # lbz r0,+0x48(r30)
+    TREE+0x0504:0x881E0048, # lbz r0,+0x48(r30)
     FIELD+0x0778:0x7C7F1B78, # save field receiver r3 into r31
     FIELD+0x0788:0x88030048, # lbz r0,+0x48(r3) after camera mgr BL
 }
