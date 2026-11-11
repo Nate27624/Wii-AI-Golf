@@ -100,7 +100,7 @@ def look_in_place(cam: VisualCamera, dx: float, dy: float) -> VisualCamera:
     # Keep the CAMERA EYE (and its orbit focus) *bitwise unchanged*.
     return cam._replace(yaw=cam.yaw - dx * LOOK_SENSITIVITY,
                         pitch=max(-MAX_PITCH, min(MAX_PITCH,
-                                      cam.pitch + dy * LOOK_SENSITIVITY)))
+                                      cam.pitch - dy * LOOK_SENSITIVITY)))
 
 
 def orbit(cam: VisualCamera, dx: float, dy: float) -> VisualCamera:
