@@ -56,6 +56,25 @@ def camera_axes(yaw: float, pitch: float) -> tuple[Vec3, Vec3, Vec3]:
     return right, up, toward_viewer
 
 
+def playable_source_vertices(model) -> tuple[Vec3, ...]:
+    """Frame source-mapped play area, not the oversized scenery plane.
+
+    Material names are verified source DAE identifiers, not inferred grass.
+    This changes *view framing only*, not vertex scale or world collision.
+    """
+    playable = {"M_Fairway", "M_Green", "M_Rough", "M_Bunker",
+                "M_Kiwa_F", "M_Kiwa_R", "M_Kiwa_Bunker"}
+    used = {i for face in model.faces if face.material in playable
+            for i in face.vertices}
+    if len(used) < 3:
+        return model.vertices
+    return tuple(model.vertices[i] for i in sorted(used))
+
+
+def frame_playable_camera(model) -> VisualCamera:
+    return fit_camera(playable_source_vertices(model))
+
+
 def fit_camera(vertices: tuple[Vec3, ...]) -> VisualCamera:
     if not vertices:
         raise ValueError("Cannot frame empty original model")
