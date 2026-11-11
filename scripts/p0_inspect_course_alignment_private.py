@@ -29,6 +29,7 @@ from wii_ai_golf.inspector.scene_alignment_audit import (
     audit_collada_scene, audit_surface_registration)
 from wii_ai_golf.inspector.terrain import load_private_obj
 from wii_ai_golf.inspector.terrain_labels import apply_private_surface_labels
+from wii_ai_golf.inspector.visual_model import VisualAssetError
 from wii_ai_golf.inspector.tree_positions import load_private_tree_positions
 
 
@@ -78,11 +79,30 @@ def main(argv=None) -> int:
                    help="Skip source-gated Dolphin memory check")
     p.add_argument("--require-live", action="store_true",
                    help="Fail if live source-gated Wii memory cannot be read")
+    p.add_argument("--scene-only", action="store_true",
+                   help="Audit DAE scene constructs without rendering or touching KCL/RAM")
     args = p.parse_args(argv)
     if args.offline and args.require_live:
         p.error("--offline and --require-live conflict")
+    if args.scene_only and args.visual_dae is None:
+        p.error("--scene-only requires --visual-dae")
     if not 1 <= args.port <= 65535:
         p.error("--port must be a valid local port")
+
+    if args.scene_only:
+        try:
+            source_scene = audit_collada_scene(args.visual_dae)
+        except (OSError, ValueError) as exc:
+            print("ABSTAIN_SOURCE_SCENE:", type(exc).__name__)
+            return 2
+        print(json.dumps({
+            "status": "SOURCE_COLLADA_SCENE_INVENTORY_ONLY",
+            "dae_visual_scene": source_scene,
+            "visual_vertices_loaded": False,
+            "game_world_alignment_verified": False,
+            "training_approved": False,
+        }, indent=2, sort_keys=True))
+        return 0
 
     try:
         preferences = load_asset_selections()
@@ -112,8 +132,31 @@ def main(argv=None) -> int:
         terrain = load_private_obj(terrain_path)
         if args.terrain_labels is not None:
             terrain = apply_private_surface_labels(terrain, args.terrain_labels)
-        visual = load_private_dae_visual_model(visual_path)
         scene = audit_collada_scene(visual_path)
+        try:
+            visual = load_private_dae_visual_model(visual_path)
+        except VisualAssetError as exc:
+            # A Collada scene construct that the source renderer cannot handle
+            # must NOT be ignored or scored against guessed mesh positions.
+            # Source-derived audit counts are safe to print; raw XML, paths,
+            # vertices, node IDs and original game art are not.
+            print(json.dumps({
+                "status": "ABSTAIN_SOURCE_VISUAL_MODEL",
+                "reason": (
+                    "UNSUPPORTED_OR_UNRESOLVED_SOURCE_SCENE_GRAPH"
+                    if "scene" in str(exc).lower()
+                    else "ORIGINAL_VISUAL_LOADER_REFUSED"
+                ),
+                "dae_visual_scene": scene,
+                "strict_source_kcl": {
+                    "sha256": terrain.sha256,
+                    "faces": len(terrain.faces),
+                },
+                "course_material_alignment_scored": False,
+                "native_world_transform_verified": False,
+                "training_approved": False,
+            }, indent=2, sort_keys=True))
+            return 2
         if args.trees is not None or preferences.tree_json:
             tree_path = args.trees or Path(preferences.tree_json)
             trees = load_private_tree_positions(tree_path)
