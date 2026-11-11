@@ -19,10 +19,14 @@ def fixture(*,firstword=0x80300000,broken=False):
         mem[obj]=firstword
         mem[obj+4]=0
         mem[obj+8]=0
-        mem[obj+0x40]=obj+0x0C
-        mem[obj+0x44]=obj+0x30
+        # 0x3c..0x47 is VEC3 scale, not pointer slots.
+        mem[obj+0x3C]=0x3F800000
+        mem[obj+0x40]=0x3F800000
+        mem[obj+0x44]=0x3F800000
+        mem[obj+0x48]=obj+0x0C
+        mem[obj+0x4C]=obj+0x30
     if broken:
-        mem[base+0x44]=0
+        mem[base+0x4C]=0
     vt=firstword
     mem[vt+0]=m.native.UNITS["Tree"][0]+0x100
     mem[vt+4]=m.native.UNITS["Ball"][0]+0x100
@@ -48,11 +52,22 @@ class TreeObjectDispatchTests(unittest.TestCase):
         row=m.inspect_objects(read,bank,base,94)
         self.assertEqual(row["rotation_self_reference_count"],94)
         self.assertEqual(row["translation_self_reference_count"],94)
+        self.assertEqual(row["source_scale_finite_triplets"],94)
+        self.assertEqual(row["source_scale_component_spans"],[[1.,1.],[1.,1.],[1.,1.]])
+        self.assertEqual(row["corrected_source_rotation_ptr_offset"],"0x48")
 
     def test_missing_selfref_not_fatal(self):
         read,bank,base=fixture(broken=True)
         row=m.inspect_objects(read,bank,base,94)
         self.assertEqual(row["translation_self_reference_count"],93)
+
+    def test_wrong_header_offsets_were_scale_floats(self):
+        read,bank,base=fixture()
+        row=m.inspect_objects(read,bank,base,94)
+        self.assertEqual(row["member_pointer_buckets"]["rotation_ptr"].get("mem2_pointer"),94)
+        self.assertEqual(row["member_pointer_buckets"]["translation_ptr"].get("mem2_pointer"),94)
+        self.assertEqual(read(base+0x40),0x3F800000)
+        self.assertEqual(read(base+0x44),0x3F800000)
 
     def test_zero_firstwords_not_vtables(self):
         read,bank,base=fixture(firstword=0)
