@@ -15,6 +15,14 @@ import xml.etree.ElementTree as ET
 
 from .visual_model import VisualAssetError
 
+class UnsupportedSceneFeature(VisualAssetError):
+    """Known original Collada scene feature not yet rendered correctly.
+
+    GUI may explicitly use labeled geometry-library *diagnostic* mode.
+    Other malformed assets / external references remain hard failures.
+    """
+
+
 MAX_SCENE_NODES = 20_000
 MAX_SCENE_DEPTH = 64
 MAX_TRANSFORMS_PER_NODE = 64
@@ -85,12 +93,12 @@ def _node_transform(node: ET.Element) -> tuple[float, ...]:
 
 
 def source_scene_instances(root: ET.Element) -> dict[str, tuple[tuple[float, ...], ...]] | None:
-    """Return source geometry instance matrices or None if no original scene.
+    """Source-authored scene hierarchy and internal static node references.
 
-    An explicit scene binding is required when multiple visual scenes exist.
-    Unreferenced mesh library entries are not rendered when an authored visual
-    scene exists. Instance controllers and external scene nodes ABSTAIN; they
-    are not silently treated as direct instance_geometry entries.
+    Every instance_node resolves only an internal, uniquely defined <node>.
+    Parent and nested transforms compose in Collada document order.
+    Controller/skin, lookat and skew are NOT guessed: they raise a typed
+    limitation, distinguishable from malformed/hostile source assets.
     """
     scenes = [n for lib in root if _tag(lib)=="library_visual_scenes"
               for n in lib if _tag(n)=="visual_scene"]
@@ -113,29 +121,59 @@ def source_scene_instances(root: ET.Element) -> dict[str, tuple[tuple[float, ...
     if len(active)!=1:
         raise VisualAssetError("Original Collada active scene unresolved")
 
+    # Source original library_nodes and unique scene-node IDs support legal
+    # COLLADA <instance_node url="#id"> without flattening source transforms.
+    nodes: dict[str, ET.Element] = {}
+    for lib in root:
+        if _tag(lib)=="library_nodes":
+            candidates=(n for n in lib.iter() if _tag(n)=="node")
+        elif _tag(lib)=="library_visual_scenes":
+            candidates=(n for n in lib.iter() if _tag(n)=="node")
+        else:
+            continue
+        for node in candidates:
+            key=node.get("id")
+            if key is None:
+                continue
+            if not key or len(key)>128 or key in nodes:
+                raise VisualAssetError("Duplicate/invalid Collada scene node ID")
+            nodes[key]=node
+            if len(nodes)>MAX_SCENE_NODES:
+                raise VisualAssetError("Excessive original Collada node catalog")
+
     refs: dict[str,list[tuple[float,...]]] = {}
     count=[0,0]
-    def visit(node: ET.Element, parent: tuple[float,...], depth:int) -> None:
+
+    def visit(node: ET.Element, parent: tuple[float,...], depth:int,
+              chain: frozenset[int]) -> None:
         if depth>MAX_SCENE_DEPTH:
             raise VisualAssetError("Original Collada scene nesting exceeds bound")
+        # Cycle checks cover direct and indirect internal library_node links.
+        identity=id(node)
+        if identity in chain:
+            raise VisualAssetError("Original Collada instance_node cycle")
+        chain=chain | {identity}
         count[0]+=1
         if count[0]>MAX_SCENE_NODES:
             raise VisualAssetError("Original Collada scene node count exceeds bound")
         transforms = [n for n in node if _tag(n) in ("matrix", "translate", "rotate", "scale")]
         if len(transforms)>MAX_TRANSFORMS_PER_NODE:
             raise VisualAssetError("Original Collada transform stack exceeds bound")
-        if any(_tag(n) in ("lookat","skew","instance_node","instance_controller")
-               for n in node):
-            raise VisualAssetError("Unsupported original scene graph transform/controller")
+        for element in node:
+            kind=_tag(element)
+            if kind in ("instance_controller","lookat","skew"):
+                raise UnsupportedSceneFeature(
+                    "Unsupported original scene graph <"+kind+">; "
+                    "native node/controller transform not inferred")
         local = IDENTITY
-        for el in transforms:
-            local = _mul(local, _node_transform(el))
+        for element in transforms:
+            local = _mul(local, _node_transform(element))
         world = _mul(parent, local)
         for element in node:
             tag=_tag(element)
             if tag=="instance_geometry":
                 ref=element.get("url","")
-                if not ref.startswith("#") or len(ref)>130:
+                if not ref.startswith("#") or len(ref)>130 or len(ref)<2:
                     raise VisualAssetError("Invalid original geometry instance reference")
                 key=ref[1:]
                 count[1]+=1
@@ -143,13 +181,27 @@ def source_scene_instances(root: ET.Element) -> dict[str, tuple[tuple[float, ...
                     raise VisualAssetError("Original Collada instance count exceeds bound")
                 refs.setdefault(key,[]).append(world)
             elif tag=="node":
-                visit(element, world, depth+1)
+                visit(element, world, depth+1, chain)
+            elif tag=="instance_node":
+                ref=element.get("url","")
+                if not ref.startswith("#") or len(ref)>130 or len(ref)<2:
+                    raise VisualAssetError("External/invalid Collada instance_node ref")
+                target=nodes.get(ref[1:])
+                if target is None:
+                    raise VisualAssetError("Collada instance_node target unavailable")
+                visit(target, world, depth+1, chain)
 
     for child in active[0]:
         if _tag(child)=="node":
-            visit(child, IDENTITY, 1)
-    # Some exporters include a visual_scene with no instance geometry at all.
-    # Do not fabricate source scene transformations or render unrelated models.
+            visit(child, IDENTITY, 1, frozenset())
+        elif _tag(child)=="instance_node":
+            ref=child.get("url","")
+            if not ref.startswith("#") or len(ref)>130 or len(ref)<2:
+                raise VisualAssetError("External/invalid Collada visual scene node ref")
+            target=nodes.get(ref[1:])
+            if target is None:
+                raise VisualAssetError("Collada root instance_node target unavailable")
+            visit(target, IDENTITY, 1, frozenset())
     if not refs:
         raise VisualAssetError("Original Collada scene has no supported geometry instances")
     return {key:tuple(matrices) for key,matrices in refs.items()}
