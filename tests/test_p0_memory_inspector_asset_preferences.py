@@ -45,8 +45,8 @@ class SelectionTests(unittest.TestCase):
         reopened = load_asset_selections(self.settings)
         self.assertEqual(state, reopened)
         raw = self.settings.read_text("utf-8")
-        self.assertIn(str(self.tree), raw)
-        self.assertIn(str(self.obj), raw)
+        self.assertEqual(json.loads(raw)["tree_json"], str(self.tree.resolve()))
+        self.assertEqual(json.loads(raw)["terrain_obj"], str(self.obj.resolve()))
         self.assertNotIn("tree_positions", raw)
         self.assertNotIn("training_approved", raw)
         self.assertNotIn("170.0", raw)
@@ -72,7 +72,7 @@ class SelectionTests(unittest.TestCase):
     def test_autodiscover_only_expected_source_file(self):
         checkout = self.base / "Wii-Golf-Tree-PR432"
         checkout.mkdir()
-        self.assertEqual(discover_private_tree(checkout), self.tree)
+        self.assertEqual(discover_private_tree(checkout).resolve(), self.tree.resolve())
         self.tree.unlink()
         self.assertIsNone(discover_private_tree(checkout))
         self.tree.write_text(json.dumps({"some_other_source": "not original"}))
@@ -98,7 +98,7 @@ class SelectionTests(unittest.TestCase):
         self.tree.unlink()
         save_asset_selections(state, self.settings)
         restored = load_asset_selections(self.settings)
-        self.assertEqual(restored.tree_json, str(self.tree))
+        self.assertEqual(restored.tree_json, str(self.tree.resolve()))
         self.assertFalse(self.tree.exists())
 
     def test_refuse_malformed_settings_and_extra_fields(self):
