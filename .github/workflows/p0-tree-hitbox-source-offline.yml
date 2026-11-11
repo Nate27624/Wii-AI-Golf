@@ -29,6 +29,8 @@ on:
       - tests/test_recover_p0_tree_contact_record_private.py
       - scripts/analyze_p0_tree_contact_memory_private.py
       - scripts/p0_tree_contact_source_phase_triage_private.py
+      - scripts/p0_tree_contact_memory_response_private.py
+      - tests/test_p0_tree_contact_memory_response_private.py
       - tests/test_p0_tree_contact_source_phase_triage_private.py
       - tests/test_analyze_p0_tree_contact_memory_private.py
       - tests/test_p0_tree_full_public_table_targets_private.py
@@ -138,5 +140,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_analyze_p0_tree_contact_memory_private.py -v
       - name: Source-only original Ball candidate sustained-phase and tree 24/2C timeline triage
         run: python -m unittest discover -s tests -p test_p0_tree_contact_source_phase_triage_private.py -v
+      - name: Source-only signed displacement, moving alias and tree native word categories
+        run: python -m unittest discover -s tests -p test_p0_tree_contact_memory_response_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
