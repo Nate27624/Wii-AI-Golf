@@ -289,3 +289,37 @@ SHA, exact face count, original KCL IDs, no symlinks, file bounds and
 non-Git directory. No file relocation or modification is necessary.
 D:\Projects containing .git is deliberately rejected for the standalone
 labels file; separate Data/derived Git-ignored/untracked remains supported.
+
+
+## Complete-face course preview (fix for dark holes)
+
+The operator screenshot showed large dark gaps and jagged mismatched colored
+fragments. Earlier inspector drew only **600 live / 1200 replay** of the original
+**2498 candidate KCL triangles**, discarding every remaining face as a cheap
+stride-based preview. This is unsuitable for a filled contiguous surface: the
+discarded triangles become literal transparent holes, even though the OBJ
+contains the correct triangles. Do NOT infer that missing rendered faces are
+missing from game memory, and do NOT add/rebuild/alter the original OBJ.
+
+The 3D UI now defaults to **All triangles ON** (complete up to a bounded
+4096-face GUI draw budget) and **Focus tee/flag OFF** so the entire private
+course candidate is visible. The earlier 600/1200-face sparse sampling remains
+available only after unchecking All triangles (UI status explicitly calls it a
+PARTIAL PREVIEW and warns that gaps are expected). No geometry or source
+labels are added or altered to fill these rendering holes.
+
+**Point labels OFF** by default makes the overlapping ball/cache/tee/flag/aim
+texts optional, but leaves source-qualified ball/flag/tee markers, aim line,
+A-state and all original text status fields functional. The middle pane now
+has separate file, quality, overlay, and camera rows so controls cannot silently
+extend beyond the visible width. **Top-down** and **Isometric** view presets only
+rotate the local orthographic viewport. User may still orbit using mouse drag.
+Original surface colors come from the previously SHA-verified source-only
+metadata overlay. Face lighting is cached in RAM to improve redraws at full
+resolution; no external graphics dependency, game memory write, or network.
+
+Painter-style face depth sorting remains an approximation rather than a
+pixel-accurate native GPU Z-buffer; a few intersecting or overlapping triangles
+may still sort imperfectly. The odd detached water wedge in the user screenshot
+must NOT be deleted without validating its original source polygon geometry.
+No game collision ownership proof or training approval is introduced.
