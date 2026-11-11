@@ -109,6 +109,25 @@ class TreeBallIndirectDispatchTests(unittest.TestCase):
                          m.PREVIOUS_WORDS+m.FOLLOWING_WORDS+1)
         self.assertLessEqual(detailed["indirect"]["operator_local_detail_windows"],30)
 
+    def test_detail_budget_preserves_fieldmanager_source_context(self):
+        words,read,_,_,_=fixture()
+        ball=m.native.UNITS["Ball"][0]
+        field=m.native.UNITS["FieldManager"][0]
+        for i in range(22):
+            words[ball+0x1100+i*0x10]=0x4E800421
+        words[field+0x1200]=0x4E800421
+        result=m.inspect_indirect_calls(read,True)
+        ball_sites=next(x["sites"] for x in result["per_unit"]
+                        if x["source_unit"]=="Ball")
+        field_sites=next(x["sites"] for x in result["per_unit"]
+                         if x["source_unit"]=="FieldManager")
+        self.assertEqual(sum("operator_local_original_code_context" in s
+                             for s in ball_sites),m.MAX_DETAIL_PER_OWNER)
+        self.assertEqual(sum("operator_local_original_code_context" in s
+                             for s in field_sites),1)
+        self.assertLessEqual(result["operator_local_detail_windows"],
+                             m.MAX_DETAIL_WINDOWS)
+
     def test_missing_prism_source_anchor_abstains(self):
         words,read,ram,u32,bank=fixture()
         ball=m.native.UNITS["Ball"][0]
