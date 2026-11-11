@@ -16,7 +16,7 @@ import subprocess
 MAX_OBJ_BYTES = 16 * 1024 * 1024
 MAX_VERTICES = 90_000
 MAX_FACES = 30_000
-MAX_DRAW_FACES = 1_200
+MAX_DRAW_FACES = 4_096  # complete 2,498-triangle source mesh without UI stride gaps
 MAX_GROUPS = MAX_FACES * 2
 
 # Source: original Wii Sports Golf OGWS BE16 KCL prism attr +0x0E,
