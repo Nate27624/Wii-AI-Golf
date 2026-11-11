@@ -118,6 +118,47 @@ The newly extended source audit additionally validates exact `stfs/lfs/fmuls/fad
 **Source-quality boundary:** the operator has verified original original-bank code for earlier operations; the *expanded gates* themselves are not confirmed against the original archive until the operator re-runs the updated isolated PR script. Exact-head Windows/Ubuntu synthetic and full CI are a separate check and are not a replacement for the private original source pass.
 
 
+## 2026-11-11 direct controller accessor **CONFIRMED by independent original Rev1 source audit**
+
+The operator's `fn_8019BAE8` excerpt was followed by a **separately completed** native-source audit on #418, `REV1_EXSTATUS_SENSOR_FIELD_SOURCE_PASS`, with **all seven instruction/offset gates passing on the original 14-bank SHA-qualified archive**. This is already complete; **do not ask the operator to rerun the same getter-layout proof**.
+
+Exact instructions:
+- `8019BAE8 mulli r4,r4,2120` = `0x848` extended filter stride = 8 + 16 * 132.
+- `8019BAEC mulli r0,r5,132` = `0x84` sample stride.
+- `8019BAF0 add r3,r3,r4`; `8019BAF4 add r3,r3,r0`; `8019BAF8 addi r3,r3,0xA90`; `8019BAFC blr`.
+- `0xA90` = `RPSysCoreController::mExStatus(+0xA88) + ExStatus::status(+8)`. Original `lwz mKPADReadLength(+0x854)` aligns exactly with public EGG class layout.
+- Selector-2 `EGG::CoreStatus` (publicly derived from `KPADStatus`) fields `+0x18=acc_value` (filtered acceleration norm), `+0x1C=acc_speed` (filtered acceleration-change norm). Both feed the golfing history/peaks; neither is directly accepted shot power.
+- Public filter-2 default rate is 0.05 and threshold 0.10; **game active runtime settings still need validation**.
+- Original native f31 constant was separately read as approximately 0.992 (single-precision); this is a Golf history coefficient, not a directly verified physical sampling interval.
+
+Source receipt: https://github.com/Nate27624/Wii-AI-Golf/issues/418#issuecomment-6789143765 . Public original source: [RPSysController.cpp](https://github.com/doldecomp/ogws/blob/master/src/Pack/RPKernel/RPSysController.cpp), [RPSysController.h](https://github.com/doldecomp/ogws/blob/master/include/Pack/RPKernel/RPSysController.h), [KPAD.h](https://github.com/doldecomp/ogws/blob/master/include/revolution/KPAD/KPAD.h). This compiled-source/native-offset concordance is **stronger evidence than the initial public API name hypothesis**. Still unknown: precise in-game accepted shot power, reset/shot latch timing and the vtable+56 dynamic target.
+
+### New source-only call-site and preprocessor audit
+
+The next useful problem is **when the Golf accumulation update runs** and what `fn_802B4474` does before the two filters are accumulated. The audit now validates the **entire** compiled `GolfScene_unsplit.o` text section remains identical between original phases 1/5/7, then scans **only that one source-owned code unit** for direct `bl` instructions targeting:
+- `fn_802B4794` history update;
+- `fn_802B4474` preceding sample preprocessor;
+- `fn_802B3BA0` state-update follow-on;
+- `fn_802B2F90` conditional peak latch.
+
+Only source PCs are published. It also prints a bounded sanitized PPC excerpt from `0x802B4474..0x802B4504` for next operand/reaching-definition analysis. **Indirect calls, callbacks and callers outside GolfScene_unsplit.o are not covered**, so zero matches are not proof of no invocation. This is SOURCE ONLY, no Dolphin, no game input, no training.
+
+After fetching a separately SHA-reviewed PR #437 head in an existing isolated source worktree, run:
+~~~powershell
+$lines = & py -3 -I scripts/p0_calc_magnitude_upstream_private.py --detailed
+if ($LASTEXITCODE -ne 0) { throw 'Source audit abstained' }
+$report = ($lines -join "`n") | ConvertFrom-Json
+if ($report.status -ne 'REV1_CALC_UPSTREAM_STATIC_SOURCE_PASS' -or
+    $report.original_14_bank_sha_pre_and_post_verified -ne $true -or
+    $report.complete_golf_text_phases_1_5_7_identical -ne $true) {
+    throw 'Source audit provenance failure'
+}
+$report.golf_text_direct_call_inventory | ConvertTo-Json -Depth 6
+$report.calc_preprocessor_source_excerpt |
+    ForEach-Object { $_ | ConvertTo-Json -Compress }
+~~~
+
+
 ## What the microaudit actually checks
 
 New-only `scripts/p0_calc_magnitude_upstream_private.py`:
