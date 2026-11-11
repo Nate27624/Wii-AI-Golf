@@ -100,8 +100,9 @@ def source_scene_instances(
 
     Every instance_node resolves only an internal, uniquely defined <node>.
     Parent and nested transforms compose in Collada document order.
-    Controller/skin, lookat and skew are NOT guessed: they raise a typed
-    limitation, distinguishable from malformed/hostile source assets.
+    Source-validated static single-joint skin controllers are evaluated with
+    their authored joint/IBM/shape matrices; all other controllers, lookat
+    and skew remain refused or explicitly labeled geometry-only previews.
     """
     if type(omit_unsupported) is not bool:
         raise VisualAssetError("Invalid scene compatibility mode")
@@ -149,6 +150,11 @@ def source_scene_instances(
                 raise VisualAssetError("Excessive original Collada node catalog")
 
     refs: dict[str,list[tuple[float,...]]] = {}
+    source_node_worlds: dict[ET.Element, tuple[float,...]] = {}
+    pending_rigid_skins: list[ET.Element] = []
+    controller_ids = [
+        n.get("id") for lib in root if _tag(lib) == "library_controllers"
+        for n in lib if _tag(n) == "controller"]
     count=[0,0]
 
     def visit(node: ET.Element, parent: tuple[float,...], depth:int,
@@ -178,9 +184,12 @@ def source_scene_instances(
                 if omit_unsupported:
                     limitations.append("instance_controller skin/joint draw omitted")
                     continue
-                raise UnsupportedSceneFeature(
-                    "Unsupported original scene graph <instance_controller>; "
-                    "skin/joint transform not reconstructed")
+                if url[1:] not in controller_ids:
+                    raise UnsupportedSceneFeature(
+                        "Unsupported original scene graph <instance_controller>; "
+                        "source controller definition absent")
+                if controller_ids.count(url[1:]) != 1:
+                    raise VisualAssetError("Duplicate original Collada controller ID")
             if kind in ("lookat","skew"):
                 # Validate numeric original transforms; skip their *entire*
                 # affected node, not its geometry with an invented matrix.
@@ -195,6 +204,10 @@ def source_scene_instances(
         for element in transforms:
             local = _mul(local, _node_transform(element))
         world = _mul(parent, local)
+        if node in source_node_worlds and source_node_worlds[node] != world:
+            raise VisualAssetError(
+                "Original rigid skin node instanced with ambiguous world transforms")
+        source_node_worlds[node] = world
         for element in node:
             tag=_tag(element)
             if tag=="instance_geometry":
@@ -206,6 +219,10 @@ def source_scene_instances(
                 if count[1]>MAX_GEOMETRY_INSTANCES:
                     raise VisualAssetError("Original Collada instance count exceeds bound")
                 refs.setdefault(key,[]).append(world)
+            elif tag=="instance_controller" and not omit_unsupported:
+                pending_rigid_skins.append(element)
+                if count[1]+len(pending_rigid_skins)>MAX_GEOMETRY_INSTANCES:
+                    raise VisualAssetError("Original Collada controller count exceeds bound")
             elif tag=="node":
                 visit(element, world, depth+1, chain)
             elif tag=="instance_node":
@@ -228,6 +245,15 @@ def source_scene_instances(
             if target is None:
                 raise VisualAssetError("Collada root instance_node target unavailable")
             visit(target, IDENTITY, 1, frozenset())
+    if pending_rigid_skins:
+        # Geometry-only fallback never reaches here. Every source controller
+        # must have a unique skeleton/joint and valid original vertex weights,
+        # or the strict visual model abstains instead of guessing a placement.
+        from .collada_rigid_skin import rigid_skin_instance
+        for instance in pending_rigid_skins:
+            geometry_id, authored_world = rigid_skin_instance(
+                root, instance, source_node_worlds)
+            refs.setdefault(geometry_id, []).append(authored_world)
     if not refs:
         if omit_unsupported and limitations:
             raise UnsupportedSceneFeature(
