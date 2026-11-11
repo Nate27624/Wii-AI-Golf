@@ -1,0 +1,38 @@
+name: P0 source-gated receiver chain join (synthetic)
+on:
+  push:
+    paths:
+      - 'scripts/audit_p0_authenticated_receiver_chain_private.py'
+      - 'tests/test_p0_authenticated_receiver_chain_private.py'
+      - 'scripts/Invoke-P0ReceiverSourceChain.ps1'
+      - '.github/workflows/p0-authenticated-receiver-chain.yml'
+  pull_request:
+    paths:
+      - 'scripts/audit_p0_authenticated_receiver_chain_private.py'
+      - 'tests/test_p0_authenticated_receiver_chain_private.py'
+      - '.github/workflows/p0-authenticated-receiver-chain.yml'
+  workflow_dispatch:
+jobs:
+  fabricated:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fabricated native reader, two-source join, SHA rehash, safety
+        run: python -m unittest discover -s tests -p test_p0_authenticated_receiver_chain_private.py -v
+      - name: Parse Windows PowerShell 5.1 operator entrypoint (no execution)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts\Invoke-P0ReceiverSourceChain.ps1'),
+            [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -ne 0) { throw 'PowerShell syntax parse failed' }
