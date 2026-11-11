@@ -13,7 +13,10 @@ import tkinter as tk
 from tkinter import ttk
 
 from .navigation import wheel_steps
-from .scene_camera import fit_camera, look_in_place, orbit, pan, dolly, move
+from .scene_camera import (
+    fit_camera, frame_playable_camera, look_in_place, orbit, pan, dolly, move)
+from .unified_source_view import (
+    prepare_comparison_kcl, draw_comparison, overlay_summary)
 from .texture_render import PreviewCancelled, prepare_textures, render_preview
 from .fast_texture_render import (
     accelerated_available, prepare_fast_scene, render_fast)
@@ -40,8 +43,13 @@ class TexturedPreviewWindow:
             self.top.geometry("1040x720")
             self.top.minsize(480, 360)
 
-        self.home_camera = fit_camera(model.vertices)
+        self.full_camera = fit_camera(model.vertices)
+        self.home_camera = frame_playable_camera(model)
         self.camera = self.home_camera
+        self.comparison_kcl = None
+        self.mode = tk.StringVar(value="Textures")
+        self.comparison_status = tk.StringVar(
+            value="KCL: none loaded · texture source coordinates unverified.")
         self.drag_origin: tuple[int, int] | None = None
         self.drag_button: int | None = None
         self.image_ref = None
@@ -79,16 +87,23 @@ class TexturedPreviewWindow:
 
         controls = ttk.Frame(self.top, padding=(6, 3))
         controls.pack(fill="x")
-        ttk.Button(controls, text="Frame (F)", command=self.frame).pack(side="left")
+        ttk.Button(controls, text="Frame course (F)",
+                   command=self.frame).pack(side="left")
+        ttk.Button(controls, text="Frame whole scene (Shift+F)",
+                   command=self.frame_all).pack(side="left", padx=(3, 8))
+        for label in ("Textures", "Collision", "Both"):
+            ttk.Radiobutton(
+                controls, text=label, value=label, variable=self.mode,
+                command=self.schedule).pack(side="left", padx=(1, 3))
         ttk.Label(
             controls,
-            text="RMB: look in place · LMB: orbit · MMB: pan · "
-                 "Wheel: dolly · Hold RMB + WASD/QE: fly · Shift: faster",
+            text="RMB look · LMB orbit · MMB pan · arrows move forward/back/left/right · "
+                 "RMB+WASD/QE fly · wheel dolly · Shift faster",
             wraplength=670,
         ).pack(side="left", padx=8)
 
         self.canvas = tk.Canvas(self.top, background="#13202e",
-                                highlightthickness=0, height=460)
+                                takefocus=1, highlightthickness=0, height=460)
         self.canvas.pack(fill="both", expand=True, padx=6, pady=(2, 6))
         self.canvas.bind("<Configure>", lambda event: self.schedule())
         for button in (1, 2, 3):
@@ -100,6 +115,8 @@ class TexturedPreviewWindow:
         self.canvas.bind("<Button-5>", self.wheel)
         self.canvas.bind("<KeyPress>", self.key_move)
 
+        ttk.Label(self.top, textvariable=self.comparison_status,
+                  wraplength=820, padding=(8, 1)).pack(fill="x")
         self.status = tk.StringVar(
             value=("Preparing compiled original UV renderer "
                    "(first frame warms the JIT cache once)"
@@ -136,7 +153,15 @@ class TexturedPreviewWindow:
         height = min(800, self.canvas.winfo_height())
         if width < 16 or height < 16:
             return
-        self._queued = (self._request_version, width, height, self.camera)
+        # Low-resolution interactions keep the full source mesh but reduce
+        # pixel shading; pointer-up always requests full-quality rendering.
+        if self.drag_button is not None and self.fast_active:
+            width = max(16, int(width * .68))
+            height = max(16, int(height * .68))
+        mode = self.mode.get() if hasattr(self, "mode") else "Textures"
+        kcl = getattr(self, "comparison_kcl", None)
+        self._queued = (self._request_version, width, height,
+                        self.camera, mode, kcl)
         self.status.set(
             f"Rendering all {len(self.model.faces):,} native UV triangles "
             "(" + ("compiled CPU" if self.fast_active else "slow NumPy fallback") + ")")
@@ -145,25 +170,34 @@ class TexturedPreviewWindow:
     def _start_latest(self):
         if self._closed or self._render_future is not None or self._queued is None:
             return
-        version, width, height, camera = self._queued
+        version, width, height, camera, mode, kcl = self._queued
         self._queued = None
         cancel = Event()
         self._cancel_render = cancel
         future = self._executor.submit(
-            self._render_frame, width, height, camera, cancel.is_set)
+            self._render_frame, width, height, camera, cancel.is_set,
+            mode, kcl)
         self._render_future = (version, camera, future)
 
-    def _render_frame(self, width, height, camera, cancelled):
-        """Worker-only: no Tk methods or UI graphics calls."""
+    def _render_frame(self, width, height, camera, cancelled,
+                      mode="Textures", collision=None):
+        """Worker-only: one source-local camera, no Tk operations or writes."""
         if cancelled():
             raise PreviewCancelled()
         started = time.perf_counter()
-        if self.fast_scene is not None:
+        if mode == "Collision" and collision is not None:
+            from PIL import Image
+            image, drawn = Image.new("RGB", (width, height), (19, 32, 46)), 0
+        elif self.fast_scene is not None:
             image, drawn = render_fast(self.fast_scene, width, height, camera)
         else:
             image, drawn = render_preview(
                 self.model, width, height, camera=camera,
                 textures=self.textures, cancelled=cancelled)
+        if cancelled():
+            raise PreviewCancelled()
+        if collision is not None and mode in {"Collision", "Both"}:
+            image = draw_comparison(image, collision, camera, mode=mode)
         if cancelled():
             raise PreviewCancelled()
         return image, drawn, (time.perf_counter()-started)*1000.
@@ -180,6 +214,13 @@ class TexturedPreviewWindow:
                 image, drawn, render_ms = future.result()
                 if version == self._request_version:
                     from PIL import ImageTk
+                    # Interactive half-resolution frames reduce raster cost.
+                    # Scale the presentation ONLY, never omit source triangles.
+                    target = (min(1280, self.canvas.winfo_width()),
+                              min(800, self.canvas.winfo_height()))
+                    if image.size != target and min(target) >= 16:
+                        from PIL import Image
+                        image = image.resize(target, Image.Resampling.BILINEAR)
                     self.image_ref = ImageTk.PhotoImage(image, master=self.canvas)
                     self.canvas.delete("all")
                     self.canvas.create_image(0, 0, image=self.image_ref,
@@ -189,7 +230,7 @@ class TexturedPreviewWindow:
                     self.status.set(
                         f"{drawn:,} visible / {len(self.model.faces):,} "
                         f"source triangles · {render_ms:.0f} ms {engine} "
-                        "· source-local, not KCL-aligned")
+                        "· one canvas · KCL registration display-only, UNVERIFIED")
             except PreviewCancelled:
                 pass
             except (VisualAssetError, OSError, ValueError,
@@ -231,6 +272,8 @@ class TexturedPreviewWindow:
         if self.drag_button == getattr(event, "num", None):
             self.drag_origin = None
             self.drag_button = None
+            # Replace low-resolution interactive frame with full-quality UVs.
+            self.schedule()
 
     def wheel(self, event):
         n = wheel_steps(getattr(event, "delta", None),
@@ -241,26 +284,58 @@ class TexturedPreviewWindow:
             self.schedule()
 
     def key_move(self, event):
-        if getattr(event, "keysym", "").lower() == "f":
-            self.frame()
+        key = getattr(event, "keysym", "").lower()
+        shifted = bool(getattr(event, "state", 0) & 0x0001)
+        if key == "f":
+            if shifted:
+                self.frame_all()
+            else:
+                self.frame()
             return
-        if self.drag_button != 3:
-            return
-        motion = {
-            "w": (1., 0., 0.), "s": (-1., 0., 0.),
-            "a": (0., -1., 0.), "d": (0., 1., 0.),
-            "q": (0., 0., -1.), "e": (0., 0., 1.),
-        }.get(getattr(event, "keysym", "").lower())
+        # Arrows are active whenever the shared 3D canvas is focused,
+        # independently of RMB. NEVER change game control/shot power.
+        arrows = {
+            "up": (1., 0., 0.), "down": (-1., 0., 0.),
+            "left": (0., -1., 0.), "right": (0., 1., 0.),
+        }
+        if key in arrows:
+            motion = arrows[key]
+        elif self.drag_button == 3:
+            motion = {
+                "w": (1., 0., 0.), "s": (-1., 0., 0.),
+                "a": (0., -1., 0.), "d": (0., 1., 0.),
+                "q": (0., 0., -1.), "e": (0., 0., 1.),
+            }.get(key)
+        else:
+            motion = None
         if motion is None:
             return
         self.camera = move(
             self.camera, forward=motion[0],
-            right=motion[1], vertical=motion[2],
-            fast=bool(getattr(event, "state", 0) & 0x0001))
+            right=motion[1], vertical=motion[2], fast=shifted)
         self.schedule()
+        return "break"
 
     def frame(self, event=None):
         self.camera = self.home_camera
+        self.schedule()
+
+    def frame_all(self, event=None):
+        self.camera = self.full_camera
+        self.schedule()
+
+    def set_collision_terrain(self, terrain):
+        """Show actual KCL source faces in SAME camera, explicitly uncalibrated."""
+        if terrain is None:
+            self.comparison_kcl = None
+            self.mode.set("Textures")
+            self.comparison_status.set(
+                "KCL not loaded · no original collision/visual alignment claim.")
+        else:
+            comp = prepare_comparison_kcl(terrain, self.model)
+            self.comparison_kcl = comp
+            self.mode.set("Both")
+            self.comparison_status.set(overlay_summary(comp))
         self.schedule()
 
     def close(self):
