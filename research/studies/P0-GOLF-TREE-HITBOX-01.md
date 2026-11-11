@@ -296,3 +296,54 @@ instruction locations in Ball/Tree/Sim/FieldManager sources.
 published**. A common vtable or source-code stride use is a lead,
 not a proven collision interface; the actual native method and
 receiver must be traced before inferring geometry or response.
+
+## Original operator 94-tree object-dispatch audit: mixed results / critical +0x40 pointer bug
+
+Operator's source/SHA/scene-qualified capture7 result from
+`p0_tree_hitbox_object_dispatch_private.py` returned:
+- 94 native source tree objects, all sharing **one firstword value**
+  in the MEM1 memory region; 20 candidate method-table slots
+  included public FieldManager and Ball code-relative targets.
+  This is a **possible shared vtable**, not verified: the
+  pointed-to word/table identity and actual virtual call sites
+  still need source-level provenance. Some Ball source module
+  functions may be general-purpose utilities (known from prior
+  disassembly), not tree physics!
+- `mModel+0x04` and `mMapObj+0x08` raw words classified as
+  `other_nonzero` in all 94 records by strict MEM1/MEM2 *aligned*
+  pointer checker. This does NOT establish model/map object is
+  absent. They might use non-address word representations, tagged
+  pointers, stale header offsets, or unrecognized address regions.
+- **The original tool had a confirmed logical layout error:** it
+  checked candidate `mpRotation` at +0x40 and `mpTrans` at +0x44
+  and found 0 selfreferences. But these offsets fall INSIDE the
+  source documented `mScale:VEC3` at +0x3C–+0x47. Public
+  `RPGolMapObjBase.h` annotations claim +0x40/+0x44 pointers,
+  which overlaps scale and is internally inconsistent. Under
+  normal NW4R `MTX33` (36 bytes) and `VEC3` (12 bytes) struct
+  sizes, candidate pointer fields MUST instead be **+0x48/+0x4C**
+  after scale. Confirm against real original record words and PPC,
+  not just header comments. The old 0 selfreference report was
+  invalid as an inference about the actual pointers.
+- Ball executable source unit contains **one `addi +84` site**
+  at public Ball relative **+0x0738**. Tree source module also
+  has one at **+0x002C**. FieldManager has many known +84
+  allocation/iteration sites. A naked addi immediate +84 does
+  **not** prove Ball iterates the tree array: source register
+  provenance must connect to `FieldManager.mTreeObjs` and
+  loop counter/count.
+
+**Corrective code:** `p0_tree_hitbox_object_dispatch_private.py`
+now counts original source records' candidate pointer classifications
+at +0x48/+0x4C, selfreference matches against native in-object
+rotation(+0x0C) and translation(+0x30), source scale(+0x3C)
+finite/spans, and aggregate nonpointer word hints. It remains
+read-only, with no raw pointer or per-tree values published.
+Also added `p0_tree_ball_84byte_context_private.py`, a
+read-only source disassembly of **Ball+0x0640..+0x081C** and
+**Tree+0x0000..+0x00BC**, strictly anchored to native
++84 ADDI instructions and original SHA/scene/tree PPC loop.
+This can reveal whether Ball's +84 iteration actually accesses
+the known 94 trees or unrelated structures. No tree collision
+shape/branch/velocity response approved. Do not conflate
+source-unit ownership and semantic method identity.
