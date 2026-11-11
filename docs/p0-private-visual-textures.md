@@ -430,3 +430,38 @@ original private collision OBJ, surface-ID labels, DAE, source TEX0
 textures, source live sample channels and actual Wii remote movements
 remain completely untouched. It does NOT resolve native collision
 coordinate transforms, tree hitboxes or game physics/training.
+
+
+## 2026-11-11: Original texture appears speckled / lacks game-like filtering
+
+The inspector had been loading original source-bound TEX0 PNGs successfully,
+but **both rendering paths used a single nearest-neighbor texture sample
+per screen pixel**. Original high-frequency grass/rough material is strongly
+minified at typical overview distances. Without filtering/mipmap selection,
+far terrain develops artificial salt-and-pepper aliasing that can look like
+missing/broken texture even when its UV/material binding is correct.
+
+The unified viewer now enables **Smooth grass/terrain textures (preview
+filtering)** by default. For every verified original PNG, it computes an
+in-memory alpha-aware bounded mip pyramid. Both normal NumPy and accelerated
+Numba renderers choose a display-only approximate LOD based on
+source UV-to-screen derivatives per triangle, then interpolate bilinearly
+with source UV repeat wrapping and alpha-aware compositing. All original
+TEX0 PNG file hashes, source DAE vertices/UVs/materials, source trees,
+collision OBJ and Wii memory are untouched. Turning the checkbox OFF
+restores the exact previous nearest-original-texel diagnostic view.
+
+The source BRRES extraction may include original .mm1/.mm2 TEX0 mip
+PNGs, but these new levels are computed from the original BASE PNG and
+are explicitly **not claimed to reproduce the console's GPU mip chain,
+filter settings, texture combine, vertex colors, TEV shaders, lighting,
+z-fighting/alpha discard, transparency order or exact terrain look**.
+The CPU fast renderer still needs operator local qualitative comparison.
+A smoother preview is not evidence of accurate Wii material emulation.
+
+Synthetic tests detect/check aliased original checkerboard minification
+without replacing input PNG bytes. Both Numba and NumPy must render the
+same synthetic color/coverage within a small quantization tolerance.
+Also test that translucent edge filtering remains bounded. Real
+operator screenshot and actual source TEX0/native TEV inspection remain
+pending before making a game-match claim.
