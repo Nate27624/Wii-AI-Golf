@@ -1,0 +1,32 @@
+name: S003 forward-speed savestate batch offline
+
+on:
+  pull_request:
+    paths:
+      - "scripts/p0_forward_speed_sweep.py"
+      - "tests/test_p0_forward_speed_sweep.py"
+      - "research/studies/S003-FORWARD-SPEED-SAVESTATE-SWEEP-01.md"
+      - ".github/workflows/s003-forward-speed-sweep-offline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Synthetic controller / savestate tests (no game or network)
+        run: python -m unittest discover -s tests -p test_p0_forward_speed_sweep.py -v
+      - name: Actual repository forward-only payload serializer (fake RPC, no game)
+        run: python scripts/p0_forward_speed_sweep.py --scenario speedtrial01
+      - name: Full offline regression (no game)
+        run: python -m unittest discover -s tests -v
