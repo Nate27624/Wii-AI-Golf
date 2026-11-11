@@ -17,7 +17,8 @@ from .scene_camera import (
     fit_camera, frame_playable_camera, look_in_place, orbit, pan, dolly,
     move_continuous)
 from .unified_source_view import (
-    prepare_comparison_kcl, draw_comparison, draw_tree_comparison, overlay_summary)
+    prepare_comparison_kcl, prepare_source_only_kcl, draw_comparison,
+    draw_tree_comparison, overlay_summary)
 from .material_alignment import (
     derive_material_alignment, MaterialAlignmentError)
 from .texture_render import PreviewCancelled, prepare_textures, render_preview
@@ -55,7 +56,11 @@ class TexturedPreviewWindow:
         self.home_camera = frame_playable_camera(model)
         self.camera = self.home_camera
         self.comparison_kcl = None
+        self.source_collision_kcl = None
         self._source_terrain = None
+        self._visual_camera_before_collision = None
+        self._collision_camera = None
+        self._overlay_decline_reason = None
         # Source-authored Collada scene node matrices are now applied. No extra
         # guessed yaw is authoritative; rotations remain visual trials.
         self.display_rotation = tk.IntVar(value=0)
@@ -64,6 +69,9 @@ class TexturedPreviewWindow:
         self.tree_illustrations = True
         self.tree_labels = False
         self.mode = tk.StringVar(value="Textures")
+        # A manual bounding-box x-ray is possible for inspection only,
+        # NEVER the automatic behavior when source registration fails.
+        self.manual_overlay_trial = tk.BooleanVar(value=False)
         self.filtered_texture = tk.BooleanVar(value=True)
         self.comparison_status = tk.StringVar(
             value="KCL: none loaded · texture source coordinates unverified.")
@@ -126,7 +134,7 @@ class TexturedPreviewWindow:
         for label in ("Textures", "Collision", "Both"):
             ttk.Radiobutton(
                 controls, text=label, value=label, variable=self.mode,
-                command=self.schedule).pack(side="left", padx=(1, 3))
+                command=self._mode_changed).pack(side="left", padx=(1, 3))
         filter_controls = ttk.Frame(self.top, padding=(6, 2))
         filter_controls.pack(fill="x")
         ttk.Checkbutton(
@@ -148,10 +156,17 @@ class TexturedPreviewWindow:
                 orientation_controls, text=f"{angle}°", value=angle,
                 variable=self.display_rotation, command=self.set_display_rotation,
             ).pack(side="left", padx=(4, 1))
+        ttk.Checkbutton(
+            orientation_controls,
+            text="Allow unverified x-ray trial (may be WRONG SIZE)",
+            variable=self.manual_overlay_trial,
+            command=self._toggle_manual_overlay,
+        ).pack(side="left", padx=8)
         ttk.Label(
             orientation_controls,
-            text=("INCOMPLETE SOURCE GRAPH: verify omitted scene features" if scene_warning
-                  else "DAE authored matrices applied · yaw is only a display trial"),
+            text=("INCOMPLETE SOURCE GRAPH: measured scale is required for automatic Both"
+                  if scene_warning else
+                  "DAE authored matrices applied · yaw is only a display trial"),
         ).pack(side="left", padx=8)
         ttk.Label(
             controls,
@@ -160,6 +175,13 @@ class TexturedPreviewWindow:
             wraplength=670,
         ).pack(side="left", padx=8)
 
+        # These details MUST be visible when mode is unavailable. The old
+        # status label was BELOW the canvas and clipped by window height.
+        ttk.Label(
+            self.top, textvariable=self.comparison_status,
+            foreground="#c84820", wraplength=1000,
+            padding=(8, 2),
+        ).pack(fill="x")
         self.canvas = tk.Canvas(self.top, background="#13202e",
                                 takefocus=1, highlightthickness=0, height=460)
         self.canvas.pack(fill="both", expand=True, padx=6, pady=(2, 6))
@@ -179,8 +201,6 @@ class TexturedPreviewWindow:
         ttk.Label(self.top, textvariable=self.camera_status,
                   wraplength=820, padding=(8, 1)).pack(fill="x")
         self._update_camera_status()
-        ttk.Label(self.top, textvariable=self.comparison_status,
-                  wraplength=820, padding=(8, 1)).pack(fill="x")
         self.status = tk.StringVar(
             value=("Preparing compiled original UV renderer "
                    "(first frame warms the JIT cache once)"
@@ -244,7 +264,13 @@ class TexturedPreviewWindow:
             width = max(16, int(width * ratio))
             height = max(16, int(height * ratio))
         mode = self.mode.get() if hasattr(self, "mode") else "Textures"
-        kcl = getattr(self, "comparison_kcl", None)
+        kcl = (getattr(self, "source_collision_kcl", None)
+               if mode == "Collision" else
+               getattr(self, "comparison_kcl", None))
+        if mode == "Both" and kcl is None:
+            # Even a direct programmatic tk variable change may not create
+            # a misleading Both without source registration.
+            mode = "Textures"
         self._queued = (self._request_version, width, height,
                         self.camera, mode, kcl)
         self._queued_tree_snapshot = (
@@ -506,11 +532,19 @@ class TexturedPreviewWindow:
 
 
     def frame(self, event=None):
-        self.camera = self.home_camera
+        if (self.mode.get() == "Collision" and
+                getattr(self, "source_collision_kcl", None) is not None):
+            self.camera = fit_camera(self.source_collision_kcl.vertices)
+        else:
+            self.camera = self.home_camera
         self.schedule()
 
     def frame_all(self, event=None):
-        self.camera = self.full_camera
+        if (self.mode.get() == "Collision" and
+                getattr(self, "source_collision_kcl", None) is not None):
+            self.camera = fit_camera(self.source_collision_kcl.vertices)
+        else:
+            self.camera = self.full_camera
         self.schedule()
 
     def _source_comparison(self, terrain, yaw: int):
@@ -528,11 +562,22 @@ class TexturedPreviewWindow:
                 fitted = derive_material_alignment(terrain, self.model)
             except MaterialAlignmentError as exc:
                 if incomplete:
-                    return None, (
-                        "KCL/TREES AUTO-OVERLAY HIDDEN: " + str(exc) +
-                        ". No guessed scale applied to geometry-only DAE. "
-                        "Original source collision remains available in fallback.")
+                    reason = (
+                        "KCL/TREES AUTO-OVERLAY DECLINED: " + str(exc) +
+                        ". No guessed KCL scale applied to incomplete DAE.")
+                    self._overlay_decline_reason = reason
+                    opt = getattr(self, "manual_overlay_trial", None)
+                    if opt is None or not opt.get():
+                        return None, reason + (
+                            " Select Collision for exact source XYZ, or "
+                            "allow an UNVERIFIED x-ray trial to compare.")
+                    mapped = prepare_comparison_kcl(
+                        terrain, self.model, rotation_degrees=yaw)
+                    return mapped, (
+                        "MANUAL UNVERIFIED BOUNDS-FIT TRIAL: " + reason +
+                        " " + overlay_summary(mapped))
             else:
+                self._overlay_decline_reason = None
                 mapped = prepare_comparison_kcl(
                     terrain, self.model, material_alignment=fitted)
                 return mapped, overlay_summary(mapped)
@@ -547,6 +592,77 @@ class TexturedPreviewWindow:
                 "MANUAL BOUNDS-FIT TRIAL ONLY — SCALE NOT VERIFIED · " +
                 status)
         return mapped, status
+
+    def _mode_changed(self):
+        """Three honest modes: original art, source-only KCL, checked Both.
+
+        Collision operates in original KCL XYZ with its OWN camera fit.
+        Textures/Both operate in original visual-DAE coordinates. Switching
+        between them preserves both independent camera positions instead
+        of forcing an unverified model registration.
+        """
+        choice = self.mode.get()
+        if choice not in ("Textures", "Collision", "Both"):
+            self.mode.set("Textures")
+            choice = "Textures"
+        if choice == "Collision":
+            source = getattr(self, "source_collision_kcl", None)
+            if source is None:
+                self.mode.set("Textures")
+                self.comparison_status.set(
+                    "Collision unavailable: no PRIVATE source KCL OBJ loaded.")
+            else:
+                if getattr(self, "_visual_camera_before_collision", None) is None:
+                    self._visual_camera_before_collision = self.camera
+                if getattr(self, "_collision_camera", None) is None:
+                    self._collision_camera = fit_camera(source.vertices)
+                self.camera = self._collision_camera
+                self.comparison_status.set(
+                    "COLLISION SOURCE-ONLY: original KCL XYZ, 1:1, NO "
+                    "visual-model scaling or world registration. Source tree "
+                    "bases share this exact coordinate frame.")
+        else:
+            former = getattr(self, "_visual_camera_before_collision", None)
+            if former is not None:
+                self._collision_camera = self.camera
+                self.camera = former
+                self._visual_camera_before_collision = None
+            if choice == "Both":
+                if getattr(self, "comparison_kcl", None) is None:
+                    self.mode.set("Textures")
+                    why = getattr(self, "_overlay_decline_reason", None)
+                    self.comparison_status.set(
+                        "BOTH UNAVAILABLE: collision/texture alignment failed "
+                        "independent source checks. " +
+                        (why or "No accepted source-world fit.") +
+                        " Choose Collision for native source XYZ (visible "
+                        "with a separate camera), or opt into the explicitly "
+                        "UNVERIFIED x-ray trial.")
+                else:
+                    self.comparison_status.set(
+                        overlay_summary(self.comparison_kcl))
+            elif getattr(self, "comparison_kcl", None) is None:
+                why = getattr(self, "_overlay_decline_reason", None)
+                if why:
+                    self.comparison_status.set(
+                        "TEXTURES ONLY; cyan KCL hidden until aligned. " +
+                        why + " Select Collision for the exact source KCL.")
+        self.schedule()
+
+    def _toggle_manual_overlay(self):
+        """Explicit opt-in for visible unregistered KCL/94-tree x-rays."""
+        if getattr(self, "_source_terrain", None) is not None:
+            angle = getattr(self, "display_rotation", None)
+            yaw = angle.get() if angle is not None else 0
+            mapped, reason = self._source_comparison(self._source_terrain, yaw)
+            self.comparison_kcl = mapped
+            self.comparison_status.set(reason)
+            if (self.mode.get() != "Collision" and mapped is not None and
+                    self.manual_overlay_trial.get()):
+                self.mode.set("Both")
+            elif self.mode.get() == "Both" and mapped is None:
+                self.mode.set("Textures")
+        self.schedule()
 
     def set_display_rotation(self, degrees=None):
         """Choose measured source display-fit or an explicitly guessed yaw."""
@@ -570,17 +686,26 @@ class TexturedPreviewWindow:
         """Source-labeled material fit; decline missing controller scale."""
         if terrain is None:
             self._source_terrain = None
+            self.source_collision_kcl = None
+            self._collision_camera = None
             self.comparison_kcl = None
+            self._overlay_decline_reason = None
             self.mode.set("Textures")
             self.comparison_status.set(
                 "KCL not loaded · no original collision/visual alignment claim.")
         else:
             angle = getattr(self, "display_rotation", None)
             value = angle.get() if angle is not None else 0
+            source = prepare_source_only_kcl(terrain)
             mapped, status = self._source_comparison(terrain, value)
             self._source_terrain = terrain
+            self.source_collision_kcl = source
+            self._collision_camera = fit_camera(source.vertices)
             self.comparison_kcl = mapped
-            self.mode.set("Both" if mapped is not None else "Textures")
+            # Preserve the operator's active Collision inspection; all
+            # automatic overlay decisions affect Both only.
+            if self.mode.get() != "Collision":
+                self.mode.set("Both" if mapped is not None else "Textures")
             self.comparison_status.set(status)
         self.schedule()
 
