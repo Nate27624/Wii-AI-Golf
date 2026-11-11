@@ -17,6 +17,8 @@ on:
       - tests/test_p0_tree_hitbox_object_dispatch_private.py
       - scripts/p0_tree_ball_84byte_context_private.py
       - tests/test_p0_tree_ball_84byte_context_private.py
+      - scripts/p0_tree_proximity_flag_private.py
+      - tests/test_p0_tree_proximity_flag_private.py
       - research/studies/P0-GOLF-TREE-HITBOX-01.md
       - .github/workflows/p0-tree-hitbox-source-offline.yml
 permissions:
@@ -45,5 +47,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_tree_hitbox_object_dispatch_private.py -v
       - name: Tree and Ball 84-byte inline access source code windows
         run: python -m unittest discover -s tests -p test_p0_tree_ball_84byte_context_private.py -v
+      - name: Source PSVECSquareDistance tree flag and 94-position scaling tests
+        run: python -m unittest discover -s tests -p test_p0_tree_proximity_flag_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
