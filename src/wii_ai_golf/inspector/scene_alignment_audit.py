@@ -480,6 +480,12 @@ def audit_surface_registration(terrain, visual, *,
     }
     report["display_fit_surface_contrast"] = _audit_display_fit_contrast(
         terrain, visual, k, v)
+    # A single area-weighted centroid can hide multiple distant greens,
+    # different source-hole coverage, or UV-induced fragmentation.
+    # Inventory original surface patches before interpreting yaw scores.
+    from .surface_footprint_audit import audit_material_footprints
+    report["source_material_footprints"] = audit_material_footprints(
+        terrain, visual)
     # Green-to-fairway centroids yield only a coarse relative heading, not
     # an exact tee/pin correspondence. Do not silently optimize/draw from it.
     if all(k.get(n) is not None and v.get(n) is not None for n in ("green", "fairway")):
