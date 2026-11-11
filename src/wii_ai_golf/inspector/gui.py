@@ -19,6 +19,7 @@ from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style,
 from .terrain_solid import back_to_front, shaded_hex
 from .terrain_labels import apply_private_surface_labels
 from .visual_model import VisualAssetError, load_private_visual_model
+from .dae_visual import load_private_dae_visual_model
 from .startup import StartupError, occupied_bridge, powershell_command, runtime_checkout
 
 # Source-qualified candidate channels already captured by the existing read-only
@@ -248,24 +249,23 @@ class Inspector:
         ttk.Label(lower, textvariable=self.detail, wraplength=1250, justify="left").pack(anchor="w")
 
     def open_textured_model(self) -> None:
-        """Open an independent UV visual-model preview, never texture KCL."""
+        """Open a source original Collada DAE, or a UV OBJ, not collision KCL."""
         filename = filedialog.askopenfilename(
             parent=self.root,
-            title="Choose PRIVATE Wii Golf UV visual OBJ + MTL + PNG",
-            filetypes=[("UV visual OBJ", "*.obj")])
+            title="Choose ORIGINAL Wii Golf Collada DAE or UV OBJ (no Blender)",
+            filetypes=[("Original Collada DAE", "*.dae"),
+                       ("UV Wavefront OBJ", "*.obj")])
         if not filename:
             return
         try:
-            model = load_private_visual_model(filename)
+            model = (load_private_dae_visual_model(filename)
+                     if Path(filename).suffix.lower() == ".dae"
+                     else load_private_visual_model(filename))
             from .textured_preview import TexturedPreviewWindow
             TexturedPreviewWindow(self.root, model)
-        except (VisualAssetError, OSError, RuntimeError, tk.TclError, ImportError):
+        except (VisualAssetError, OSError, RuntimeError, tk.TclError, ImportError, ValueError) as exc:
             messagebox.showerror(
-                "Private texture preview unavailable",
-                "The local visual OBJ/MTL/PNG set or optional Pillow/NumPy renderer "
-                "is unavailable. Select the separate source UV visual model, "
-                "not the collision KCL OBJ.",
-                parent=self.root)
+                "Private texture preview unavailable", str(exc), parent=self.root)
 
     def load_terrain(self) -> None:
         """User opt-in: load only local private OBJ, never read live RAM for terrain."""
