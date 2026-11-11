@@ -24,7 +24,8 @@ for folder in (str(ROOT / "scripts"), str(ROOT / "src")):
     if folder not in sys.path:
         sys.path.insert(0, folder)
 
-ARMS = {"B1": 1.0, "B2": 1.0, "X1": 1.2, "XLOW": 0.8}
+ARMS = {"B1": 1.0, "B2": 1.0, "X1": 1.2, "XLOW": 0.8,
+        "XM06": 1.0}  # Fourth arm: separately scales ALL movement fields to 60%
 POSES = ("back", "center", "forward")
 POSE_DETAILS = {"back": ("partial-back", "full-back"),
                 "center": ("center",), "forward": ("forward",)}
@@ -54,7 +55,9 @@ def setup(arm: str, pose: str, scenario: str, *, club: str = "unknown", aim_id: 
         raise RefuseTrial("scenario must be a local 4..32 character slug")
     return {"arm": arm, "expected_pose": pose,
             "expected_pose_detail": pose_detail, "scenario": scenario,
-            "backswing_scale": ARMS[arm], "wind": 0, "a_lead": 45,
+            "backswing_scale": ARMS[arm],
+            "motion_scale": 0.6 if arm == "XM06" else 1.0,
+            "speed_scale": 1.0, "wind": 0, "a_lead": 45,
             "expected_club": club, "expected_club_change": club_change,
             "aim_marker": aim_id}
 
@@ -73,9 +76,12 @@ def assert_payload_contrast() -> dict:
 
     payloads = {}
     hashes = {}
-    for key, factor in (("baseline", 1.0), ("increased", 1.2), ("reduced", 0.8)):
+    for key, factor, motion in (("baseline", 1.0, 1.0),
+                                ("increased", 1.2, 1.0),
+                                ("reduced", 0.8, 1.0),
+                                ("motion06", 1.0, 0.6)):
         trace, digest = _build_v1_trace_and_digest(
-            motion_scale=1.0, speed_scale=1.0, backswing_scale=factor)
+            motion_scale=motion, speed_scale=1.0, backswing_scale=factor)
         if len(trace) != 89 or [x.hold_a for x in trace] != [True] * 77 + [False] * 12:
             raise RefuseTrial("original A topology or trace length changed")
         rpc = FakeRPC()
@@ -102,11 +108,28 @@ def assert_payload_contrast() -> dict:
         raise RefuseTrial("reduced arm changed fields beyond the backswing")
     if any(abs(reduced[i][4] - 0.20) > 1e-12 for i in range(12, 27)):
         raise RefuseTrial("unexpected reduced backswing distance")
-    if len(set(hashes.values())) != 3:
+    motion06 = payloads["motion06"]
+    motion_diffs = [(i, j) for i in range(89) for j in range(8)
+                    if original[i][j] != motion06[i][j]]
+    # Exactly 15 back + 20 forward samples, each with distance, speed and
+    # return speed scaled. This is a compound intervention: NEVER label it a
+    # forward-only speed manipulation or as a native 60%-power command.
+    expected_motion_diffs = [
+        (i, field) for i in range(12, 47) for field in (4, 5, 6)
+    ]
+    if motion_diffs != expected_motion_diffs:
+        raise RefuseTrial("0.6 compound motion arm changed unexpected fields")
+    for i in range(12, 47):
+        for j in (4, 5, 6):
+            if abs(motion06[i][j] - original[i][j] * 0.6) > 1e-12:
+                raise RefuseTrial("wrong 0.6 requested distance/speed/return scaling")
+    if len(set(hashes.values())) != 4:
         raise RefuseTrial("baseline or contrast trace hash collision")
     return {"baseline_trace_sha256": hashes["baseline"],
             "contrast_trace_sha256": hashes["increased"],
             "reduced_trace_sha256": hashes["reduced"],
+            "motion06_trace_sha256": hashes["motion06"],
+            "motion06_changed_fields": 105,
             "changed_fields": 15, "samples": 89,
             "test": "actual_project_payload_serializer_pass"}
 
@@ -266,10 +289,10 @@ def postshot_notes(reader, result: dict) -> dict[str, str]:
 
 def precheck(rows: list[dict], plan: dict, bridge_sha: str) -> None:
     arm = plan["arm"]
-    order = ("B1", "B2")
-    trial_index = {"B1": 0, "B2": 1, "X1": 2, "XLOW": 2}[arm]
+    order = ("B1", "B2", "XLOW")
+    trial_index = {"B1": 0, "B2": 1, "X1": 2, "XLOW": 2, "XM06": 3}[arm]
     if len(rows) != trial_index:
-        raise RefuseTrial("wrong trial order; one B1, then B2, then X1 only")
+        raise RefuseTrial("wrong trial order: B1, B2, XLOW, then optional XM06")
     for i, row in enumerate(rows):
         if (row.get("arm") != order[i]
                 or row.get("scenario") != plan["scenario"]
@@ -284,8 +307,17 @@ def precheck(rows: list[dict], plan: dict, bridge_sha: str) -> None:
                 or row.get("bridge_sha256") != bridge_sha
                 or not eligible(row)):
             raise RefuseTrial("baseline differs, lacks power/contact, or is unqualified")
-    if arm in ("X1", "XLOW") and abs(rows[0]["human_power_pct"] - rows[1]["human_power_pct"]) > 5:
+    if arm in ("X1", "XLOW", "XM06") and abs(rows[0]["human_power_pct"] - rows[1]["human_power_pct"]) > 5:
         raise RefuseTrial("baselines differ by >5 visual percentage points")
+    if arm == "XM06":
+        # Compound motion is warranted only when the smaller, single-field
+        # intervention failed to reduce observed power. Never infer a power
+        # plateau from late terminal score or an uncertain human gauge.
+        if rows[2].get("arm") != "XLOW":
+            raise RefuseTrial("compound motion requires completed XLOW first")
+        if abs(rows[2]["human_power_pct"] - rows[0]["human_power_pct"]) > 5:
+            raise RefuseTrial("XLOW already changed gauge materially; do not escalate")
+
 
 
 def inspect_bridge(path: Path, *, atomic: bool) -> str:
@@ -311,6 +343,7 @@ def summarize(result: dict, plan: dict, *, bridge_sha: str, payload: dict,
     requested = result["known_good_swing_request"]
     expected_hash = (payload["contrast_trace_sha256"] if plan["arm"] == "X1"
                      else payload["reduced_trace_sha256"] if plan["arm"] == "XLOW"
+                     else payload["motion06_trace_sha256"] if plan["arm"] == "XM06"
                      else payload["baseline_trace_sha256"])
     if (observed_pose_detail is not None and observed_pose_detail != plan["expected_pose_detail"]):
         raise RefuseTrial("detailed pose mismatch at report creation")
@@ -321,6 +354,8 @@ def summarize(result: dict, plan: dict, *, bridge_sha: str, payload: dict,
         raise RefuseTrial("club selection procedure mismatch at report creation")
     if (requested["trace_sha256"] != expected_hash or requested["generated_trace_frames"] != 89
             or requested["backswing_scale"] != plan["backswing_scale"]
+            or requested["motion_scale"] != plan["motion_scale"]
+            or requested["speed_scale"] != plan["speed_scale"]
             or requested["a_lead_requested_frames"] != 45
             or human["initial_club_pose_human"] != plan["expected_pose"]):
         raise RefuseTrial("collector trace identity, A lead or initial pose changed")
@@ -390,8 +425,8 @@ def run_live(plan: dict, *, port: int, bridge_source: Path, atomic: bool,
             interval=0.0, input_fn=lambda prompt: gated_pose_reader(
                 plan, prompt, reader=reader, observed=observed),
             a_prime_requests=0, a_lead_frames=45, atomic_a45=atomic,
-            observe_start_pose=True, motion_scale=1.0,
-            speed_scale=1.0, backswing_scale=plan["backswing_scale"],
+            observe_start_pose=True, motion_scale=plan["motion_scale"],
+            speed_scale=plan["speed_scale"], backswing_scale=plan["backswing_scale"],
             ask_power=False, visual_first=True)
     if result.get("cancelled"):
         raise RefuseTrial("operator cancelled; no usable trial recorded")
