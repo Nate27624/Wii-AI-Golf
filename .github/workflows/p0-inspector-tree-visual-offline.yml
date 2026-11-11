@@ -13,6 +13,10 @@ on:
       - 'tests/test_p0_memory_inspector_tree_*.py'
       - 'tests/test_p0_memory_inspector_asset_preferences.py'
       - 'tests/test_p0_inspector_tree_unified.py'
+      - 'tests/test_p0_inspector_visual_fallback_regression.py'
+      - 'scripts/diagnose_inspector_visual_loading.py'
+      - 'src/wii_ai_golf/inspector/asset_preferences.py'
+      - 'src/wii_ai_golf/inspector/gui.py'
       - 'tests/test_p0_inspector_source_alignment_audit.py'
       - 'src/wii_ai_golf/inspector/scene_alignment_audit.py'
       - 'scripts/p0_inspect_course_alignment_private.py'
@@ -58,5 +62,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_inspector_tree_unified.py -v
       - name: Source DAE scene-graph + read-only tee/pin alignment audit tests
         run: python -m unittest discover -s tests -p test_p0_inspector_source_alignment_audit.py -v
+      - name: Original visual auto-load, fallback and continuous navigation regressions
+        run: python -m unittest discover -s tests -p test_p0_inspector_visual_fallback_regression.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
