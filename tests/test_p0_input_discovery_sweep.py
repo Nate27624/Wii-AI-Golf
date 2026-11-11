@@ -197,6 +197,88 @@ class Tests(unittest.TestCase):
                                     bridge_source=bridge, reader=answer,
                                     data_dir=tmp)
 
+    def test_zero_unexpected_contact_stops_after_persisting_two_shots(self):
+        events = []
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bridge = tmp/"bridge.py"
+            bridge.write_text("mock", encoding="utf-8")
+            hash_value = hashlib.sha256(bridge.read_bytes()).hexdigest()
+            profile = type("P", (), {"name": "green-pre-start", "slot": 2})()
+
+            class FakeRPC:
+                def __init__(self, **kwargs):
+                    pass
+                def __enter__(self):
+                    return self
+                def __exit__(self, *args):
+                    pass
+
+            class FakeAtomic:
+                @staticmethod
+                def require_capability(_):
+                    pass
+                def __init__(self, *args, **kwargs):
+                    pass
+                def run(self, samples):
+                    events.append("shot")
+                    return {"state":"complete"}
+
+            def reply(prompt):
+                if "RUN-EIGHT" in prompt:
+                    return "RUN-EIGHT"
+                if "initial club position" in prompt:
+                    return "back"
+                if "precise visual club position" in prompt:
+                    return "partial-back"
+                if "currently selected club" in prompt:
+                    return "iron"
+                if "manually change WEDGE" in prompt:
+                    return "yes"
+                if "Observed gauge" in prompt:
+                    return "101"
+                if "result G/M" in prompt:
+                    return "no"
+                if "marked RED" in prompt:
+                    return "yes"
+                if "curve or rotation" in prompt:
+                    return "unknown"
+                if "virtual club visibly MOVE" in prompt:
+                    return "unknown"
+                raise AssertionError(prompt)
+
+            def fake_session(client, **kwargs):
+                kwargs["input_fn"](
+                    "BEFORE pressing A, initial club position [back/center/forward/unknown]: ")
+                kwargs["swing_fn"](client)
+                # Deliberately anomalous: ZERO has no requested movement but
+                # operator reports an apparent contact.
+                return {"human_observation": {
+                    "initial_club_pose_human": "back",
+                    "contact_human": "yes",
+                    "visible_result_class_human": "transitioned",
+                    "terminal_screen_seen_before_transition_human": False}}
+
+            with patch.object(p, "preflight_catalog", return_value=profile), \
+                 patch.object(p, "preflight_source", return_value=hash_value), \
+                 patch.object(p, "FelkRPC", FakeRPC), \
+                 patch.object(p, "AtomicA45SwingTraceClient", FakeAtomic), \
+                 patch.object(p, "run_session", side_effect=fake_session), \
+                 patch.object(p, "release_buttons", side_effect=lambda *a, **kw: None), \
+                 patch.object(p, "load_and_replay_intro",
+                              side_effect=lambda **kw: events.append("reload")):
+                with self.assertRaisesRegex(p.RefuseTrial, "ZERO negative control"):
+                    p.run_discovery(scenario="zeroanomaly",
+                                    catalog=tmp/"catalog", bridge_source=bridge,
+                                    reader=reply, data_dir=tmp)
+            self.assertEqual(events.count("shot"), 2)
+            self.assertEqual(events.count("reload"), 1)
+            saved = [json.loads(x) for x in
+                     (tmp/"input-discovery-zeroanomaly.jsonl").read_text().splitlines()]
+            self.assertEqual([x["arm"] for x in saved], ["CTRL", "ZERO"])
+            self.assertEqual(saved[1]["contact_human"], "yes")
+            self.assertTrue(all(not row["training_approved"] for row in saved))
+
     def test_operator_can_cancel_before_first_swing(self):
         with tempfile.TemporaryDirectory() as td:
             tmp=Path(td)
