@@ -8,6 +8,8 @@ on:
       - 'src/wii_ai_golf/inspector/texture_render.py'
       - 'src/wii_ai_golf/inspector/textured_preview.py'
       - 'src/wii_ai_golf/inspector/navigation.py'
+      - 'src/wii_ai_golf/inspector/startup.py'
+      - 'tests/test_p0_memory_inspector_startup.py'
       - 'tests/test_p0_memory_inspector_visual_textures.py'
       - 'pyproject.toml'
       - '.github/workflows/p0-combined-terrain-textures-offline.yml'
@@ -39,5 +41,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_terrain_solid.py -v
       - name: SHA-bound source material overlays
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_terrain_labels.py -v
+      - name: Preserved operator-approved startup handoff
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_startup.py -v
       - name: Full repository offline regression
         run: python -m unittest discover -s tests -v
