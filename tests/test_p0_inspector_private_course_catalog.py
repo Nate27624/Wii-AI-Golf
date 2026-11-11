@@ -67,7 +67,7 @@ class PrivateCourseCatalogTests(unittest.TestCase):
         fc1.write_text("synthetic prior FC1")
         launcher = _load_launcher()
         stdout, stderr = io.StringIO(), io.StringIO()
-        with patch("wii_ai_golf.inspector.gui.launch") as gui_launch, \\
+        with patch("wii_ai_golf.inspector.gui.launch") as gui_launch, \
              redirect_stdout(stdout), redirect_stderr(stderr):
             rc = launcher.main([
                 "--visual-course", "2",
@@ -98,7 +98,7 @@ class PrivateCourseCatalogTests(unittest.TestCase):
     def test_probe_course_does_not_launch_the_gui(self):
         launcher = _load_launcher()
         out = io.StringIO()
-        with patch("wii_ai_golf.inspector.gui.launch") as launch, \\
+        with patch("wii_ai_golf.inspector.gui.launch") as launch, \
              redirect_stdout(out):
             rc = launcher.main([
                 "--probe-visual-course", "2",
