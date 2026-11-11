@@ -64,8 +64,11 @@ def diagnose(filename: str | None = None) -> dict:
         return dict(result, status="VISUAL_IMPORT_FAILED",
                     reason=f"{type(exc).__name__}: {exc}")
     result.update(
-        status=("VISUAL_DAE_GEOMETRY_ONLY_PREVIEW" if
-                getattr(model, "source_scene_warning", None)
+        status=("VISUAL_DAE_PARTIAL_SCENE_PREVIEW"
+                if (getattr(model, "source_scene_warning", None) or "").startswith(
+                    "PARTIAL ORIGINAL SCENE") else
+                "VISUAL_DAE_GEOMETRY_ONLY_PREVIEW"
+                if getattr(model, "source_scene_warning", None)
                 else "VISUAL_DAE_PNG_VERIFIED"),
         original_scene_warning=getattr(model, "source_scene_warning", None),
         original_visual_source_name=model.source_name,
@@ -86,7 +89,8 @@ def main(argv=None):
     print(json.dumps(report, indent=2, sort_keys=True))
     return (0 if report["status"] in (
         "VISUAL_DAE_PNG_VERIFIED",
-        "VISUAL_DAE_GEOMETRY_ONLY_PREVIEW") else 2)
+        "VISUAL_DAE_GEOMETRY_ONLY_PREVIEW",
+        "VISUAL_DAE_PARTIAL_SCENE_PREVIEW") else 2)
 
 
 if __name__=="__main__":
