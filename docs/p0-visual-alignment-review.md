@@ -42,3 +42,52 @@ Wii world coordinate transform. Training remains unapproved.
 
 The tool stays read-only. Source OBJ, private label sidecar, DAE, PNGs,
 native memory and control inputs are unchanged.
+
+## Course 2 is the current operator hypothesis (FC2)
+
+The earlier original FC1 DAE was **visually rejected by the operator** as a
+different course from shot 1 of *Hitting the Green*. Naming `glf_course_fc2`
+as the next candidate is **not an independent game-state linkage**;
+the original game's course-selector mapping is still unverified. Do not
+rotate/scale FC1 to fit a different hole.
+
+From any checked-out inspector PR #436 commit containing the FC2 catalog:
+
+```powershell
+py -3 -I 'D:\Projects\Wii-Golf-Visual-Review-PR436\scripts\p0_memory_inspector.py' `
+  --probe-visual-course 2
+```
+
+This checks only the established local paths beneath the private
+`D:\Projects\WiiGolfVisualPrivate` directory and prints no original art.
+There are three possible useful statuses:
+
+- `LOCAL_SOURCE_DAE_CANDIDATE_FOUND`: run the normal inspector command with
+  `--visual-course 2` instead of `--visual-dae`.
+- `SOURCE_BRRES_PRESENT_EXPORT_DAE_WITH_BRAWLCRATE`: open your own extracted
+  `unpacked\glf_course_fc2\G3D\glf_course_fc2.brres` in BrawlCrate; export
+  its source MDL0 as `visual_exports\glf_course_fc2\glf_course_fc2.dae`,
+  with corresponding original TEX0 PNG textures resolving relative to DAE,
+  following the established FC1 workflow. **No guessed textures.**
+- `COURSE_NOT_YET_EXTRACTED_OR_EXPORTED`: locate the original
+  `glf_course_fc2.carc` on your own Wii Sports Rev1 disc under
+  `Stage/RPGolScene`, extract it locally as with FC1, then export the
+  BRRES MDL0 and texture images. Do not download or commit proprietary
+  assets. An existing unpacked directory with a different BRRES layout
+  produces its own `SOURCE_UNPACKED_SEARCH_G3D_AND_EXPORT_DAE` status.
+
+After export, launch:
+
+```powershell
+py -3 -I 'D:\Projects\Wii-Golf-Visual-Review-PR436\scripts\p0_memory_inspector.py' `
+  --terrain-obj 'D:\Projects\hole01-collision-candidate-PRIVATE.obj' `
+  --terrain-labels 'D:\Projects\hole01-collision-candidate-labels-PRIVATE.json' `
+  --visual-course 2
+```
+
+The same UI includes **Try Course 2 (FC2) — candidate** to switch the visual
+model without touching the SHA-bound KCL or 94 source trees. If FC2 is absent,
+the earlier preview is retained and a clear missing-export message is
+displayed. A failed FC2 strict loader is not silently replaced by FC1.
+No correspondence or native world alignment is asserted until the operator
+visually confirms the actual correct course.
