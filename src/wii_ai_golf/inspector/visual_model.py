@@ -8,7 +8,7 @@ world alignment or actual physics collision.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 import math
 from pathlib import Path
@@ -56,6 +56,11 @@ class PrivateVisualModel:
     obj_sha256: str
     mtl_sha256: str
     source_name: str
+    # MTL Kd fallback only for material with NO texture. Never synthesize PNGs.
+    solid_colors: dict[str, tuple[int, int, int]] = field(default_factory=dict)
+    # Source DAE may contain materials with no resolvable original diffuse
+    # art/color. These triangles were OMITTED, not assigned invented colors.
+    skipped_source_faces: int = 0
 
     @property
     def textured_face_count(self) -> int:
@@ -146,6 +151,7 @@ def _parse_mtl(base: Path, rel: str) -> tuple[dict[str, PrivateTexture], str]:
     blob = _read_local(path, MAX_MTL_BYTES)
     current: str | None = None
     texture_names: dict[str, str] = {}
+    diffuse_colors: dict[str, tuple[int, int, int]] = {}
     for raw in _utf8(blob).splitlines():
         stripped = raw.strip()
         if not stripped or stripped.startswith("#"):
@@ -159,7 +165,20 @@ def _parse_mtl(base: Path, rel: str) -> tuple[dict[str, PrivateTexture], str]:
             if current in texture_names:
                 raise VisualAssetError("Material has more than one diffuse image")
             texture_names[current] = args[0]
-        elif command in {"Kd", "Ka", "Ks", "Ke", "Ns", "Ni", "illum", "d", "Tr", "Tf", "Pr", "Pm", "Ps", "aniso"}:
+        elif command == "Kd":
+            # Original DAE's M_Kiwa_Black has no diffuse PNG binding.
+            # Accept only an explicit source-exported MTL Kd, never invent
+            # a black/white fallback or assign an unrelated Wii TEX0.
+            if current is None or current in diffuse_colors or len(args) != 3:
+                raise VisualAssetError("Invalid/duplicate source diffuse Kd")
+            try:
+                rgb = tuple(float(value) for value in args)
+            except ValueError as exc:
+                raise VisualAssetError("Invalid source material Kd") from exc
+            if not all(math.isfinite(v) and 0. <= v <= 1. for v in rgb):
+                raise VisualAssetError("Source Kd must be finite normalized RGB")
+            diffuse_colors[current] = tuple(round(255 * v) for v in rgb)
+        elif command in {"Ka", "Ks", "Ke", "Ns", "Ni", "illum", "d", "Tr", "Tf", "Pr", "Pm", "Ps", "aniso"}:
             # Other render/shader parameters are not emulated. These are safe
             # to ignore; image/UV association remains explicit.
             if not args or len(args) > 4:
@@ -168,6 +187,9 @@ def _parse_mtl(base: Path, rel: str) -> tuple[dict[str, PrivateTexture], str]:
             raise VisualAssetError("Unsupported MTL record (no includes or external assets)")
     if not texture_names or len(texture_names) > MAX_TEXTURES:
         raise VisualAssetError("MTL must reference a bounded number of diffuse PNGs")
+    # Safe solid-only materials require an EXPLICIT original MTL Kd.
+    solid_colors = {name: rgb for name, rgb in diffuse_colors.items()
+                    if name not in texture_names}
     textures: dict[str, PrivateTexture] = {}
     total = 0
     for material, name in texture_names.items():
@@ -177,7 +199,7 @@ def _parse_mtl(base: Path, rel: str) -> tuple[dict[str, PrivateTexture], str]:
         if total > MAX_TOTAL_TEXTURE_BYTES:
             raise VisualAssetError("Textures exceed total private data bound")
         textures[material] = PrivateTexture(img_path, hashlib.sha256(data).hexdigest(), _png_info(data))
-    return textures, hashlib.sha256(blob).hexdigest()
+    return textures, solid_colors, hashlib.sha256(blob).hexdigest()
 
 
 def load_private_visual_model(filename: str | Path) -> PrivateVisualModel:
@@ -259,9 +281,10 @@ def load_private_visual_model(filename: str | Path) -> PrivateVisualModel:
             raise VisualAssetError("Unsupported OBJ record, no external includes or commands")
     if not vertices or not uvs or not faces or mat_file is None:
         raise VisualAssetError("Visual OBJ needs vertices, UVs, faces, one MTL and textures")
-    textures, mtl_digest = _parse_mtl(path.parent, mat_file)
+    textures, solid_colors, mtl_digest = _parse_mtl(path.parent, mat_file)
     material_names = {f.material for f in faces}
-    if not material_names.issubset(textures):
-        raise VisualAssetError("Face references a material with no local PNG texture")
+    if not material_names.issubset(textures.keys() | solid_colors.keys()):
+        raise VisualAssetError("Face references material without source PNG or explicit Kd")
     return PrivateVisualModel(tuple(vertices), tuple(uvs), tuple(faces), textures,
-                              hashlib.sha256(data).hexdigest(), mtl_digest, path.name)
+                              hashlib.sha256(data).hexdigest(), mtl_digest, path.name,
+                              solid_colors)
