@@ -130,6 +130,31 @@ class SolidTerrainTests(unittest.TestCase):
                 if kind == "line" and "terrain_wire_edge" in kw.get("tags", ())]
         self.assertEqual(len(wire), 1)
 
+        # Reproduce the actual operator's 2,498-triangle scene. Full mode
+        # draws every source face; old live stride-600 introduced dark holes.
+        view.terrain_mesh = TerrainMesh(
+            A, ((0, 1, 2),) * 2498, "b" * 64, "synthetic",
+            (6,) * 2498)
+        view.terrain_full_detail = Value(True)
+        view.terrain_point_labels = Value(False)
+        view.terrain_solid = Value(True)
+        view.terrain_edges = Value(False)
+        canvas.ops.clear()
+        Inspector.draw_path(view)
+        complete = [kw for kind, kw in canvas.ops
+                    if kind == "polygon" and "terrain_solid_face" in kw.get("tags", ())]
+        self.assertEqual(len(complete), 2498)
+        self.assertTrue(any(kind == "text" and kw.get("text") == "A RELEASED"
+                            for kind, kw in canvas.ops))
+        self.assertFalse(any(kind == "text" and kw.get("text") == "TEE (candidate)"
+                             for kind, kw in canvas.ops))
+        view.terrain_full_detail = Value(False)
+        canvas.ops.clear()
+        Inspector.draw_path(view)
+        preview = [kw for kind, kw in canvas.ops
+                   if kind == "polygon" and "terrain_solid_face" in kw.get("tags", ())]
+        self.assertEqual(len(preview), 833)  # stride=ceil(2498/1200)=3
+
     def test_launcher_passes_explicit_obj_without_connecting(self):
         from wii_ai_golf.inspector import gui
         with patch.object(gui, "launch", return_value=0) as launch:
