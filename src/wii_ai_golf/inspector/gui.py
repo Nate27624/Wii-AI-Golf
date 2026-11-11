@@ -19,6 +19,8 @@ from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style,
 from .navigation import pan_by, wheel_steps, zoom_at_cursor
 from .startup import StartupError, occupied_bridge, powershell_command, runtime_checkout
 from .visual_model import VisualAssetError, load_private_visual_model
+from .world_heading_candidate import (direct_aim_ray, candidate_heading_degrees,
+                                      candidate_flag_error_degrees)
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -93,7 +95,7 @@ class Inspector:
         self.phase = tk.StringVar(value="—")
         self.aim = tk.StringVar(value="Aim candidate: —")
         self.landmark_status = tk.StringVar(value="Pin / flag: not sampled   ·   Tee: not sampled")
-        self.aim_status = tk.StringVar(value="Aim ray: set a tee→flag baseline first; no player position.")
+        self.aim_status = tk.StringVar(value="Aim ray: direct source +0x3C XZ heading candidate; no baseline required.")
         self.aim_baseline_source: str | None = None
         self.aim_baseline_mode = "assumed first packet"
         self.a_indicator = LiveAIndicator(None)
@@ -172,7 +174,7 @@ class Inspector:
         self.phase_list.pack(fill="both", expand=True)
         self.phase_list.bind("<<ListboxSelect>>", self.select_phase)
         ttk.Label(left, textvariable=self.phase, wraplength=190).pack(fill="x", pady=6)
-        ttk.Button(left, text="Set aim baseline (point at flag)", command=self.set_baseline).pack(fill="x")
+        ttk.Button(left, text="Mark flag aim (diagnostic only)", command=self.set_baseline).pack(fill="x")
         ttk.Button(left, text="Frame view (F)", command=self.frame_view).pack(fill="x", pady=(6, 0))
         ttk.Button(left, text="Preview PRIVATE game textures", command=self.open_textured_model).pack(fill="x", pady=(6, 0))
         ttk.Label(left, textvariable=self.aim, wraplength=200).pack(fill="x", pady=7)
@@ -209,7 +211,7 @@ class Inspector:
         ttk.Label(source_legend, text="other/unknown: neutral; ID hypotheses", foreground="#a1aab7").pack(side="left")
         ttk.Label(center, text="White: ball +0x30  |  Amber: cache +0xCC  |  Cyan flag: PIN candidate  |  Green diamond: TEE candidate", wraplength=640).pack(anchor="w")
         ttk.Label(center, textvariable=self.landmark_status, wraplength=640).pack(anchor="w")
-        ttk.Label(center, text="Magenta dashed: flag-aligned aim reference, rotated only by Δ+0x3C (unverified mapping; no player position)", wraplength=640).pack(anchor="w")
+        ttk.Label(center, text="Magenta dashed: direct heading candidate 90° − record+0x3C; no baseline or player position (world axes unverified)", wraplength=640).pack(anchor="w")
         ttk.Label(center, textvariable=self.aim_status, wraplength=640).pack(anchor="w")
         self.slider = ttk.Scale(center, from_=0, to=1, command=self.scrub)
         self.slider.pack(fill="x", pady=4)
@@ -344,10 +346,13 @@ class Inspector:
                                  values=(f"0x{word:08X}", f"{value:.7g}" if value is not None else "nonfinite"))
         aim_values = sample.words.get(AIM)
         a = float_hypothesis(aim_values[0]) if aim_values and len(aim_values) == 1 else None
-        delta = a - self.baseline if a is not None and self.baseline is not None else None
+        heading = candidate_heading_degrees(sample)
         self.aim.set(f"Aim raw: {aim_values[0]:08X}" if aim_values else "Aim: unavailable")
         if a is not None:
-            self.aim.set(self.aim.get() + f"\nCandidate float: {a:.6g}" + (f"\nΔ baseline: {delta:+.6g}" if delta is not None else "\nBaseline not set"))
+            self.aim.set(self.aim.get() +
+                         f"\nSource rotation: {math.degrees(a):+.4f}°" +
+                         (f"\nXZ heading candidate: {heading:+.4f}°" if heading is not None
+                          else "\nXZ heading: unqualified"))
         timestamp = (f"Host sample end {sample.end_ns} ns" if sample.end_ns is not None else "Host time unavailable")
         details = (*self.replay.messages(sample), *self.replay.warnings)
         if sample.annotation:
@@ -636,17 +641,22 @@ class Inspector:
             pin_state = "sampled" if PIN in landmarks else "not sampled / invalid float"
             tee_state = "sampled" if TEE in landmarks else "not sampled / invalid float"
             self.landmark_status.set(f"Pin / flag: {pin_state}   ·   Tee: {tee_state}   (candidate coordinates, units unknown)")
-        # Only source-qualified, same-packet aim+tee+pin can draw a heading
-        # hypothesis. Never infer or display a player/body position.
-        aim_ray = aim_ray_hypothesis(current, landmarks,
-                                      self.baseline if self.aim_baseline_source == current.source_digest else None)
+        # Direct source-selected record+0x3C, WITHOUT first-sample or manual
+        # pin-aim baseline. Tee is only a reference anchor, never player XYZ.
+        # 90°-angle XZ heading is a single-hole empirical hypothesis: show
+        # it as such until axes/sign and forward model are cross-hole verified.
+        aim_ray = direct_aim_ray(current, landmarks)
         if aim_ray is not None:
-            angle = float_hypothesis(current.words[AIM][0])
-            self.aim_status.set(f"Aim: {self.aim_baseline_mode} · Δ+0x3C={angle - self.baseline:+.5g} rad HYPOTHESIS · anchored at TEE, no player coords")
+            heading = candidate_heading_degrees(current)
+            flag_error = candidate_flag_error_degrees(current, landmarks)
+            self.aim_status.set(
+                f"Aim HYPOTHESIS: direct XZ heading {heading:+.3f}° "
+                f"· tee→flag difference {flag_error:+.3f}° "
+                "· NO baseline · anchored at TEE, no player coords")
         elif not current.source_qualified or not current.source_digest:
             self.aim_status.set("Aim ray: HIDDEN — source qualification/identity unavailable")
         else:
-            self.aim_status.set("Aim ray: unavailable — requires same-source tee, pin and baseline +0x3C; press Set aim baseline when pointed at flag")
+            self.aim_status.set("Aim ray: unavailable — requires same-source tee, pin and finite +0x3C")
         # SOURCE-QUALIFIED private geometry only, with unverified coordinate
         # alignment. Keep previous synthetic GUI test stubs working if they
         # don't construct optional terrain fields.
@@ -721,7 +731,7 @@ class Inspector:
             canvas.create_line(*start, *tip, fill="#e39bff", width=3,
                                dash=(8, 5), arrow=tk.LAST, arrowshape=(10, 12, 4),
                                tags=("aim_hypothesis",))
-            canvas.create_text(tip[0] + 7, tip[1] - 10, text="AIM? (flag ref + Δ0x3C)",
+            canvas.create_text(tip[0] + 7, tip[1] - 10, text="AIM? (90° − record+0x3C)",
                                anchor="sw", fill="#e39bff", tags=("aim_hypothesis",))
         for name, color in ((BALL, "#f1f6ff"), (CACHE, "#f5b942")):
             position = current.vec(name)
