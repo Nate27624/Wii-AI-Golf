@@ -345,6 +345,37 @@ class Tests(unittest.TestCase):
                 with self.assertRaisesRegex(m.Abstain,reason):
                     m.verify_controller_selector_call_chain(words.__getitem__)
 
+    def test_bounded_golf_direct_bl_caller_inventory(self):
+        start=0x802B4400
+        stop=start+0x20
+        words={pc:dform(14,1,1,0) for pc in range(start,stop,4)}
+        words[start] = bl(start,0x802B4794)
+        words[start+4] = bl(start+4,0x802B4474)
+        words[start+8] = bl(start+8,0x802B4474) & ~1
+        words[start+12] = bl(start+12,0x802B2F90)
+        report=m.scan_direct_golf_call_sites(words.__getitem__,
+                                             start=start,end=stop)
+        self.assertEqual(report["status"],
+                         "REV1_BOUNDED_GOLF_DIRECT_BL_INVENTORY")
+        self.assertEqual(
+            report["direct_call_sites"]["calc_history_update"],
+            [f"0x{start:08X}"])
+        self.assertEqual(
+            report["direct_call_sites"]["calc_preprocessor"],
+            [f"0x{start+4:08X}"])
+        self.assertEqual(report["direct_call_totals"]["calc_preprocessor"],1)
+        self.assertEqual(report["direct_call_totals"]["calc_latch_step"],1)
+        self.assertFalse(report["indirect_or_external_callers_exhaustive"])
+        self.assertNotIn('"word"',json.dumps(report))
+
+    def test_bounded_direct_scan_abstains_on_outside_golf_text(self):
+        for lo,hi in [(0x8019BAE8,0x8019BB00),
+                      (m.OWNER_START,m.OWNER_END+4),
+                      (m.OWNER_START+1,m.OWNER_START+0x20),
+                      (m.OWNER_START,m.OWNER_START)]:
+            with self.assertRaisesRegex(m.Abstain,"direct_call_scan_window"):
+                m.scan_direct_golf_call_sites(lambda pc:0,start=lo,end=hi)
+
     def test_wrong_bank_or_unaligned_source_address_abstains(self):
         fake = bytes(64)
         with self.assertRaisesRegex(m.Abstain, "source_window"):
