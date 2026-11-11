@@ -138,6 +138,7 @@ def _region(verts, faces, diagonal):
 
 def audit_material_footprints(terrain, visual) -> dict:
     from .scene_camera import playable_source_vertices
+    from .source_connectivity_probe import probe_connectivity
 
     def diagonal(vertices):
         if not vertices:
@@ -158,6 +159,16 @@ def audit_material_footprints(terrain, visual) -> dict:
     if kdiag is None or vdiag is None:
         output["status"] = "ABSTAIN_MISSING_SOURCE_GEOMETRY"
         return output
+    # Distinguish an all-material per-triangle OBJ export with no shared
+    # vertex indices from truly disconnected reconstructed *surfaces*. Probe
+    # exactly the same source triangles at several explicitly-disclosed
+    # tolerances; never use those welds in the viewer or collision physics.
+    output["whole_mesh_connectivity"] = {
+        "kcl": probe_connectivity(terrain.vertices, terrain.faces, kdiag),
+        "dae": probe_connectivity(
+            visual.vertices,
+            tuple(face.vertices for face in visual.faces), vdiag),
+    }
     for label, source_id, material in CATEGORY_SOURCE_MAP:
         kfaces = [face for face, attr in zip(
             terrain.faces,
@@ -168,5 +179,9 @@ def audit_material_footprints(terrain, visual) -> dict:
         output["categories"][label] = {
             "kcl": _region(terrain.vertices, kfaces, kdiag),
             "dae": _region(visual.vertices, vfaces, vdiag),
+            "source_triangle_contact_sensitivity": {
+                "kcl": probe_connectivity(terrain.vertices, kfaces, kdiag),
+                "dae": probe_connectivity(visual.vertices, vfaces, vdiag),
+            },
         }
     return output
