@@ -109,7 +109,9 @@ def caller_r4(read):
             raise ValueError("Original callers changed")
         writers=[]
         controls=[]
-        for off in range(start,end+4,4):
+        # Include caller argument setup after the r3 <- r31 move,
+        # ending immediately before the exact BL to the cache routine.
+        for off in range(start,call,4):
             word=read(BASE+off)
             for dest,typ,src,disp in lineage.gpr_writers(word):
                 if dest==4:
