@@ -272,8 +272,15 @@ def private_fit_report(terrain, visual, **kwargs) -> dict:
         return {"status":"SOURCE_GEOMETRY_FIT_DECLINED",
                 "reason":str(exc),"native_world_verified":False,
                 "game_collision_or_training_approved":False}
+    # Quality thresholds are conservative heuristic gates, NOT native
+    # transform proof: compare both training and a truly held-out region.
+    passed=(fit.training_score_fraction<=.035 and
+            fit.holdout_score_fraction<=.06 and
+            fit.holdout_score_fraction<=fit.initial_holdout_fraction*1.15+.002)
     return {
-        "status":"ORIGINAL_SURFACE_DISPLAY_FIT_CANDIDATE",
+        "status":("ORIGINAL_SURFACE_DISPLAY_FIT_CANDIDATE" if passed
+                  else "ORIGINAL_SURFACE_FIT_FAILED_HOLDOUT_GATE"),
+        "independent_surface_heldout_gate_passed":passed,
         "original_kcl_sha256":terrain.sha256,
         "original_dae_sha256":visual.obj_sha256,
         "original_visual_name":visual.source_name,
