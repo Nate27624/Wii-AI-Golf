@@ -403,3 +403,47 @@ code relative *syntactic* candidates reading +0x48.
 to other object classes**: receiver identity must be proven.
 No tree contact, native foliage/trunk hitboxes or bounce response
 has been derived. Training false.
+
+## Operator real phase1/5/7 source proximity flag results
+
+Operator original SHA/scene-gated `p0_tree_proximity_flag_private.py` at
+exact tested commit `6aa8aaed56eeaeefefc1154ca52eab717b3616f3`:
+- `Tree obj byte +0x48` histogram **{0:94}** in **each of captures 1,
+  5, 7**. This does not imply branch is unused or collision absent:
+  the three captures did not observe a nonzero transition.
+- `mScale VEC3+0x3C` components equal within tolerance in **76/94**
+  tree objects and nonuniform in **18/94**.
+- `mModel+0x04` and `mMapObj+0x08` each partition the objects
+  into **72/22 groups** and paired joint group sizes **72/22**;
+  compatible with two variants, but could be other resource categories
+  or tagged representations. **Do not label species or hitboxes.**
+- Unknown tree field `+0x4C` has **94 distinct raw words** across
+  each source capture; no MEM1/MEM2 aligned pointer candidate, no
+  nontrivial finite float in captures 1,5 and just one candidate in 7.
+  Meaning/receiver type unresolved; do not infer a pointer or float.
+- Syntactic PPC source scan (offset-only, no receiver CFG) sees
+  `Tree+0x0044:stb +0x48(r31)` producer, **`Tree+0x0504:lbz
+  +0x48(r30)`** candidate reader and **`FieldManager+0x0788:lbz
+  +0x48(r3)`** candidate reader. The latter two are not yet proven
+  to access the same class: `r30` and `r3` identities require
+  native register-flow tracking. Other +0x48 hits in Ball/FieldManager
+  are often **word accesses to entirely unrelated objects**.
+
+New narrowly scoped, read-only source code reader
+`scripts/p0_tree_flag_consumer_trace_private.py` prints **145 native
+source-relative PPC instructions** in three bounded windows:
+`Tree+0x000C..+0x0058` producer (20),
+`Tree+0x0450..+0x05BC` candidate consumer (92),
+`FieldManager+0x073C..+0x07BC` candidate consumer (33).
+Validates original SHA/scene, source 94x84 tree owner, original
+`PSVECSquareDistance` BL fingerprints, exact source producer word and
+both source `lbz+0x48` receiving base registers. If anything changed,
+abstains instead of guessing. Prints code words only to operator local
+console, no heap/RAM coordinates/ROM blobs in Git.
+
+**Priority:** classify actual r30/r3 receivers, conditional branches and
+callee targets around `Tree+0x0504` and `FieldManager+0x0788`, then
+decide whether flag is LOD/visibility vs collision candidate.
+Even if the flag controls visibility, tree collisions could use an
+independent KCL or object pathway. No tree collision semantics proven;
+training remains false.
