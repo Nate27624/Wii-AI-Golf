@@ -31,6 +31,38 @@ class ComparisonKCL:
     source_translation: tuple[float, float, float]
     span_ratio_xz: tuple[float, float]
     edge_faces: tuple[tuple[int, int], ...]
+    # Explicit viewing correction only; never original KCL/world orientation.
+    display_rotation_degrees: int = 0
+    display_center: tuple[float, float, float] = (0.0, 0.0, 0.0)
+
+
+# Exact quarter-turns avoid floating-point trig drift for repeatable overlay.
+_DISPLAY_TURNS = {
+    0: (1., 0.), 90: (0., 1.),
+    180: (-1., 0.), 270: (0., -1.),
+}
+
+
+def source_to_visual_display(point: tuple[float, float, float],
+                             comp: ComparisonKCL) -> tuple[float, float, float]:
+    """Apply ONE display-only KCL->visual transform to source faces AND trees.
+
+    Equivalent to scaling/centering the original collision frame, then
+    rotating about the visual bounds center around +Y. Original source
+    points, tree JSON, KCL OBJ, and textured DAE bytes are never edited.
+    """
+    if (len(point) != 3 or not all(math.isfinite(x) and abs(x) < 1e7 for x in point)
+            or not all(math.isfinite(x) for x in comp.display_center)):
+        raise ValueError("Nonfinite/out-of-bounds source comparison position")
+    try:
+        c, sn = _DISPLAY_TURNS[comp.display_rotation_degrees]
+    except (KeyError, TypeError):
+        raise ValueError("Unsupported comparison orientation") from None
+    p = tuple(comp.source_scale * point[i] + comp.source_translation[i]
+              for i in range(3))
+    ox, _, oz = comp.display_center
+    dx, dz = p[0] - ox, p[2] - oz
+    return (ox + c*dx - sn*dz, p[1], oz + sn*dx + c*dz)
 
 
 def bounds(points):
@@ -44,13 +76,16 @@ def bounds(points):
 
 
 def prepare_comparison_kcl(terrain: "TerrainMesh",
-                           visual: "PrivateVisualModel") -> ComparisonKCL:
+                           visual: "PrivateVisualModel",
+                           *, rotation_degrees: int = 0) -> ComparisonKCL:
     """Fit two unaligned source bounding boxes for *display ONLY*.
 
     Not source/native scale, not aligned collision or verified active hole.
     Preserve aspect with one uniform X/Z ratio; no guessed tilt or mirroring.
     User may visually compare material classes, not infer collision coordinates.
     """
+    if type(rotation_degrees) is not int or rotation_degrees not in _DISPLAY_TURNS:
+        raise ValueError("KCL viewing rotation must be 0, 90, 180 or 270 degrees")
     if not 1 <= len(terrain.faces) <= 30_000:
         raise ValueError("Source KCL face count outside overlay bounds")
     k_min, k_max = bounds(terrain.vertices)
@@ -60,14 +95,21 @@ def prepare_comparison_kcl(terrain: "TerrainMesh",
     if not all(1e-7 < k_span[i] < 1e7 and 1e-7 < v_span[i] < 1e7
                for i in (0, 2)):
         raise ValueError("Horizontal geometry extent invalid; cannot fit collision overlay")
-    sx, sz = v_span[0]/k_span[0], v_span[2]/k_span[2]
+    # Quarter-turns swap displayed horizontal bounds. Fit by the ACTUAL
+    # rotated extents, rather than retaining 0-degree spans for 90/270.
+    rotated_x = k_span[2] if rotation_degrees in (90, 270) else k_span[0]
+    rotated_z = k_span[0] if rotation_degrees in (90, 270) else k_span[2]
+    sx, sz = v_span[0]/rotated_x, v_span[2]/rotated_z
     scale = min(sx, sz)
     if not 1e-7 <= scale <= 1e7:
         raise ValueError("Unbounded comparison transform")
     k_mid = tuple((k_min[i]+k_max[i])*.5 for i in range(3))
     v_mid = tuple((v_min[i]+v_max[i])*.5 for i in range(3))
     translation = tuple(v_mid[i]-scale*k_mid[i] for i in range(3))
-    transformed = tuple(tuple(scale*p[i]+translation[i] for i in range(3))
+    transform_info = ComparisonKCL(
+        terrain.sha256, (), (), (), scale, translation, (sx, sz), (),
+        rotation_degrees, v_mid)
+    transformed = tuple(source_to_visual_display(p, transform_info)
                         for p in terrain.vertices)
 
     source_colors = tuple(
@@ -80,7 +122,8 @@ def prepare_comparison_kcl(terrain: "TerrainMesh",
             unique_edges.add((min(v0, v1), max(v0, v1)))
     return ComparisonKCL(
         terrain.sha256, transformed, terrain.faces, source_colors,
-        scale, translation, (sx, sz), tuple(sorted(unique_edges)))
+        scale, translation, (sx, sz), tuple(sorted(unique_edges)),
+        rotation_degrees, v_mid)
 
 
 def overlay_summary(comp: ComparisonKCL) -> str:
@@ -89,6 +132,7 @@ def overlay_summary(comp: ComparisonKCL) -> str:
     return (
         f"KCL {len(comp.faces):,} source faces · x-ray display-only "
         f"uniform bounds fit {comp.source_scale:.5g}× "
+        f"+Y display yaw {comp.display_rotation_degrees}° (operator hypothesis) "
         f"(X/Z fit-ratio disagreement {ratio:.2f}×) · "
         "UNVERIFIED native/world alignment")
 
@@ -177,11 +221,10 @@ def draw_tree_comparison(image, comp: ComparisonKCL | None,
     right, up, toward = camera_axes(camera.yaw, camera.pitch)
     focal = h / (2. * math.tan(math.radians(55.) * .5))
     near = max(1e-6, camera.scale * 0.001)
-    scale, shift = comp.source_scale, comp.source_translation
     cam = camera.position
 
     def project_source(point):
-        transformed = tuple(scale * point[i] + shift[i] for i in range(3))
+        transformed = source_to_visual_display(point, comp)
         delta = tuple(transformed[i] - cam[i] for i in range(3))
         depth = -sum(delta[i] * toward[i] for i in range(3))
         if depth <= near:
