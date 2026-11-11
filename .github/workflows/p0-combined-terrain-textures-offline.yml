@@ -11,6 +11,8 @@ on:
       - 'src/wii_ai_golf/inspector/textured_preview.py'
       - 'src/wii_ai_golf/inspector/navigation.py'
       - 'src/wii_ai_golf/inspector/scene_camera.py'
+      - 'src/wii_ai_golf/inspector/unified_source_view.py'
+      - 'tests/test_p0_inspector_unified_source_view.py'
       - 'src/wii_ai_golf/inspector/fast_texture_render.py'
       - 'scripts/p0_benchmark_private_uv_acceleration.py'
       - 'tests/test_p0_inspector_fast_render.py'
@@ -51,6 +53,8 @@ jobs:
         run: python -m py_compile scripts/p0_benchmark_private_uv_acceleration.py
       - name: Native accelerated TEX0 raster identity and full-source tests
         run: python -m unittest discover -s tests -p test_p0_inspector_fast_render.py -v
+      - name: Unified visual / SHA-bound collision source test, arrow keys, playable camera
+        run: python -m unittest discover -s tests -p test_p0_inspector_unified_source_view.py -v
       - name: Fixed-position Unity camera and integrated perspective scene tests
         run: python -m unittest discover -s tests -p test_p0_inspector_scene_camera.py -v
       - name: Full solid terrain and GUI regression tests
