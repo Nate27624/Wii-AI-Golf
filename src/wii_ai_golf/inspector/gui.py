@@ -19,6 +19,8 @@ from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style,
 from .navigation import pan_by, wheel_steps, zoom_at_cursor
 from .startup import StartupError, occupied_bridge, powershell_command, runtime_checkout
 from .visual_model import VisualAssetError, load_private_visual_model
+from .tree_positions import TreePositions, TreePositionsError, load_private_tree_positions
+from .tree_render import draw_tree_layer, fit_points
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -103,6 +105,11 @@ class Inspector:
         self.terrain_focus = tk.BooleanVar(value=True)
         self.terrain_colors = tk.BooleanVar(value=True)
         self.terrain_status = tk.StringVar(value="Terrain: select a locally exported PRIVATE collision OBJ to display.")
+        self.tree_positions: TreePositions | None = None
+        self.tree_visible = tk.BooleanVar(value=True)
+        self.tree_illustrations = tk.BooleanVar(value=True)
+        self.tree_labels = tk.BooleanVar(value=False)
+        self.tree_status = tk.StringVar(value="Trees: load exact PRIVATE source-94 JSON; original meshes unavailable.")
         self.a_reason = tk.StringVar(value="Connect LIVE with A released; 2 stable samples initialize candidate")
         self.baseline: float | None = None
         self.replay: Replay | None = None
@@ -194,7 +201,17 @@ class Inspector:
         ttk.Checkbutton(mesh_actions, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Color source surface IDs", variable=self.terrain_colors, command=self.draw_path).pack(side="left")
+        tree_actions = ttk.Frame(center)
+        tree_actions.pack(fill="x", pady=2)
+        ttk.Button(tree_actions, text="Load PRIVATE 94 trees", command=self.load_tree_positions).pack(side="left")
+        ttk.Button(tree_actions, text="Clear trees", command=self.clear_tree_positions).pack(side="left", padx=4)
+        tree_options = ttk.Frame(center)
+        tree_options.pack(fill="x", pady=2)
+        ttk.Checkbutton(tree_options, text="Show trees", variable=self.tree_visible, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(tree_options, text="Illustrative 3D crowns (NOT game art)", variable=self.tree_illustrations, command=self.draw_path).pack(side="left", padx=6)
+        ttk.Checkbutton(tree_options, text="Tree IDs", variable=self.tree_labels, command=self.draw_path).pack(side="left")
         ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
+        ttk.Label(center, textvariable=self.tree_status, wraplength=650, foreground="#a6cfae").pack(anchor="w")
         source_legend = ttk.Frame(center)
         source_legend.pack(fill="x")
         for label, color in (SURFACE_STYLE[v] for v in (0x0001,0x0002,0x0003,0x0006,0x0007,0x0009)):
@@ -268,6 +285,31 @@ class Inspector:
     def clear_terrain(self) -> None:
         self.terrain_mesh = None
         self.terrain_status.set("Terrain: no private OBJ loaded.")
+        self.draw_path()
+
+    def load_tree_positions(self) -> None:
+        """Opt-in private local JSON; never reads network, game input or RAM."""
+        filename = filedialog.askopenfilename(
+            parent=self.root,
+            title="Select source-gated PRIVATE 94-tree positions from Wii-AI-Golf-Data/derived",
+            filetypes=[("Private tree source JSON", "*.json")])
+        if not filename:
+            return
+        try:
+            tree_positions = load_private_tree_positions(filename)
+        except (TreePositionsError, OSError) as exc:
+            messagebox.showerror("Private tree source rejected", str(exc), parent=self.root)
+            return
+        self.tree_positions = tree_positions
+        self.tree_visible.set(True)
+        self.tree_status.set(
+            "94 source positions loaded; select qualified replay for overlay. "
+            "Original geometry, illustration scale, alignment and hitboxes UNVERIFIED.")
+        self.draw_path()
+
+    def clear_tree_positions(self) -> None:
+        self.tree_positions = None
+        self.tree_status.set("Trees: cleared private source-94 positions from the view.")
         self.draw_path()
 
     def pick(self, var: tk.StringVar) -> None:
@@ -656,11 +698,30 @@ class Inspector:
                     "alignment/active collision UNVERIFIED")
         elif mesh is not None and hasattr(self, "terrain_status"):
             self.terrain_status.set("Terrain HIDDEN — Show disabled or source qualification unavailable")
+        tree_data = getattr(self, "tree_positions", None)
+        visible_setting = getattr(self, "tree_visible", None)
+        illustration_setting = getattr(self, "tree_illustrations", None)
+        label_setting = getattr(self, "tree_labels", None)
+        show_tree_illustrations = illustration_setting is not None and illustration_setting.get()
+        draw_tree_positions = (tree_data.drawing_positions()
+                               if tree_data is not None
+                               and (visible_setting is None or visible_setting.get())
+                               and current.source_qualified and bool(current.source_digest)
+                               else ())
+        if tree_data is not None and hasattr(self, "tree_status"):
+            self.tree_status.set(
+                f"Source trees: {len(draw_tree_positions)}/94 bases drawn · "
+                + ("ILLUSTRATIVE nonphysical 3D trees" if show_tree_illustrations
+                   else "exact source-base markers only")
+                + " · original model/scale/alignment/texture/hitbox UNVERIFIED"
+                + ("" if draw_tree_positions else " · HIDDEN (toggle/source qualification)"))
+        tree_fit = (fit_points(draw_tree_positions, illustrations=show_tree_illustrations)
+                    if draw_tree_positions else ())
         # Plot bounds include the selected collision candidate; do NOT transform
         # vertices to force fit with the ball, tee or pin.
         points = ([p for p, _ in path + caches] + list(landmarks.values())
                   + (list(aim_ray) if aim_ray else [])
-                  + [v for face in terrain_faces for v in face])
+                  + [v for face in terrain_faces for v in face] + list(tree_fit))
         if not points:
             canvas.create_text(width // 2, height // 2, text="No finite source-qualified ball/cache/pin/tee candidates", fill="white")
             self.draw_a_overlay()
@@ -687,6 +748,13 @@ class Inspector:
             color = surface_style(source_attr)[1] if use_colors else "#3c7366"
             canvas.create_line(*xy_face[0], *xy_face[1], *xy_face[2], *xy_face[0],
                                fill=color, width=1, tags=("terrain_collision_candidate",))
+        # Exact 94 source bases share the terrain/actor projection.
+        # Crowns and trunks are expressly illustrative, never native hitboxes.
+        if draw_tree_positions:
+            draw_tree_layer(
+                canvas, draw_tree_positions, xy, self.yaw, self.pitch,
+                illustrations=show_tree_illustrations,
+                labels=(label_setting is not None and label_setting.get()))
         # Recenter per displayed prefix; do not imply screen-space projection or verified spatial units.
         for sequence, color in ((path, "#f1f6ff"), (caches, "#f5b942")):
             previous = None
