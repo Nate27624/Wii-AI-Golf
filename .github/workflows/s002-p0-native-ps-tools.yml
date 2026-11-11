@@ -1,0 +1,47 @@
+name: S002 native shot standalone Windows PowerShell 5.1 and PS7
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/Invoke-GolfNativeShot.ps1'
+      - 'tests/test_s002_native_phase_powershell.py'
+      - '.github/workflows/s002-p0-native-ps-tools.yml'
+  workflow_dispatch:
+
+jobs:
+  windows_ps5:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Parse standalone script with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $errorsList = $null
+          $tokens = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            'scripts/Invoke-GolfNativeShot.ps1', [ref]$tokens, [ref]$errorsList) | Out-Null
+          if ($errorsList.Count -gt 0) { throw 'Standalone script has syntax errors' }
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw 'Must validate Windows PowerShell 5.x' }
+      - name: No skipped tests; synthetic 24MiB and 64MiB native bank shapes
+        run: python -m unittest discover -s tests -p 'test_s002_native_phase_powershell.py' -v
+
+  ubuntu_ps7:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Parse standalone script on PowerShell 7
+        shell: pwsh
+        run: |
+          $errorsList = $null
+          $tokens = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            'scripts/Invoke-GolfNativeShot.ps1', [ref]$tokens, [ref]$errorsList) | Out-Null
+          if ($errorsList.Count -gt 0) { throw 'Standalone script has syntax errors' }
+      - name: No skipped tests; synthetic 24MiB and 64MiB native bank shapes
+        run: python -m unittest discover -s tests -p 'test_s002_native_phase_powershell.py' -v
