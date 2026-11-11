@@ -16,6 +16,14 @@ $destination = Join-Path (Join-Path $PrivateData 'derived') $fileName
 $archive = Join-Path (Join-Path $PrivateData 'captures') $sourceName
 $exporter = Join-Path (Split-Path -Parent $PrivateData) 'Wii-Tree-Exporter-PR411'
 $diagnose = Join-Path $viewer 'scripts\diagnose_inspector_tree_loading.py'
+$register = Join-Path $viewer 'scripts\register_inspector_private_tree.py'
+
+function Register-TreeJson {
+    & py -3 -I $register --file $destination
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to validate/save the source-94 JSON path into inspector settings' }
+    & py -3 -I $diagnose
+    if ($LASTEXITCODE -ne 0) { throw 'Inspector diagnostic failed' }
+}
 
 function Assert-GitSuccess([string]$stage) {
     if ($LASTEXITCODE -ne 0) { throw "Git failure during $stage (exit $LASTEXITCODE)" }
@@ -29,9 +37,8 @@ if (-not (Test-Path -LiteralPath $PrivateData -PathType Container)) {
 }
 if (Test-Path -LiteralPath $destination -PathType Leaf) {
     Write-Host "PRIVATE tree JSON already exists: $destination" -ForegroundColor Green
-    Write-Host 'Checking loader status (existing file is never overwritten)...'
-    & py -3 -I $diagnose
-    if ($LASTEXITCODE -ne 0) { throw 'Inspector diagnostic failed' }
+    Write-Host 'Validating and registering existing file (never overwritten)...'
+    Register-TreeJson
     return
 }
 if (Test-Path -LiteralPath $destination) {
@@ -96,7 +103,6 @@ if (-not (Test-Path -LiteralPath $destination -PathType Leaf)) {
 }
 Write-Host "Original PRIVATE tree JSON generated: $destination" -ForegroundColor Green
 
-Write-Host 'Inspector validation and saved-selection diagnostics:' -ForegroundColor Cyan
-& py -3 -I $diagnose
-if ($LASTEXITCODE -ne 0) { throw 'Inspector tree diagnostic failed' }
+Write-Host 'Validating/remembering the source JSON for automatic startup:' -ForegroundColor Cyan
+Register-TreeJson
 Write-Host 'Restart the inspector. The tree JSON should now auto-load; rendering still requires a source-qualified sample.' -ForegroundColor Green
