@@ -125,22 +125,33 @@ class TexturedPreviewWindow:
 
         # Source-backed overlays toggled independently at top of 3D view.
         # Player identity has no verified 3D body position or original mesh.
+        # Use two concise rows so optional overlays stay visible even when
+        # the shared 3D pane is narrow beside metadata and controls.
         overlay_controls = ttk.Frame(self.top, padding=(6, 2))
         overlay_controls.pack(fill="x")
+        tree_row = ttk.Frame(overlay_controls)
+        tree_row.pack(fill="x")
+        actor_row = ttk.Frame(overlay_controls)
+        actor_row.pack(fill="x")
         for label, var in (
             ("Trees (94 bases)", self.show_trees),
-            ("Illustrative crowns (NOT native art)", self.show_tree_crowns),
-            ("Ball candidate", self.show_ball),
-            ("Tee / flag candidates", self.show_tee_pin),
-            ("Cache candidate", self.show_cache),
-            ("Player ID only (no 3D position)", self.show_player),
+            ("Illustrative crowns (NOT game art)", self.show_tree_crowns),
         ):
-            ttk.Checkbutton(overlay_controls, text=label, variable=var,
+            ttk.Checkbutton(tree_row, text=label, variable=var,
                             command=self.toggle_source_markers).pack(
                                 side="left", padx=(0, 5))
-        ttk.Button(overlay_controls, text="Load PRIVATE 94 trees",
+        ttk.Button(tree_row, text="Load PRIVATE 94 trees",
                    command=self.choose_private_trees).pack(
                        side="left", padx=(8, 0))
+        for label, var in (
+            ("Ball candidate", self.show_ball),
+            ("Tee / flag", self.show_tee_pin),
+            ("Cache", self.show_cache),
+            ("Player ID only (no XYZ)", self.show_player),
+        ):
+            ttk.Checkbutton(actor_row, text=label, variable=var,
+                            command=self.toggle_source_markers).pack(
+                                side="left", padx=(0, 5))
         ttk.Label(self.top, textvariable=self.marker_status,
                   wraplength=820, padding=(8, 1)).pack(fill="x")
 
