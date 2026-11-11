@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -17,6 +17,8 @@ from wii_ai_golf.inspector.terrain_labels import (
     LABEL_KIND, apply_private_surface_labels,
 )
 from wii_ai_golf.inspector.gui import Inspector
+from wii_ai_golf.inspector.asset_preferences import (
+    AssetSelections, remember_asset)
 
 OBJ = "v 0 0 0\nv 1 0 0\nv 0 0 1\nf 1 2 3\n"
 SHA = hashlib.sha256(OBJ.encode("ascii")).hexdigest()
@@ -173,6 +175,84 @@ class LabelsTests(unittest.TestCase):
         wrong.write_bytes(self.labels.read_bytes())
         with self.assertRaises(TerrainError):
             apply_private_surface_labels(self.mesh,wrong)
+
+    def fake_inspector(self):
+        view=Inspector.__new__(Inspector)
+        view.terrain_mesh=None
+        view.terrain_status=Mock()
+        view.surface_label_status=Mock()
+        view.asset_settings_status=Mock()
+        view.terrain_visible=Mock()
+        view.tree_positions=None
+        view.saved_assets=AssetSelections(auto_find_trees=False)
+        view.draw_path=Mock()
+        view.visual_preview=None
+        return view
+
+    def test_matching_sibling_source_labels_autoload_and_remember_after_obj(self):
+        self.save(self.data(attr=6))
+        view=self.fake_inspector()
+        original=self.obj.read_bytes()
+        with patch("wii_ai_golf.inspector.gui.save_asset_selections") as save:
+            self.assertTrue(Inspector.load_terrain_path(view,str(self.obj)))
+        self.assertEqual(view.terrain_mesh.face_materials,(6,))
+        self.assertEqual(view.saved_assets.terrain_obj,str(self.obj.resolve()))
+        self.assertEqual(view.saved_assets.terrain_labels,str(self.labels.resolve()))
+        self.assertEqual(save.call_count,2)  # OBJ, then verified KCL source ID
+        self.assertEqual(self.obj.read_bytes(),original)
+        self.assertIn("green=1",view.surface_label_status.set.call_args.args[0])
+
+    def test_missing_sibling_keeps_raw_obj_but_explains_source_ids(self):
+        view=self.fake_inspector()
+        with patch("wii_ai_golf.inspector.gui.save_asset_selections"):
+            self.assertTrue(Inspector.load_terrain_path(view,str(self.obj)))
+        self.assertEqual(view.terrain_mesh.face_materials,(None,))
+        self.assertIsNone(view.saved_assets.terrain_labels)
+        self.assertIn("KCL source IDs MISSING",
+                      view.surface_label_status.set.call_args.args[0])
+
+    def test_wrong_sha_auto_sibling_refused_and_not_saved(self):
+        self.save(self.data(sha="0"*64))
+        view=self.fake_inspector()
+        with patch("wii_ai_golf.inspector.gui.save_asset_selections") as save:
+            self.assertTrue(Inspector.load_terrain_path(view,str(self.obj)))
+        self.assertEqual(view.terrain_mesh.face_materials,(None,))
+        self.assertIsNone(view.saved_assets.terrain_labels)
+        self.assertEqual(save.call_count,1)
+        self.assertIn("rejected",view.surface_label_status.set.call_args.args[0])
+
+    def test_saved_label_restores_exactly_without_user_reselecting(self):
+        self.save(self.data(attr=6))
+        view=self.fake_inspector()
+        state=remember_asset(AssetSelections(auto_find_trees=False),
+                             "terrain_obj",self.obj)
+        state=remember_asset(state,"terrain_labels",self.labels)
+        with patch("wii_ai_golf.inspector.gui.load_asset_selections",
+                   return_value=state),patch(
+                   "wii_ai_golf.inspector.gui.save_asset_selections"):
+            Inspector.restore_private_assets(view)
+        self.assertEqual(view.terrain_mesh.face_materials,(6,))
+        self.assertEqual(view.saved_assets.terrain_labels,str(self.labels.resolve()))
+        self.assertIn("green=1",view.surface_label_status.set.call_args.args[0])
+
+    def test_saved_bad_label_not_silently_replaced_by_sibling(self):
+        self.save(self.data(attr=6))
+        # Explicitly saved DIFFERENT file: reject, do not discover sibling
+        # and overwrite the selected path without operator review.
+        bogus=self.folder/"other-PRIVATE.json"
+        bogus.write_text(json.dumps(self.data(sha="0"*64)),encoding="ascii")
+        view=self.fake_inspector()
+        state=remember_asset(AssetSelections(auto_find_trees=False),
+                             "terrain_obj",self.obj)
+        state=remember_asset(state,"terrain_labels",bogus)
+        with patch("wii_ai_golf.inspector.gui.load_asset_selections",
+                   return_value=state),patch(
+                   "wii_ai_golf.inspector.gui.save_asset_selections") as save:
+            Inspector.restore_private_assets(view)
+        self.assertEqual(view.terrain_mesh.face_materials,(None,))
+        self.assertEqual(view.saved_assets.terrain_labels,str(bogus.resolve()))
+        save.assert_not_called()
+        self.assertIn("rejected",view.surface_label_status.set.call_args.args[0])
 
     def test_ui_applies_to_existing_mesh_without_replacing_obj(self):
         self.save(self.data())
