@@ -28,7 +28,9 @@ def shaded_hex(color: str, face: tuple[tuple[float, float, float], ...]) -> str:
     if not math.isfinite(norm) or norm <= 1e-12:
         raise ValueError("Cannot shade invalid triangle")
     light = abs(sum(n[i]*LIGHT[i] for i in range(3)) / norm)
-    level = 0.72 + 0.27*min(1.0, light)
+    # Low-contrast shading avoids turning adjacent same-material KCL
+    # prisms into a misleading high-contrast checkerboard.
+    level = 0.86 + 0.13*min(1.0, light)
     try:
         channels = [int(color[i:i+2], 16) for i in (1, 3, 5)]
     except ValueError as exc:
