@@ -37,6 +37,16 @@ class SceneCameraTests(unittest.TestCase):
         self.assertNotEqual(out.pitch, self.cam.pitch)
         self.assertEqual(self.cam.position, old)
 
+    def test_rmb_mouse_up_and_down_look_up_and_down_without_moving_eye(self):
+        upwards = look_in_place(self.cam, 0., -25.)
+        downwards = look_in_place(self.cam, 0., 25.)
+        self.assertGreater(upwards.pitch, self.cam.pitch)
+        self.assertLess(downwards.pitch, self.cam.pitch)
+        self.assertEqual(upwards.position, self.cam.position)
+        self.assertEqual(downwards.position, self.cam.position)
+        self.assertEqual(upwards.focus, self.cam.focus)
+        self.assertEqual(downwards.focus, self.cam.focus)
+
     def test_orbit_changes_camera_position_but_preserves_focus_distance(self):
         out = orbit(self.cam, 87, 42)
         self.assertEqual(out.focus, self.cam.focus)
