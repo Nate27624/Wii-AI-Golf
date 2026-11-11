@@ -77,6 +77,33 @@ def audit_collada_scene(filename: str | Path) -> dict[str, object]:
     binding = [n for n in root if _local_name(n.tag) == "scene"]
     targets = [(ch.get("url") or "") for n in binding for ch in n
                if _local_name(ch.tag) == "instance_visual_scene"]
+    # Source-only structural inventory. These tags can change how native
+    # geometry is instanced/placed, and the renderer intentionally refuses to
+    # guess their semantics. Report *counts*, never private node identifiers
+    # or source matrices, so local failures are diagnosable.
+    unsupported_tags = ("lookat", "skew", "instance_node", "instance_controller")
+    if len(targets) == 1 and targets[0].startswith("#"):
+        active_scenes = [v for v in scenes if v.get("id") == targets[0][1:]]
+    elif not targets and len(scenes) == 1:
+        active_scenes = scenes
+    else:
+        active_scenes = []
+    active_unsupported = Counter(
+        _local_name(child.tag)
+        for scene in active_scenes
+        for node in scene.iter()
+        if _local_name(node.tag) == "node"
+        for child in node
+        if _local_name(child.tag) in unsupported_tags
+    )
+    all_unsupported = Counter(
+        _local_name(child.tag)
+        for scene in scenes
+        for node in scene.iter()
+        if _local_name(node.tag) == "node"
+        for child in node
+        if _local_name(child.tag) in unsupported_tags
+    )
     geometry_refs = []
     transforms = Counter()
     nonidentity = 0
@@ -127,6 +154,11 @@ def audit_collada_scene(filename: str | Path) -> dict[str, object]:
         "transform_counts": dict(sorted(transforms.items())),
         "nonidentity_transform_count": nonidentity,
         "matrix_xz_yaw_degrees_hypotheses": sorted(set(matrix_rotations))[:12],
+        "active_scene_resolved_for_inventory": len(active_scenes) == 1,
+        "active_unsupported_construct_counts": dict(sorted(active_unsupported.items())),
+        "all_scene_unsupported_construct_counts": dict(sorted(all_unsupported.items())),
+        "active_scene_requires_unimplemented_processing": bool(active_unsupported),
+        "unsupported_constructs_are_not_safely_ignorable": True,
         "up_axis": up_axis,
         "current_loader_applies_visual_scene_transforms": True,
         "source_authored_dae_transform_is_not_native_kcl_mapping": True,
