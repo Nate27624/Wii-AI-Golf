@@ -286,7 +286,8 @@ class DirectDAETests(unittest.TestCase):
         inst.visual_tab = object()
         inst.visual_preview = None
         inst.visual_status = Mock()
-        inst.center_tabs = Mock()
+        inst._legacy_terrain_tab = Mock()
+        inst.visual_tab = Mock()
         with patch('wii_ai_golf.inspector.gui.load_private_dae_visual_model') as loader, \
              patch('wii_ai_golf.inspector.textured_preview.TexturedPreviewWindow') as window:
             loader.return_value.source_name = self.dae.name
@@ -296,7 +297,8 @@ class DirectDAETests(unittest.TestCase):
         loader.assert_called_once_with(str(self.dae))
         window.assert_called_once_with(inst.visual_tab, loader.return_value,
                                        embedded=True)
-        inst.center_tabs.select.assert_called_once_with(inst.visual_tab)
+        inst._legacy_terrain_tab.pack_forget.assert_called_once()
+        inst.visual_tab.pack.assert_called_once_with(fill="both", expand=True)
         self.assertIs(inst.visual_preview, window.return_value)
 
     def test_visual_path_stays_private_and_auto_discovered_only_beside_terrain(self):
