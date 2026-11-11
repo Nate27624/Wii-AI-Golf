@@ -39,8 +39,6 @@ def _union_find_components(faces: tuple[tuple[int, int, int], ...],
 
     # Separate edge versus vertex adjacency; full edges are a much stricter
     # notion of mesh continuity than a single shared corner.
-    edge_parent = parent
-    edge_size = size
     first_point: dict[tuple, int] = {}
     first_edge: dict[tuple, int] = {}
     edge_matches = 0
@@ -138,6 +136,8 @@ def probe_connectivity(vertices, faces, source_diagonal) -> dict:
         "unique_referenced_source_vertex_indices": len(used),
         "one_distinct_source_vertex_index_per_triangle_corner": (
             len(used) == len(indices)),
+        "endpoint_matching_method": "COORDINATE_GRID_ROUNDING_NOT_DISTANCE_QUERY",
+        "grid_cell_step_not_guaranteed_distance_threshold": True,
         "trial_tolerances_relative_to_each_source_mesh": trials,
         "native_adjacency_verified": False,
         "same_original_game_hole_verified": False,
