@@ -3068,3 +3068,90 @@ Next operator input should be the
 sanitized new PPC register-context
 report from original private archive,
 not new gameplay.
+
+
+## Original PPC register-context report reviewed — common r27 but no active receiver yet
+
+Operator supplied the completed original source-only report
+`P0_ORIGINAL_TREE_BALL_WRITER_REGISTER_CONTEXT_V1`,
+original seven-pair SHA-qualified capture **7**. The
+source code gate `original_sha_scene_tree_and_kcol_gates_verified=true`
+was met, but every receiver/execution/velocity/material branch proof
+flag remained false.
+
+**Three complete static cache-source store triplets share base GPR r27**:
+- Ball source unit `+0x2D04,+0x2D0C,+0x2D14`
+  stores candidate members `+0xCC,+0xD0,+0xD4`;
+  each precedes a nearby `lfs` for the same FPR f0.
+- Ball unit `+0x2F6C,+0x2F70,+0x2F74`
+  stores `+0xF0,+0xF4,+0xF8`;
+  FPR indices f3/f0/f4, one load nearby, others
+  previously blocked by bounded control-flow analysis.
+- Ball unit `+0x2FA8,+0x2FAC,+0x2FB0`
+  stores `+0xFC,+0x100,+0x104`,
+  FPR f2/f1/f0 with bounded preceding `lfs` candidates.
+
+All nine `stfs` instructions use **r27** for the native
+destination register. This narrows the audit to how that
+register is initialized within the published
+`Ball fn_80299C70` window, but r27 == the selected live
+Ball address is **not established**. Other source numeric
+displacement matches use different base registers:
+`+0x30` stores in Ball unit use r3; three groups
+of `+0xAC` stores use r1, r23, r29 respectively.
+Because r1 is the conventional PPC stack pointer,
+**r1+0xAC is likely a stack-local store, not Ball+0xAC**;
+do not count it as an active Ball object's state writer.
+
+**Seven** earlier source `lwz +0x4C` →
+three component `stfs +0/+4/+8` chains have
+their pointer-register consistency confirmed with
+no obvious intervening control or recognized GPR clobber.
+The original report specifies receiver GPR indices:
+Ball source loads at +0x1788 (r30), +0x1AAC (r3),
++0x38DC (r31); Player at +0x1D88 (r4), +0x2200 (r5);
+PlayerManager +0x0BE0 and +0x0C70 (r3). This is
+syntactic pointer continuity only. It does **not**
+prove any of these pointer chains reads
+the specific selected active Ball object
+or executes at tree impact.
+
+Two direct public Ball source-unit `bl` callers target
+the **exact native `fn_80299C70` entry**:
+`Ball+0x2B8C`, `Ball+0x2C80`. Another
+`PlayerManager+0x0F2C` calls the published
+`Player fn_802A0320` entry.
+No indirect caller census or dynamic call trace
+has been established for the latter. The two direct
+cache calls are prioritized for upstream receiver
+argument trace.
+
+**Follow-up implemented**:
+`scripts/p0_ball_cache_r27_lineage_private.py`,
+with `tests/test_p0_ball_cache_r27_lineage_private.py`
+and Win/Ubuntu CI. It re-verifies the SHA-qualified
+original seven-pair source capture and native code gates,
+then checks:
+- bounded source syntactic writers to destination r27
+  from the beginning of the published cache-function window
+  up to each of the three triplets, including
+  `mr` (PPC OR rD,rS,rS), `lwz`, `addi`,
+  pointer arithmetic/known logical and other common
+  assignments; records only public source-relative
+  code location and register indices;
+- the nearest preceding `lfs`/other FP producer
+  for each exact `stfs` site in the three groups,
+  with source GPR and signed D-form displacement;
+- the two exact direct cache-entry `bl` instructions
+  and nearest bounded syntactic r3 argument
+  assignments, stopping on prior control-transfer.
+
+This is **not** complete native CFG/SSA,
+an active object receiver binding,
+or dynamic evidence of the wood/leaves branch.
+The new study outputs no original PPC code
+words, actual native heap pointers or
+game asset/XYZ data and does not access Dolphin,
+video or live memory. No physics trained:
+`training_approved=false`. User requests
+**memory-only** progress; do not ask for videos.
