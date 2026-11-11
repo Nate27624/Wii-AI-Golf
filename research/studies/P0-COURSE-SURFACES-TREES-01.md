@@ -1,0 +1,334 @@
+# P0: Wii Sports Golf terrain material IDs and tree placements
+
+## Evidence and scope (2026-10-30)
+
+**User request:** include trees, green, fairway/grass, rough, sand, water in
+existing source-coordinate 3D inspector. **Current main only has ball, pin, tee,
+aim/A; draft #407 draws undifferentiated collision wireframe.** This work does
+NOT change active S002 UI, existing KCL probe #403/#406/#409, game RAM, or
+training. New independent offline code and tests only. No private RAM committed.
+
+## Concrete ORIGINAL Wii Sports, not generic KCL, surface flags
+
+Source: `kiwi515/Resort2OG/src/core/RPGame/RPGolFieldManager.h`
+[`EOgwsKclFlag`](https://github.com/kiwi515/Resort2OG/blob/master/src/core/RPGame/RPGolFieldManager.h).
+`KCol.h` documents the BE u16 prism flags at offset `+0x0E`
+within each `0x10`-byte prism record.
+
+| OGWS raw flag | Category | Proposed UI treatment |
+| --- | --- | --- |
+| 0x0000 | none | neutral/unknown |
+| 0x0001 | fairway | fairway tint |
+| 0x0002 | rough | rough tint |
+| 0x0003 | bunker | sand tint |
+| 0x0004 | out of bounds | OOB warning |
+| 0x0005 | camera lock | non-surface overlay |
+| 0x0006 | green | putting green tint |
+| 0x0007 | water | water tint |
+| 0x0009 | fringe | fringe tint |
+| 0x000A | pole | keep distinct |
+| 0x000B | cup | keep distinct |
+| 0x000C | cliff | rocky/cliff tint |
+| 0x000D | camera lock noncollision | non-surface overlay |
+
+Do NOT apply Mario Kart or Wii Sports Resort flags. Resort mappings differ,
+e.g. `KCL_WS2_GREEN = 0x0106` vs **OGWS** `0x0006`, and are converted explicitly in
+[`Resort2OG/src/core/KCol.cpp`](https://github.com/kiwi515/Resort2OG/blob/master/src/core/KCol.cpp).
+The original **real** phase7 2,498 triangles are geometrically reconstructed,
+but their raw attribute distribution has NOT yet been measured in this branch.
+Unknown flags must remain UNKNOWN, never be assigned green/rough by appearance.
+
+## Source-backed trees
+
+Original `RPGolFieldManager`:
+[`ogws_info/RPGolFieldManager.h`](https://github.com/kiwi515/ogws_info/blob/main/RP/RPSports/RPGolScene/RPGolFieldManager.h):
+`field+0x1C` tree object count;
+`field+0x20` pointer to `RPGolMapObjTree` array;
+`field+0x24/+0x28` water-reflection tree count/array;
+`field+0x18` pointer to `RPUtlMapData` with PMP placement data;
+`field+0x78` minimap trees render object.
+
+OGWS PMP object IDs, source `Resort2OG/src/core/RPGame/RPGolFieldManager.h`:
+`0x00010002` tree variant 1, `0x00010003` tree variant 2,
+`0x00010004` and `0x00010005` reflection variants.
+`RPUtlMapObject.h` specifies each raw placement record as `0x58` bytes,
+with full ID at `+0x00`, VEC3 position `+0x08`, VEC3 scale `+0x14`,
+rotation 3x3 `+0x20`, and params `+0x48`. Source code:
+[`RPUtlMapObject.h`](https://github.com/kiwi515/Resort2OG/blob/master/src/core/RPUtility/RPUtlMapObject.h).
+
+**Important limit:** The field manager's *in-memory unpacked* `RPUtlMapData`
+may not retain the converter's file-style pointer layout on every live state.
+First inventory checks only bounded source field count, array pointer, and
+the optional PMP magic+object-array-pointer gate before claiming placements.
+Even passing this is candidate-only until cross-checked with actual tree
+models/screenshots. The actual textured 3D tree meshes are separate reusable
+assets, not represented by course KCL triangles or PMP transforms alone.
+A first UI overlay could depict validated tree locations/scale with simple
+non-physical proxy shapes, labeled experimental; **do not equate proxies with
+original game models or obstacle hitboxes**.
+
+## Command and output
+
+In an original source-qualified repository branch/worktree that contains this
+study, from the repository root:
+
+```powershell
+$archive = 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures\p0-new-cohort-20261028-063011392-955fd483-PRIVATE'
+py -3 -I scripts/p0_kcl_surface_tree_inventory_private.py --archive "$archive" --capture 7
+```
+
+Uses preexisting `seven._check_archive`, `seven._get` (full archive
+SHA256/source selected scene/tee/pin) and read-only mmap; rechecks originals.
+Returns only material flag frequencies and source-type tree count, never
+paths, pointers, coordinates or a raw file. If the strict original private
+archive is not accessible the script **ABSTAINS**, not fabricate a map.
+If a single file-style KCL candidate isn't unique and fully valid **ABSTAINS**.
+No local Dolphin/controller, no guest writes, no new capture required.
+
+## UI handoff (to S002 / #407 and terrain extractor #403–#409)
+
+1. Add per-prism **raw attribute ID** to private KCL-derived mesh export, e.g.
+   one `g OGWS_GREEN`/OBJ face group, or separate local CSV/JSON triangle
+   attribute sidecar SHA-bound to the parent private mesh. **Preserve exact
+   triangle order and original 16-bit values**, and never insert invalid/
+   resampled geometry without a mapping.
+2. S002 UI color by **documented original OGWS IDs only**; unknown material
+   gets neutral grey and its exact raw ID retained in private diagnostics.
+   Legend must distinguish green/rough/fairway/fringe/bunker/water/OOB.
+   Do not color purely from proximity to flag or inferred terrain slope.
+3. Independently confirm local tree records, grouped variants, transforms,
+   reflection objects, and source epoch against the selected field manager.
+   Then draw validated tree placements; for game-accurate tree geometry, load
+   separately authorized/validated private BRRES assets and preserve scale/
+   rotation. A simple placeholder must be clearly labeled non-physical.
+4. Show opt-in editable visibility for collision wireframe, types, trees.
+   Keep live ball/tee/pin/aim/A and right-click orbit intact.
+5. Require tests on original private capture and operator visual smoke test
+   before claiming visual alignment or actual course physics.
+
+**Training approved: false.** Source collision flags and tree IDs are
+documented, but no original user material histogram or tree placement counts
+were obtained in this agent environment.
+
+## Real original phase-7 evidence (operator, 2026-10-30)
+
+The operator executed the original read-only research PR #411 and reported:
+`status=CANDIDATE_SURFACE_FLAGS_COUNTED`, all 2,498 KCL records valid, MEM2,
+exact OGWS types `fairway=208 rough=585 bunker=301 OOB=508 camera_lock=44
+green=478 water=7 fringe=99 cliff=268` (zero unknown). The source
+`field+0x1C` tree count was **94**, with a MEM2-valid `field+0x20` tree
+array. PMP direct object positions did *not* validate. **This is not evidence
+of zero trees** and does not establish tree model meshes, 3D hitboxes,
+collision octree reachability or shaded visual-terrain ownership.
+
+## Next read-only source tree-array layout falsifier
+
+New `scripts/p0_tree_array_layout_private.py` studies ONLY the source-owned
+`field+0x20` potential contiguous native tree object array from that same
+original archived phase7. It ranks possible aligned object strides using
+repeatable plausible vtable pointers and finite distinct candidate `+0x30`
+translation vectors. The source class annotates `+0x30` as translation, but
+its alleged `+0x3C/+0x40/+0x44` fields **overlap**, so the script makes NO
+claims about scale, rotation or any other offsets. It never exports tree XYZ
+or dynamic pointers. A positive stride is only a structure hypothesis; it
+does not verify 3D tree positions.
+
+Example from the *current independent branch's existing detached worktree*:
+```powershell
+py -3 -I scripts/p0_tree_array_layout_private.py --archive 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures\p0-new-cohort-20261028-063011392-955fd483-PRIVATE' --capture 7
+```
+No new Dolphin, gameplay action or RAM capture. If no class/object layout can
+be distinguished the script returns `TREE_LAYOUT_UNRESOLVED` rather than
+claiming trees are mapped. Models remain separate from the stored collision
+mesh. Trainable labels remain disabled.
+
+## Real phase-7 contiguous tree-array falsification
+
+Operator ran the prior `p0_tree_array_layout_private.py` against original
+SHA/source-gated capture 7, yielding `TREE_LAYOUT_UNRESOLVED` for count **94**.
+The highest-ranked strides (104,112,160 bytes) had only 15/26/24 structurally
+plausible records, with common-vtable matches 2/1/1. This **rejects those
+specific contiguous-object-vtable assumptions**, not the source field count.
+
+### Pointer-table hypothesis
+
+New, separately scoped `scripts/p0_tree_pointer_table_private.py` tests
+whether `field+0x20` instead points to a table of per-tree object **pointers**.
+It probes bounded 4..48-byte pointer-table strides and aligned pointer offsets,
+then independently validates each non-null unique MEM2 object pointer,
+at least one plausible MEM1 virtual function reference, and finite candidate
+`obj+0x30` translations. A mixture of two tree variants is allowed through
+a top-two-vtable test. These are structural gates ONLY and may fail for
+correct native layouts; failing does not contradict 94 source field tree objects.
+
+No object XYZ, vtables, private address, hashes, geometry, or files are emitted.
+The script does not claim tree hitboxes or model meshes. To run in the existing
+detached user research worktree after fetching this PR branch:
+
+```powershell
+py -3 -I scripts/p0_tree_pointer_table_private.py --archive 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures\p0-new-cohort-20261028-063011392-955fd483-PRIVATE' --captures 7
+```
+
+If `POINTER_TABLE_STRUCTURAL_CANDIDATE` and *one* layout qualifies, the
+next independent step is compare the private 94 source-component translations
+to the terrain bbox and record topology, plus inspect constructor/array writer
+PPC. If unresolved, investigate native allocation/pointer buffer layout
+directly from source disassembly. No training promotion.
+
+## Real operator pointer-table falsification and direct PPC follow-up
+
+Operator ran `p0_tree_pointer_table_private.py --captures 7` against the
+original SHA- and source-gated private RAM cohort. Result was
+`POINTER_TABLE_UNRESOLVED`. For the four top hypotheses (12/24/48-byte
+entries slot+4, and 12-byte slot+8), the current probe's aggregate
+structural diagnostics reported only 27/27/26/24 unique MEM2 candidate
+object pointers, **zero objects with its strictly expected MEM1 vtables**
+and therefore zero accepted position vectors. This shows neither
+hypothesized pointer-table encoding is source-proven. It does NOT disprove
+the independently reported `FieldManager+0x1C=94` trees. It may be a
+contiguous tree object array with a different stride, pointer indirection,
+header/element offset, or incompatible vtable/linkage assumptions.
+
+Instead of further broad stride guessing, the next probe is
+`scripts/p0_tree_ppc_indexing_private.py` in PR #411. It examines only
+the Rev1 **original source .text** bounded by public ogws splits and
+symbol labels:
+- `RPGolFieldManager` `0x80290B44..0x80294184` split into windows
+  near named **`PmpProc2` (0x802917D4)**,
+  **`Golf::PmpProc` (0x80291F34)** and
+  **`Golf::LoadCurrentHoleResources` (0x80293008)**;
+- `RPGolMapObjTree` `0x80296238..0x80296EA8`;
+- `RPGolMapObjTreeWater` `0x80296EA8..0x80296F50`;
+- `RPGolMapObjBase` `0x8028F9FC..0x80290B44`.
+
+The parser decodes only selected static PPC `mulli`, `mullw`,
+`slwi`, field-related D-form `lwz/stw/lfs/stfs` and direct `b/bl`
+to tree/base code. It returns public unit-relative offsets and
+immediate multiplicands/counts **without** original native words,
+heap pointers or private coordinates. The presence of, for example,
+an immediate size `0x80` alone is NOT proof of `sizeof(Tree)`; the
+next stage must check register dataflow from the field tree-count and
+array pointer through the allocation/callsite instructions.
+No runtime gameplay execution is proven by static code scans.
+
+Use same original phase7 archive, no Dolphin or new capture:
+```powershell
+py -3 -I scripts/p0_tree_ppc_indexing_private.py --archive 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures\p0-new-cohort-20261028-063011392-955fd483-PRIVATE' --capture 7
+```
+See [ogws public source splits](https://github.com/doldecomp/ogws/blob/master/config/RSPE01_01/splits.txt)
+and [Wii Sports public Rev1 symbol map](https://github.com/kiwi515/ogws_info/blob/main/RSPE_r1.map.csv).
+
+## Source-proven tree-object stride — operator phase 7 (2026-10-30)
+
+Operator's bounded original SHA/source-gated source disassembly established
+an executable `RPGolFieldManager` loop (public `Golf::LoadCurrentHoleResources`
+source-window offsets, RSPE01 Rev1):
+
+```asm
++0x0698  stwu r1,-32(r1)
++0x06BC  mr r28,r3
++0x06E8  lwz r0,+0x20(r28)
++0x06EC  add r3,r0,r31
++0x06F0  bl RPGolMapObjTree+0x000C
++0x06F4  addi r31,r31,+84
++0x06F8  addi r30,r30,+1
++0x06FC  lwz r0,+0x1C(r28)
++0x0700  cmpw r30,r0
++0x0704  blt +0x06E8
+```
+
+This is **direct source register-flow evidence** of an array of
+**0x54 (84)-byte tree objects**. The public `RPGolFieldManager` header
+documents tree count at `+0x1C`, and `RPGolMapObjTree* mTreeObjs` at
+`+0x20`, exactly matching loop operands. Source count is **94**, field
+array pointer bounded in MEM2. The earlier contiguous object/pointer-table
+guesses were overconstrained by unsupported vtable-pointer assumptions.
+The loop alone does **not** verify actual tree translations, 3D models,
+scale, world transform, or collision/contact; count/stride must be
+used with source-scene SHA gates.
+
+New separate `scripts/p0_tree_stride84_private.py` verifies exact
+native PPC word fingerprints across the 10 loop instructions,
+the original seven-pair SHA and selected scene/tee/pin,
+then reads the 94 contiguous 0x54 records. It classifies
+`RPGolMapObjBase::mTrans +0x30` float candidate vectors,
+their distinctness/spans/source tee/pin proximity and first-word
+address-region buckets **without outputting individual XYZ**.
+Optionally cross-checks phase 1, 5, 7 original BE32 position words
+for identity (only a boolean printed). It intentionally
+doesn't gate position validity on first-word vtable identity
+or treat proxy positions as real tree hitboxes.
+
+Private operator command:
+```powershell
+py -3 -I scripts/p0_tree_stride84_private.py --archive 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures\p0-new-cohort-20261028-063011392-955fd483-PRIVATE' --captures 1 5 7
+```
+
+No new Dolphin capture or gameplay action is required. A positive finite,
+distinct near-source-coordinate result supports subsequent PRIVATE
+tree proxy overlay with position calibration, separately owned by S002 UI.
+Do not merge the script or publish source private pointers/vector/OBJ.
+Trainable status remains false.
+
+## Real original captures 1/5/7 confirm 94 stable source translations
+
+Operator ran `p0_tree_stride84_private.py --captures 1 5 7` at exact
+SHA-qualified source head, and returned:
+`status=SOURCE_LOOP_VERIFIED`,
+`private_guest_ppc_tree_loop_exact_match=true`,
+`candidate_position_words_identical_across_selected_captures=true`.
+All three capture records reported **94/94 finite, 94/94 distinct**
+`RPGolMapObjBase.mTrans+0x30` candidate vectors, consistent spans
+`[2484.353,158.981,3511.46]`, and source spatial sanity PASS.
+The existing KCL triangle mesh spans
+`[3373.222,192.513,4258.662]` source-component units. All 94 were
+within the scan's loose 2500-unit tee/pin distance threshold; **not proof**
+of individual tree-to-terrain surface alignment.
+All 94 firstwords were broadly MEM1-like pointers, while +4/+8
+optional bounded model/PMP tests yielded zero. These do not establish
+that actual model art/placement is absent.
+
+## Local-only, UI-consumable 94-point source-candidate export (new)
+
+`scripts/p0_tree_position_export_private.py` exclusively writes local
+`Wii-AI-Golf-Data/derived/golf-tree-positions-source-94-PRIVATE.json`.
+The operator must run this script explicitly; it never starts Dolphin,
+writes RAM, or transfers private coordinates to Git/network. First it
+rechecks canonical 14-bank SHA, all 10 PPC loop opcode fingerprints,
+selected scene, 1/5/7 source count/stride, **94 unique finite source
+transforms each capture**, coarse spatial consistency, and bitwise
+equality of all 94 VEC3 words across 1/5/7. It then reopens only 7's
+selected source pointers to export 94 `[x,y,z]` values in exact
+source-component form. A pre-existing output is an error, never
+overwritten. Symlinked destinations/refused; file must be under
+sibling private `Data/derived` outside Git.
+
+Private JSON schema for S002 UI:
+```json
+{
+  "kind": "wii_sports_golf_private_tree_positions_v1",
+  "schema_version": 1,
+  "game_id": "RSPE01",
+  "disc_revision": 1,
+  "source_captures": [1, 5, 7],
+  "source_count": 94,
+  "source_element_stride_bytes": 84,
+  "source_translation_offset_bytes": 48,
+  "position_frame": "original_source_components_no_transform",
+  "tree_positions": [[0.0, 0.0, 0.0]],
+  "source_positions_bitwise_identical_across_captures": true,
+  "world_visual_alignment_verified": false,
+  "original_tree_meshes_verified": false,
+  "collision_hitboxes_verified": false,
+  "training_approved": false
+}
+```
+The single point above is **illustrative schema shape only**; real output
+has exactly 94 private vectors and must never be checked into Git.
+UI must validate exact count, finite bounded values, JSON size, source
+version/flags, SHA/path and private scope, and render optional **nonphysical
+point markers labeled candidate tree positions** behind ball/tee/flag/A.
+Do not invent height, radius, model mesh or obstacle physics.
+Cross-check loaded points with actual KCL mesh and screenshots in the
+live inspector before promoting source-to-visible coordinate alignment.
+An offset/transform mismatch must remain clearly marked.

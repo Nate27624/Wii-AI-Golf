@@ -1,0 +1,57 @@
+name: P0 Wii Golf private KCL surfaces and trees offline
+on:
+  push:
+    branches:
+      - agent/p0-course-surfaces-trees-private-20261030
+  pull_request:
+    paths:
+      - scripts/p0_kcl_surface_tree_inventory_private.py
+      - tests/test_p0_kcl_surface_tree_inventory_private.py
+      - scripts/p0_tree_array_layout_private.py
+      - tests/test_p0_tree_array_layout_private.py
+      - scripts/p0_tree_pointer_table_private.py
+      - tests/test_p0_tree_pointer_table_private.py
+      - scripts/p0_tree_ppc_indexing_private.py
+      - tests/test_p0_tree_ppc_indexing_private.py
+      - scripts/p0_tree_ppc_receiver_private.py
+      - tests/test_p0_tree_ppc_receiver_private.py
+      - scripts/p0_tree_ppc_r28_disasm_private.py
+      - tests/test_p0_tree_ppc_r28_disasm_private.py
+      - scripts/p0_tree_stride84_private.py
+      - tests/test_p0_tree_stride84_private.py
+      - scripts/p0_tree_position_export_private.py
+      - tests/test_p0_tree_position_export_private.py
+      - research/studies/P0-COURSE-SURFACES-TREES-01.md
+      - .github/workflows/p0-course-surface-tree-offline.yml
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Focused synthetic source-specific material and tree tests
+        run: python -m unittest discover -s tests -p test_p0_kcl_surface_tree_inventory_private.py -v
+      - name: Focused source tree array layout falsification
+        run: python -m unittest discover -s tests -p test_p0_tree_array_layout_private.py -v
+      - name: Focused tree pointer-array hypotheses
+        run: python -m unittest discover -s tests -p test_p0_tree_pointer_table_private.py -v
+      - name: Public source window PPC tree construction/indexing checks
+        run: python -m unittest discover -s tests -p test_p0_tree_ppc_indexing_private.py -v
+      - name: Focused PPC field receiver provenance / stack confounder
+        run: python -m unittest discover -s tests -p test_p0_tree_ppc_receiver_private.py -v
+      - name: Focused PPC r28 bounded disassembly controls
+        run: python -m unittest discover -s tests -p test_p0_tree_ppc_r28_disasm_private.py -v
+      - name: Source 84-byte tree objects and private position sanity
+        run: python -m unittest discover -s tests -p test_p0_tree_stride84_private.py -v
+      - name: Focused private 94-tree position exporter schema and safety
+        run: python -m unittest discover -s tests -p test_p0_tree_position_export_private.py -v
+      - name: Full offline regression
+        run: python -m unittest discover -s tests -v
