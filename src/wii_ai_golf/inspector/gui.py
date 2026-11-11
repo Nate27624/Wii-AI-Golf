@@ -15,6 +15,7 @@ from .a_live import LiveAIndicator
 from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE, MAX_DRAW_FACES
 from .terrain_solid import back_to_front, shaded_hex
 from .terrain_labels import apply_private_surface_labels
+from .visual_model import VisualAssetError, load_private_visual_model
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -166,6 +167,7 @@ class Inspector:
         self.phase_list.bind("<<ListboxSelect>>", self.select_phase)
         ttk.Label(left, textvariable=self.phase, wraplength=190).pack(fill="x", pady=6)
         ttk.Button(left, text="Set aim baseline (point at flag)", command=self.set_baseline).pack(fill="x")
+        ttk.Button(left, text="Preview PRIVATE game textures", command=self.open_textured_model).pack(fill="x", pady=(6, 0))
         ttk.Label(left, textvariable=self.aim, wraplength=200).pack(fill="x", pady=7)
 
         self.canvas = tk.Canvas(center, background="#111c29", height=450, highlightthickness=0)
@@ -236,6 +238,26 @@ class Inspector:
         lower = ttk.LabelFrame(self.root, text="Sampling / provenance / warnings", padding=8)
         lower.pack(fill="x", padx=10, pady=8)
         ttk.Label(lower, textvariable=self.detail, wraplength=1250, justify="left").pack(anchor="w")
+
+    def open_textured_model(self) -> None:
+        """Open an independent UV visual-model preview, never texture KCL."""
+        filename = filedialog.askopenfilename(
+            parent=self.root,
+            title="Choose PRIVATE Wii Golf UV visual OBJ + MTL + PNG",
+            filetypes=[("UV visual OBJ", "*.obj")])
+        if not filename:
+            return
+        try:
+            model = load_private_visual_model(filename)
+            from .textured_preview import TexturedPreviewWindow
+            TexturedPreviewWindow(self.root, model)
+        except (VisualAssetError, OSError, RuntimeError, tk.TclError, ImportError):
+            messagebox.showerror(
+                "Private texture preview unavailable",
+                "The local visual OBJ/MTL/PNG set or optional Pillow/NumPy renderer "
+                "is unavailable. Select the separate source UV visual model, "
+                "not the collision KCL OBJ.",
+                parent=self.root)
 
     def load_terrain(self) -> None:
         """User opt-in: load only local private OBJ, never read live RAM for terrain."""
