@@ -23,7 +23,7 @@ from .tree_positions import TreePositions, TreePositionsError, load_private_tree
 from .tree_render import draw_tree_layer, fit_points
 from .asset_preferences import (
     AssetSelections, SavedAssetError, discover_private_tree,
-    load_asset_selections, remember_asset, save_asset_selections,
+    inspect_private_trees, load_asset_selections, remember_asset, save_asset_selections,
 )
 
 # Source-qualified candidate channels already captured by the existing read-only
@@ -377,6 +377,27 @@ class Inspector:
                     self._load_tree_file(str(candidate), remember=True)
                 except (TreePositionsError, OSError) as exc:
                     self.tree_status.set(f"Auto-discovered PRIVATE tree source rejected: {exc}")
+            else:
+                _, checks = inspect_private_trees(checkout)
+                rejected = next(((path, reason) for path, reason in checks
+                                 if reason.startswith("rejected:")), None)
+                if rejected is not None:
+                    path, reason = rejected
+                    self.tree_status.set(
+                        f"Trees NOT auto-loaded: {reason} ({path}). "
+                        "Use a verified PRIVATE source JSON outside Git or select manually.")
+                elif checks:
+                    self.tree_status.set(
+                        f"Trees NOT auto-loaded: PRIVATE source-94 JSON not found in "
+                        f"{len(checks)} known locations. Expected: {checks[0][0]}. "
+                        "Choose Load PRIVATE 94 trees if stored elsewhere.")
+                else:
+                    self.tree_status.set(
+                        "Trees NOT auto-loaded: no known PRIVATE data locations found.")
+        elif saved.tree_json is None:
+            self.tree_status.set(
+                "Trees auto-loading disabled by Clear trees. "
+                "Select Load PRIVATE 94 trees to re-enable it.")
         if saved.terrain_obj or saved.tree_json:
             self.asset_settings_status.set(
                 "Saved private asset path(s) checked on launch. Use Load/Clear to change.")
