@@ -58,6 +58,9 @@ class PrivateVisualModel:
     source_name: str
     # MTL Kd fallback only for material with NO texture. Never synthesize PNGs.
     solid_colors: dict[str, tuple[int, int, int]] = field(default_factory=dict)
+    # Source DAE may contain materials with no resolvable original diffuse
+    # art/color. These triangles were OMITTED, not assigned invented colors.
+    skipped_source_faces: int = 0
 
     @property
     def textured_face_count(self) -> int:
