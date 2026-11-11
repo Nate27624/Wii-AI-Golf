@@ -105,6 +105,22 @@ class NativeSourceRasterTests(unittest.TestCase):
         self.assertEqual(nf, sf)
         dif=np.abs(np.asarray(native).astype(np.int16) -
                    np.asarray(cpu).astype(np.int16))
+        if int(dif.max()) > 2:
+            ay,ax,ac=np.unravel_index(int(dif.argmax()),dif.shape)
+            from wii_ai_golf.inspector.texture_sampling import screen_texture_lod
+            from wii_ai_golf.inspector.fast_texture_render import _project
+            xy,_=_project(fast_scene,198,166,cam)
+            lods=[screen_texture_lod(xy[list(face.vertices),:2],
+                      np.array([tiled.uvs[i] for i in face.uvs]),
+                      16,16,int(fast_scene.mip_counts[0]))
+                  for face in tiled.faces]
+            print("FILTER_DIAG",{"first":(int(ax),int(ay),int(ac)),
+                  "fast":tuple(np.asarray(native)[ay,ax]),
+                  "slow":tuple(np.asarray(cpu)[ay,ax]),
+                  "count_mismatch":int(np.count_nonzero(dif>2)),
+                  "levels":lods,
+                  "mip_offsets":fast_scene.mip_offsets[0].tolist(),
+                  "mip_counts":fast_scene.mip_counts.tolist()})
         self.assertLessEqual(int(dif.max()), 2)
 
     def test_mipmap_chain_reduces_checker_speckle_without_modifying_png(self):
