@@ -70,6 +70,37 @@ class Var:
 
 
 class MaterialFitTests(unittest.TestCase):
+    def test_plain_obj_unlabeled_faces_are_not_mistaken_for_kcl_classes(self):
+        from wii_ai_golf.inspector.material_alignment import source_class_counts
+        terrain,visual=fixture()
+        unlabeled=replace(
+            terrain,face_materials=tuple(None for _ in terrain.faces))
+        counts=source_class_counts(unlabeled,visual)
+        self.assertEqual(counts["categories"]["green"]["kcl_source_faces"],0)
+        self.assertEqual(counts["categories"]["green"]["visual_source_faces"],1)
+        self.assertFalse(counts["kcl_source_ogws_labels_recognized"])
+        diag=alignment_diagnostic(unlabeled,visual)
+        self.assertEqual(diag["status"],"SOURCE_DISPLAY_REGISTRATION_DECLINED")
+        self.assertIn("KCL green=0 fairway=0",diag["reason"])
+        self.assertIn("-labels-PRIVATE.json",diag["reason"])
+        self.assertEqual(diag["source_class_counts"]["categories"]["fairway"][
+            "visual_source_faces"],1)
+        self.assertFalse(diag["native_world_proven"])
+
+    def test_dae_materials_missing_identified_separately_from_source_kcl(self):
+        terrain, visual=fixture()
+        stripped=replace(visual,faces=tuple(replace(face,material="M_Other")
+                             for face in visual.faces))
+        result=alignment_diagnostic(terrain,stripped)
+        self.assertEqual(result["status"],"SOURCE_DISPLAY_REGISTRATION_DECLINED")
+        self.assertIn("KCL green=1 fairway=1",result["reason"])
+        self.assertIn("DAE green=0 fairway=0",result["reason"])
+        self.assertIn("SAME course",result["reason"])
+        self.assertTrue(result["source_class_counts"][
+            "kcl_source_ogws_labels_recognized"])
+        self.assertFalse(result["source_class_counts"][
+            "visual_source_material_labels_recognized"])
+
     def test_independently_verified_scale_yaw_translation(self):
         terrain,visual=fixture()
         alignment=derive_material_alignment(terrain,visual)
