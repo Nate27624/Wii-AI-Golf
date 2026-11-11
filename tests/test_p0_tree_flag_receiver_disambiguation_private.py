@@ -34,7 +34,7 @@ def fixture():
     for _,(site,dest) in m.TARGETS.items():
         words[site]=direct_call(site,dest)
     # Native PSVECSquareDistance flag and exact native FieldManager loop.
-    src=m.native.UNITS["FieldManager"][0]
+    src=m.native.LOOP  # Source resource-loader anchor, not FieldManager unit start
     tree=m.TREE
     ball=m.native.UNITS["Ball"][0]
     words.update({
@@ -143,7 +143,7 @@ class TreeReceiverIdentityTests(unittest.TestCase):
     def test_known_fieldmanager_tree_loop_direct_caller(self):
         _,read,mem,bank,base=fixture()
         r=m.find_callers(read)
-        self.assertIn("FieldManager+0x06F0",
+        self.assertIn("FieldManager+0x2BB4",
                       r["tree_distance_flag_writer"])
 
     def test_proven_source_module_is_not_hitbox(self):
