@@ -28,6 +28,16 @@ class SourceFootprintAuditTests(unittest.TestCase):
         self.assertEqual(r["source_edge_connected_component_count"], 1)
         self.assertEqual(r["component_count_over_1pct_area"], 1)
         self.assertAlmostEqual(r["largest_component_area_fraction"], 1.)
+        self.assertAlmostEqual(
+            r["triangle_surface_area_sum_over_source_diagonal_squared"],
+            0.25, places=6)
+        self.assertAlmostEqual(
+            r["absolute_projected_xz_area_sum_over_source_diagonal_squared"],
+            0.25, places=6)
+        self.assertAlmostEqual(
+            r["triangle_area_median_over_source_diagonal_squared"],
+            0.125, places=6)
+        self.assertTrue(r["mesh_tessellation_and_collision_area_not_equivalent"])
 
     def test_distant_source_material_patches_are_not_collapsed_to_one_landmark(self):
         pts = (
