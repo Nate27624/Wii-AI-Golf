@@ -74,6 +74,41 @@ class SelectionTests(unittest.TestCase):
         self.assertNotIn("170.0", raw)
         self.assertFalse(list(self.settings.parent.glob("*.tmp")))
 
+    def test_original_dae_selection_persists_independent_of_kcl(self):
+        dae=self.base / "original-private-course.dae"
+        dae.write_text("<COLLADA/>", encoding="ascii")
+        state=remember_asset(AssetSelections(), "tree_json", self.tree)
+        state=remember_asset(state, "visual_dae", dae)
+        save_asset_selections(state, self.settings)
+        loaded=load_asset_selections(self.settings)
+        self.assertEqual(loaded.visual_dae, str(dae.resolve()))
+        self.assertEqual(loaded.tree_json, str(self.tree.resolve()))
+        self.assertIsNone(loaded.terrain_obj)
+        self.assertTrue(loaded.auto_find_trees)
+        self.assertNotIn("<COLLADA", self.settings.read_text("utf-8"))
+        self.assertEqual(remember_asset(loaded, "visual_dae", None).tree_json,
+                         str(self.tree.resolve()))
+
+    def test_legacy_saved_tree_and_terrain_paths_migrate_without_reset(self):
+        legacy={"version":1, "terrain_obj":str(self.obj.resolve()),
+                "tree_json":str(self.tree.resolve()),
+                "auto_find_trees":True}
+        self.settings.parent.mkdir(parents=True)
+        self.settings.write_text(json.dumps(legacy), encoding="utf-8")
+        read=load_asset_selections(self.settings)
+        self.assertIsNone(read.visual_dae)
+        self.assertEqual(read.tree_json,legacy["tree_json"])
+        self.assertEqual(read.terrain_obj,legacy["terrain_obj"])
+        save_asset_selections(read,self.settings)
+        self.assertIn("visual_dae",json.loads(self.settings.read_text("utf-8")))
+        self.assertEqual(load_asset_selections(self.settings).tree_json,
+                         legacy["tree_json"])
+
+    def test_visual_path_rejects_relative_and_malformed_values(self):
+        for bad in ("relative.dae","",42,False,"a\\n.dae"):
+            with self.subTest(bad=bad),self.assertRaises(SavedAssetError):
+                save_asset_selections(AssetSelections(visual_dae=bad),self.settings)
+
     def test_tree_clear_prevents_auto_rediscovery(self):
         saved = remember_asset(AssetSelections(), "tree_json", self.tree)
         cleared = remember_asset(saved, "tree_json", None)
