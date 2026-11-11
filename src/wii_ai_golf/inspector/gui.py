@@ -22,6 +22,8 @@ from .navigation import pan_by, wheel_steps, zoom_at_cursor
 from .visual_model import VisualAssetError, load_private_visual_model
 from .dae_visual import load_private_dae_visual_model
 from .collada_scene_graph import UnsupportedSceneFeature
+from .private_course_catalog import (
+    inspect_private_course, DEFAULT_PRIVATE_ROOT)
 from .startup import StartupError, occupied_bridge, powershell_command, runtime_checkout
 from .tree_positions import TreePositions, TreePositionsError, load_private_tree_positions
 from .tree_render import draw_tree_layer, fit_points
@@ -246,6 +248,9 @@ class Inspector:
         ttk.Label(left, textvariable=self.phase, wraplength=190).pack(fill="x", pady=6)
         ttk.Button(left, text="Set aim baseline (point at flag)", command=self.set_baseline).pack(fill="x")
         ttk.Button(left, text="Load PRIVATE visual DAE / OBJ", command=self.open_textured_model).pack(fill="x", pady=(6, 0))
+        ttk.Button(
+            left, text="Try Course 2 (FC2) — candidate",
+            command=self.try_visual_course_2).pack(fill="x", pady=(3, 0))
         ttk.Button(left, text="Show unified 3D source viewer", command=self.show_visual_tab).pack(fill="x", pady=(3, 0))
         ttk.Label(left, textvariable=self.aim, wraplength=200).pack(fill="x", pady=7)
 
@@ -443,6 +448,23 @@ class Inspector:
             Inspector._remember_private_asset(self, "visual_dae", filename)
         self.show_visual_tab()
         return True
+
+    def try_visual_course_2(self) -> bool:
+        """Operator opt-in: swap only the original PRIVATE visual layer.
+
+        This never changes the source KCL, OGWS labels, tree positions,
+        source-ball state, original source bytes or native game transforms.
+        Do not silently use saved FC1 when FC2 is missing.
+        """
+        candidate = inspect_private_course(2, DEFAULT_PRIVATE_ROOT)
+        if candidate.exported_dae is None:
+            self.visual_status.set(
+                "COURSE 2 NOT YET EXPORTED — Original local "
+                "glf_course_fc2.dae absent from WiiGolfVisualPrivate/"
+                "visual_exports. Export glf_course_fc2.brres MDL0 and "
+                "TEX0 using BrawlCrate, then retry. Existing preview unchanged.")
+            return False
+        return self.load_visual_path(str(candidate.exported_dae))
 
     def open_textured_model(self) -> None:
         """Load a source UV visual model in the INTEGRATED visual tab."""
