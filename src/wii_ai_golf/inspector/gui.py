@@ -18,6 +18,7 @@ from .a_live import LiveAIndicator
 from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE
 from .navigation import pan_by, wheel_steps, zoom_at_cursor
 from .startup import StartupError, occupied_bridge, powershell_command, runtime_checkout
+from .visual_model import VisualAssetError, load_private_visual_model
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -166,6 +167,7 @@ class Inspector:
         ttk.Label(left, textvariable=self.phase, wraplength=190).pack(fill="x", pady=6)
         ttk.Button(left, text="Set aim baseline (point at flag)", command=self.set_baseline).pack(fill="x")
         ttk.Button(left, text="Frame view (F)", command=self.frame_view).pack(fill="x", pady=(6, 0))
+        ttk.Button(left, text="Preview PRIVATE game textures", command=self.open_textured_model).pack(fill="x", pady=(6, 0))
         ttk.Label(left, textvariable=self.aim, wraplength=200).pack(fill="x", pady=7)
 
         self.canvas = tk.Canvas(center, background="#111c29", height=450, highlightthickness=0)
@@ -225,6 +227,24 @@ class Inspector:
         lower = ttk.LabelFrame(self.root, text="Sampling / provenance / warnings", padding=8)
         lower.pack(fill="x", padx=10, pady=8)
         ttk.Label(lower, textvariable=self.detail, wraplength=1250, justify="left").pack(anchor="w")
+
+    def open_textured_model(self) -> None:
+        """Opt-in user-extracted original VISUAL UV model, never KCL guessing.
+
+        Separate local inspector window; never delays the source-gated
+        Dolphin reader, writes game state or uploads private image bytes.
+        """
+        filename = filedialog.askopenfilename(
+            parent=self.root, title="Choose PRIVATE Wii Golf UV visual model (OBJ + MTL + PNG)",
+            filetypes=[("UV Wavefront visual model", "*.obj")])
+        if not filename:
+            return
+        try:
+            model = load_private_visual_model(filename)
+            from .textured_preview import TexturedPreviewWindow
+            TexturedPreviewWindow(self.root, model)
+        except (VisualAssetError, OSError, RuntimeError, tk.TclError) as exc:
+            messagebox.showerror("Private visual texture preview declined", str(exc), parent=self.root)
 
     def load_terrain(self) -> None:
         """User opt-in: load only local private OBJ, never read live RAM for terrain."""
