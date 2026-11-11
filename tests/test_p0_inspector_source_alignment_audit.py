@@ -18,6 +18,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from wii_ai_golf.inspector.visual_model import VisualAssetError
+from wii_ai_golf.inspector.collada_scene_graph import source_scene_instances
+import xml.etree.ElementTree as ET
 from wii_ai_golf.inspector.scene_alignment_audit import (
     RegistrationAuditError, audit_collada_scene, audit_surface_registration)
 from test_p0_inspector_unified_source_view import scene
@@ -91,6 +94,44 @@ class PrivateSceneAlignmentTests(unittest.TestCase):
                             '<COLLADA/>', encoding="utf-8")
         with self.assertRaises(RegistrationAuditError):
             audit_collada_scene(self.dae)
+
+    def test_source_scene_inventory_exposes_unsupported_active_tags(self):
+        self._scene('<instance_controller url="#skin"/>' +
+                    '<instance_node url="#other"/>' +
+                    '<lookat>0 0 1 0 0 0 0 1 0</lookat>')
+        result = audit_collada_scene(self.dae)
+        self.assertTrue(result["active_scene_resolved_for_inventory"])
+        self.assertEqual(result["active_unsupported_construct_counts"], {
+            "instance_controller": 1, "instance_node": 1, "lookat": 1})
+        self.assertTrue(result["active_scene_requires_unimplemented_processing"])
+        self.assertTrue(result["unsupported_constructs_are_not_safely_ignorable"])
+        # The actual source geometry loader still fails closed rather than
+        # dropping a controller and claiming accurate course registration.
+        with self.assertRaisesRegex(
+                VisualAssetError,
+                "Unsupported original scene graph transform/controller"):
+            source_scene_instances(ET.parse(self.dae).getroot())
+
+    def test_scene_only_inventory_never_calls_original_art_loader_or_memory(self):
+        self._scene('<instance_controller url="#skin"/>')
+        out = StringIO()
+        with patch("p0_inspect_course_alignment_private.load_private_dae_visual_model",
+                   side_effect=AssertionError("Should not render private DAE")), \\
+             patch("p0_inspect_course_alignment_private.load_private_obj",
+                   side_effect=AssertionError("Should not read KCL")), \\
+             patch("p0_inspect_course_alignment_private.source_gated_live_anchors",
+                   side_effect=AssertionError("Should not contact Dolphin")), \\
+             redirect_stdout(out):
+            exit_code = alignment_audit_main((
+                "--scene-only", "--visual-dae", str(self.dae)))
+        self.assertEqual(exit_code, 0)
+        data = json.loads(out.getvalue())
+        self.assertEqual(data["status"], "SOURCE_COLLADA_SCENE_INVENTORY_ONLY")
+        self.assertEqual(data["dae_visual_scene"]
+                         ["active_unsupported_construct_counts"],
+                         {"instance_controller": 1})
+        self.assertFalse(data["game_world_alignment_verified"])
+        self.assertFalse(data["training_approved"])
 
     def test_surface_anchors_never_claim_native_registration(self):
         visual, terrain = scene()
@@ -180,6 +221,36 @@ class PrivateSceneAlignmentTests(unittest.TestCase):
         self.assertFalse(report["source_visual_world_alignment_verified"])
         self.assertFalse(report["training_approved"])
         self.assertEqual(unlabeled.face_materials, (None, None))
+
+    def test_cli_reports_source_graph_rejection_instead_of_raw_abort(self):
+        visual, terrain = scene()
+        out = StringIO()
+        scene_inventory = {
+            "active_unsupported_construct_counts": {"instance_controller": 3},
+            "active_scene_requires_unimplemented_processing": True,
+        }
+        with patch("p0_inspect_course_alignment_private.load_asset_selections",
+                   return_value=SimpleNamespace(terrain_obj=None, tree_json=None)), \\
+             patch("p0_inspect_course_alignment_private.load_private_obj",
+                   return_value=terrain), \\
+             patch("p0_inspect_course_alignment_private.load_private_dae_visual_model",
+                   side_effect=VisualAssetError(
+                       "Unsupported original scene graph transform/controller")), \\
+             patch("p0_inspect_course_alignment_private.audit_collada_scene",
+                   return_value=scene_inventory), \\
+             redirect_stdout(out):
+            code = alignment_audit_main((
+                "--terrain-obj", "original-PRIVATE.obj",
+                "--visual-dae", "original-PRIVATE.dae", "--offline"))
+        self.assertEqual(code, 2)
+        data = json.loads(out.getvalue())
+        self.assertEqual(data["status"], "ABSTAIN_SOURCE_VISUAL_MODEL")
+        self.assertEqual(data["reason"],
+                         "UNSUPPORTED_OR_UNRESOLVED_SOURCE_SCENE_GRAPH")
+        self.assertEqual(data["dae_visual_scene"], scene_inventory)
+        self.assertFalse(data["course_material_alignment_scored"])
+        self.assertFalse(data["native_world_transform_verified"])
+        self.assertFalse(data["training_approved"])
 
     def test_cli_abstains_without_valid_kcl_source_materials(self):
         visual, labeled = scene()
