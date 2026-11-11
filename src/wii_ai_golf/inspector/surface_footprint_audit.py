@@ -58,6 +58,7 @@ def _region(verts, faces, diagonal):
 
     edges = {}
     areas = []
+    projected_xz_areas = []
     centers = []
     mins = [float("inf"), float("inf")]
     maxs = [-float("inf"), -float("inf")]
@@ -86,6 +87,8 @@ def _region(verts, faces, diagonal):
         if not math.isfinite(area) or area < 0:
             return {"status": "ABSTAIN_NONFINITE_SOURCE_AREA"}
         areas.append(area)
+        projected_xz_areas.append(
+            abs(ab[0] * ac[2] - ab[2] * ac[0]) * 0.5)
         centers.append(((a[0]+b[0]+c[0])/3,
                         (a[2]+b[2]+c[2])/3))
 
@@ -115,10 +118,22 @@ def _region(verts, faces, diagonal):
         return {"status": "ABSTAIN_NONFINITE_COMPONENT_DISPERSION"}
     ordered = sorted(component_areas, key=lambda root: (
         -component_areas[root], root))
+    scaled_areas = sorted(area / (diagonal * diagonal) for area in areas)
+    def percentile(p: float) -> float:
+        # Order statistic for source-only distribution: never infer physical
+        # contact area, friction, world transform, or a game collision surface.
+        return round(scaled_areas[round((len(scaled_areas)-1)*p)], 9)
     return {
         "status": "SOURCE_LOCAL_MATERIAL_FOOTPRINT_DIAGNOSTIC_ONLY",
         "source_triangle_count": n,
         "edge_weld_precision_decimal_places": _VERTEX_DIGITS,
+        "triangle_area_median_over_source_diagonal_squared": percentile(0.5),
+        "triangle_area_p90_over_source_diagonal_squared": percentile(0.9),
+        "triangle_surface_area_sum_over_source_diagonal_squared": round(
+            total / (diagonal * diagonal), 6),
+        "absolute_projected_xz_area_sum_over_source_diagonal_squared": round(
+            sum(projected_xz_areas) / (diagonal * diagonal), 6),
+        "mesh_tessellation_and_collision_area_not_equivalent": True,
         "source_edge_connected_component_count": len(ordered),
         "component_count_over_1pct_area": sum(
             area >= 0.01*total for area in component_areas.values()),
