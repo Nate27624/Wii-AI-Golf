@@ -22,6 +22,8 @@ from .texture_render import PreviewCancelled, prepare_textures, render_preview
 from .fast_texture_render import (
     accelerated_available, prepare_fast_scene, render_fast)
 from .visual_model import PrivateVisualModel, VisualAssetError
+from .source_markers import (
+    SourceMarkerSnapshot, draw_source_markers, source_marker_status)
 
 
 class TexturedPreviewWindow:
@@ -48,6 +50,16 @@ class TexturedPreviewWindow:
         self.home_camera = frame_playable_camera(model)
         self.camera = self.home_camera
         self.comparison_kcl = None
+        self.tree_source = None
+        self.actor_snapshot: SourceMarkerSnapshot | None = None
+        self.show_trees = tk.BooleanVar(value=False)
+        self.show_tree_crowns = tk.BooleanVar(value=False)
+        self.show_ball = tk.BooleanVar(value=False)
+        self.show_tee_pin = tk.BooleanVar(value=False)
+        self.show_cache = tk.BooleanVar(value=False)
+        self.show_player = tk.BooleanVar(value=False)
+        self.marker_status = tk.StringVar(
+            value="Optional original trees/ball/tee/pin not loaded · actor alignment UNVERIFIED")
         self.mode = tk.StringVar(value="Textures")
         self.comparison_status = tk.StringVar(
             value="KCL: none loaded · texture source coordinates unverified.")
@@ -110,6 +122,24 @@ class TexturedPreviewWindow:
                  "RMB+WASD/QE fly · wheel dolly · Shift faster",
             wraplength=670,
         ).pack(side="left", padx=8)
+
+        # Source-backed overlays toggled independently at top of 3D view.
+        # Player identity has no verified 3D body position or original mesh.
+        overlay_controls = ttk.Frame(self.top, padding=(6, 2))
+        overlay_controls.pack(fill="x")
+        for label, var in (
+            ("Trees (94 bases)", self.show_trees),
+            ("Illustrative crowns (NOT native art)", self.show_tree_crowns),
+            ("Ball candidate", self.show_ball),
+            ("Tee / flag candidates", self.show_tee_pin),
+            ("Cache candidate", self.show_cache),
+            ("Player ID only (no 3D position)", self.show_player),
+        ):
+            ttk.Checkbutton(overlay_controls, text=label, variable=var,
+                            command=self.toggle_source_markers).pack(
+                                side="left", padx=(0, 5))
+        ttk.Label(self.top, textvariable=self.marker_status,
+                  wraplength=820, padding=(8, 1)).pack(fill="x")
 
         self.canvas = tk.Canvas(self.top, background="#13202e",
                                 takefocus=1, highlightthickness=0, height=460)
@@ -174,6 +204,32 @@ class TexturedPreviewWindow:
             f"· yaw={cam.yaw:.3f}, pitch={cam.pitch:.3f} "
             "· RMB turn must NOT change eye X/Y/Z")
 
+    def toggle_source_markers(self):
+        """Only source-backed optional layers, not collision calibration."""
+        self._update_marker_status()
+        self.schedule()
+
+    def _update_marker_status(self):
+        if not hasattr(self, "marker_status"):
+            return
+        self.marker_status.set(source_marker_status(
+            getattr(self, "actor_snapshot", None),
+            getattr(self, "tree_source", None),
+            getattr(self, "comparison_kcl", None),
+            show_player=self.show_player.get()))
+
+    def set_source_trees(self, trees):
+        """Trees already validated by strict private source 94 JSON loader."""
+        self.tree_source = trees
+        self._update_marker_status()
+        self.schedule()
+
+    def set_actor_snapshot(self, snapshot: SourceMarkerSnapshot | None):
+        """Qualified single-sample candidate markers; no temporal joins."""
+        self.actor_snapshot = snapshot
+        self._update_marker_status()
+        self.schedule()
+
     def _request_full_render(self):
         self._pending = None
         if self._closed:
@@ -204,13 +260,20 @@ class TexturedPreviewWindow:
         self._queued = None
         cancel = Event()
         self._cancel_render = cancel
+        # Extract Tk variables on the main thread, never from rendering thread.
+        flags = (
+            self.show_trees.get(), self.show_tree_crowns.get(),
+            self.show_ball.get(), self.show_tee_pin.get(),
+            self.show_cache.get(),
+        )
         future = self._executor.submit(
             self._render_frame, width, height, camera, cancel.is_set,
-            mode, kcl)
+            mode, kcl, self.tree_source, self.actor_snapshot, flags)
         self._render_future = (version, camera, future)
 
     def _render_frame(self, width, height, camera, cancelled,
-                      mode="Textures", collision=None):
+                      mode="Textures", collision=None, trees=None,
+                      actors=None, flags=(False, False, False, False, False)):
         """Worker-only: one source-local camera, no Tk operations or writes."""
         if cancelled():
             raise PreviewCancelled()
@@ -228,6 +291,14 @@ class TexturedPreviewWindow:
             raise PreviewCancelled()
         if collision is not None and mode in {"Collision", "Both"}:
             image = draw_comparison(image, collision, camera, mode=mode)
+        if cancelled():
+            raise PreviewCancelled()
+        if collision is not None and any(flags):
+            image, _ = draw_source_markers(
+                image, camera, collision, trees, actors,
+                show_trees=flags[0], show_tree_crowns=flags[1],
+                show_ball=flags[2], show_tee_pin=flags[3],
+                show_cache=flags[4])
         if cancelled():
             raise PreviewCancelled()
         return image, drawn, (time.perf_counter()-started)*1000.
@@ -447,6 +518,7 @@ class TexturedPreviewWindow:
             self.comparison_kcl = comp
             self.mode.set("Both")
             self.comparison_status.set(overlay_summary(comp))
+        self._update_marker_status()
         self.schedule()
 
     def close(self):
