@@ -13,7 +13,8 @@ import re
 import xml.etree.ElementTree as ET
 
 from .collada_scene_graph import (
-    IDENTITY, apply_source_node_transform, source_scene_instances,
+    IDENTITY, UnsupportedSceneFeature, apply_source_node_transform,
+    source_scene_instances,
 )
 from .visual_model import (
     MAX_OBJ_BYTES, MAX_PNG_BYTES, MAX_TOTAL_TEXTURE_BYTES, MAX_TEXTURES,
