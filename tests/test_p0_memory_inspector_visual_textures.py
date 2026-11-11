@@ -155,6 +155,8 @@ class VisualAssetTests(unittest.TestCase):
         win.model = Mock()
         win.model.faces = [None] * 9
         win.textures = {}
+        win.fast_scene = None
+        win.fast_active = False
         from wii_ai_golf.inspector.scene_camera import fit_camera, look_in_place
         win.camera = fit_camera(((0., 0., 0.), (5., 5., 0.)))
         win.home_camera = win.camera
@@ -191,7 +193,7 @@ class VisualAssetTests(unittest.TestCase):
         self.assertEqual(win._executor.submit.call_count, 2)
 
         frame = Image.new('RGB', (360, 240), (30, 180, 70))
-        second.set_result((frame, 9))
+        second.set_result((frame, 9, 12.3))
         with patch('PIL.ImageTk.PhotoImage', return_value='fake-photo'):
             win._poll_completed()
         win.canvas.create_image.assert_called_once()
