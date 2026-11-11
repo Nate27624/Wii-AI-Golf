@@ -171,3 +171,34 @@ FC1 is the active game hole**. Users may always choose
 `Load PRIVATE visual DAE / OBJ` manually instead. Original-game accuracy,
 source-to-visual 3D alignment, tree model ownership, and operator screenshot
 confirmation remain pending.
+
+
+## Operator screenshot: visual DAE yaw differs from KCL/trees
+
+The operator's November 11 integrated-source screenshot shows the textured
+FC1 course visually pointing opposite the cyan KCL enclosure and 94 tree
+markers. The current KCL/DAE comparison is a **bounds-fit visualization**, not
+a verified native scene transform. A bounds fit alone does not recover
+orientation. It can make two same-sized but oppositely directed geometries
+look superimposed.
+
+The original 2,498 source KCL triangles, source XYZ tree JSON, and UV/PNG
+visual assets are immutable. The unified preview now defaults to an explicit
+**+Y 180° display-only comparison yaw hypothesis**, rotating the KCL and
+trees **together** around the visual bounds center (after source scale and
+translation). The GUI provides **0°, 90°, 180°, 270°** radio choices so the
+operator can compare opposite and perpendicular orientations. The selected
+angle appears in the comparison status (including **UNVERIFIED**). Turning
+it does not rotate the native visual model, mutate source KCL/tree data,
+move the camera, affect Dolphin, or establish an actual game-world mapping.
+
+At 90°/270°, fit scale is recomputed from the appropriately swapped
+horizontal extents; neither KCL triangles nor tree bases receive an
+independent rotation. Source tree dots and illustrative crown polygons both
+call the *same* source-to-display transform as the KCL polygon vertices,
+preventing future tree/KCL overlay drift. The active choice lasts within
+that inspector window; initial orientation hypothesis is 180° on reopen.
+
+Visual validation against actual course landmarks (distinct tee, flag,
+bunkers, and ends of fairway) remains necessary. Matching by eye does not
+prove native scene graph transforms or tree hitboxes.
