@@ -2345,3 +2345,21 @@ Dolphin, and never modifies the original data. Original
 native contact receiver, separate wood/leaves physical
 response, tree-specific hitbox radii and Ball velocity
 remain UNPROVEN; `training_approved=false`.
+
+
+The source-phase triage also tests a *strictly tentative*
+geometric hypothesis: decode finite source `Ball+0x30`
+12-byte candidate triplets and each of the 94 original
+tree `+0x30` centres, requiring each source tree triplet
+to be **unchanged across the original trial snapshots**.
+For the sustained movement run, it ranks source tree
+array indices by assumed XZ and XYZ component-wise
+squared distance, without outputting any original
+XYZ or distance. It reports whether the six
+`11/38/40 × (+0x24/+0x2C)` memory-change candidates
+were among nearby source tree records under these
+**unproven common-coordinate-space assumptions**.
+A near rank by itself is a **spatial-coincidence
+hypothesis**, not proof of a trunk/canopy hitbox
+or native Ball→Tree collision. If any tree origin
+changes, the spatial rank **abstains**.
