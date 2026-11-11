@@ -66,5 +66,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_inspector_visual_fallback_regression.py -v
       - name: Source material scale calibration with independent holdout
         run: python -m unittest discover -s tests -p test_p0_inspector_material_alignment.py -v
+      - name: Original Collada bind-shape scale read-only audit tests
+        run: python -m unittest discover -s tests -p test_p0_inspector_controller_scale_audit.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
