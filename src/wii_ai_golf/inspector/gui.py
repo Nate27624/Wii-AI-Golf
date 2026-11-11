@@ -614,10 +614,16 @@ class Inspector:
             return
         data = getattr(self, "tree_positions", None)
         points = data.drawing_positions() if data is not None else ()
-        preview.set_tree_overlay(
-            points, visible=self.tree_visible.get(),
-            illustrations=self.tree_illustrations.get(),
-            labels=self.tree_labels.get())
+        setter = getattr(preview, "set_tree_overlay", None)
+        if not callable(setter):
+            return  # Compatibility with visual-only synthetic GUI stubs.
+        shown = getattr(self, "tree_visible", None)
+        crowns = getattr(self, "tree_illustrations", None)
+        ids = getattr(self, "tree_labels", None)
+        setter(
+            points, visible=shown is None or shown.get(),
+            illustrations=crowns is None or crowns.get(),
+            labels=ids is not None and ids.get())
 
     def pick(self, var: tk.StringVar) -> None:
         name = filedialog.askopenfilename(title="Choose local file (not uploaded)")
