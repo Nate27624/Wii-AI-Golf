@@ -937,3 +937,86 @@ octree ownership and physics reaction remain
 unverified. No physical trunk radius, foliage
 height or restitution inferred. Keep training
 unapproved and visual tree markers nonphysical.
+
+## Original phase7 **exact** 3D/XZ triangle reconstruction proves 94 tree origins follow terrain
+
+Operator source- and SHA-gated real capture 7 using
+`p0_tree_kcl_exact_triangle_distance_private.py` at exact
+`cdb09279c48967f1281805210e0fe84abc5835eb`
+confirmed actual original 2498-prism vertex reconstruction:
+- **94 of 94** tree locations project **inside the footprint of an
+  actual, not only AABB, near-horizontal course KCL triangle**.
+  Same is true for tee and pin.
+- Tree nearest *actual* source KCL 3D triangle distance:
+  **min 0.004, median 0.649, max 4.743** source units;
+  signed Y clearance tree origin above nearest ground-like
+  triangle: **min -4.842, median -0.657, max +0.473**;
+  all 94 under 5 absolute vertical units from some course
+  triangle with XZ footprint coverage.
+- Tee actual 3D triangle distance **0.503** (flag
+  `0x0001` FAIRWAY); pin actual 3D triangle distance
+  **0.047** (flag `0x0006` GREEN). Tee/pin XZ projections
+  also inside actual horizontal triangles.
+- Tree nearest actual 3D KCL material flags:
+  **22 ROUGH `0x0002`**, **72 OUT-OF-BOUNDS `0x0004`**.
+  This 72/22 surface split coincides in MARGINAL totals
+  with the original tree-object raw +0x04/+0x08 word
+  group partition **72/22**. It is **NOT yet proven
+  that the same 72 individual trees form the same
+  resource group**: needs per-tree PRIVATE cross-tab.
+- Original KCL **128 near-vertical** triangles have
+  actual tree-origin 3D distances **min 99.536,
+  median 676.515, max 1588.122** source units.
+  Exact projected XZ min **98.472**, median
+  **675.970**, max **1588.088**. **0/94** tree
+  centres are within 50 units in actual 3D or XZ
+  triangle distance; **1/94 <=100**, **9/94 <=200**,
+  **30/94 <=500** source units.
+  Nearest near-vertical surface for each tree
+  has flag **`0x000C` CLIFF** (94 of 94).
+  Tee/pin nearest vertical faces also `0x000C`,
+  at 309.613 / 213.433 units actual 3D
+  respectively.
+- KCL contains **2363 near-horizontal** faces;
+  for tee, pin and every tree, nearest actual KCL
+  point comes from a near-horizontal face.
+- The earlier AABB-only premise is now independently
+  validated as compatible terrain alignment by
+  exact barycentric XZ coverage and actual small
+  signed Y/3D distances. **This strongly supports
+  candidate KCL as ground/terrain geometry, not
+  detailed obstacle trunk/foliage surfaces.**
+  Caveat: the recovered 2498 source prism KCL's
+  **octree membership in the native ball collision
+  query remains unproven**, and no separate
+  actual tree collider has been identified.
+
+**Do not misinterpret:**
+1. The 72/22 marginal match is *not* per-tree
+   resource/ground correlation proof.
+2. A tree origin on OOB or rough ground is
+   *not* proof of no actual collision with
+   leaves or trunk, nor proof of a distinct
+   tree hitbox resource.
+3. “99.536 units to nearest vertical cliff”
+   is NOT a collision radius; many other
+   collision mechanisms may exist.
+4. No native ball-tree contact, tree geometry
+   shape, canopy damping, restitution or
+   learning labels have been proven.
+
+Added read-only original `scripts/p0_tree_kcl_surface_group_join_private.py`,
+strictly requires same SHA/scene/94x84 source tree PPC
+and unique 2498 typed KCL prism source. It builds a
+PRIVATE per-tree join of source raw object `+0x04/+0x08`
+word-pair group membership with the nearest exact
+3D KCL terrain flag and reports ONLY an anonymous
+2x2 group-vs-`ROUGH/OOB` aggregate contingency
+table, scale anisotropy and median ground distances.
+Synthetic tests deliberately include **equal
+72/22 marginal counts but an imperfect cross-tab**,
+to prevent claiming agreement from totals alone.
+No game memory addresses, original tree XYZ,
+individual records or private triangle vertices
+are ever emitted to repo or console; source
+values stay local. Tree hitboxes and training false.
