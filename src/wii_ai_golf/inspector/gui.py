@@ -98,6 +98,7 @@ class Inspector:
         self.aim_baseline_mode = "assumed first packet"
         self.a_indicator = LiveAIndicator(None)
         self.a_status = tk.StringVar(value="A UNKNOWN")
+        self.club_status = tk.StringVar(value="CLUB UNKNOWN")
         self.terrain_mesh: TerrainMesh | None = None
         self.terrain_visible = tk.BooleanVar(value=True)
         self.terrain_focus = tk.BooleanVar(value=True)
@@ -151,6 +152,12 @@ class Inspector:
         a_panel.pack(fill="x", pady=3)
         ttk.Label(a_panel, textvariable=self.a_status, font=("Segoe UI", 17, "bold")).pack(side="left")
         ttk.Label(a_panel, text="  Candidate only · start with A RELEASED · press after two baseline samples",
+                  foreground="#566171").pack(side="left")
+        club_panel = ttk.Frame(head)
+        club_panel.pack(fill="x", pady=(0, 4))
+        ttk.Label(club_panel, textvariable=self.club_status,
+                  font=("Segoe UI", 17, "bold")).pack(side="left")
+        ttk.Label(club_panel, text="  Rev1 live verified index · read-only · offline UNKNOWN · training not approved",
                   foreground="#566171").pack(side="left")
 
         main = ttk.PanedWindow(self.root, orient="horizontal")
@@ -295,6 +302,7 @@ class Inspector:
         self.aim_baseline_source = None
         self.a_indicator = LiveAIndicator(None)
         self.a_status.set("A UNKNOWN")
+        self.club_status.set("CLUB UNKNOWN")
         self.phase_list.delete(0, "end")
         self.phases: list[tuple[str, int]] = []
         for i, sample in enumerate(replay.samples):
@@ -422,6 +430,7 @@ class Inspector:
         self.baseline = None
         self.aim_baseline_source = None
         self.a_status.set("A UNKNOWN")
+        self.club_status.set("CLUB UNKNOWN")
         self.a_reason.set("Connecting; first two samples assume A is RELEASED")
         self.replay = None
         self.phases = []
@@ -455,6 +464,7 @@ class Inspector:
                     self.slider.configure(to=max(1, len(self.live_buffer) - 1))
                     self.show(len(self.live_buffer) - 1)
                     self.process_a_sample(event)
+                    self.club_status.set("CLUB " + event.club_label)
                     self.status.set(f"LIVE READ-ONLY · {self.live_location} · {self.live_rate:.2f} samples/s "
                                     f"· read {event.read_duration_ms:.0f} ms / {event.rpc_calls} RPCs "
                                     "· source checked · training_approved=false")
@@ -462,6 +472,7 @@ class Inspector:
                     self.status.set("LIVE FAILED: " + event.reason + " Existing sample trace frozen. Check RSPE01 Rev1 and bridge.")
                     self.live_last = None
                     self.a_status.set("A UNKNOWN")
+                    self.club_status.set("CLUB UNKNOWN")
                     self.a_reason.set("bridge disconnected, stale, or error")
                     self.draw_a_overlay()
                     self.a_indicator.clear()
@@ -469,6 +480,7 @@ class Inspector:
                     self.status.set("LIVE DISCONNECTED. Existing sample trace retained; no background retries.")
                     self.live_last = None
                     self.a_status.set("A UNKNOWN")
+                    self.club_status.set("CLUB UNKNOWN")
                     self.a_reason.set("bridge disconnected, stale, or error")
                     self.draw_a_overlay()
                     self.a_indicator.clear()
@@ -476,6 +488,7 @@ class Inspector:
                 age = time.monotonic() - self.live_last
                 if age > 3.0:
                     self.a_status.set("A UNKNOWN")
+                    self.club_status.set("CLUB UNKNOWN")
                     self.a_reason.set("bridge disconnected, stale, or error")
                     self.draw_a_overlay()
                     self.a_indicator.clear()
