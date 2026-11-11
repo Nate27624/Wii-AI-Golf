@@ -1845,3 +1845,120 @@ or live memory writes are part of this
 read-only script. Separate #431/#432
 visualization work remains untouched.
 `training_approved=false`.
+
+
+## Source-complete tree-table triage and controlled tree-contact trial
+
+**Operator correction:** there is **no previously captured or visually
+verified ball/tree contact observation** in this project. No existing
+captured flight may be labeled `tree_hit` or used to fit a physical
+tree collider. A new operator-controlled observation must first be
+produced, or this research stays at source-only UNKNOWN.
+
+The operator executed `p0_tree_full_public_table_targets_private.py
+--capture 7` pinned to exact commit
+`1fdc8de8b1158a86ee38de62d902b77637e78854`.
+All original source SHA/scene/94x84 field tree loop and native
+Ball/KCol 5+7/primitive-producer gates passed, as did the retained
+public Rev1 complete `.text` source-map provenance.
+Of the 64 four-byte entries read starting at the shared
+firstword pointer common to all 94 tree records:
+- **20** fall into `RPGolMapObjBall.cpp`;
+- **2** fall into `RPGolFieldManager.cpp`;
+- **28** fall into the public **Tennis**
+  `RPTnsScene_unsplit.o` code unit;
+- **14** are outside the retained public `.text` map.
+
+The last 42 were only "outside *selected* units" in
+the previous audit; the complete map now resolves
+28 of those 42 to Tennis code and leaves 14
+outside the retained text map. The source pointer
+is shared by 94 tree objects, but the arbitrarily
+read 64 slots were only a **bounded inspection
+window, never a proven vtable length**.
+A long run of nearby Tennis-code targets is
+consistent with scanning beyond one short
+method-table region into adjacent tables,
+but without data-boundary/source ownership
+proof even that interpretation is a
+**hypothesis**. There are **no verified
+Tree-specific virtual methods, tree-collider
+callbacks, ball impact responses or velocity
+instructions** from this table audit.
+Do not use the 64-entry results as a 64-method
+tree vtable, and do not conflate public
+compilation-unit source ownership with object
+receiver semantics. The previous Ball child
+table alias comparison was **0/12**, and the
+active 2498 usable terrain KCL class-13 count
+was **zero in each of seven captures**.
+
+### Next controlled operator test — no existing tree-hit label
+
+Use an unmodified Wii Sports Rev1 game,
+no native memory modification or inferred
+tree collision coordinates.
+
+1. **Prepare a reproducible starting checkpoint.**
+   Choose a tee/ball-at-rest position with a
+   visibly reachable tree. Record game/course/
+   hole, club, wind as displayed, current aim,
+   camera view and operator-observed state.
+   Preserve the same exact pre-shot Dolphin
+   savestate or independently verified reset.
+   Reusing a savestate preserves more hidden
+   state than manually resetting a shot.
+2. **Attempt deliberate contact, operator visible.**
+   Aim at a clearly visible trunk or foliage,
+   strike once, and inspect the actual trajectory.
+   The attempted aim itself is **not** evidence
+   of contact. Record the sequence as
+   `confirmed_contact`, `confirmed_clear_miss`,
+   or `unknown` only after viewing the
+   pre-/at-/post-approach behavior.
+   Keep `trunk`, `foliage`, `unclear`
+   as *operator visual categories*, not
+   native collision shape labels.
+3. **Matched near-miss negative control.**
+   Load the same pre-shot checkpoint,
+   same club/power/pose/intended input profile,
+   camera and wind; change ONLY
+   the aim/yaw needed to pass visibly beside
+   the same tree. Record this as a separate
+   attempt, with no automatic equivalence
+   inferred if launch power is different.
+4. **Capture pre/approach/post observations.**
+   If safely available through the existing
+   private recording workflow, collect
+   visual screenshots or video time markers
+   and paired MEM1/MEM2 read-only snapshots
+   near ball–tree approach, potential contact,
+   and immediately after. Mark each snapshot
+   `same_physics_frame_verified=false`
+   unless atomic capture is actually
+   established. Never use a screen transition,
+   angle change, or moving camera as
+   proof of collision. Keep all raw files
+   under the ignored `Wii-AI-Golf-Data`
+   tree and never Git commit them.
+5. **Evaluate before physics fitting.**
+   Require both visible behavior and the
+   original source-selected Ball object
+   tracking to support a contact candidate.
+   Use matched near-miss to eliminate
+   normal flight and terrain bounce as
+   alternative explanations. Actual collision
+   event and exact collision geometry still
+   need original native receiver/source
+   verification. Do not fit tree radii,
+   leaf drag, restitution, velocities or
+   obstacle policy from one anecdotal shot.
+
+The first actionable input is an operator
+screenshot/video of a prospective tree-lined
+shot or **one** visually confirmed contact
+attempt. No preexisting tree-contact
+dataset is assumed. A source-only result
+may remain `UNKNOWN` indefinitely without
+physical observations. PR remains research-only
+and `training_approved=false`.
