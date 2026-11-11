@@ -239,9 +239,33 @@ class DirectDAETests(unittest.TestCase):
         with self.assertRaises(VisualAssetError):
             load_private_dae_visual_model(self.dae)
 
-    def test_material_without_real_color_abstains(self):
+    def test_material_without_original_diffuse_is_omitted_not_fabricated(self):
         self.dae.write_bytes(DAE.replace("<color>0.1 0.3 0.5 1</color>", "").encode())
-        with self.assertRaises(VisualAssetError):
+        visual = load_private_dae_visual_model(self.dae)
+        self.assertEqual(len(visual.faces), 1)
+        self.assertEqual(visual.textured_face_count, 1)
+        self.assertEqual(visual.faces[0].material, "M_Fairway")
+        self.assertEqual(visual.skipped_source_faces, 1)
+        self.assertNotIn("M_Kiwa_Black", visual.solid_colors)
+        self.assertFalse(any(self.folder.glob("*.obj")))
+
+    def test_bad_untextured_source_color_is_rejected_not_guessed(self):
+        for bad in ("NaN 0 0 1", "2 0 0 1", "1 0", "0 0 0 0 0"):
+            with self.subTest(value=bad):
+                self.dae.write_bytes(
+                    DAE.replace("<color>0.1 0.3 0.5 1</color>",
+                                "<color>" + bad + "</color>").encode())
+                with self.assertRaises(VisualAssetError):
+                    load_private_dae_visual_model(self.dae)
+
+    def test_missing_all_textured_source_faces_refuses_empty_preview(self):
+        # Do not claim an authentic textured preview from color-only
+        # source geometry, even if that untextured source color exists.
+        self.dae.write_bytes(
+            DAE.replace('material="fairway_symbol"',
+                        'material="M_Kiwa_Black"').encode())
+        with self.assertRaisesRegex(
+                VisualAssetError, "source-textured Collada triangles"):
             load_private_dae_visual_model(self.dae)
 
     def test_symlink_or_git_boundary_rejected(self):
