@@ -283,6 +283,14 @@ def symbolize(pc: int, word: int) -> dict:
             "fd": (word >> 21) & 31, "fa":(word >> 16) & 31,
             "fb":(word >> 11) & 31, "fc":(word >> 6) & 31,
             "xo5":(word >> 1) & 31, "xo10":(word >> 1) & 1023})
+    elif op == 21:
+        # PowerPC rlwinm RS,RA,SH,MB,ME[,Rc]: index scaling/masking.
+        # In original audit this was "unclassified" before each virtual
+        # dispatch; revealing the fields does NOT verify runtime object ID.
+        line.update({"class":"rlwinm",
+                     "rs":(word >> 21) & 31,"ra":(word >> 16) & 31,
+                     "sh":(word >> 11) & 31,"mb":(word >> 6) & 31,
+                     "me":(word >> 1) & 31,"record":bool(word & 1)})
     elif op == 31:
         line.update({"class":"int_xform", "rd":(word >> 21) & 31,
                      "ra":(word >> 16) & 31,"rb":(word >> 11) & 31,
@@ -312,6 +320,14 @@ def source_slice(read) -> dict:
                        0x802B4860 <= int(line["pc"], 16) <= 0x802B4924]
     # Three return/callback-candidate sites are NOT automatically game inputs.
     bl_sites = [line for line in words if line["class"] == "bl"]
+    virtual_selection = [line for line in words if
+                         int(line["pc"], 16) in
+                         (0x802B4898, 0x802B489C, 0x802B48A0,
+                          0x802B48A4, 0x802B48A8, 0x802B48AC,
+                          0x802B48B0, 0x802B48B8,
+                          0x802B48BC, 0x802B48C4, 0x802B48D0,
+                          0x802B48D4, 0x802B48D8,
+                          0x802B48E0, 0x802B48E4, 0x802B48EC)]
     return {
         "status":"REV1_CALC_UPSTREAM_STATIC_SOURCE_PASS",
         "public_unit": PUBLIC_OWNER,
@@ -330,6 +346,7 @@ def source_slice(read) -> dict:
         },
         "r24_candidate_calculation_stores":store_sites,
         "potential_upstream_direct_calls":bl_sites,
+        "virtual_return_selector_source_instructions":virtual_selection,
         "fp_reaching_definitions_source_excerpt":producer_window,
         "full_bounded_excerpt": words,
         "next_step":"Manually verify registers feeding f30/f1, candidate callback recipients, and exact branches before assigning acceleration/peak/accepted-power semantics.",
