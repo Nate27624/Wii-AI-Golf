@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from .scene_camera import camera_axes, playable_source_vertices
 from .terrain import surface_style
+from .material_alignment import MaterialAlignment
 
 if TYPE_CHECKING:
     from .scene_camera import VisualCamera
@@ -34,6 +35,7 @@ class ComparisonKCL:
     # Explicit viewing correction only; never original KCL/world orientation.
     display_rotation_degrees: int = 0
     display_center: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    source_material_fit: MaterialAlignment | None = None
 
 
 # Exact quarter-turns avoid floating-point trig drift for repeatable overlay.
@@ -58,6 +60,11 @@ def source_to_visual_display(point: tuple[float, float, float],
         c, sn = _DISPLAY_TURNS[comp.display_rotation_degrees]
     except (KeyError, TypeError):
         raise ValueError("Unsupported comparison orientation") from None
+    if comp.source_material_fit is not None:
+        # Independently measured material-landmark similarity: use the
+        # exact SAME fit for all KCL faces and all 94 source tree bases.
+        # Manual yaw trials must not overwrite a measured transform.
+        return comp.source_material_fit.apply(point)
     p = tuple(comp.source_scale * point[i] + comp.source_translation[i]
               for i in range(3))
     ox, _, oz = comp.display_center
@@ -77,7 +84,9 @@ def bounds(points):
 
 def prepare_comparison_kcl(terrain: "TerrainMesh",
                            visual: "PrivateVisualModel",
-                           *, rotation_degrees: int = 0) -> ComparisonKCL:
+                           *, rotation_degrees: int = 0,
+                           material_alignment: MaterialAlignment | None = None
+                           ) -> ComparisonKCL:
     """Fit two unaligned source bounding boxes for *display ONLY*.
 
     Not source/native scale, not aligned collision or verified active hole.
@@ -86,6 +95,11 @@ def prepare_comparison_kcl(terrain: "TerrainMesh",
     """
     if type(rotation_degrees) is not int or rotation_degrees not in _DISPLAY_TURNS:
         raise ValueError("KCL viewing rotation must be 0, 90, 180 or 270 degrees")
+    if material_alignment is not None:
+        if not isinstance(material_alignment, MaterialAlignment):
+            raise ValueError("Invalid original source material registration")
+        if rotation_degrees:
+            raise ValueError("Do not combine measured material registration with arbitrary yaw")
     if not 1 <= len(terrain.faces) <= 30_000:
         raise ValueError("Source KCL face count outside overlay bounds")
     k_min, k_max = bounds(terrain.vertices)
@@ -100,15 +114,16 @@ def prepare_comparison_kcl(terrain: "TerrainMesh",
     rotated_x = k_span[2] if rotation_degrees in (90, 270) else k_span[0]
     rotated_z = k_span[0] if rotation_degrees in (90, 270) else k_span[2]
     sx, sz = v_span[0]/rotated_x, v_span[2]/rotated_z
-    scale = min(sx, sz)
+    scale = min(sx, sz) if material_alignment is None else material_alignment.scale
     if not 1e-7 <= scale <= 1e7:
         raise ValueError("Unbounded comparison transform")
     k_mid = tuple((k_min[i]+k_max[i])*.5 for i in range(3))
     v_mid = tuple((v_min[i]+v_max[i])*.5 for i in range(3))
-    translation = tuple(v_mid[i]-scale*k_mid[i] for i in range(3))
+    translation = (tuple(v_mid[i]-scale*k_mid[i] for i in range(3))
+                   if material_alignment is None else material_alignment.translation)
     transform_info = ComparisonKCL(
         terrain.sha256, (), (), (), scale, translation, (sx, sz), (),
-        rotation_degrees, v_mid)
+        rotation_degrees, v_mid, material_alignment)
     transformed = tuple(source_to_visual_display(p, transform_info)
                         for p in terrain.vertices)
 
@@ -123,10 +138,20 @@ def prepare_comparison_kcl(terrain: "TerrainMesh",
     return ComparisonKCL(
         terrain.sha256, transformed, terrain.faces, source_colors,
         scale, translation, (sx, sz), tuple(sorted(unique_edges)),
-        rotation_degrees, v_mid)
+        rotation_degrees, v_mid, material_alignment)
 
 
 def overlay_summary(comp: ComparisonKCL) -> str:
+    if comp.source_material_fit is not None:
+        fit = comp.source_material_fit
+        return (
+            f"KCL {len(comp.faces):,} source faces · MATERIAL-LANDMARK "
+            f"display-only uniform scale {fit.scale:.5g}× · "
+            f"source +Y yaw {fit.yaw_degrees:.1f}° · "
+            f"independent {fit.holdout_name} residual "
+            f"{fit.holdout_error_fraction:.1%} of green/fairway span · "
+            f"green footprint ratio {fit.green_area_ratio:.2f} · "
+            "native/world alignment UNVERIFIED")
     sx, sz = comp.span_ratio_xz
     ratio = max(sx, sz)/min(sx, sz)
     return (
