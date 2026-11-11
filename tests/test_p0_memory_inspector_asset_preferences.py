@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from wii_ai_golf.inspector.asset_preferences import (
-    AssetSelections, SavedAssetError, discover_private_tree, load_asset_selections,
+    AssetSelections, SavedAssetError, discover_private_tree, inspect_private_trees, load_asset_selections,
     remember_asset, save_asset_selections, local_settings_path,
 )
 from wii_ai_golf.inspector.tree_positions import EXPECTED_NAME
@@ -77,6 +77,30 @@ class SelectionTests(unittest.TestCase):
         self.assertIsNone(discover_private_tree(checkout))
         self.tree.write_text(json.dumps({"some_other_source": "not original"}))
         self.assertIsNone(discover_private_tree(checkout))
+
+    def test_discovery_reports_missing_vs_invalid_exact_private_source(self):
+        checkout = self.base / "Wii-Golf-Tree-PR432"
+        checkout.mkdir()
+        found, checks = inspect_private_trees(checkout)
+        self.assertEqual(found.resolve(), self.tree.resolve())
+        self.assertEqual(checks[0][1], "validated")
+        self.tree.write_text(json.dumps({"unverified": "not real source"}))
+        found, checks = inspect_private_trees(checkout)
+        self.assertIsNone(found)
+        self.assertTrue(any(state.startswith("rejected:") for _, state in checks))
+        self.assertFalse(any("tree_positions" in state for _, state in checks))
+        self.tree.unlink()
+        found, checks = inspect_private_trees(checkout)
+        self.assertIsNone(found)
+        self.assertTrue(all(state == "missing" for _, state in checks))
+
+    def test_discovery_explains_git_inside_refusal(self):
+        checkout = self.base / "Wii-Golf-Tree-PR432"
+        checkout.mkdir()
+        (self.base / ".git").mkdir()
+        found, checks = inspect_private_trees(checkout)
+        self.assertIsNone(found)
+        self.assertTrue(any("outside Git checkout" in state for _, state in checks))
 
     def test_discover_refuses_git_private_data_and_symlinks(self):
         checkout = self.base / "Wii-Golf-Tree-PR432"
@@ -218,6 +242,33 @@ class GuiRestorationTests(SelectionTests):
             discover.assert_not_called()
         self.assertIsNone(inspector.tree_positions)
         self.assertIn("not loaded", inspector.tree_status.get())
+
+    def test_first_start_missing_reports_expected_location(self):
+        from wii_ai_golf.inspector.gui import Inspector
+        inspector = self.fake_inspector()
+        self.tree.unlink()
+        checkout = self.base / "Wii-Golf-Tree-PR432"
+        checkout.mkdir()
+        with patch("wii_ai_golf.inspector.gui.load_asset_selections", return_value=AssetSelections()), patch(
+                "wii_ai_golf.inspector.gui.discover_private_tree", return_value=None), patch(
+                "wii_ai_golf.inspector.gui.inspect_private_trees",
+                return_value=inspect_private_trees(checkout)):
+            Inspector.restore_private_assets(inspector)
+        self.assertIn("not found", inspector.tree_status.get())
+        self.assertIn(EXPECTED_NAME, inspector.tree_status.get())
+
+    def test_first_start_rejected_reports_reason(self):
+        from wii_ai_golf.inspector.gui import Inspector
+        inspector = self.fake_inspector()
+        self.tree.write_text(json.dumps({"wrong": True}))
+        checkout = self.base / "Wii-Golf-Tree-PR432"
+        checkout.mkdir()
+        with patch("wii_ai_golf.inspector.gui.load_asset_selections", return_value=AssetSelections()), patch(
+                "wii_ai_golf.inspector.gui.discover_private_tree", return_value=None), patch(
+                "wii_ai_golf.inspector.gui.inspect_private_trees",
+                return_value=inspect_private_trees(checkout)):
+            Inspector.restore_private_assets(inspector)
+        self.assertIn("rejected:", inspector.tree_status.get())
 
     def test_first_start_detects_safe_original_private_tree(self):
         from wii_ai_golf.inspector.gui import Inspector
