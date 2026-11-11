@@ -51,7 +51,8 @@ class PrivateSceneAlignmentTests(unittest.TestCase):
         self.assertEqual(report["nonidentity_transform_count"], 1)
         self.assertEqual(report["transform_counts"]["matrix"], 1)
         self.assertTrue(report["active_scene_target_present"])
-        self.assertFalse(report["current_loader_applies_visual_scene_transforms"])
+        self.assertTrue(report["current_loader_applies_visual_scene_transforms"])
+        self.assertTrue(report["source_authored_dae_transform_is_not_native_kcl_mapping"])
         self.assertIn(180., report["matrix_xz_yaw_degrees_hypotheses"])
 
     def test_identity_scene_is_not_mislabeled_as_rotated(self):
