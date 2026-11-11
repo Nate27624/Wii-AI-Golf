@@ -133,6 +133,80 @@ class PrivateSceneAlignmentTests(unittest.TestCase):
         self.assertFalse(data["game_world_alignment_verified"])
         self.assertFalse(data["training_approved"])
 
+    def test_original_style_skin_controller_inventory_no_fabricated_geometry(self):
+        # Synthetic Collada with skin-controlled course geometry, matching
+        # the operator's 12 instance_controller / 0 instance_geometry shape.
+        # Controller IDs, joint names, transforms and source arrays are fake.
+        identity = "1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"
+        xml = (
+            '<COLLADA><asset><up_axis>Y_UP</up_axis></asset>'
+            '<library_geometries><geometry id="synthetic_mesh"/></library_geometries>'
+            '<library_controllers><controller id="test_skin"><skin source="#synthetic_mesh">'
+            '<bind_shape_matrix>' + identity + '</bind_shape_matrix>'
+            '<source id="synthetic_joints"><Name_array id="j_names" count="1">'
+            'fakeBone</Name_array></source>'
+            '<source id="synthetic_inverse"><float_array id="matrices" count="16">'
+            + identity + '</float_array><technique_common><accessor source="#matrices"'
+            ' count="1" stride="16"/></technique_common></source>'
+            '<joints><input semantic="JOINT" source="#synthetic_joints"/>'
+            '<input semantic="INV_BIND_MATRIX" source="#synthetic_inverse"/></joints>'
+            '<vertex_weights count="3"><input semantic="JOINT" offset="0" '
+            'source="#synthetic_joints"/><input semantic="WEIGHT" offset="1" '
+            'source="#synthetic_weights"/><vcount>1 1 1</vcount>'
+            '<v>0 0 0 0 0 0</v></vertex_weights>'
+            '</skin></controller></library_controllers>'
+            '<library_visual_scenes><visual_scene id="golf">'
+            '<node id="golfRoot"><instance_controller url="#test_skin">'
+            '<skeleton>#fakeBone</skeleton></instance_controller>'
+            '</node></visual_scene></library_visual_scenes>'
+            '<scene><instance_visual_scene url="#golf"/></scene></COLLADA>'
+        )
+        self.dae.write_text(xml, encoding="utf-8")
+        result = audit_collada_scene(self.dae)
+        self.assertEqual(result["geometry_instance_count"], 0)
+        self.assertTrue(result["active_scene_requires_unimplemented_processing"])
+        controllers = result["controllers"]
+        self.assertEqual(controllers["controller_definition_count"], 1)
+        self.assertEqual(controllers["active_controller_instance_count"], 1)
+        self.assertEqual(controllers["active_controller_kind_counts"], {"skin": 1})
+        detail, = controllers["active_controller_structural_summaries"]
+        self.assertTrue(detail["source_geometry_resolved"])
+        self.assertEqual(detail["joint_name_count"], 1)
+        self.assertEqual(detail["inverse_bind_matrix_count"], 1)
+        self.assertEqual(detail["weighted_vertex_count"], 3)
+        self.assertEqual(detail["max_influences_per_vertex"], 1)
+        self.assertTrue(detail["vcount_matches_declared"])
+        self.assertEqual(detail["bind_shape_matrix_state"], "IDENTITY")
+        self.assertEqual(detail["skeleton_reference_count"], 1)
+        self.assertFalse(detail["static_skinning_evaluated"])
+        self.assertFalse(controllers["native_world_alignment_verified"])
+        serialized = json.dumps(controllers)
+        self.assertNotIn("fakeBone", serialized)
+        self.assertNotIn("synthetic_mesh", serialized)
+        self.assertNotIn("test_skin", serialized)
+
+    def test_skin_controller_reports_nonidentity_and_unresolved_refs(self):
+        xml = (
+            '<COLLADA><library_controllers>'
+            '<controller id="c"><skin source="#missing_mesh">'
+            '<bind_shape_matrix>1 0 0 0 0 1 0 0 0 0 1 0 5 0 0 1'
+            '</bind_shape_matrix></skin></controller></library_controllers>'
+            '<library_visual_scenes><visual_scene id="s"><node>'
+            '<instance_controller url="#c"/>'
+            '<instance_controller url="#unresolved"/>'
+            '</node></visual_scene></library_visual_scenes>'
+            '<scene><instance_visual_scene url="#s"/></scene></COLLADA>'
+        )
+        self.dae.write_text(xml, encoding="utf-8")
+        controls = audit_collada_scene(self.dae)["controllers"]
+        self.assertEqual(controls["active_controller_kind_counts"],
+                         {"UNRESOLVED": 1, "skin": 1})
+        skin, missing = controls["active_controller_structural_summaries"]
+        self.assertEqual(skin["bind_shape_matrix_state"], "NONIDENTITY")
+        self.assertFalse(skin["source_geometry_resolved"])
+        self.assertFalse(missing["controller_reference_resolved"])
+        self.assertFalse(controls["controller_skinning_or_morphing_applied"])
+
     def test_surface_anchors_never_claim_native_registration(self):
         visual, terrain = scene()
         result = audit_surface_registration(terrain, visual, tee=(0., 1., 0.),
