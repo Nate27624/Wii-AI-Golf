@@ -116,11 +116,11 @@ class PrivateSceneAlignmentTests(unittest.TestCase):
         self._scene('<instance_controller url="#skin"/>')
         out = StringIO()
         with patch("p0_inspect_course_alignment_private.load_private_dae_visual_model",
-                   side_effect=AssertionError("Should not render private DAE")), \\
+                   side_effect=AssertionError("Should not render private DAE")), \
              patch("p0_inspect_course_alignment_private.load_private_obj",
-                   side_effect=AssertionError("Should not read KCL")), \\
+                   side_effect=AssertionError("Should not read KCL")), \
              patch("p0_inspect_course_alignment_private.source_gated_live_anchors",
-                   side_effect=AssertionError("Should not contact Dolphin")), \\
+                   side_effect=AssertionError("Should not contact Dolphin")), \
              redirect_stdout(out):
             exit_code = alignment_audit_main((
                 "--scene-only", "--visual-dae", str(self.dae)))
@@ -230,14 +230,14 @@ class PrivateSceneAlignmentTests(unittest.TestCase):
             "active_scene_requires_unimplemented_processing": True,
         }
         with patch("p0_inspect_course_alignment_private.load_asset_selections",
-                   return_value=SimpleNamespace(terrain_obj=None, tree_json=None)), \\
+                   return_value=SimpleNamespace(terrain_obj=None, tree_json=None)), \
              patch("p0_inspect_course_alignment_private.load_private_obj",
-                   return_value=terrain), \\
+                   return_value=terrain), \
              patch("p0_inspect_course_alignment_private.load_private_dae_visual_model",
                    side_effect=VisualAssetError(
-                       "Unsupported original scene graph transform/controller")), \\
+                       "Unsupported original scene graph transform/controller")), \
              patch("p0_inspect_course_alignment_private.audit_collada_scene",
-                   return_value=scene_inventory), \\
+                   return_value=scene_inventory), \
              redirect_stdout(out):
             code = alignment_audit_main((
                 "--terrain-obj", "original-PRIVATE.obj",
