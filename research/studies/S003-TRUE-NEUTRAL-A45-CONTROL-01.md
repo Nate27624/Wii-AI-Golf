@@ -1,5 +1,17 @@
 # S003: True Button-Only Control After Legacy ZERO Anomaly
 
+## 2026-11-11 operator live abort: first CTRL moved club but NO ball contact
+
+The operator executed the FIRST CTRL arm of the new isolated A45 neutral-suppressed bridge study. The bridge's 89-sample swing dispatch finished and the operator saw **club motion** but **no actual strike or shot**. At the shared result prompt the operator typed **q**, which cancels terminal labeling and stops the child BEFORE it writes a successful human trial row. This is an aborted CTRL attempt, **not** a finished two-shot comparison; ZERO was never executed. The operator did not report a new power gauge and no landing/carry was measured. The later PowerShell throw merely signals the nonzero exit code.
+
+**Design interpretation:** Original V1 atomic bridge produced multiple 101% human-gauge strikes under identical requested nonzero waveform. In the new isolated neutral-suppressed bridge, the nominal CTRL no longer struck in this one observed local attempt. The change in neutral zero-valued setter behavior is a plausible difference, but do not declare native causality or accepted-power mapping: session, game phase, A recognition and exact guest club pose are not memory verified. Club moved != game committed shot. No power observation can be inferred from a non-contact swing.
+
+**Prompt clarification:** If the shot never hits, entering **U** (unknown terminal) instead of **q** allows the human collector to continue; then answer **no** for visibly struck, and leave the power gauge empty/unknown. Use T only when a result actually transitioned and it was not observed; do not invent M:100ft. q intentionally CANCELS and prevents writing a completed row. Preserve any private raw capture artifacts that might already exist, and create a NEW scenario for any separately approved later attempt.
+
+**Safety correction:** The true-neutral two-arm runner now persists a negative or mismatched first CTRL result and **stops before ZERO**, unless CTRL had contact=yes AND a clear human power impression within five points of the earlier 101%. The old script permitted proceeding to ZERO even when its new bridge's CTRL failed. There is a focused fake-RPC regression test for this fail-closed behavior; no checkpoint is overwritten and no second Dolphin is booted. The next useful investigation is the bridge/guest distinction between setter calls during initial idle/back/forward/follow-through phases, not another arbitrary movement speed scale. Compare original V1 and neutral source at the setter schedule first, then design an isolated phase-specific restore test if warranted. Avoid new live input until exact-head CI passes and operator explicitly consents.
+
+
+
 **Status: experimental isolated V1 source patch, no live Dolphin result yet.**
 
 ## Evidence motivating this correction
