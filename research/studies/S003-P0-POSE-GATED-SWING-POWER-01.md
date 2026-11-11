@@ -166,6 +166,71 @@ After B2: compare human gauge vs B1 101 (threshold ±5 points), contact and term
 
 **Next test:** Run **one** separately consented XLOW on `firstball03`, with pre-A partial-back, **manual wedge→iron**, same aim and atomic bridge SHA. XLOW changes only 15 requested backswing distances **0.25m → 0.20m**; forward stroke, speed settings, A45 and input topology remain unchanged. This is a *proposed lower-power manipulation*, not a validated percentage setting. Power reading and red/curve categories are the outcomes; make no carry/trajectory claims from timed-out terminal screens. Keep wind=0 for this Hitting the Green scenario. Stop on pose/club/bridge mismatch. After XLOW, separate native launch and contact/source observations are needed before training.
 
+## XLOW live result: third 101% gauge; no validated landing (operator 2026-11-10)
+
+The operator ran XLOW in the firstball03 series and reported a **visible strike** with a **clear human power-gauge impression of 101%**, starting pose partial-back, final club iron after manual wedge-to-iron selection, red shot yes, visible left/right curve or rotation unknown. The S003 report explicitly says **outcome_eligible_human_only=false** and **result_entered_while_visible_human=no**. Preserve the original private XLOW row unchanged. The previous two B1/B2 control gauge impressions were also 101% at 0.25m requested backswing; XLOW used 0.20m requested backswing on precisely 15 active slots, with the forward stroke unchanged. The 20% smaller backwards **request produced no detectable change in this human gauge estimate**, conditional on the reported scenario; it does not establish a zero change in hidden accepted power, club pose, spin or true ball distance. All real landing and native dynamics remain unverified, and red-shot semantics are not source proven.
+
+**Research direction:** After B1/B2/XLOW all show the same human 101% gauge, another tiny backwards-distance change is low information. The next proposed test is stronger and explicitly **compound**: multiply **all 35 active samples' requested distance_m, speed_m_s and return_speed_m_s by 0.60**, while holding the 45 callback A lead, 89 sample count, A masks, aim, selected iron, manual wedge-to-iron procedure, coarse and detailed initial pose, source bridge SHA, and operator-reported Hitting the Green wind=0 fixed.
+
+**New one-shot arm XM06:** Backswing requested distance 0.25→0.15m, speed 1.2→0.72m/s, return 1.2→0.72m/s over 15 samples; forward distance 0.60→0.36m, speed 3.5→2.1m/s, return 2.0→1.2m/s over 20 samples. The exact serializer verifies **105 individual requested numeric field differences**. This is a **movement-intensity sensitivity test**, NOT a pure speed, pure position, pure club-angle or 60%-power controller. If it still visibly returns 101%, prioritize native power-latch and initial club trajectory verification before accumulating more guessed scaling runs. If it lowers the human gauge, follow with fresh controls and independently isolated factors in a separately owned study. The existing shared S002 collector accepts motion_scale=0.6 and the in-bridge atomic A45 unchanged; no shared generator/renderer/tree collision files are modified.
+
+### XM06 local protocol (single fresh first-ball session; never unattended)
+
+Use the existing saved game config, savestate catalog and isolated atomic A45 bridge. Close Dolphin before starting. This uses the SAME firstball03 private ledger; you must keep the B1/B2/XLOW entries unmodified. Execute **only** after exact-head Windows/Ubuntu focused, actual serializer, and full offline CI all pass.
+
+~~~powershell
+$ErrorActionPreference = 'Stop'
+$repo = 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Pose-Pilot'
+$main = 'D:\Projects\Wii Golf AI\Wii-AI-Golf'
+$config = Join-Path $main 'research\launch.local.json'
+$catalog = Join-Path $main 'research\savestates.local.json'
+$atomic = 'D:\Projects\Wii Golf AI\tools\mcp_bridge_swing_atomic_a45.py'
+Set-Location -LiteralPath $repo
+
+if (git status --porcelain) { throw 'Worktree contains uncommitted changes' }
+git fetch origin refs/pull/433/head
+if ($LASTEXITCODE -ne 0) { throw 'PR fetch failed' }
+git switch --detach FETCH_HEAD
+if ($LASTEXITCODE -ne 0) { throw 'Worktree update failed' }
+
+py -3 -I -m unittest discover -s tests -p test_p0_pose_power_trial.py -v
+if ($LASTEXITCODE -ne 0) { throw 'Focused offline tests failed' }
+
+foreach ($item in @($config, $catalog, $atomic)) {
+    if (-not (Test-Path -LiteralPath $item -PathType Leaf)) {
+        throw "Missing required file: $item"
+    }
+}
+$saved = Get-Content -LiteralPath $config -Raw | ConvertFrom-Json
+if (-not (Test-Path -LiteralPath $saved.game -PathType Leaf)) {
+    throw 'Saved Wii Sports game file not found'
+}
+
+$trial = @(
+    '--config', $config, '--catalog', $catalog, '--bridge', $atomic,
+    '--script', 'p0_pose_power_trial.py', '--',
+    '--send-live-swing',
+    '--arm', 'XM06',
+    '--pose', 'back', '--pose-detail', 'partial-back',
+    '--club-change', 'wedge-to-iron',
+    '--scenario', 'firstball03', '--club', 'iron',
+    '--aim-id', 'straight', '--bridge-source', $atomic,
+    '--atomic-a45'
+)
+
+py -3 -I scripts/run_golf_experiment.py @trial
+if ($LASTEXITCODE -ne 0) { throw 'No-input launcher dry-run failed' }
+
+if ((Read-Host 'Type RUN-XM06 to consent to ONE fresh live shot') -eq 'RUN-XM06') {
+    py -3 -I scripts/run_golf_experiment.py --send-live @trial
+    if ($LASTEXITCODE -ne 0) { throw 'XM06 failed/ineligible; STOP' }
+} else {
+    Write-Host 'No game action requested.'
+}
+~~~
+
+Before A, confirm an iron is selected, manually changed from wedge, with the club partially back, with the same aim. If any detail differs, cancel with q. On fast terminal screen, type bare M or G **while actually visible**, or T if already transitioned; never fabricate M:100ft after the screen changes. Record the gauge number and red/curve human observations with uncertainty. Human 101%, red yes, or a hit alone are NOT game-accepted power or native trajectory verification.
+
 ## Next scientific step
 
 To measure the effect of **initial club position itself**, first obtain a repeatable and source-qualified way to set or measure the game-owned club pose (or angle). Then run **separate pose strata** with identical requested waveform and independent repeated baselines. A `back` vs `center` difference here is not a controlled pose manipulation until its actual geometry and transition timing are established. To map desired powers like 25/50/75/100%, validate the game-accepted scalar against the native launch vector and collect repeated, uncensored observations.
