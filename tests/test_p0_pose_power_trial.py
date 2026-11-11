@@ -167,7 +167,8 @@ class TestPosePilot(unittest.TestCase):
         self.assertFalse(p.eligible(bad))
         bad["contact_human"] = "yes"
         bad["terminal_seen_human"] = False
-        self.assertFalse(p.eligible(bad))
+        self.assertTrue(p.eligible(bad), "power comparability is separate from result timing")
+        self.assertFalse(p.outcome_eligible(bad))
 
     def test_file_provenance_and_no_overwrite(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -384,6 +385,92 @@ class TestPosePilot(unittest.TestCase):
         self.assertEqual(record["selected_club_human"], "iron")
         self.assertEqual(record["club_change_human"], "wedge-to-iron")
         self.assertFalse(record["selected_club_game_verified"])
+
+    def test_late_miss_does_not_disqualify_independent_power_reading(self):
+        row = self.row(power=101)
+        row["result_entered_while_visible_human"] = "no"
+        row["terminal_seen_human"] = True   # Old collector inferred from typed M.
+        self.assertTrue(p.eligible(row))
+        self.assertFalse(p.outcome_eligible(row))
+
+    def test_only_explicit_visible_terminal_result_qualifies_landing(self):
+        row = self.row(power=101)
+        row["result_entered_while_visible_human"] = "yes"
+        self.assertTrue(p.outcome_eligible(row))
+        for timing in ("no", "unknown", None):
+            row["result_entered_while_visible_human"] = timing
+            self.assertFalse(p.outcome_eligible(row))
+
+    def test_two_101_percent_baselines_can_advance_only_power_contrast(self):
+        controls = [self.row("B1", power=101),
+                    self.row("B2", power=101)]
+        controls[1]["result_entered_while_visible_human"] = "no"
+        # Label may be late even though both contact and gauge were observed.
+        p.precheck(controls, p.setup("XLOW", "back", "same01",
+                                    pose_detail="partial-back"), "hash")
+        self.assertFalse(p.outcome_eligible(controls[1]))
+        self.assertTrue(p.eligible(controls[1]))
+
+    def test_postshot_timing_and_red_shot_notes(self):
+        fake = {"human_observation": {
+            "visible_result_class_human": "offgreen"
+        }}
+        questions = []
+        answers = iter(("no", "yes", "both"))
+        notes = p.postshot_notes(
+            lambda prompt: (questions.append(prompt), next(answers))[1], fake)
+        self.assertEqual(notes["result_entered_while_visible_human"], "no")
+        self.assertEqual(notes["red_shot_human"], "yes")
+        self.assertEqual(notes["visible_curve_or_rotation_human"], "both")
+        self.assertEqual(len(questions), 3)
+
+    def test_transitioned_cannot_be_claimed_as_visible_result(self):
+        fake = {"human_observation": {
+            "visible_result_class_human": "transitioned"
+        }}
+        answers = iter(("yes", "unknown", "unknown"))
+        notes = p.postshot_notes(lambda _: next(answers), fake)
+        self.assertEqual(notes["result_entered_while_visible_human"], "no")
+
+    def test_uncertain_terminal_label_no_result_parity(self):
+        fake = {"human_observation": {
+            "visible_result_class_human": "uncertain"
+        }}
+        answers = iter(("yes", "unknown", "none"))
+        notes = p.postshot_notes(lambda _: next(answers), fake)
+        self.assertEqual(notes["result_entered_while_visible_human"], "unknown")
+
+    def test_malformed_late_result_annotation_rejected(self):
+        fake = {"human_observation": {
+            "visible_result_class_human": "offgreen"
+        }}
+        for answer in ("maybe", "100ft", ""):
+            with self.assertRaisesRegex(p.RefuseTrial, "Invalid human observation"):
+                p.postshot_notes(lambda _: answer, fake)
+
+    def test_summary_keeps_red_shot_as_human_not_native(self):
+        human = {"initial_club_pose_human": "back", "contact_human": "yes",
+                 "terminal_screen_seen_before_transition_human": True}
+        req = {"trace_sha256": "trace", "generated_trace_frames": 89,
+               "backswing_scale": 0.8, "a_lead_requested_frames": 45}
+        record = p.summarize(
+            {"human_observation": human, "known_good_swing_request": req},
+            p.setup("XLOW", "back", "firstball03", club="iron",
+                    pose_detail="partial-back", club_change="wedge-to-iron"),
+            bridge_sha="bridge",
+            payload={"baseline_trace_sha256": "base",
+                     "contrast_trace_sha256": "high",
+                     "reduced_trace_sha256": "trace"},
+            observed_pose_detail="partial-back", observed_club="iron",
+            observed_club_change="wedge-to-iron", power=(80, "clear"),
+            notes={"result_entered_while_visible_human": "no",
+                   "red_shot_human": "yes",
+                   "visible_curve_or_rotation_human": "both"})
+        self.assertEqual(record["red_shot_human"], "yes")
+        self.assertEqual(record["visible_curve_or_rotation_human"], "both")
+        self.assertTrue(p.eligible(record))
+        self.assertFalse(p.outcome_eligible(record))
+        self.assertFalse(record["training_approved"])
 
     def test_symlink_rejected(self):
         """Use a real link where permitted; simulate Windows WinError 1314 otherwise.
