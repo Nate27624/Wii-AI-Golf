@@ -12,6 +12,7 @@ on:
       - 'src/wii_ai_golf/inspector/navigation.py'
       - 'src/wii_ai_golf/inspector/scene_camera.py'
       - 'src/wii_ai_golf/inspector/fast_texture_render.py'
+      - 'scripts/p0_benchmark_private_uv_acceleration.py'
       - 'tests/test_p0_inspector_fast_render.py'
       - 'tests/test_p0_inspector_scene_camera.py'
       - 'scripts/p0_memory_inspector.py'
@@ -46,6 +47,8 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_visual_textures.py -v
       - name: Direct Collada 1.5 original UV + existing TEX0 PNG tests
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_dae_visual.py -v
+      - name: Verify source-private UV benchmark CLI syntax
+        run: python -m py_compile scripts/p0_benchmark_private_uv_acceleration.py
       - name: Native accelerated TEX0 raster identity and full-source tests
         run: python -m unittest discover -s tests -p test_p0_inspector_fast_render.py -v
       - name: Fixed-position Unity camera and integrated perspective scene tests
