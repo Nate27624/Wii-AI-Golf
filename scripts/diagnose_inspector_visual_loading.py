@@ -22,6 +22,8 @@ from wii_ai_golf.inspector.gui import _known_private_visual_candidate
 from wii_ai_golf.inspector.texture_render import prepare_textures
 from wii_ai_golf.inspector.visual_model import load_private_visual_model
 from wii_ai_golf.inspector.fast_texture_render import accelerated_available
+from wii_ai_golf.inspector.terrain import load_private_obj
+from wii_ai_golf.inspector.material_alignment import alignment_diagnostic
 
 
 def diagnose(filename: str | None = None) -> dict:
@@ -63,6 +65,22 @@ def diagnose(filename: str | None = None) -> dict:
     except (OSError, ValueError, ImportError, RuntimeError) as exc:
         return dict(result, status="VISUAL_IMPORT_FAILED",
                     reason=f"{type(exc).__name__}: {exc}")
+    if saved.terrain_obj:
+        try:
+            collision=load_private_obj(saved.terrain_obj)
+            # Does not publish game triangle XYZ, inferred physics or
+            # proprietary art; only independent labeled surface residuals.
+            result["kcl_to_visual_display_fit"] = alignment_diagnostic(
+                collision,model)
+        except (OSError, ValueError) as exc:
+            result["kcl_to_visual_display_fit"] = {
+                "status":"SOURCE_KCL_UNAVAILABLE",
+                "reason":type(exc).__name__,
+                "native_world_proven":False}
+    else:
+        result["kcl_to_visual_display_fit"] = {
+            "status":"NO_SAVED_KCL_SOURCE",
+            "native_world_proven":False}
     result.update(
         status=("VISUAL_DAE_PARTIAL_SCENE_PREVIEW"
                 if (getattr(model, "source_scene_warning", None) or "").startswith(
