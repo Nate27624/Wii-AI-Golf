@@ -159,6 +159,25 @@ $report.calc_preprocessor_source_excerpt |
 ~~~
 
 
+## 2026-11-11 operator same-unit census result: direct caller is OUTSIDE the scanned unit
+
+Operator ran source SHA-gated `REV1_BOUNDED_GOLF_DIRECT_BL_INVENTORY`: zero direct linked `BL` references to `fn_802B4794` inside **only** `Pack/RPSports/RPGolScene/RPGolScene_unsplit.o` `0x802A79F8..0x802C7924`. Its only direct reference to `fn_802B4474` is from `0x802B4818`; `fn_802B3BA0` from `0x802B4938`; `fn_802B2F90` from `0x802B3D04`. **Zero in this source unit cannot mean unused.** A separate earlier source owner independently verified across **all 832 public PPC source units**: **exactly one direct `fn_802B4794` linked BL from `0x8029ECF0` in `RPGolPlayer.cpp`**: https://github.com/Nate27624/Wii-AI-Golf/issues/418#issuecomment-6789215336 . It did not find a stable static function-pointer reference, but indirect or computed calls remain possible; no game execution proven.
+
+### Preprocessor float-pair ring in native source
+
+The `fn_802B4474` excerpt `0x802B4474..4500` from the same original qualified audit shows:
+- `0x802B449C bl 0x800A6400`, in public OGWS `egg/core/eggController.cpp`, supplying two floats via stack `+0x38/+0x3C`. Actual helper semantics and its source operands are **not yet verified**.
+- `0x802B44A0 lbz +0xA8(r31)`; if the flag is nonzero, `0x802B44B0 fneg` negates the first float.
+- `+0x9C` loads the ring buffer pointer, `+0xA4` holds the cursor, `+0xA0` is a limit/capacity. `rlwinm sh3 mb0 me28` multiplies the current cursor by **eight** bytes.
+- `0x802B44D0 stfsux f0,r3,r0` stores first float at the indexed address **and updates r3 to that address**, `0x802B44D4 stfs f1,4(r3)` writes the second float at the next four bytes.
+- The compare/conditional branches and stores `0x802B44EC/44F8` increment and wrap the cursor at the capacity. The evidence supports a **paired-f32 ring buffer**, not a confirmed angular velocity buffer, directional array, or direct shot-power latch.
+
+### New exact native-caller/paired-float source gates
+
+Extended read-only `scripts/p0_calc_magnitude_upstream_private.py` now verifies the independent *cross-unit* `0x8029ECF0 bl 0x802B4794` and the `0x802B449C bl 0x800A6400` at the exact original PPC instruction encoding. It also gates the preprocessor `lbz/lfs/stfs/lwz/rlwinm/stfsux/fneg` layout and two sign/wrap branches. Its narrow additional source excerpts are `RPGolPlayer.cpp 0x8029EBE0..ED40` and `eggController.cpp 0x800A63C0..6460`. The original complete 14-bank SHA pre/post integrity gates and phase 1/5/7 code equality still apply. Synthetic tests cannot substitute for an operator original-source pass.
+
+Next short source-only output is `cross_unit_player_and_preprocessor_ring`, `player_caller_context_source_excerpt`, and `egg_controller_preprocessor_helper_source_excerpt`. These are sanitized original source PC/operands only. Check player branch and receiver provenance before claiming *when* or *if* the accumulation step runs in an accepted shot. No Dolphin, ROM, controller calls, training or RAM writes.
+
 ## What the microaudit actually checks
 
 New-only `scripts/p0_calc_magnitude_upstream_private.py`:
