@@ -179,6 +179,103 @@ class UnifiedSourceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             draw_comparison(frame, comp, camera, mode="INVALID")
 
+    def test_manual_review_bounds_transform_preserves_original_KCL_and_trees(self):
+        model, collision = scene()
+        orig_kcl = collision.vertices
+        orig_visual = model.vertices
+        baseline = prepare_comparison_kcl(collision, model)
+        manual = prepare_comparison_kcl(
+            collision, model, rotation_degrees=90,
+            display_scale_multiplier=1.25,
+            display_offset_fraction_xz=(.05, -.03))
+        self.assertAlmostEqual(manual.source_scale,
+                               prepare_comparison_kcl(
+                                   collision, model, rotation_degrees=90
+                               ).source_scale * 1.25)
+        for source, rendered in zip(collision.vertices, manual.vertices):
+            self.assertEqual(source_to_visual_display(source, manual), rendered)
+        self.assertEqual(collision.vertices, orig_kcl)
+        self.assertEqual(model.vertices, orig_visual)
+        self.assertNotEqual(manual.vertices, baseline.vertices)
+        self.assertEqual(manual.display_scale_multiplier, 1.25)
+        self.assertIn("manual scale", overlay_summary(manual))
+
+    def test_review_controls_are_reversible_topdown_and_do_not_modify_sources(self):
+        class Var:
+            def __init__(self, v): self.v = v
+            def get(self): return self.v
+            def set(self, v): self.v = v
+        model, collision = scene()
+        view = object.__new__(TexturedPreviewWindow)
+        view.model = model
+        view.home_camera = frame_playable_camera(model)
+        view.camera = view.home_camera
+        view.mode = Var("Textures")
+        view.display_rotation = Var(180)
+        view.comparison_status = Var("")
+        view.review_status = Var("")
+        view.review_manual = False
+        view.review_scale = 1.
+        view.review_offset_xz = (0., 0.)
+        view.tree_illustrations = True
+        view._source_terrain = collision
+        view.schedule = Mock()
+        view.start_visual_review()
+        self.assertEqual(view.mode.get(), "Overlay")
+        self.assertEqual(view.display_rotation.get(), 0)
+        self.assertTrue(view.review_manual)
+        self.assertFalse(view.tree_illustrations)
+        self.assertGreater(view.camera.position[1], view.camera.focus[1])
+        self.assertIn("UNVERIFIED", view.comparison_status.get())
+        fit_before = view.comparison_kcl.vertices
+        view.nudge_visual_review("scale", 1)
+        view.nudge_visual_review("x", 1)
+        view.nudge_visual_review("z", -1)
+        self.assertEqual(view.review_offset_xz, (.01, -.01))
+        self.assertAlmostEqual(view.review_scale, 1.05)
+        self.assertNotEqual(fit_before, view.comparison_kcl.vertices)
+        self.assertEqual(collision.vertices, scene()[1].vertices)
+        self.assertEqual(model.vertices, scene()[0].vertices)
+        view.reset_visual_review()
+        self.assertFalse(view.review_manual)
+        self.assertEqual(view.review_scale, 1.)
+        self.assertEqual(view.review_offset_xz, (0., 0.))
+        self.assertEqual(view.display_rotation.get(), 0)
+        self.assertEqual(view.mode.get(), "Both")
+        with self.assertRaises(ValueError):
+            view.nudge_visual_review("rotate-native", 1)
+
+    def test_manual_visual_adjustments_reject_unbounded_guesses(self):
+        model, collision = scene()
+        for scale in (.2, 4.01, float("nan"), True):
+            with self.subTest(scale=scale), self.assertRaises(ValueError):
+                prepare_comparison_kcl(
+                    collision, model, display_scale_multiplier=scale)
+        for offsets in ((2., 0.), (float("inf"), 0.), (0.,), [0., 0.]):
+            with self.subTest(offsets=offsets), self.assertRaises(ValueError):
+                prepare_comparison_kcl(
+                    collision, model, display_offset_fraction_xz=offsets)
+
+    def test_visual_overlay_and_split_share_camera_without_changes_to_pixels(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Optional Pillow needed")
+        model, collision = scene()
+        comp = prepare_comparison_kcl(collision, model)
+        source = Image.new("RGB", (300, 220), (60, 75, 90))
+        source_bytes = source.tobytes()
+        camera = frame_playable_camera(model)
+        alpha = draw_comparison(source.copy(), comp, camera, mode="Overlay")
+        split = draw_comparison(source.copy(), comp, camera, mode="Split")
+        self.assertEqual(alpha.size, source.size)
+        self.assertEqual(split.size, source.size)
+        self.assertEqual(source.tobytes(), source_bytes)
+        self.assertNotEqual(alpha.tobytes(), source_bytes)
+        self.assertNotEqual(split.tobytes(), source_bytes)
+        self.assertEqual(split.getpixel((0, 0)), source.getpixel((0, 0)))
+        self.assertEqual(split.getpixel((150, 0)), (247, 232, 138))
+
     def test_arrow_keys_hold_continuously_without_rmb_while_wasd_requires_it(self):
         model, _=scene()
         view=object.__new__(TexturedPreviewWindow)

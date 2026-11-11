@@ -36,6 +36,10 @@ class ComparisonKCL:
     display_rotation_degrees: int = 0
     display_center: tuple[float, float, float] = (0.0, 0.0, 0.0)
     source_material_fit: MaterialAlignment | None = None
+    # Manual UI-only correction, applied equally to KCL and tree base markers.
+    # Units are visual model coordinates; NEVER native Wii/KCL positions.
+    display_offset: tuple[float, float, float] = (0., 0., 0.)
+    display_scale_multiplier: float = 1.
 
 
 # Exact quarter-turns avoid floating-point trig drift for repeatable overlay.
@@ -69,7 +73,10 @@ def source_to_visual_display(point: tuple[float, float, float],
               for i in range(3))
     ox, _, oz = comp.display_center
     dx, dz = p[0] - ox, p[2] - oz
-    return (ox + c*dx - sn*dz, p[1], oz + sn*dx + c*dz)
+    shift = comp.display_offset
+    return (ox + c*dx - sn*dz + shift[0],
+            p[1] + shift[1],
+            oz + sn*dx + c*dz + shift[2])
 
 
 def bounds(points):
@@ -85,7 +92,9 @@ def bounds(points):
 def prepare_comparison_kcl(terrain: "TerrainMesh",
                            visual: "PrivateVisualModel",
                            *, rotation_degrees: int = 0,
-                           material_alignment: MaterialAlignment | None = None
+                           material_alignment: MaterialAlignment | None = None,
+                           display_scale_multiplier: float = 1.,
+                           display_offset_fraction_xz: tuple[float, float] = (0., 0.)
                            ) -> ComparisonKCL:
     """Fit two unaligned source bounding boxes for *display ONLY*.
 
@@ -95,11 +104,21 @@ def prepare_comparison_kcl(terrain: "TerrainMesh",
     """
     if type(rotation_degrees) is not int or rotation_degrees not in _DISPLAY_TURNS:
         raise ValueError("KCL viewing rotation must be 0, 90, 180 or 270 degrees")
+    if (not isinstance(display_offset_fraction_xz, tuple)
+            or len(display_offset_fraction_xz) != 2
+            or any(type(v) not in (float, int) or
+                   not math.isfinite(v) or abs(v) > 1.
+                   for v in display_offset_fraction_xz)
+            or type(display_scale_multiplier) not in (float, int)
+            or not math.isfinite(display_scale_multiplier)
+            or not 0.25 <= display_scale_multiplier <= 4.):
+        raise ValueError("Unbounded manual KCL comparison adjustment")
     if material_alignment is not None:
         if not isinstance(material_alignment, MaterialAlignment):
             raise ValueError("Invalid original source material registration")
-        if rotation_degrees:
-            raise ValueError("Do not combine measured material registration with arbitrary yaw")
+        if (rotation_degrees or display_scale_multiplier != 1.
+                or display_offset_fraction_xz != (0., 0.)):
+            raise ValueError("Do not combine measured material registration with manual trials")
     if not 1 <= len(terrain.faces) <= 30_000:
         raise ValueError("Source KCL face count outside overlay bounds")
     k_min, k_max = bounds(terrain.vertices)
@@ -114,16 +133,21 @@ def prepare_comparison_kcl(terrain: "TerrainMesh",
     rotated_x = k_span[2] if rotation_degrees in (90, 270) else k_span[0]
     rotated_z = k_span[0] if rotation_degrees in (90, 270) else k_span[2]
     sx, sz = v_span[0]/rotated_x, v_span[2]/rotated_z
-    scale = min(sx, sz) if material_alignment is None else material_alignment.scale
+    scale = (min(sx, sz) * display_scale_multiplier
+             if material_alignment is None else material_alignment.scale)
     if not 1e-7 <= scale <= 1e7:
         raise ValueError("Unbounded comparison transform")
     k_mid = tuple((k_min[i]+k_max[i])*.5 for i in range(3))
     v_mid = tuple((v_min[i]+v_max[i])*.5 for i in range(3))
     translation = (tuple(v_mid[i]-scale*k_mid[i] for i in range(3))
                    if material_alignment is None else material_alignment.translation)
+    v_diagonal_xz = math.hypot(v_span[0], v_span[2])
+    shift = (display_offset_fraction_xz[0]*v_diagonal_xz, 0.,
+             display_offset_fraction_xz[1]*v_diagonal_xz)
     transform_info = ComparisonKCL(
         terrain.sha256, (), (), (), scale, translation, (sx, sz), (),
-        rotation_degrees, v_mid, material_alignment)
+        rotation_degrees, v_mid, material_alignment, shift,
+        display_scale_multiplier)
     transformed = tuple(source_to_visual_display(p, transform_info)
                         for p in terrain.vertices)
 
@@ -138,7 +162,8 @@ def prepare_comparison_kcl(terrain: "TerrainMesh",
     return ComparisonKCL(
         terrain.sha256, transformed, terrain.faces, source_colors,
         scale, translation, (sx, sz), tuple(sorted(unique_edges)),
-        rotation_degrees, v_mid, material_alignment)
+        rotation_degrees, v_mid, material_alignment, shift,
+        display_scale_multiplier)
 
 
 def prepare_source_only_kcl(terrain: "TerrainMesh") -> ComparisonKCL:
@@ -189,6 +214,8 @@ def overlay_summary(comp: ComparisonKCL) -> str:
         f"KCL {len(comp.faces):,} source faces · x-ray display-only "
         f"uniform bounds fit {comp.source_scale:.5g}× "
         f"+Y display yaw {comp.display_rotation_degrees}° (operator hypothesis) "
+        f"· manual scale {comp.display_scale_multiplier:.3f}× "
+        f"shift X/Z {comp.display_offset[0]:+.3g}/{comp.display_offset[2]:+.3g} visual units "
         f"(X/Z fit-ratio disagreement {ratio:.2f}×) · "
         "UNVERIFIED native/world alignment")
 
@@ -198,15 +225,16 @@ def draw_comparison(image, comp: ComparisonKCL | None, camera: "VisualCamera",
     """Draw KCL polygon / wire on SAME PhotoImage after original UV raster.
 
     Mode: Textures (no KCL), Collision (surface colors), Both (visual
-    PNG image plus cyan x-ray KCL wire edges). All are explicitly unverified
-    relative registration; no changes to source assets.
+    PNG image plus cyan x-ray KCL wire edges), Overlay (transparent source
+    material KCL over original PNG), Split (same camera textures left,
+    KCL-colored faces right). These are all display-only hypotheses.
     """
-    if mode not in {"Textures", "Collision", "Both"}:
+    if mode not in {"Textures", "Collision", "Both", "Overlay", "Split"}:
         raise ValueError("Unknown unified source view mode")
     if comp is None or mode == "Textures":
         return image
     import numpy as np
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageColor
 
     if mode == "Collision":
         image = Image.new("RGB", image.size, (19, 32, 46))
@@ -222,10 +250,17 @@ def draw_comparison(image, comp: ComparisonKCL | None, camera: "VisualCamera",
     xy = np.empty((len(coords), 2), dtype=np.float64)
     xy[:, 0] = width*.5+focal*(delta @ np.asarray(right))/denom
     xy[:, 1] = height*.5-focal*(delta @ np.asarray(up))/denom
-    draw = ImageDraw.Draw(image)
-    if mode == "Collision":
-        # Unverified source-category-colored candidate KCL polygons:
-        # painter sorting is for inspectability, NOT game native physics.
+    if mode in {"Collision", "Overlay", "Split"}:
+        # Per-vertex RGB is original OGWS-class *display color*, never a
+        # texture/collision semantic match. No DAE/KCL shared depth claim.
+        if mode == "Overlay":
+            tinted = Image.new("RGBA", image.size, (0, 0, 0, 0))
+            draw = ImageDraw.Draw(tinted, "RGBA")
+        elif mode == "Split":
+            panel = Image.new("RGB", image.size, (19, 32, 46))
+            draw = ImageDraw.Draw(panel)
+        else:
+            draw = ImageDraw.Draw(image)
         ordered = sorted(range(len(comp.faces)),
                          key=lambda i: float(sum(facing[v] for v in comp.faces[i])),
                          reverse=True)
@@ -236,9 +271,23 @@ def draw_comparison(image, comp: ComparisonKCL | None, camera: "VisualCamera",
             points = [tuple(xy[v]) for v in tri]
             if any(abs(x) > 1e6 for p in points for x in p):
                 continue
-            draw.polygon(points, fill=comp.colors[index])
+            color = comp.colors[index]
+            if mode == "Overlay":
+                draw.polygon(points, fill=(*ImageColor.getrgb(color), 90))
+            else:
+                draw.polygon(points, fill=color)
+        if mode == "Overlay":
+            return Image.alpha_composite(image.convert("RGBA"), tinted).convert("RGB")
+        if mode == "Split":
+            halfway = width // 2
+            image.paste(panel.crop((halfway, 0, width, height)),
+                        (halfway, 0))
+            ImageDraw.Draw(image).line(
+                (halfway, 0, halfway, height), fill="#f7e88a", width=2)
+            return image
         return image
 
+    draw = ImageDraw.Draw(image)
     # Both: source-textured DAE plus a thin cyan X-RAY KCL line overlay.
     # X-ray avoids a false claim that KCL and original TEV share a zbuffer.
     for v0, v1 in comp.edge_faces:
