@@ -12,7 +12,7 @@ from .replay import AIM, BALL, CACHE, Replay, Sample, float_hypothesis, load_rep
 from .live import LiveSampler
 from .a_reference import discover_reference
 from .a_live import LiveAIndicator
-from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE
+from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE, MAX_DRAW_FACES
 from .terrain_solid import back_to_front, shaded_hex
 from .terrain_labels import apply_private_surface_labels
 
@@ -97,7 +97,9 @@ class Inspector:
         self.a_status = tk.StringVar(value="A UNKNOWN")
         self.terrain_mesh: TerrainMesh | None = None
         self.terrain_visible = tk.BooleanVar(value=True)
-        self.terrain_focus = tk.BooleanVar(value=True)
+        self.terrain_focus = tk.BooleanVar(value=False)
+        self.terrain_full_detail = tk.BooleanVar(value=True)
+        self.terrain_point_labels = tk.BooleanVar(value=False)
         self.terrain_colors = tk.BooleanVar(value=True)
         self.terrain_solid = tk.BooleanVar(value=True)
         self.terrain_edges = tk.BooleanVar(value=False)
@@ -182,9 +184,11 @@ class Inspector:
         ttk.Button(mesh_actions, text="Clear terrain", command=self.clear_terrain).pack(side="left", padx=4)
         ttk.Checkbutton(mesh_actions, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(mesh_actions, text="All triangles", variable=self.terrain_full_detail, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Color source surface IDs", variable=self.terrain_colors, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Solid terrain", variable=self.terrain_solid, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(mesh_actions, text="Triangle edges", variable=self.terrain_edges, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(mesh_actions, text="Point labels", variable=self.terrain_point_labels, command=self.draw_path).pack(side="left")
         ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
         ttk.Label(center, textvariable=self.surface_label_status, wraplength=650).pack(anchor="w")
         source_legend = ttk.Frame(center)
@@ -576,19 +580,25 @@ class Inspector:
         focusing = getattr(self, "terrain_focus", None)
         if (mesh is not None and (showing is None or showing.get())
                 and current.source_qualified and bool(current.source_digest)):
-            # Rendering bound; under live load use <= 600 faces to minimize
-            # UI work per sample. All 2498 triangles remain in the private OBJ.
+            # Full-face drawing preserves the collision surface. Prior stride
+            # preview drew only 600/1200 of 2498 triangles, leaving large gaps.
+            # Users can explicitly select the bounded fast preview again.
             live_mode = bool(self.live_worker is not None and self.live_last is not None)
-            limit = 600 if live_mode else 1200
+            full_setting = getattr(self, "terrain_full_detail", None)
+            request_complete = full_setting is not None and full_setting.get()
+            limit = min(len(mesh.faces), MAX_DRAW_FACES) if request_complete else (
+                600 if live_mode else 1200)
             colored_faces = mesh.drawing_colored_faces(
                 tuple(landmarks.values()), focused=(focusing is None or focusing.get()), limit=limit)
             terrain_faces = tuple(face for face, _ in colored_faces)
             if hasattr(self, "terrain_status"):
                 labeled = sum(n for code,n in mesh.material_counts().items() if code is not None)
                 self.terrain_status.set(
-                    f"PRIVATE terrain preview: {len(terrain_faces)}/{len(mesh.faces)} "
+                    f"PRIVATE terrain: {len(terrain_faces)}/{len(mesh.faces)} "
                     f"triangles drawn · {labeled}/{len(mesh.faces)} source-ID labeled · "
-                    "alignment/active collision UNVERIFIED")
+                    + ("COMPLETE" if len(terrain_faces) == len(mesh.faces)
+                       else "PARTIAL PREVIEW (gaps expected)")
+                    + " · alignment/active collision UNVERIFIED")
         elif mesh is not None and hasattr(self, "terrain_status"):
             self.terrain_status.set("Terrain HIDDEN — Show disabled or source qualification unavailable")
         # Plot bounds include the selected collision candidate; do NOT transform
@@ -610,6 +620,8 @@ class Inspector:
             u, v = project(p, self.yaw, self.pitch)
             return width / 2 + (u - cx) * scale, height / 2 - (v - cy) * scale
         canvas.create_text(12, 12, text="Rotatable 3D source-coordinate projection · unknown units", anchor="nw", fill="#bacbe1")
+        label_setting = getattr(self, "terrain_point_labels", None)
+        point_labels = label_setting is None or label_setting.get()
         # Painter's-order solid triangles (not a Z-buffer), beneath all
         # source-qualified actor/aim/A overlays. Never infer missing IDs.
         solid_setting = getattr(self, "terrain_solid", None)
