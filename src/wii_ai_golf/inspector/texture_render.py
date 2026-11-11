@@ -92,8 +92,11 @@ def render_preview(model: PrivateVisualModel, width: int, height: int, *,
     step=max(1,(len(model.faces)+max_faces-1)//max_faces)
     drawn = 0
     for face in model.faces[::step][:max_faces]:
-        if face.material not in textures:
-            continue
+        # Preserve source-exported MTL Kd as a solid face where original
+        # Collada material has no texture slot; no fabricated texture image.
+        is_textured = face.material in textures
+        if not is_textured and face.material not in model.solid_colors:
+            raise VisualAssetError('Visual face material has neither PNG nor source Kd')
         pts = screen[list(face.vertices)]
         p0, p1, p2 = pts
         x0,y0,x1,y1,x2,y2 = float(p0[0]),float(p0[1]),float(p1[0]),float(p1[1]),float(p2[0]),float(p2[1])
@@ -119,16 +122,21 @@ def render_preview(model: PrivateVisualModel, width: int, height: int, *,
         visible=on&(z>current)
         if not visible.any():
             continue
-        uv=np.asarray([model.uvs[i] for i in face.uvs],dtype=np.float64)
-        u=b0*uv[0,0]+b1*uv[1,0]+b2*uv[2,0]
-        v=b0*uv[0,1]+b1*uv[1,1]+b2*uv[2,1]
-        texture=textures[face.material]
-        th,tw=texture.shape[:2]
-        # OBJ V=0 is bottom, PNG raster y=0 is top; repeat UVs safely.
-        tx=(np.floor((u-np.floor(u))*tw).astype(np.int64))%tw
-        ty=(np.floor((1-v-np.floor(1-v))*th).astype(np.int64))%th
-        pixels=texture[ty,tx]
-        visible &= pixels[:,:,3]>16
+        if is_textured:
+            uv=np.asarray([model.uvs[i] for i in face.uvs],dtype=np.float64)
+            u=b0*uv[0,0]+b1*uv[1,0]+b2*uv[2,0]
+            v=b0*uv[0,1]+b1*uv[1,1]+b2*uv[2,1]
+            texture=textures[face.material]
+            th,tw=texture.shape[:2]
+            # OBJ V=0 is bottom, PNG raster y=0 is top; repeat UVs safely.
+            tx=(np.floor((u-np.floor(u))*tw).astype(np.int64))%tw
+            ty=(np.floor((1-v-np.floor(1-v))*th).astype(np.int64))%th
+            pixels=texture[ty,tx]
+            visible &= pixels[:,:,3]>16
+        else:
+            pixels=np.empty((bottom-top,right-left,4),dtype=np.uint8)
+            pixels[:,:,:3] = model.solid_colors[face.material]
+            pixels[:,:,3] = 255
         if not visible.any():
             continue
         dest=result[top:bottom,left:right]
