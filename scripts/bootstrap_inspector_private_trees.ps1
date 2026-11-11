@@ -4,7 +4,8 @@
 #                      scripts/bootstrap_inspector_private_trees.ps1
 [CmdletBinding()]
 param(
-    [string]$PrivateData = 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data'
+    [string]$PrivateData = 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data',
+    [switch]$SelfTest
 )
 
 $ErrorActionPreference = 'Stop'
@@ -110,6 +111,53 @@ function Register-TreeJson {
 
 function Assert-GitSuccess([string]$stage) {
     if ($LASTEXITCODE -ne 0) { throw "Git failure during $stage (exit $LASTEXITCODE)" }
+}
+
+if ($SelfTest) {
+    # Offline synthetic Windows regression: copy a private-named file from
+    # ignored data INSIDE a Git checkout to a safe sibling without overwrite.
+    # Never reads game data and never launches Dolphin.
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
+        'wii-tree-bootstrap-' + [System.IO.Path]::GetRandomFileName())
+    try {
+        $project = Join-Path $tempRoot 'Wii Golf AI'
+        $PrivateData = Join-Path $project 'Wii-AI-Golf-Data'
+        $derived = Join-Path $PrivateData 'derived'
+        New-Item -ItemType Directory -Path $derived -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $project '.git') -Force | Out-Null
+        $original = Join-Path $derived $fileName
+        [System.IO.File]::WriteAllText($original, '{"synthetic":true}')
+        if (-not (Test-InGitCheckout $original)) {
+            throw 'BOOTSTRAP_SELFTEST_FAIL: git ancestor was not detected'
+        }
+        $outside = Get-InspectorTreePath $original
+        if (-not (Test-Path -LiteralPath $outside -PathType Leaf) -or
+            (Test-InGitCheckout $outside) -or
+            $outside -eq $original -or
+            (Get-FileHash -LiteralPath $outside -Algorithm SHA256).Hash -ne
+            (Get-FileHash -LiteralPath $original -Algorithm SHA256).Hash) {
+            throw 'BOOTSTRAP_SELFTEST_FAIL: safe copy/hash/outside-git validation failed'
+        }
+        if ((Get-InspectorTreePath $original) -ne $outside) {
+            throw 'BOOTSTRAP_SELFTEST_FAIL: duplicate copy was not idempotent'
+        }
+        [System.IO.File]::WriteAllText($outside, '{"different":true}')
+        $refused = $false
+        try {
+            $null = Get-InspectorTreePath $original
+        } catch {
+            $refused = $_.Exception.Message -like '*Refusing overwrite*'
+        }
+        if (-not $refused) {
+            throw 'BOOTSTRAP_SELFTEST_FAIL: conflicting private JSON would overwrite existing'
+        }
+        Write-Host 'BOOTSTRAP_PRIVATE_JSON_OUTSIDE_GIT_SYNTHETIC_PASS' -ForegroundColor Green
+        return
+    } finally {
+        if (Test-Path -LiteralPath $tempRoot) {
+            Remove-Item -LiteralPath $tempRoot -Recurse -Force
+        }
+    }
 }
 
 if (-not (Test-Path -LiteralPath (Join-Path $viewer 'scripts\p0_memory_inspector.py') -PathType Leaf)) {
