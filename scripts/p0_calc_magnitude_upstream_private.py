@@ -52,6 +52,43 @@ MR_GATES = {
     0x802B3CFC: (3, 29),
     0x802B2FB8: (27, 3),
 }
+
+# Exact source-derived floating-point dataflow recovered from operator's
+# original 14-bank SHA-validated 2026-11-11 native audit:
+# two individually weighted indirect-call results, strict-greater maxima.
+MAG_LFS_GATES = {
+    0x802B48C0: (0, 24, 0x18),
+    0x802B48CC: (0, 24, 0x28),
+    0x802B48F0: (0, 24, 0x1C),
+    0x802B48F4: (2, 24, 0x08),
+    0x802B48FC: (1, 24, 0x2C),
+    0x802B4918: (0, 24, 0x0C),
+}
+MAG_STFS_GATES = {0x802B490C: (0, 24, 0x98)}
+# (opcode, FD, FA, FB, FC, 5-bit XO) for single precision:
+# fmuls 59/25; fsubs 59/20. For fmuls, FB is unused/encoded as zero.
+MAG_ARITH_GATES = {
+    0x802B48C8: (59, 1, 0, 0, 1, 25),
+    0x802B48DC: (59, 30, 0, 0, 1, 25),
+    0x802B48F8: (59, 3, 0, 0, 1, 25),
+    0x802B4900: (59, 0, 30, 2, 0, 20),
+    0x802B4908: (59, 1, 1, 0, 3, 25),
+}
+MAG_FCMP_GATES = {
+    0x802B4904: (0, 30, 2),  # CR0, f30 > old calc[+0x08]
+    0x802B491C: (0, 1, 0),   # CR0, f1 > old calc[+0x0C]
+}
+# BO=4: branch when CR[BI] is FALSE; BI=1: CR0 greater-than.
+MAG_SKIP_BRANCHES = {
+    0x802B4910: 0x802B4918,
+    0x802B4920: 0x802B4928,
+}
+# TWO indirect virtual dispatches through +0x38 (= decimal 56).
+MAG_VTABLE_LOADS = {
+    0x802B48B0: (12, 12, 56),
+    0x802B48E4: (12, 12, 56),
+}
+MAG_BCCTRL_SITES = (0x802B48B8, 0x802B48EC)
 # EXACT bounded source ranges within the compiled GolfScene_unsplit.o;
 # the broad target names are annotations, not evidence of execution.
 PEAK_WINDOW = (0x802B4794, 0x802B493C)
@@ -112,6 +149,74 @@ def _mr_matches(word: int, target: int, source_reg: int) -> bool:
                 and (word >> 16) & 31 == target
                 and (word >> 21) & 31 == source_reg
                 and (word >> 11) & 31 == source_reg)
+
+
+def _arith_matches(word: int, spec: tuple[int, int, int, int, int, int]) -> bool:
+    op, fd, fa, fb, fc, xo5 = spec
+    return (word >> 26 == op and (word >> 21) & 31 == fd
+            and (word >> 16) & 31 == fa and (word >> 11) & 31 == fb
+            and (word >> 6) & 31 == fc and (word >> 1) & 31 == xo5
+            and not word & 1)
+
+
+def _cmp_matches(word: int, spec: tuple[int, int, int]) -> bool:
+    crfd, fa, fb = spec
+    return ((word >> 26) == 63 and (word >> 1) & 1023 == 32
+            and (word >> 23) & 7 == crfd and (word >> 16) & 31 == fa
+            and (word >> 11) & 31 == fb and not word & 1)
+
+
+def verify_magnitude_arithmetic(read) -> dict:
+    """Exact PowerPC f32 multiply, greater-than and virtual return lineage.
+
+    This is source-code arithmetic and NOT proof of a live controller
+    sample, real accepted shot power, or identical virtual receiver.
+    """
+    for pc, spec in MAG_LFS_GATES.items():
+        if not _dform_match(read, pc, 48, *spec):
+            raise Abstain("magnitude_factor_reader_gate_failed")
+    for pc, spec in MAG_STFS_GATES.items():
+        if not _dform_match(read, pc, 52, *spec):
+            raise Abstain("magnitude_delta_writer_gate_failed")
+    for pc, spec in MAG_ARITH_GATES.items():
+        if not _arith_matches(read(pc), spec):
+            raise Abstain("magnitude_fp_arithmetic_gate_failed")
+    for pc, spec in MAG_FCMP_GATES.items():
+        if not _cmp_matches(read(pc), spec):
+            raise Abstain("magnitude_strict_peak_compare_gate_failed")
+    for pc, target in MAG_SKIP_BRANCHES.items():
+        word = read(pc)
+        b = _branch(pc, word)
+        if ((word >> 26) != 16 or (word >> 21) & 31 != 4
+                or (word >> 16) & 31 != 1
+                or b is None or b["absolute"] or b["link"]
+                or b["dest"] != target):
+            raise Abstain("magnitude_strict_peak_branch_gate_failed")
+    for pc, spec in MAG_VTABLE_LOADS.items():
+        if not _dform_match(read, pc, 32, *spec):
+            raise Abstain("magnitude_virtual_getter_slot_gate_failed")
+    for pc in MAG_BCCTRL_SITES:
+        word = read(pc)
+        if (word >> 26 != 19 or (word >> 1) & 1023 != 528
+                or not word & 1):
+            raise Abstain("magnitude_virtual_getter_call_gate_failed")
+
+    return {
+        "status":"REV1_TWO_PRODUCT_MAX_UPDATE_SOURCE_PASS",
+        "pc_1st_callback":"0x802B48B8",
+        "pc_2nd_callback":"0x802B48EC",
+        "both_virtual_load_offset_decimal":56,
+        "actual_virtual_callee_address_verified":False,
+        "two_callbacks_same_object_verified":False,
+        "candidate_A_pseudocode":"(calc[+0x18] * virtual_return_f1_at_48B8) * calc[+0x28]",
+        "candidate_B_pseudocode":"(calc[+0x1C] * virtual_return_f1_at_48EC) * calc[+0x2C]",
+        "delta_0x98_pseudocode":"candidate_A - old_calc[+0x08]",
+        "calc_0x08_rule":"if candidate_A > old_calc[+0x08]: store candidate_A",
+        "calc_0x0C_rule":"if candidate_B > old_calc[+0x0C]: store candidate_B",
+        "single_precision_rounding_and_nan_behavior_not_modeled":True,
+        "controller_input_semantics_verified":False,
+        "native_accepted_shot_power_verified":False,
+    }
 
 
 def verify_static_gates(read) -> dict:
@@ -194,6 +299,7 @@ def symbolize(pc: int, word: int) -> dict:
 
 def source_slice(read) -> dict:
     gates = verify_static_gates(read)
+    math_report = verify_magnitude_arithmetic(read)
     words = [symbolize(pc, read(pc)) for pc in range(*EXCERPT, 4)]
     # Candidate upstream scratch fields on the same r24 CALC base.
     store_sites = [
@@ -217,6 +323,7 @@ def source_slice(read) -> dict:
         "guest_execution_verified":False,
         "training_approved":False,
         "latch":gates,
+        "native_magnitude_arithmetic":math_report,
         "current_and_peak_register_writer_annotations":{
             "+0x08":"f30 through calc r24",
             "+0x0C":"f1 through calc r24 (comparison-before-store to be proved by control flow)",
