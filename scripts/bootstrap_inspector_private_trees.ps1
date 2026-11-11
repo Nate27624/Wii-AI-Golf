@@ -18,8 +18,91 @@ $exporter = Join-Path (Split-Path -Parent $PrivateData) 'Wii-Tree-Exporter-PR411
 $diagnose = Join-Path $viewer 'scripts\diagnose_inspector_tree_loading.py'
 $register = Join-Path $viewer 'scripts\register_inspector_private_tree.py'
 
+function Test-InGitCheckout([string]$FileOrDirectory) {
+    # The inspector loader rejects all ancestor Git checkouts, not just
+    # the immediate private Data directory. Match that rule before registration.
+    $cursor = (Resolve-Path -LiteralPath $FileOrDirectory).Path
+    if (Test-Path -LiteralPath $cursor -PathType Leaf) {
+        $cursor = Split-Path -Parent $cursor
+    }
+    while ($cursor) {
+        if (Test-Path -LiteralPath (Join-Path $cursor '.git')) { return $true }
+        $parent = Split-Path -Parent $cursor
+        if (-not $parent -or $parent -eq $cursor) { break }
+        $cursor = $parent
+    }
+    return $false
+}
+
+function Get-InspectorTreePath([string]$source) {
+    # A previous source exporter could create a valid JSON inside a Git
+    # checkout's ignored Data/derived. That does NOT satisfy the strict
+    # inspector's outside-Git rule. Preserve the original and copy it out.
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+        throw "Missing PRIVATE source tree JSON: $source"
+    }
+    $sourceItem = Get-Item -LiteralPath $source -Force
+    if ($sourceItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+        throw 'Linked PRIVATE tree JSON refused'
+    }
+    if ($sourceItem.Length -lt 1 -or $sourceItem.Length -gt 65536) {
+        throw 'PRIVATE tree JSON outside safe 64 KiB bound'
+    }
+    if (-not (Test-InGitCheckout $source)) { return $source }
+
+    # Known original layout:
+    #   D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\derived\... (inside .git)
+    # Correct private sibling:
+    #   D:\Projects\Wii-AI-Golf-Data\derived\... (outside .git)
+    $projectParent = Split-Path -Parent $PrivateData
+    $projectRoot = Split-Path -Parent $projectParent
+    if (-not $projectRoot) { throw 'Unable to choose a private sibling outside Git' }
+    $targetRoot = Join-Path $projectRoot 'Wii-AI-Golf-Data'
+    $targetDir = Join-Path $targetRoot 'derived'
+    if (-not (Test-Path -LiteralPath $targetRoot)) {
+        New-Item -ItemType Directory -Path $targetRoot -ErrorAction Stop | Out-Null
+    }
+    if (-not (Test-Path -LiteralPath $targetDir)) {
+        New-Item -ItemType Directory -Path $targetDir -ErrorAction Stop | Out-Null
+    }
+    foreach ($dir in @($targetRoot, $targetDir)) {
+        $item = Get-Item -LiteralPath $dir -Force
+        if (-not $item.PSIsContainer -or
+            ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+            throw "Private tree destination directory is linked or invalid: $dir"
+        }
+    }
+    if (Test-InGitCheckout $targetDir) {
+        throw "Private tree destination is still inside Git: $targetDir"
+    }
+
+    $target = Join-Path $targetDir $fileName
+    if (Test-Path -LiteralPath $target) {
+        if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+            throw "PRIVATE tree destination exists but is not a file: $target"
+        }
+        $targetItem = Get-Item -LiteralPath $target -Force
+        if ($targetItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+            throw 'Existing PRIVATE destination is linked'
+        }
+        $sourceHash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
+        $targetHash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
+        if ($sourceHash -ne $targetHash) {
+            throw "PRIVATE tree JSON at safe destination differs. Refusing overwrite: $target"
+        }
+        Write-Host "Matching PRIVATE tree JSON already outside Git: $target" -ForegroundColor Green
+    } else {
+        # Never overwrite; preserves both original research artifact and any
+        # previously generated private file. No JSON contents go to stdout/Git.
+        [System.IO.File]::Copy($source, $target, $false)
+        Write-Host "Copied PRIVATE tree JSON outside Git: $target" -ForegroundColor Green
+    }
+    return $target
+}
+
 function Register-TreeJson {
-    & py -3 -I $register --file $destination
+    $safeTreePath = Get-InspectorTreePath $destination
+    & py -3 -I $register --file $safeTreePath
     if ($LASTEXITCODE -ne 0) { throw 'Failed to validate/save the source-94 JSON path into inspector settings' }
     & py -3 -I $diagnose
     if ($LASTEXITCODE -ne 0) { throw 'Inspector diagnostic failed' }
