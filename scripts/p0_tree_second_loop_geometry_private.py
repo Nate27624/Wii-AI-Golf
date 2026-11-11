@@ -36,6 +36,7 @@ COUNT=94
 STRIDE=84
 
 WINDOWS=(
+    ("fieldmanager_method_prologue","FieldManager",0x2130,0x2160),
     ("tree_loop_with_second_argument","FieldManager",0x22EC,0x2328),
     ("tree_distance_writer_loop","FieldManager",0x2BA0,0x2BD0),
     ("tree_update_and_flag_branch","Tree",0x047C,0x0624),
@@ -48,8 +49,9 @@ UNIT_RANGES={
     "Camera":(CAMERA,0x8029C2F8),
     "MapObjBase":(BASE,0x80290B44),
 }
-assert sum((hi-lo)//4 for _,__,lo,hi in WINDOWS)==197
+assert sum((hi-lo)//4 for _,__,lo,hi in WINDOWS)==209
 ANCHORS={
+    FIELD+0x214C:0x7C7F1B78, # mr r31,r3, same caller frame as 94-array loop
     # Reader: source-owned FieldManager-like r31 +0x20 array, r29 argument,
     # 84-byte element stride, count +0x1C.
     FIELD+0x2300:0x801F0020,
@@ -123,6 +125,16 @@ def inspect(read, detail=False):
     for pc,word in ANCHORS.items():
         if read(pc)!=word:
             raise ValueError("Native tree array loop/camera math anchor mismatch")
+    # +0x2138 is a PowerPC stack frame prologue (exact size source-specific).
+    frame=read(FIELD+0x2138)
+    if not (frame>>26==37 and ((frame>>21)&31)==1 and ((frame>>16)&31)==1):
+        raise ValueError("FieldManager second-loop method entry changed")
+    # No subsequent stack-frame prologue before the +0x230C loop:
+    # supports r31=receiver provenance, not a full CFG/call-site proof.
+    for pc in range(FIELD+0x213C,FIELD+0x230C,4):
+        w=read(pc)
+        if w>>26==37 and ((w>>21)&31)==1 and ((w>>16)&31)==1:
+            raise ValueError("Unexpected new function entry before second loop")
     for pc,target in LINKS.items():
         if native.direct_b(pc,read(pc))!=(target,True):
             raise ValueError("Native direct call target mismatch")
@@ -172,6 +184,8 @@ def inspect(read, detail=False):
             "read_loop_uses_plus_0x1c_element_count":True,
             "read_loop_additional_argument_global_plus_0x0c":True,
             "native_r31_is_fieldmanager_verified":False,
+            "r31_assigned_from_method_r3_at_source_relative":"+0x214C",
+            "second_loop_within_same_native_method_frame":True,
             "tree_plus_0x047c_receiver_identity_verified":False,
             "candidate_reader_function_semantics_verified":False,
             "tree_hitbox_geometry_verified":False,
