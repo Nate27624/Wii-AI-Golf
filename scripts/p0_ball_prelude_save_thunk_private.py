@@ -72,9 +72,10 @@ def thunk(read,bank_limit):
     if not MIN_EXEC_SOURCE_ADDR<=target<bank_limit-MAX_THUNK_INSNS*4:
         return {
             "source_call_site":cfg.src(site),
-            "target_inside_original_MEM1_source_code_candidate_range":False,
+            "original_callee_target_inside_original_MEM1_executable_candidate_range":False,
             "callee_is_store_only_GPR_save_thunk_verified":False,
             "r4_is_preserved_by_exact_callee_source_verified":False,
+            "source_full_game_guest_execution_proven":False,
             "reason":"source_target_outside_bounded_original_exec_window",
         }
     items=[]
