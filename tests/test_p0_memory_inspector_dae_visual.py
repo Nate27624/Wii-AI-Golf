@@ -279,17 +279,38 @@ class DirectDAETests(unittest.TestCase):
         self.assertEqual(self.dae.read_bytes(), original)
         self.assertFalse(any(self.folder.glob("*.obj")))
 
-    def test_gui_selects_dae_path_no_blender(self):
+    def test_gui_embeds_dae_in_main_inspector_without_blender(self):
         from wii_ai_golf.inspector.gui import Inspector
         inst = object.__new__(Inspector)
         inst.root = object()
-        with patch('wii_ai_golf.inspector.gui.filedialog.askopenfilename',
-                   return_value=str(self.dae)), \
-             patch('wii_ai_golf.inspector.gui.load_private_dae_visual_model') as loader, \
+        inst.visual_tab = object()
+        inst.visual_preview = None
+        inst.visual_status = Mock()
+        inst.center_tabs = Mock()
+        with patch('wii_ai_golf.inspector.gui.load_private_dae_visual_model') as loader, \
              patch('wii_ai_golf.inspector.textured_preview.TexturedPreviewWindow') as window:
-            Inspector.open_textured_model(inst)
+            loader.return_value.source_name = self.dae.name
+            loader.return_value.faces = [object()]
+            loader.return_value.textures = {"M_Fairway": object()}
+            self.assertTrue(Inspector.load_visual_path(inst, str(self.dae)))
         loader.assert_called_once_with(str(self.dae))
-        window.assert_called_once_with(inst.root, loader.return_value)
+        window.assert_called_once_with(inst.visual_tab, loader.return_value,
+                                       embedded=True)
+        inst.center_tabs.select.assert_called_once_with(inst.visual_tab)
+        self.assertIs(inst.visual_preview, window.return_value)
+
+    def test_visual_path_stays_private_and_auto_discovered_only_beside_terrain(self):
+        from wii_ai_golf.inspector.gui import _known_private_visual_candidate
+        terrain = self.folder / "hole01-collision-candidate-PRIVATE.obj"
+        terrain.write_text("dummy outside Git private collision source")
+        target = self.folder / "WiiGolfVisualPrivate" / "visual_exports" / "glf_course_fc1"
+        target.mkdir(parents=True)
+        candidate = target / "glf_course_fc1.dae"
+        candidate.write_text("synthetic original-source stand-in")
+        self.assertEqual(_known_private_visual_candidate(str(terrain)), candidate)
+        self.assertIsNone(_known_private_visual_candidate(""))
+        candidate.unlink()
+        self.assertIsNone(_known_private_visual_candidate(str(terrain)))
 
 
 if __name__ == "__main__":
