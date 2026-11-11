@@ -12,6 +12,9 @@ on:
       - 'src/wii_ai_golf/inspector/gui.py'
       - 'tests/test_p0_memory_inspector_tree_*.py'
       - 'tests/test_p0_memory_inspector_asset_preferences.py'
+      - 'tests/test_p0_inspector_tree_unified.py'
+      - 'src/wii_ai_golf/inspector/unified_source_view.py'
+      - 'src/wii_ai_golf/inspector/textured_preview.py'
       - '.github/workflows/p0-inspector-tree-visual-offline.yml'
 permissions:
   contents: read
@@ -48,5 +51,7 @@ jobs:
         shell: pwsh
         run: |
           & .\scripts\bootstrap_inspector_private_trees.ps1 -SelfTest
+      - name: Unified original UV/KCL + source-94 tree overlay
+        run: python -m unittest discover -s tests -p test_p0_inspector_tree_unified.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
