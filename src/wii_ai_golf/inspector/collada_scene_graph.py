@@ -89,8 +89,9 @@ def source_scene_instances(root: ET.Element) -> dict[str, tuple[tuple[float, ...
 
     An explicit scene binding is required when multiple visual scenes exist.
     Unreferenced mesh library entries are not rendered when an authored visual
-    scene exists. Instance controllers and external scene nodes ABSTAIN; they
-    are not silently treated as direct instance_geometry entries.
+    scene exists. Support ONLY source-verified static single-joint controller
+    instances; ambiguous/multi-influence skins, morphs and external scene
+    nodes ABSTAIN rather than being flattened or skipped.
     """
     scenes = [n for lib in root if _tag(lib)=="library_visual_scenes"
               for n in lib if _tag(n)=="visual_scene"]
@@ -114,6 +115,8 @@ def source_scene_instances(root: ET.Element) -> dict[str, tuple[tuple[float, ...
         raise VisualAssetError("Original Collada active scene unresolved")
 
     refs: dict[str,list[tuple[float,...]]] = {}
+    scene_node_worlds: dict[ET.Element, tuple[float,...]] = {}
+    pending_skin_instances: list[ET.Element] = []
     count=[0,0]
     def visit(node: ET.Element, parent: tuple[float,...], depth:int) -> None:
         if depth>MAX_SCENE_DEPTH:
@@ -124,13 +127,14 @@ def source_scene_instances(root: ET.Element) -> dict[str, tuple[tuple[float, ...
         transforms = [n for n in node if _tag(n) in ("matrix", "translate", "rotate", "scale")]
         if len(transforms)>MAX_TRANSFORMS_PER_NODE:
             raise VisualAssetError("Original Collada transform stack exceeds bound")
-        if any(_tag(n) in ("lookat","skew","instance_node","instance_controller")
+        if any(_tag(n) in ("lookat","skew","instance_node")
                for n in node):
             raise VisualAssetError("Unsupported original scene graph transform/controller")
         local = IDENTITY
         for el in transforms:
             local = _mul(local, _node_transform(el))
         world = _mul(parent, local)
+        scene_node_worlds[node] = world
         for element in node:
             tag=_tag(element)
             if tag=="instance_geometry":
@@ -142,12 +146,25 @@ def source_scene_instances(root: ET.Element) -> dict[str, tuple[tuple[float, ...
                 if count[1]>MAX_GEOMETRY_INSTANCES:
                     raise VisualAssetError("Original Collada instance count exceeds bound")
                 refs.setdefault(key,[]).append(world)
+            elif tag=="instance_controller":
+                pending_skin_instances.append(element)
+                if count[1]+len(pending_skin_instances)>MAX_GEOMETRY_INSTANCES:
+                    raise VisualAssetError("Original Collada controller count exceeds bound")
             elif tag=="node":
                 visit(element, world, depth+1)
 
     for child in active[0]:
         if _tag(child)=="node":
             visit(child, IDENTITY, 1)
+    if pending_skin_instances:
+        # COLLADA world-space skinning: joint_world @ inverse_bind @ bind_shape.
+        # The source joint/skeleton and every original vertex weight must
+        # pass explicit gates. Never silently substitute raw library geometry.
+        from .collada_rigid_skin import rigid_skin_instance
+        for instance in pending_skin_instances:
+            geometry_id, authored_world = rigid_skin_instance(
+                root, instance, scene_node_worlds)
+            refs.setdefault(geometry_id, []).append(authored_world)
     # Some exporters include a visual_scene with no instance geometry at all.
     # Do not fabricate source scene transformations or render unrelated models.
     if not refs:

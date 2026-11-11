@@ -1,4 +1,4 @@
-"""Private KCL source-attribute overlay for an UNCHANGED source-coordinate OBJ.
+r"""Private KCL source-attribute overlay for an UNCHANGED source-coordinate OBJ.
 
 Only the inspector applies palette/shading. This small JSON is not geometry,
 not texture, not training evidence, and never mutates the original OBJ file.
@@ -19,7 +19,7 @@ MAX_FACES = 30_000
 
 
 def _ignored_and_untracked(path: Path) -> bool:
-    """Strict private Data/derived or standalone outside-Git Projects.
+    r"""Strict private Data/derived or standalone outside-Git Projects.
 
     The project-local geometry OBJ can live directly in D:\Projects; its
     labels stay beside it, and the inspector verifies the OBJ SHA separately.

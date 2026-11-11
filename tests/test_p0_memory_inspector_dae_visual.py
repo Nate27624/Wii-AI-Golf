@@ -59,6 +59,44 @@ DAE = """<?xml version="1.0" encoding="utf-8"?>
 </COLLADA>"""
 
 
+def rigid_source_fixture(*, inverse_bind=None, weight="1",
+                         joints="j", vcount="1 1 1", weights_per_vertex=None):
+    """Entirely synthetic Collada 1.5 single-joint controller, source-driven."""
+    ident = "1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"
+    ibm = ident if inverse_bind is None else inverse_bind
+    values = "0 0 0 0 0 0" if weights_per_vertex is None else weights_per_vertex
+    controller = (
+        '<library_controllers><controller id="synthetic-rigid">'
+        '<skin source="#grass"><bind_shape_matrix>' + ident +
+        '</bind_shape_matrix><source id="names">'
+        '<Name_array id="names-values" count="1">' + joints + '</Name_array>'
+        '<technique_common><accessor source="#names-values" count="1" stride="1"/>'
+        '</technique_common></source><source id="inverses">'
+        '<float_array id="inverses-values" count="16">' + ibm + '</float_array>'
+        '<technique_common><accessor source="#inverses-values" count="1" stride="16"/>'
+        '</technique_common></source><source id="weights">'
+        '<float_array id="weights-values" count="1">' + weight + '</float_array>'
+        '<technique_common><accessor source="#weights-values" count="1" stride="1"/>'
+        '</technique_common></source>'
+        '<joints><input semantic="JOINT" source="#names"/>'
+        '<input semantic="INV_BIND_MATRIX" source="#inverses"/></joints>'
+        '<vertex_weights count="3">'
+        '<input semantic="JOINT" source="#names" offset="0"/>'
+        '<input semantic="WEIGHT" source="#weights" offset="1"/>'
+        '<vcount>' + vcount + '</vcount><v>' + values + '</v>'
+        '</vertex_weights></skin></controller></library_controllers>'
+    )
+    return (DAE.replace(
+        '<library_visual_scenes>', controller + '<library_visual_scenes>')
+        .replace('<instance_geometry url="#grass">',
+                 '<instance_controller url="#synthetic-rigid">'
+                 '<skeleton>#joint-root</skeleton>')
+        .replace('</instance_geometry>', '</instance_controller>')
+        .replace('</node></visual_scene>',
+                 '</node><node id="joint-root" sid="j" type="JOINT"/>'
+                 '</visual_scene>'))
+
+
 class DirectDAETests(unittest.TestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
@@ -129,12 +167,62 @@ class DirectDAETests(unittest.TestCase):
         self.assertEqual(visual.vertices[6:9],
                          ((10., 0., 20.), (18., 0., 20.), (10., 8., 20.)))
 
+    def test_source_rigid_skin_identity_restores_authentic_geometry(self):
+        self.dae.write_text(rigid_source_fixture(), encoding="utf-8")
+        visual = load_private_dae_visual_model(self.dae)
+        self.assertEqual(len(visual.faces), 2)
+        self.assertEqual(visual.vertices[:3],
+                         ((0., 0., 0.), (8., 0., 0.), (0., 8., 0.)))
+        self.assertEqual(visual.faces[0].material, "M_Fairway")
+        self.assertEqual(visual.uvs[:3], ((0., 0.), (1., 0.), (0., 1.)))
+
+    def test_source_rigid_skin_applies_original_inverse_bind_matrix(self):
+        # Collada column-major +5 X and -10 Z original source IBM.
+        shifted = "1 0 0 0 0 1 0 0 0 0 1 0 5 0 -10 1"
+        self.dae.write_text(
+            rigid_source_fixture(inverse_bind=shifted), encoding="utf-8")
+        visual = load_private_dae_visual_model(self.dae)
+        self.assertEqual(visual.vertices[:3],
+                         ((5., 0., -10.), (13., 0., -10.), (5., 8., -10.)))
+        # Original source DAE is never rewritten by rendering.
+        self.assertIn(shifted, self.dae.read_text(encoding="utf-8"))
+
+    def test_source_rigid_skin_uses_authored_joint_world_matrix(self):
+        xml = rigid_source_fixture()
+        xml = xml.replace(
+            '<node id="joint-root" sid="j" type="JOINT"/>',
+            '<node id="joint-root" sid="j" type="JOINT">'
+            '<translate>20 0 30</translate></node>')
+        self.dae.write_text(xml, encoding="utf-8")
+        visual = load_private_dae_visual_model(self.dae)
+        self.assertEqual(visual.vertices[:3],
+                         ((20., 0., 30.), (28., 0., 30.), (20., 8., 30.)))
+
+    def test_source_rigid_skin_name_array_exact_id_fallback(self):
+        xml = rigid_source_fixture(joints="joint-root")
+        self.dae.write_text(xml, encoding="utf-8")
+        visual = load_private_dae_visual_model(self.dae)
+        self.assertEqual(visual.vertices[0], (0., 0., 0.))
+
+    def test_source_rigid_skin_requires_positive_single_influence(self):
+        cases = (
+            rigid_source_fixture(weight="0"),
+            rigid_source_fixture(vcount="2 1 1"),
+            rigid_source_fixture(joints="not-the-root-joint"),
+            rigid_source_fixture(weights_per_vertex="0 0 0 0 1 0"),
+        )
+        for xml in cases:
+            with self.subTest(xml_hash=hash(xml)):
+                self.dae.write_text(xml, encoding="utf-8")
+                with self.assertRaises(VisualAssetError):
+                    load_private_dae_visual_model(self.dae)
+
     def test_unsupported_source_scene_controller_fails_closed(self):
         self.dae.write_text(DAE.replace(
             '<node id="grass-node">',
             '<node id="grass-node"><instance_controller url="#unknown"/>'),
             encoding="utf-8")
-        with self.assertRaisesRegex(VisualAssetError, "Unsupported original scene"):
+        with self.assertRaisesRegex(VisualAssetError, "controller unresolved or duplicated"):
             load_private_dae_visual_model(self.dae)
 
     def test_brawlcrate_sampler_surface_ref_to_image_name(self):

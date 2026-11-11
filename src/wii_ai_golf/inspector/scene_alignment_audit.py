@@ -44,6 +44,172 @@ _IDENTITY_4 = (1., 0., 0., 0.,
                0., 0., 0., 1.)
 
 
+def _controller_structural_inventory(root: ET.Element,
+                                     active_scenes: list[ET.Element]) -> dict:
+    """Count real Collada controller evidence without disclosing source IDs.
+
+    Controllers may use skinning, bind matrices, joints and weights. Merely
+    resolving <skin source="#mesh"> is *not* equivalent to rendering the
+    original skinned mesh. This function parses only structural metadata,
+    never silently converts a controller into a geometry instance.
+    """
+    controllers = [
+        child for lib in root
+        if _local_name(lib.tag) == "library_controllers"
+        for child in lib if _local_name(child.tag) == "controller"
+    ]
+    if len(controllers) > 512:
+        raise RegistrationAuditError("Controller inventory exceeds safety bound")
+    by_id = {c.get("id"): c for c in controllers}
+    if len(by_id) != len(controllers) or None in by_id:
+        raise RegistrationAuditError("Invalid or duplicate Collada controller IDs")
+    geometry_ids = {
+        node.get("id") for lib in root
+        if _local_name(lib.tag) == "library_geometries"
+        for node in lib if _local_name(node.tag) == "geometry"
+    }
+    references = [
+        child for scene in active_scenes for node in scene.iter()
+        if _local_name(node.tag) == "node" for child in node
+        if _local_name(child.tag) == "instance_controller"
+    ]
+    if len(references) > 20000:
+        raise RegistrationAuditError("Controller instances exceed safety bound")
+
+    summaries = []
+    kinds = Counter()
+    for instance in references:
+        url = instance.get("url", "")
+        controller = by_id.get(url[1:]) if url.startswith("#") else None
+        info = {
+            "kind": "UNRESOLVED",
+            "controller_reference_resolved": controller is not None,
+            "skeleton_reference_count": sum(
+                _local_name(ch.tag) == "skeleton" for ch in instance),
+        }
+        if controller is None:
+            summaries.append(info)
+            kinds["UNRESOLVED"] += 1
+            continue
+        bodies = [c for c in controller if _local_name(c.tag) in ("skin", "morph")]
+        if len(bodies) != 1:
+            info["kind"] = "INVALID_CONTROLLER_BODY"
+            summaries.append(info)
+            kinds["INVALID_CONTROLLER_BODY"] += 1
+            continue
+        body = bodies[0]
+        kind = _local_name(body.tag)
+        info["kind"] = kind
+        kinds[kind] += 1
+        origin = body.get("source", "")
+        info["source_geometry_resolved"] = (
+            origin.startswith("#") and origin[1:] in geometry_ids
+        ) if kind == "skin" else False
+        if kind == "morph":
+            info["requires_morph_target_evaluation"] = True
+            summaries.append(info)
+            continue
+        source_by_id = {
+            child.get("id"): child for child in body
+            if _local_name(child.tag) == "source"
+        }
+        if len(source_by_id) > 256:
+            raise RegistrationAuditError("Skin source count exceeds bound")
+        shape = [c for c in body if _local_name(c.tag) == "bind_shape_matrix"]
+        if len(shape) > 1:
+            info["bind_shape_matrix_state"] = "MULTIPLE_UNSUPPORTED"
+        elif not shape:
+            info["bind_shape_matrix_state"] = "IMPLICIT_IDENTITY"
+        else:
+            try:
+                numbers = _float_array(shape[0].text, 16)
+                info["bind_shape_matrix_state"] = (
+                    "IDENTITY" if all(abs(v - expected) < 1e-6
+                                  for v, expected in zip(numbers, _IDENTITY_4))
+                    else "NONIDENTITY"
+                )
+            except RegistrationAuditError:
+                info["bind_shape_matrix_state"] = "INVALID"
+        joint_fields = [c for c in body if _local_name(c.tag) == "joints"]
+        weight_fields = [c for c in body
+                         if _local_name(c.tag) == "vertex_weights"]
+        info["joints_element_count"] = len(joint_fields)
+        info["vertex_weights_element_count"] = len(weight_fields)
+        if len(joint_fields) == 1:
+            inputs = {
+                c.get("semantic"): c.get("source", "")
+                for c in joint_fields[0]
+                if _local_name(c.tag) == "input"
+            }
+            info["has_joint_input"] = "JOINT" in inputs
+            info["has_inverse_bind_matrix_input"] = "INV_BIND_MATRIX" in inputs
+            for field, semantic in (
+                ("joint_name_count", "JOINT"),
+                ("inverse_bind_matrix_count", "INV_BIND_MATRIX"),
+            ):
+                source_ref = inputs.get(semantic, "")
+                source = (source_by_id.get(source_ref[1:])
+                          if source_ref.startswith("#") else None)
+                if source is None:
+                    info[field] = None
+                    continue
+                if semantic == "JOINT":
+                    arrays = [c for c in source
+                              if _local_name(c.tag) in ("Name_array", "IDREF_array")]
+                    if len(arrays) != 1:
+                        info[field] = None
+                    else:
+                        try:
+                            info[field] = int(arrays[0].get("count", "-1"))
+                        except ValueError:
+                            info[field] = None
+                else:
+                    accessors = [
+                        c for c in source.iter() if _local_name(c.tag) == "accessor"
+                    ]
+                    if len(accessors) != 1:
+                        info[field] = None
+                    else:
+                        try:
+                            info[field] = int(accessors[0].get("count", "-1"))
+                        except ValueError:
+                            info[field] = None
+        if len(weight_fields) == 1:
+            weights = weight_fields[0]
+            try:
+                info["weighted_vertex_count"] = int(weights.get("count", "-1"))
+            except ValueError:
+                info["weighted_vertex_count"] = None
+            vcounts = [c for c in weights if _local_name(c.tag) == "vcount"]
+            if len(vcounts) == 1:
+                try:
+                    counts = [int(word) for word in (vcounts[0].text or "").split()]
+                    if (len(counts) > 200000 or any(v < 0 or v > 256 for v in counts)
+                            or sum(counts) > 2000000):
+                        raise ValueError("Unsupported weight counts")
+                    info["max_influences_per_vertex"] = max(counts, default=0)
+                    info["vcount_matches_declared"] = (
+                        len(counts) == info["weighted_vertex_count"])
+                except ValueError:
+                    info["max_influences_per_vertex"] = None
+                    info["vcount_matches_declared"] = False
+            info["weight_semantics_present"] = sorted({
+                c.get("semantic", "") for c in weights
+                if _local_name(c.tag) == "input"
+            })
+        info["static_skinning_evaluated"] = False
+        info["bind_pose_world_alignment_proven"] = False
+        summaries.append(info)
+    return {
+        "controller_definition_count": len(controllers),
+        "active_controller_instance_count": len(references),
+        "active_controller_kind_counts": dict(sorted(kinds.items())),
+        "active_controller_structural_summaries": summaries,
+        "controller_skinning_or_morphing_applied": False,
+        "native_world_alignment_verified": False,
+    }
+
+
 def audit_collada_scene(filename: str | Path) -> dict[str, object]:
     """Inspect actual source-authored Collada scene transforms without exporting art.
 
@@ -77,6 +243,33 @@ def audit_collada_scene(filename: str | Path) -> dict[str, object]:
     binding = [n for n in root if _local_name(n.tag) == "scene"]
     targets = [(ch.get("url") or "") for n in binding for ch in n
                if _local_name(ch.tag) == "instance_visual_scene"]
+    # Source-only structural inventory. These tags can change how native
+    # geometry is instanced/placed, and the renderer intentionally refuses to
+    # guess their semantics. Report *counts*, never private node identifiers
+    # or source matrices, so local failures are diagnosable.
+    unsupported_tags = ("lookat", "skew", "instance_node", "instance_controller")
+    if len(targets) == 1 and targets[0].startswith("#"):
+        active_scenes = [v for v in scenes if v.get("id") == targets[0][1:]]
+    elif not targets and len(scenes) == 1:
+        active_scenes = scenes
+    else:
+        active_scenes = []
+    active_unsupported = Counter(
+        _local_name(child.tag)
+        for scene in active_scenes
+        for node in scene.iter()
+        if _local_name(node.tag) == "node"
+        for child in node
+        if _local_name(child.tag) in unsupported_tags
+    )
+    all_unsupported = Counter(
+        _local_name(child.tag)
+        for scene in scenes
+        for node in scene.iter()
+        if _local_name(node.tag) == "node"
+        for child in node
+        if _local_name(child.tag) in unsupported_tags
+    )
     geometry_refs = []
     transforms = Counter()
     nonidentity = 0
@@ -127,6 +320,12 @@ def audit_collada_scene(filename: str | Path) -> dict[str, object]:
         "transform_counts": dict(sorted(transforms.items())),
         "nonidentity_transform_count": nonidentity,
         "matrix_xz_yaw_degrees_hypotheses": sorted(set(matrix_rotations))[:12],
+        "active_scene_resolved_for_inventory": len(active_scenes) == 1,
+        "active_unsupported_construct_counts": dict(sorted(active_unsupported.items())),
+        "all_scene_unsupported_construct_counts": dict(sorted(all_unsupported.items())),
+        "active_scene_requires_unimplemented_processing": bool(active_unsupported),
+        "controllers": _controller_structural_inventory(root, active_scenes),
+        "unsupported_constructs_are_not_safely_ignorable": True,
         "up_axis": up_axis,
         "current_loader_applies_visual_scene_transforms": True,
         "source_authored_dae_transform_is_not_native_kcl_mapping": True,
@@ -174,6 +373,78 @@ def _angle_diff(a: float, b: float) -> float:
     return ((a-b+180.) % 360.)-180.
 
 
+def _audit_display_fit_contrast(terrain, visual, k, v) -> dict:
+    """Measure the viewer's existing four *display-only* fits; never select one.
+
+    Green/fairway/bunker area-weighted centroids are coarse source-material
+    summaries, not surveyed common vertices or native correspondence pairs.
+    This reports only scalar XZ residuals; it does not emit native coordinates,
+    change the GUI rotation, or calibrate the game/physics reference frame.
+    """
+    names = tuple(n for n in ("green", "fairway", "bunker")
+                  if k[n] is not None and v[n] is not None)
+    evidence = {
+        "status": "ABSTAIN_FEWER_THAN_TWO_MATCHED_SURFACE_CLASSES",
+        "matched_material_classes": list(names),
+        "independent_point_correspondences_proven": False,
+        "native_collision_visual_alignment_verified": False,
+        "auto_apply_rotation": False,
+        "surface_centroids_are_not_exact_landmarks": True,
+    }
+    if len(names) < 2:
+        return evidence
+
+    # Use the IDENTICAL display fit used by the inspector, rather than a
+    # separate fitting/rotation convention that could silently disagree.
+    from .scene_camera import playable_source_vertices
+    from .unified_source_view import (
+        prepare_comparison_kcl, source_to_visual_display,
+    )
+    playing = playable_source_vertices(visual)
+    width = max(p[0] for p in playing) - min(p[0] for p in playing)
+    depth = max(p[2] for p in playing) - min(p[2] for p in playing)
+    diagonal = math.hypot(width, depth)
+    if not math.isfinite(diagonal) or diagonal <= 1e-7:
+        evidence["status"] = "ABSTAIN_VISUAL_PLAY_AREA_DEGENERATE"
+        return evidence
+
+    trials = []
+    for yaw in (0, 90, 180, 270):
+        try:
+            comp = prepare_comparison_kcl(terrain, visual, rotation_degrees=yaw)
+            errors = {}
+            for name in names:
+                source = source_to_visual_display(k[name][0], comp)
+                target = v[name][0]
+                residual = math.hypot(source[0] - target[0],
+                                      source[2] - target[2])
+                if not math.isfinite(residual):
+                    raise ValueError("Nonfinite source surface contrast")
+                errors[name] = residual
+            rms = math.sqrt(sum(e*e for e in errors.values()) / len(errors))
+        except ValueError:
+            trials.append({"display_yaw_degrees": yaw,
+                           "status": "ABSTAIN_UNUSABLE_DISPLAY_FIT"})
+            continue
+        trials.append({
+            "display_yaw_degrees": yaw,
+            "status": "DISPLAY_ONLY_NOT_NATIVE_WORLD_ALIGNMENT",
+            "surface_centroid_residual_xz": {
+                name: round(errors[name], 4) for name in names},
+            "surface_centroid_rms_xz": round(rms, 4),
+            "surface_centroid_rms_over_visual_diagonal": round(rms / diagonal, 6),
+            "uniform_display_scale": round(comp.source_scale, 6),
+        })
+    evidence["status"] = (
+        "DISPLAY_ONLY_COARSE_MATERIAL_CONTRAST"
+        if all(t["status"] == "DISPLAY_ONLY_NOT_NATIVE_WORLD_ALIGNMENT"
+               for t in trials)
+        else "PARTIAL_DISPLAY_ONLY_COARSE_MATERIAL_CONTRAST"
+    )
+    evidence["trial_displays"] = trials
+    return evidence
+
+
 def audit_surface_registration(terrain, visual, *,
                                tee: tuple[float, float, float] | None = None,
                                pin: tuple[float, float, float] | None = None) -> dict:
@@ -207,6 +478,14 @@ def audit_surface_registration(terrain, visual, *,
         "source_geometry_identity_proven": False,
         "native_game_world_transform_proven": False,
     }
+    report["display_fit_surface_contrast"] = _audit_display_fit_contrast(
+        terrain, visual, k, v)
+    # A single area-weighted centroid can hide multiple distant greens,
+    # different source-hole coverage, or UV-induced fragmentation.
+    # Inventory original surface patches before interpreting yaw scores.
+    from .surface_footprint_audit import audit_material_footprints
+    report["source_material_footprints"] = audit_material_footprints(
+        terrain, visual)
     # Green-to-fairway centroids yield only a coarse relative heading, not
     # an exact tee/pin correspondence. Do not silently optimize/draw from it.
     if all(k.get(n) is not None and v.get(n) is not None for n in ("green", "fairway")):

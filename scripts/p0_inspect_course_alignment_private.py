@@ -28,6 +28,8 @@ from wii_ai_golf.inspector.replay import float_hypothesis
 from wii_ai_golf.inspector.scene_alignment_audit import (
     audit_collada_scene, audit_surface_registration)
 from wii_ai_golf.inspector.terrain import load_private_obj
+from wii_ai_golf.inspector.terrain_labels import apply_private_surface_labels
+from wii_ai_golf.inspector.visual_model import VisualAssetError
 from wii_ai_golf.inspector.tree_positions import load_private_tree_positions
 
 
@@ -68,6 +70,8 @@ def source_gated_live_anchors(port: int = 55355) -> dict:
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--terrain-obj", type=Path, help="STRICT PRIVATE source KCL OBJ")
+    p.add_argument("--terrain-labels", type=Path,
+                   help="STRICT PRIVATE SHA-bound KCL surface-label JSON sidecar")
     p.add_argument("--visual-dae", type=Path, help="STRICT PRIVATE original visual Collada DAE")
     p.add_argument("--trees", type=Path, help="STRICT PRIVATE original 94-tree JSON")
     p.add_argument("--port", type=int, default=55355)
@@ -75,11 +79,30 @@ def main(argv=None) -> int:
                    help="Skip source-gated Dolphin memory check")
     p.add_argument("--require-live", action="store_true",
                    help="Fail if live source-gated Wii memory cannot be read")
+    p.add_argument("--scene-only", action="store_true",
+                   help="Audit DAE scene constructs without rendering or touching KCL/RAM")
     args = p.parse_args(argv)
     if args.offline and args.require_live:
         p.error("--offline and --require-live conflict")
+    if args.scene_only and args.visual_dae is None:
+        p.error("--scene-only requires --visual-dae")
     if not 1 <= args.port <= 65535:
         p.error("--port must be a valid local port")
+
+    if args.scene_only:
+        try:
+            source_scene = audit_collada_scene(args.visual_dae)
+        except (OSError, ValueError) as exc:
+            print("ABSTAIN_SOURCE_SCENE:", type(exc).__name__)
+            return 2
+        print(json.dumps({
+            "status": "SOURCE_COLLADA_SCENE_INVENTORY_ONLY",
+            "dae_visual_scene": source_scene,
+            "visual_vertices_loaded": False,
+            "game_world_alignment_verified": False,
+            "training_approved": False,
+        }, indent=2, sort_keys=True))
+        return 0
 
     try:
         preferences = load_asset_selections()
@@ -107,8 +130,63 @@ def main(argv=None) -> int:
         return 2
     try:
         terrain = load_private_obj(terrain_path)
-        visual = load_private_dae_visual_model(visual_path)
+        if args.terrain_labels is not None:
+            terrain = apply_private_surface_labels(terrain, args.terrain_labels)
         scene = audit_collada_scene(visual_path)
+        try:
+            visual = load_private_dae_visual_model(visual_path)
+        except VisualAssetError as exc:
+            # A Collada scene construct that the source renderer cannot handle
+            # must NOT be ignored or scored against guessed mesh positions.
+            # Source-derived audit counts are safe to print; raw XML, paths,
+            # vertices, node IDs and original game art are not.
+            # All listed rigid-skin errors are literal, code-owned messages
+            # (never source node names, coordinates, paths or original art).
+            # Map to a stable finite allowlist, not an arbitrary exception
+            # string that could disclose private asset details.
+            skin_gates = {
+                "Source rigid skin joint unresolved or ambiguous": "JOINT_REFERENCE",
+                "Source rigid skin skeleton unresolved": "SKELETON_REFERENCE",
+                "Source rigid skin requires one skeleton": "SKELETON_CARDINALITY",
+                "Source rigid skin POSITION count invalid": "POSITION_COUNT",
+                "Source rigid skin vertex counts mismatch": "VERTEX_COUNT",
+                "Source rigid skin requires one influence per vertex": "INFLUENCE_COUNT",
+                "Source rigid skin joint/weight unverified": "WEIGHT_BINDING",
+                "Original skin controller unresolved or duplicated": "CONTROLLER_REFERENCE",
+                "Original rigid skin geometry reference ambiguous": "GEOMETRY_REFERENCE",
+                "Source rigid skin joint arrays unresolved": "JOINT_ARRAY",
+                "Source rigid skin supports exactly one joint": "JOINT_COUNT",
+                "Source rigid skin joint-name array ambiguous": "JOINT_NAME_ARRAY",
+                "Source rigid skin vcount/v count invalid": "INFLUENCE_ARRAY",
+                "Source rigid skin weight index count invalid": "WEIGHT_INDEX_ARRAY",
+                "Source rigid skin weight source missing": "WEIGHT_ARRAY",
+                "Source rigid skin source array count mismatch": "SOURCE_ARRAY_COUNT",
+                "Source rigid skin accessor dimension invalid": "SOURCE_ACCESSOR",
+                "Source rigid skin accessor not source-bound": "SOURCE_BINDING",
+                "Source rigid skin matrix nonaffine": "NONAFFINE_MATRIX",
+            }
+            skin_gate = next(
+                (value for label, value in skin_gates.items()
+                 if label in str(exc)), None)
+            print(json.dumps({
+                "status": "ABSTAIN_SOURCE_VISUAL_MODEL",
+                "reason": (
+                    "STRICT_RIGID_SKIN_SOURCE_GATE_FAILED" if skin_gate
+                    else "UNSUPPORTED_OR_UNRESOLVED_SOURCE_SCENE_GRAPH"
+                    if "scene" in str(exc).lower()
+                    else "ORIGINAL_VISUAL_LOADER_REFUSED"
+                ),
+                "skin_source_gate": skin_gate,
+                "dae_visual_scene": scene,
+                "strict_source_kcl": {
+                    "sha256": terrain.sha256,
+                    "faces": len(terrain.faces),
+                },
+                "course_material_alignment_scored": False,
+                "native_world_transform_verified": False,
+                "training_approved": False,
+            }, indent=2, sort_keys=True))
+            return 2
         if args.trees is not None or preferences.tree_json:
             tree_path = args.trees or Path(preferences.tree_json)
             trees = load_private_tree_positions(tree_path)
@@ -118,6 +196,15 @@ def main(argv=None) -> int:
     except (OSError, ValueError) as exc:
         # Do not echo exception paths, source vectors, or original scene nodes.
         print("ABSTAIN_SOURCE_ASSETS:", type(exc).__name__, str(exc).split(":")[0][:120])
+        return 2
+
+    # Without decoded original OGWS groups or a SHA-bound source label sidecar,
+    # no cross-material contrast is possible. Do not print a misleading
+    # almost-empty alignment report or silently infer surface types.
+    if not any(type(attr) is int and attr in (1, 3, 6)
+               for attr in terrain.face_materials):
+        print("ABSTAIN_KCL_SOURCE_MATERIALS: supply --terrain-labels "
+              "using the original SHA-bound PRIVATE source sidecar.")
         return 2
 
     live = None
