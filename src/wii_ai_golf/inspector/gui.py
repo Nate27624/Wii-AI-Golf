@@ -195,7 +195,7 @@ class Inspector:
         main = ttk.PanedWindow(self.root, orient="horizontal")
         main.pack(fill="both", expand=True, padx=10)
         left = ttk.LabelFrame(main, text="Phase / sample", padding=8)
-        center = ttk.LabelFrame(main, text="3D candidate inspector — independent source views", padding=8)
+        center = ttk.LabelFrame(main, text="Unified 3D: original textures + candidate KCL (display fit UNVERIFIED)", padding=8)
         right = ttk.LabelFrame(main, text="Raw source candidates", padding=8)
         main.add(left, weight=1)
         main.add(center, weight=3)
@@ -206,17 +206,29 @@ class Inspector:
         ttk.Label(left, textvariable=self.phase, wraplength=190).pack(fill="x", pady=6)
         ttk.Button(left, text="Set aim baseline (point at flag)", command=self.set_baseline).pack(fill="x")
         ttk.Button(left, text="Load PRIVATE visual DAE / OBJ", command=self.open_textured_model).pack(fill="x", pady=(6, 0))
-        ttk.Button(left, text="Show textured course tab", command=self.show_visual_tab).pack(fill="x", pady=(3, 0))
+        ttk.Button(left, text="Show unified 3D source viewer", command=self.show_visual_tab).pack(fill="x", pady=(3, 0))
         ttk.Label(left, textvariable=self.aim, wraplength=200).pack(fill="x", pady=7)
 
-        # The candidate KCL and authentic visual DAE are independent scene
-        # views. Do NOT draw unqualified visual art atop live collision actors.
-        self.center_tabs = ttk.Notebook(center)
-        self.center_tabs.pack(fill="both", expand=True)
-        terrain_tab = ttk.Frame(self.center_tabs, padding=4)
-        self.visual_tab = ttk.Frame(self.center_tabs, padding=4)
-        self.center_tabs.add(terrain_tab, text="Collision / KCL candidates")
-        self.center_tabs.add(self.visual_tab, text="Original visual textures")
+        # ONE visible 3D canvas. The legacy terrain Tk canvas and its
+        # provenance-safe replay drawing functions are retained ONLY as a
+        # fallback when no private source visual DAE has been loaded.
+        # Once a DAE exists, the source KCL is shown in the SAME 3D camera
+        # via an explicitly unverified display-only bounding-box fit.
+        self.visual_tab = ttk.Frame(center, padding=2)
+        terrain_tab = ttk.Frame(center, padding=2)
+        self._legacy_terrain_tab = terrain_tab
+        terrain_tab.pack(fill="both", expand=True)
+        shared_actions = ttk.Frame(center)
+        shared_actions.pack(side="bottom", fill="x")
+        ttk.Button(shared_actions, text="Load KCL OBJ",
+                   command=self.load_terrain).pack(side="left")
+        ttk.Button(shared_actions, text="Load KCL source IDs",
+                   command=self.load_terrain_labels).pack(side="left", padx=3)
+        ttk.Button(shared_actions, text="Clear KCL",
+                   command=self.clear_terrain).pack(side="left")
+        ttk.Label(shared_actions,
+                  text="Shared camera; KCL-vs-texture fit is DISPLAY ONLY, not physics.",
+                  wraplength=260).pack(side="left", padx=5)
         ttk.Label(self.visual_tab, textvariable=self.visual_status,
                   wraplength=630).pack(fill="x", pady=(1, 3))
 
@@ -290,9 +302,12 @@ class Inspector:
         ttk.Label(lower, textvariable=self.detail, wraplength=1250, justify="left").pack(anchor="w")
 
     def show_visual_tab(self) -> None:
-        self.center_tabs.select(self.visual_tab)
-        if self.visual_preview is not None:
-            self.visual_preview.schedule()
+        """One visible 3D viewport with source texture/KCL visibility modes."""
+        if self.visual_preview is None:
+            return
+        self._legacy_terrain_tab.pack_forget()
+        self.visual_tab.pack(fill="both", expand=True)
+        self.visual_preview.schedule()
 
     def load_visual_path(self, filename: str, *, show_dialog: bool = False) -> bool:
         """Embed original source art in the inspector WITHOUT KCL alignment."""
@@ -302,6 +317,12 @@ class Inspector:
                      else load_private_visual_model(filename))
             from .textured_preview import TexturedPreviewWindow
             preview = TexturedPreviewWindow(self.visual_tab, model, embedded=True)
+            if self.terrain_mesh is not None:
+                try:
+                    preview.set_collision_terrain(self.terrain_mesh)
+                except ValueError as align_error:
+                    preview.comparison_status.set(
+                        "KCL source comparison unavailable: " + str(align_error))
         except (VisualAssetError, OSError, RuntimeError, tk.TclError,
                 ImportError, ValueError) as exc:
             self.visual_status.set("Visual source declined: " + str(exc))
@@ -356,6 +377,7 @@ class Inspector:
             f"PRIVATE terrain OBJ: {len(mesh.faces)} candidate triangles, SHA {mesh.sha256[:12]}… "
             "· visual alignment/active collision UNVERIFIED")
         self.draw_path()
+        self._sync_visual_terrain()
         return True
 
     def load_terrain_labels(self) -> None:
@@ -393,13 +415,24 @@ class Inspector:
             f"Source colors: {len(labeled.faces)} original KCL per-face IDs linked by OBJ SHA "
             "· candidate visual categories, not physics")
         self.draw_path()
+        self._sync_visual_terrain()
         return True
+
+    def _sync_visual_terrain(self) -> None:
+        if self.visual_preview is None:
+            return
+        try:
+            self.visual_preview.set_collision_terrain(self.terrain_mesh)
+        except ValueError as exc:
+            self.visual_preview.comparison_status.set(
+                "KCL source comparison unavailable: " + str(exc))
 
     def clear_terrain(self) -> None:
         self.terrain_mesh = None
         self.surface_label_status.set("Surface colors: no original KCL labels loaded.")
         self.terrain_status.set("Terrain: no private OBJ loaded.")
         self.draw_path()
+        self._sync_visual_terrain()
 
     def pick(self, var: tk.StringVar) -> None:
         name = filedialog.askopenfilename(title="Choose local file (not uploaded)")
