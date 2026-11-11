@@ -8,6 +8,11 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from wii_ai_golf.inspector.scene_camera import VisualCamera
@@ -37,6 +42,7 @@ def camera():
 
 
 class PrivateTreeUnifiedTests(unittest.TestCase):
+    @unittest.skipUnless(Image is not None, "optional Pillow not installed")
     def test_94_dots_are_visible_in_shared_source_camera(self):
         from PIL import Image
         image = Image.new("RGB", (700, 400), (22, 33, 44))
@@ -46,6 +52,7 @@ class PrivateTreeUnifiedTests(unittest.TestCase):
         self.assertIs(image, result)
         self.assertNotEqual(image.tobytes(), before)
 
+    @unittest.skipUnless(Image is not None, "optional Pillow not installed")
     def test_unverified_transform_absent_does_not_guess_markers(self):
         from PIL import Image
         image = Image.new("RGB", (700, 400), (22, 33, 44))
@@ -54,6 +61,7 @@ class PrivateTreeUnifiedTests(unittest.TestCase):
         self.assertIs(result, image)
         self.assertEqual(image.tobytes(), before)
 
+    @unittest.skipUnless(Image is not None, "optional Pillow not installed")
     def test_bad_shape_rejected_before_visual_render(self):
         from PIL import Image
         image = Image.new("RGB", (700, 400))
@@ -63,6 +71,7 @@ class PrivateTreeUnifiedTests(unittest.TestCase):
             draw_tree_comparison(image, comparison(), camera(),
                                  points()[:-1] + ((float("nan"), 0., 0.),))
 
+    @unittest.skipUnless(Image is not None, "optional Pillow not installed")
     def test_exact_base_only_and_illustrative_modes_differ(self):
         from PIL import Image
         plain = Image.new("RGB", (700, 400), (22, 33, 44))
