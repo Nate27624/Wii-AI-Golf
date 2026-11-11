@@ -854,3 +854,86 @@ Interpretation plan:
 
 All training approvals remain false and inspector trees
 should remain explicit nonphysical markers.
+
+## Real original phase7: all-face KCL aligns strongly with tee/pin and trees, but AABB caveat
+
+The operator ran source+SHA+scene+94x84 tree-loop and exact original
+2498-prism KCL source-gated
+`p0_tree_kcl_frame_diagnostics_private.py` from validated
+`1a9673ca3a82fbf6c7302bb527a326aa6e434124`:
+
+- Original 94 tree locations, tee and pin control positions and
+  reconstructed 2498-prism mesh occupy **overlapping X/Y/Z
+  aggregate coordinate ranges** (axis gap 0 for all 3).
+- Using **ALL 2498 faces without elevation/normal filters**:
+  tee, pin and all **94/94 source trees** have nearest
+  projected XZ **triangle AABB LOWER BOUND 0**. Tee/pin
+  3D triangle AABB lower bound 0; source trees'
+  nearest 3D triangle AABB bounds minimum 0, median 0,
+  maximum **1.9 source units**. This is strong aggregate
+  evidence of a compatible terrain coordinate frame,
+  but **AABB overlap is not actual triangle contact**.
+- Source face categories: **2363** near-horizontal
+  faces (abs face normal Y >=0.80), **128** near-vertical
+  faces (abs face normal Y <=0.40), 7 intermediate.
+  Near-horizontal subset alone gives exactly the same
+  tee/pin/tree aggregate 3D AABB minima as *all* faces.
+- Nearest **near-vertical face** from tree locations:
+  projected XZ AABB lower bound min **76.77**,
+  median **668.05**, max **1581.24** source units.
+  3D AABB lower bound min **77.97**, median **669.45**,
+  max **1581.27**. **0/94** source trees are within
+  50 units of a near-vertical bounding box.
+  At <=100 units: 1/94; <=200: 10/94; <=500:
+  32/94 XZ (31/94 3D); <=1000: 75/94.
+  Tee/pin nearest vertical-face 3D AABB lower bounds:
+  **293.19** and **209.01** source units.
+- Original strict elevated-face filter made all-tree
+  vertical proximity counts zero <=200. Removing
+  elevation check yields **10/94 within 200 source units**
+  and **32/94 within 500** (versus 8/94 elevated).
+  Prior all-zero conclusion was at least partly
+  caused by the elevation gate. Do NOT infer absence
+  of vertical geometry from that filtered result.
+
+**Interpretation:** compatible course terrain coordinate frames
+are strongly supported by all 94 tree centres + tee/pin controls,
+but the existing reconstructed candidate mesh looks dominated
+by horizontal course terrain, with only 128 vertical faces
+not clustered tightly around the trees at these search scales.
+This is **negative evidence for this candidate KCL being a
+high-detail trunk/leaf collider mesh**, not evidence that
+trees are physically absent or that a second collider
+resource is already proven. Active Ball KCL octree
+and separate model collision logic remain unresolved.
+
+### New exact triangle tests (unfiltered and positive controls)
+
+Added `scripts/p0_tree_kcl_exact_triangle_distance_private.py`
+and synthetic tests. The original source-gated KCL parser now
+has backwards-compatible `include_vertices=True` option
+to retain reconstructable **operator-private triangle vertex
+triplets in memory** instead of only AABBs. The new script
+computes the exact distance to those reconstructed triangles
+(in 3D and their XZ projection) for each source tree/tee/pin.
+It also counts XZ-projected actual near-horizontal face
+coverage and signed source Y clearance to projected faces
+at tree/tee/pin points. The latter helps detect whether
+the parser creates correctly oriented triangles vs
+overly large bounding boxes. It reports *only aggregate
+counts/min/median/max and source flag summaries*; no
+individual XYZ, vertices, KCL objects, RAM addresses,
+original instruction words, model assets or other private
+values are published or committed. Tests explicitly
+cover AABB overlap when true triangle distance is
+positive, projected vertical degenerate lines,
+true surface barycentric coverage, synthetic frame
+controls and fail closed on mismatch.
+
+**No hitbox inference permitted:** exact Euclidean
+point-to-KCL-triangle distance is still NOT
+a tree collision contact test; active game
+octree ownership and physics reaction remain
+unverified. No physical trunk radius, foliage
+height or restitution inferred. Keep training
+unapproved and visual tree markers nonphysical.
