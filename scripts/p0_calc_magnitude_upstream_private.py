@@ -195,7 +195,8 @@ def _arith_matches(word: int, spec: tuple[int, int, int, int, int, int]) -> bool
 def _cmp_matches(word: int, spec: tuple[int, int, int]) -> bool:
     crfd, fa, fb = spec
     return ((word >> 26) == 63 and (word >> 1) & 1023 == 32
-            and (word >> 23) & 7 == crfd and (word >> 16) & 31 == fa
+            and (word >> 23) & 7 == crfd and (word >> 21) & 3 == 0
+            and (word >> 16) & 31 == fa
             and (word >> 11) & 31 == fb and not word & 1)
 
 
