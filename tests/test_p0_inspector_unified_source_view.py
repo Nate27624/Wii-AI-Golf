@@ -6,6 +6,7 @@ memory writes or non-source texture guesses.
 from __future__ import annotations
 
 from pathlib import Path
+import time
 from types import SimpleNamespace
 from unittest.mock import Mock
 import sys
@@ -99,28 +100,86 @@ class UnifiedSourceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             draw_comparison(frame, comp, camera, mode="INVALID")
 
-    def test_arrow_keys_move_without_rmb_while_wasd_requires_it(self):
+    def test_arrow_keys_hold_continuously_without_rmb_while_wasd_requires_it(self):
         model, _=scene()
         view=object.__new__(TexturedPreviewWindow)
         view.camera=frame_playable_camera(model)
         view.home_camera=view.camera
         view.full_camera=fit_camera(model.vertices)
         view.drag_button=None
+        view._closed=False
         view.schedule=Mock()
+        view.top=Mock()
+        view.top.after.return_value="timer"
+        view._nav_timer=None
+        view._held_keys=set()
+        view._pending_key_releases={}
+        view._shift_held=False
+        view._last_nav_tick=time.perf_counter()
+        view._last_nav_render=0.
         start=view.camera.position
-        self.assertEqual(view.key_move(SimpleNamespace(keysym="Up",state=0)), "break")
-        self.assertNotEqual(start, view.camera.position)
-        after=view.camera.position
-        view.key_move(SimpleNamespace(keysym="w",state=0))
-        self.assertEqual(after, view.camera.position)
-        for key in ("Down", "Left", "Right"):
-            previous=view.camera.position
-            self.assertEqual(view.key_move(SimpleNamespace(keysym=key,state=0)), "break")
-            self.assertNotEqual(previous, view.camera.position)
+        self.assertEqual(view.key_move(SimpleNamespace(keysym="Up",state=0)),
+                         "break")
+        # Press is not a discrete unit jump.
+        self.assertEqual(start,view.camera.position)
+        for _ in range(5):
+            view._last_nav_tick=time.perf_counter()-.02
+            view._navigation_tick()
+        self.assertNotEqual(start,view.camera.position)
+        moved=view.camera.position
+        # OS repeat keypress does NOT produce an immediate extra step.
+        self.assertEqual(view.key_move(SimpleNamespace(keysym="Up",state=0)),
+                         "break")
+        self.assertEqual(moved,view.camera.position)
+        view._held_keys.clear()
+        self.assertIsNone(view.key_move(SimpleNamespace(keysym="w",state=0)))
+        self.assertEqual(moved,view.camera.position)
+        for key in ("Down","Left","Right"):
+            before=view.camera.position
+            self.assertEqual(view.key_move(SimpleNamespace(keysym=key,state=0)),
+                             "break")
+            self.assertEqual(before,view.camera.position)
+            view._last_nav_tick=time.perf_counter()-.025
+            view._navigation_tick()
+            self.assertNotEqual(before,view.camera.position)
+            view._held_keys.clear()
+            view._nav_timer=None
         view.frame()
         self.assertEqual(view.camera,view.home_camera)
         view.frame_all()
         self.assertEqual(view.camera,view.full_camera)
+
+    def test_autorepeat_release_is_cancelled_and_focus_loss_stops_flying(self):
+        model, _=scene()
+        view=object.__new__(TexturedPreviewWindow)
+        view.camera=frame_playable_camera(model)
+        view.drag_button=None
+        view._closed=False
+        view.schedule=Mock()
+        view.top=Mock()
+        view.top.after.return_value="timer"
+        view._nav_timer=None
+        view._held_keys=set()
+        view._pending_key_releases={}
+        view._shift_held=False
+        view._last_nav_tick=time.perf_counter()
+        view._last_nav_render=0.
+        view.key_move(SimpleNamespace(keysym="Up",state=0))
+        view.key_release(SimpleNamespace(keysym="Up",state=0))
+        self.assertIn("up",view._pending_key_releases)
+        view.key_move(SimpleNamespace(keysym="Up",state=0))
+        self.assertNotIn("up",view._pending_key_releases)
+        self.assertIn("up",view._held_keys)
+        view.top.after_cancel.assert_called_with("timer")
+        view._last_nav_tick=time.perf_counter()-.02
+        view._navigation_tick()
+        view.focus_lost()
+        self.assertFalse(view._held_keys)
+        self.assertIsNone(view._nav_timer)
+        after=view.camera.position
+        view._navigation_tick()
+        self.assertEqual(view.camera.position,after)
+
 
     def test_drag_adaptively_lowers_pixel_resolution_not_source_faces(self):
         view=object.__new__(TexturedPreviewWindow)
