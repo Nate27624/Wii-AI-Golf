@@ -31,6 +31,8 @@ on:
       - tests/test_p0_tree_kcl_spatial_broadphase_private.py
       - scripts/p0_tree_kcl_frame_diagnostics_private.py
       - tests/test_p0_tree_kcl_frame_diagnostics_private.py
+      - scripts/p0_tree_kcl_exact_triangle_distance_private.py
+      - tests/test_p0_tree_kcl_exact_triangle_distance_private.py
       - research/studies/P0-GOLF-TREE-HITBOX-01.md
       - .github/workflows/p0-tree-hitbox-source-offline.yml
 permissions:
@@ -73,5 +75,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_tree_kcl_spatial_broadphase_private.py -v
       - name: KCL world-frame tee-pin controls and full unfiltered near-face diagnostics
         run: python -m unittest discover -s tests -p test_p0_tree_kcl_frame_diagnostics_private.py -v
+      - name: Original exact triangle distance vs 94 trees and tee pin positive controls
+        run: python -m unittest discover -s tests -p test_p0_tree_kcl_exact_triangle_distance_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
