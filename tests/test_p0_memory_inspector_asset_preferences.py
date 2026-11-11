@@ -30,6 +30,28 @@ class SelectionTests(unittest.TestCase):
         self.obj = self.base / "terrain-PRIVATE.obj"
         self.obj.write_text("v 0 0 0\nv 1 0 0\nv 0 0 1\nf 1 2 3\n", encoding="ascii")
 
+    def test_register_source_94_private_file_into_settings(self):
+        from scripts import register_inspector_private_tree as entry
+        with patch.object(entry, "load_asset_selections", return_value=AssetSelections()), patch.object(
+                entry, "save_asset_selections") as save:
+            status, count = entry.register(self.tree)
+        self.assertEqual(status, "PRIVATE_TREE_JSON_REGISTERED")
+        self.assertEqual(count, 94)
+        recorded = save.call_args.args[0]
+        self.assertEqual(recorded.tree_json, str(self.tree.resolve()))
+        self.assertTrue(recorded.auto_find_trees)
+
+    def test_register_rejects_missing_or_false_source(self):
+        from scripts import register_inspector_private_tree as entry
+        self.tree.write_text(json.dumps({"kind": "made-up"}), encoding="utf-8")
+        with patch.object(entry, "save_asset_selections") as save:
+            with self.assertRaises(Exception):
+                entry.register(self.tree)
+            save.assert_not_called()
+        self.tree.unlink()
+        with self.assertRaises(Exception):
+            entry.register(self.tree)
+
     def test_absent_settings_first_run_enables_auto_discovery(self):
         found = load_asset_selections(self.settings)
         self.assertIsNone(found.tree_json)
