@@ -43,5 +43,10 @@ jobs:
             (Join-Path (Get-Location) 'scripts/bootstrap_inspector_private_trees.ps1'),
             [ref]$tokens, [ref]$errors) | Out-Null
           if ($errors.Count -ne 0) { throw "Tree bootstrap PowerShell has parse errors: $errors" }
+      - name: Synthetic private JSON move outside Git checkout (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & .\scripts\bootstrap_inspector_private_trees.ps1 -SelfTest
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
