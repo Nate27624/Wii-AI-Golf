@@ -292,6 +292,11 @@ class PrivateSceneAlignmentTests(unittest.TestCase):
         contrast = report["geometry"]["display_fit_surface_contrast"]
         self.assertEqual(contrast["matched_material_classes"], ["green", "fairway"])
         self.assertEqual(len(contrast["trial_displays"]), 4)
+        self.assertTrue(report["strict_source_visual"]["source_authored_scene_loaded"])
+        self.assertEqual(
+            report["strict_source_visual"]["strict_controller_instances_loaded"], 0)
+        self.assertFalse(
+            report["strict_source_visual"]["native_collision_world_registration_proven"])
         self.assertFalse(report["source_visual_world_alignment_verified"])
         self.assertFalse(report["training_approved"])
         self.assertEqual(unlabeled.face_materials, (None, None))
