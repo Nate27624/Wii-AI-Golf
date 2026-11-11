@@ -1490,3 +1490,92 @@ a reachable class-13 primitive in that resource.
 If it does not match, investigate source-qualified
 active prism-table identity and length
 rather than claiming a new tree mesh.
+
+
+## Original capture7: dummy-prism alignment correction confirmed
+
+The operator ran the source/SHA/scene/94-tree-gated
+`p0_ball_kcol_prism_dummy_layout_private.py --capture 7`
+at validated commit
+`8e2982e94677ee6f9b05d7eb6e4f04b0febe423a`.
+Result: `ACTIVE_KCL_PRISM_LAYOUT_COMPARED`,
+`active_prism_pointer_equals_terrain_dummy_base=true`,
+`active_prism_data_equal_after_dummy_16_byte_skip=true`,
+`active_2498_prism_bytes_match_known_terrain=true`,
+and `original_active_vertices_exact_pointer_equal=true`,
+`original_active_normals_exact_pointer_equal=true`.
+The active KCol instance's prism pointer is
+**at the beginning of the 16-byte dummy-inclusive
+KCL prism table**, not the first usable prism.
+All 2498 usable records are **byte-identical**
+to the previously independently recovered
+and SHA-qualified 2498-prism *terrain* resource.
+There are **zero class-13 attributes among
+these verified usable records**. This fully
+explains the previous active prism negative
+pointer/byte comparison: its offset was wrong.
+The mismatch is **NOT** evidence of another
+collider or alternative resource.
+
+The concrete successful native code path remains:
+`Ball+0x0A80` r13 source global -> KCol
+object -> `Ball+0x0B60` wrapper ->
+narrowphase prism record +0x0E -> stack
+classification output -> `Ball+0x0B6C`
+classification consumer. `13` exists as a
+special native Ball branch, but **is not a
+value present in this snapshot's verified
+active 2498 usable terrain prisms**.
+This does **not** rule out different courses,
+other active or auxiliary resources, non-KCL
+obstacles/tree mechanisms, or future
+contact states. No native tree radius,
+canopy behavior, speed/velocity semantics
+or force response is proven. Keep
+`training_approved=false`.
+
+### Expanded original seven-phase memory inspection
+
+User offered deeper memory inspection. The
+first step uses already archived source data,
+not new Dolphin capture. Added **read-only**
+`scripts/p0_ball_kcol_seven_capture_active_kcl_private.py`
+and **synthetic-only** unit tests
+`tests/test_p0_ball_kcol_seven_capture_active_kcl_private.py`.
+For EACH of seven original numbered, SHA
+verified paired snapshots, it independently:
+- checks scene, 94×0x54 source tree array,
+  exact native field-loop and 5+7
+  Ball/KCol primitive-return PPC gates;
+- source-derives `r13` from original
+  `__init_registers`, reads only native
+  `r13-23160` KCol global, and checks
+  the active KCol object/buffer banks;
+- requires exact vertex/normal alias
+  and correctly aligned 16-byte dummy
+  inclusive active prism alias against
+  that phase's independently located
+  unique terrain KCL candidate, with
+  **complete 2498×16-byte comparison**;
+- counts original active usable prism
+  16-bit classification halfwords from
+  record offset +0x0E, and checks the
+  original expected source histogram;
+- emits phase number, type histogram,
+  zero/positive class-13 count, object
+  and prism-address temporal equality
+  booleans only. NO RAM pointers, source
+  bytes, coordinates or native code are
+  exported. If any phase lacks the exact
+  source gates or candidate, the command
+  **abstains** rather than representing
+  incomplete coverage as a 7-phase proof.
+
+This establishes whether the capture7
+result persists across the **original
+seven observed phases**. Even a positive
+seven-phase result does not prove
+all game courses, tree collision geometry,
+or that an unobserved class 13 is a tree.
+The separate inspector PR #431/#432
+remains untouched.
