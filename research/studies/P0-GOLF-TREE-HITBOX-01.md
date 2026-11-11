@@ -738,3 +738,54 @@ spatially aligned with source-known 94 tree centres. If no
 evidence of tree triangles, inspect alternate collision
 resources rather than invent cylindrical hitbox proxies.
 Keep nonphysical inspector tree markers and training false.
+
+## Independent original-KCL-vs-tree geometry broadspatial falsification
+
+After source-resolving `Tree+0x047C` to graphics-model and
+camera processing (not a proven ball contact solver), a separate
+read-only source audit is needed to test whether the *candidate*
+2,498-face course KCL mesh contains obstacle-like geometry near
+the 94 native source tree positions.
+
+Added `scripts/p0_tree_kcl_spatial_broadphase_private.py`:
+- Source-qualified original RSPE01 Rev1 seven-pair archive
+  SHA, selected scene, **94x0x54 tree objects**, and exact
+  source PPC original tree stride.
+- Scans source MEM1/MEM2 for a **unique** original candidate
+  KCL header, parses and validates all **2,498** 16-byte
+  prism records, original indexed vertices/normals,
+  `height` reconstruction, finite geometry and cross
+  product area. Requires **exact original 9-flag histogram**
+  `{1:208,2:585,3:301,4:508,5:44,6:478,7:7,9:99,C:268}`.
+  Any missing/ambiguous source KCL candidate abstains.
+- Reconstructs candidate 3D triangles, selects relatively
+  vertical faces by `abs(face normal y)<=0.40`, and examines
+  only aggregate projected **XZ axis-aligned triangle BBOX
+  LOWER-BOUND distances** from known 94 tree centres under
+  independent 25,50,100,200 SOURCE-UNIT windows and
+  `max face height above tree origin>=0,25,75` SOURCE-UNIT
+  thresholds. This is NOT a geometric collision test;
+  the chosen windows are explicit **search regions**, not
+  guessed game hitbox radii or gameplay ranges. XZ AABB can
+  overstate proximity to a triangle. It also counts results
+  at **source tee and pin** as two non-tree control points.
+- Reports per-window number of trees with any / >=5
+  candidate elevated vertical faces, median/max face count,
+  source-flag histogram, and tee/pin controls. Does not
+  publish any tree XYZ, triangle vertices, native RAM
+  addresses, original executable code bytes, object records,
+  or any private 3D assets. No Dolphin or game writes.
+- This test cannot establish *active KCL octree ownership*
+  or prove that a nearby vertical face belongs to tree
+  collision rather than cliff/terrain geometry. It also
+  cannot rule out a separate tree collision resource.
+  **Only use its outcome to prioritize native collision
+  ownership/radius investigations.** Keep all physics
+  and training approvals false.
+
+User can run after exact-head offline CI passes, with
+`py -3 -I scripts/p0_tree_kcl_spatial_broadphase_private.py
+--archive <ORIGINAL_PRIVATE_SEVEN_PHASE_ARCHIVE> --capture 7`.
+All original positions/geometry stay local. The outcome
+is *candidate collision mesh overlap*, not a tree-hitbox
+reconstruction.
