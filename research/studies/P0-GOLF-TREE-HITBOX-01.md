@@ -3619,3 +3619,100 @@ binary/code word, RAM value,
 pointer, XYZ coordinate, game asset
 or ROM is committed; original files
 remain untouched.
+
+
+## Original Rev1 branch-witness corrected: signed r28 < 0, not equality; trace actual r0/r28 writers
+
+The operator supplied original
+`P0_ORIGINAL_BALL_CACHE_BACKEDGE_CR_WITNESS_V1`
+SHA-verified source report (Rev1 seven-pair
+original capture **7**), no new shots, Dolphin,
+video or guest RAM reads. It gives the **exact**
+native PowerPC compare and branch pair:
+
+| Ball-unit source | Native PPC syntax | Meaning |
+| --- | --- | --- |
+| +0x2FC0 | `cmpwi r0,0` (signed, CR0) | compare r0 with zero |
+| +0x2FC4 | `beq +0x2FDC` (BO=12,BI=2) | divert when r0 == 0; **fall through when r0 != 0** |
+| +0x2FC8 | `cmpwi r28,0` (signed, CR0) | compare signed r28 with zero |
+| +0x2FCC | `blt +0x2CD0` (BO=12,BI=0) | **backedge taken when signed r28 < 0** |
+
+**Important correction:** for PowerPC CR0,
+bit **BI=2 is EQ** and **BI=0 is LT**.
+Thus the second branch is a **signed
+less-than-zero check**, *not* a
+zero-equality check. The bounded
+source-CFG witness to the local
+`+0xCC` copy requires **both**
+`r0 != 0` (not taking +2FC4)
+and signed `r28 < 0` (taking
++2FCC), plus downstream branch
+choices and assumed returns from
+linked calls. These two predicates
+are logically compatible for
+some register values; that
+does **not** establish those
+values occur at runtime.
+
+The full witness into
+`Ball+0x2F98`/`+0x2FA8`
+further includes branches
+at +0x2CDC, +0x2D3C,
++0x2DCC, +0x2E90,
++0x2EF0, +0x2F60,
++0x2F84 and +0x2F94,
+and assumes return from
+linked BLs at +0x2CB0,
++0x2CF4 and +0x2F10.
+Original code does not
+yet prove condition
+satisfiability along
+the *whole* path,
+native execution, selected
+Ball receiver or a
+wood-versus-foliage branch.
+The copy-site native source
+instructions and bounded
+static reachability
+remain verified, not
+physics semantics.
+
+**Next offline source test:**
+`scripts/p0_ball_cc_backedge_signed_operands_private.py`
+and synthetic-only
+`tests/test_p0_ball_cc_backedge_signed_operands_private.py`
+revalidate all prior private original archive
+SHA/scene/source/native-copy/CFG gates,
+then require those exact signed
+`cmpwi` operands and EQ/LT
+branch bit encodings and
+target sites, trace the original
+bounded witness's recognized
+r0 and r28 register writers,
+and enumerate any recognized
+source assignments in the local
+Ball+0x2FB8..+0x2FCC
+prelude. It explicitly
+separates a syntactic `li`
+immediate value, a source
+memory-load candidate,
+an unknown called function
+that may clobber volatile
+GPRs, and runtime selected
+Ball state. Decoder is partial:
+unknown X-form/CFG/SSA
+effects remain unproven,
+so no runtime register
+value or native collision
+is inferred.
+
+All outputs are public native
+source-relative sites,
+register indices, operation
+categories and bounded
+immediates; no original
+ROM/PPC words, private
+heap addresses, ball XYZ,
+game assets, user video
+or original RAM. No
+training; `training_approved=false`.
