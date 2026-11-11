@@ -508,6 +508,9 @@ class Inspector:
     def open_capture(self) -> None:
         self.disconnect_live(silent=True)
         self.live_worker = None
+        # Offline replay has no independently selected player identity.
+        # Never carry a stale live metadata ID into another source epoch.
+        self.selected_player_index = None
         try:
             replay = load_replay(Path(self.capture.get()), Path(self.manifest.get()))
         except (OSError, ValueError) as exc:
