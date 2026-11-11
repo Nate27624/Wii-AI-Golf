@@ -104,10 +104,10 @@ def make_variants() -> list[dict[str, Any]]:
             zip(_fields(base[i]), _fields(trace[i]))) if a != b}
         allowed = {
             "CTRL": set(), "CTRL_R": set(),
-            "ZERO": {(i, j) for i in range(12, 47) for j in (2, 3, 4, 5, 6)},
-            "BACK0": {(i, j) for i in range(12, 27) for j in (2, 3, 4, 5, 6)},
-            "FWD0": {(i, j) for i in range(27, 47) for j in (2, 3, 4, 5, 6)},
-            "PULSE2": {(i, j) for i in range(29, 47) for j in (2, 3, 4, 5, 6)},
+            "ZERO": {(i, j) for i in range(12, 47) for j in (2, 4, 5, 6)},
+            "BACK0": {(i, j) for i in range(12, 27) for j in (2, 4, 5, 6)},
+            "FWD0": {(i, j) for i in range(27, 47) for j in (2, 4, 5, 6)},
+            "PULSE2": {(i, j) for i in range(29, 47) for j in (2, 4, 5, 6)},
             "TINY": {(i, j) for i in range(12, 47) for j in (4, 5, 6)},
             "REVFWD": {(i, j) for i in range(27, 47) for j in (2,)},
         }[name]
