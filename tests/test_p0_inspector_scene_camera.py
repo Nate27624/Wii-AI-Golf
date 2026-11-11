@@ -108,6 +108,17 @@ class SceneCameraTests(unittest.TestCase):
             self.assertEqual(out.pitch, self.cam.pitch)
             self.assertEqual((out.yaw < self.cam.yaw), (dx > 0))
 
+    def test_rmb_vertical_look_up_when_pointer_moves_up(self):
+        old = self.cam.position
+        up = look_in_place(self.cam, 0., -120.)
+        down = look_in_place(self.cam, 0., 120.)
+        self.assertGreater(up.pitch, self.cam.pitch)
+        self.assertLess(down.pitch, self.cam.pitch)
+        self.assertEqual(up.position, old)
+        self.assertEqual(down.position, old)
+        self.assertEqual(up.focus, self.cam.focus)
+        self.assertEqual(down.focus, self.cam.focus)
+
     def test_continuous_time_normalized_arrow_and_rmb_fly(self):
         self.assertEqual(held_navigation_direction({"up"}), (1., 0., 0.))
         self.assertEqual(held_navigation_direction({"down"}), (-1., 0., 0.))
