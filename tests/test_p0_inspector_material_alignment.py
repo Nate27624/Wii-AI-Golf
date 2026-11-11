@@ -122,7 +122,7 @@ class MaterialFitTests(unittest.TestCase):
         self.assertEqual(view.mode.get(),"Both")
         self.assertIsNotNone(view.comparison_kcl.source_material_fit)
         self.assertAlmostEqual(view.comparison_kcl.source_scale,2.)
-        self.assertIn("holdout",view.comparison_status.get())
+        self.assertIn("independent bunker residual",view.comparison_status.get())
         self.assertEqual(view._source_terrain,terrain)
         self.assertEqual(view.schedule.call_count,1)
 
