@@ -156,8 +156,8 @@ class VisualAssetTests(unittest.TestCase):
             self.skipTest('Optional Pillow/NumPy unavailable')
         Image.new('RGBA', (4, 4), (20, 210, 90, 255)).save(self.png)
         self.obj.write_text(
-            OBJ.replace('v 0 10 0', 'v 0 10 0\\nv 10 10 0')
-               .replace('vt 0 1', 'vt 0 1\\nvt 1 1')
+            OBJ.replace('v 0 10 0', 'v 0 10 0\nv 10 10 0')
+               .replace('vt 0 1', 'vt 0 1\nvt 1 1')
                .replace('f 1/1 2/2 3/3', 'f 1/1 2/2 4/4 3/3'),
             encoding='utf-8')
         model = load_private_visual_model(self.obj)
