@@ -289,6 +289,21 @@ def run_discovery(*, scenario: str, catalog: Path, bridge_source: Path,
             "red_human": row["red_shot_human"],
             "training_approved": False,
         }, indent=2), flush=True)
+        if genuine_neutral and index == 0:
+            # A matched positive CTRL is mandatory before interpreting A-only.
+            # Save the failed control first; NEVER send a ZERO motion trace
+            # after a lost baseline. This also guards the observed Nov 11
+            # failure where the new bridge moved the club but did not hit.
+            baseline_power = row.get("human_power_pct")
+            if (row["contact_human"] != "yes"
+                    or row["human_power_confidence"] != "clear"
+                    or type(baseline_power) not in (float, int)
+                    or not 96 <= baseline_power <= 106):
+                raise RefuseTrial(
+                    "Neutral bridge CTRL did not reproduce the 101% hit; "
+                    "saved control but STOPPED before ZERO. "
+                    "Investigate neutral-sample setter effects; "
+                    "do not treat this as a two-shot comparison.")
         # A NEGATIVE no-contact result is expected and is retained.
         # But apparent contact with ZERO commanded motion means requested
         # movement is not yet a reliable proxy for the in-game swing event.
