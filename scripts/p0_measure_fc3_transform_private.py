@@ -21,7 +21,9 @@ import sys
 PROJECT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(PROJECT/"src"))
 
-from wii_ai_golf.inspector.asset_preferences import load_asset_selections
+from wii_ai_golf.inspector.asset_preferences import (
+    load_asset_selections, local_settings_path)
+from types import SimpleNamespace
 from wii_ai_golf.inspector.dae_visual import load_private_dae_visual_model
 from wii_ai_golf.inspector.collada_scene_graph import UnsupportedSceneFeature
 from wii_ai_golf.inspector.source_geometry_fit import (
@@ -51,7 +53,35 @@ def inspect(dae: str | Path | None = None,
     try:
         settings=load_asset_selections()
     except (OSError,ValueError):
+        # The FC3 visual-review branch was stacked BEFORE the #432 label
+        # preference migration. Read just the two path values from the
+        # *newer* OS-local settings schema without weakening the general
+        # strict settings loader. Both files are revalidated below anyway.
         settings=None
+        path=local_settings_path()
+        try:
+            if path.is_file() and not path.is_symlink() and (
+                    0<path.stat().st_size<=8192):
+                raw=json.loads(path.read_text("utf-8"))
+                allowed={"version","terrain_obj","visual_dae","tree_json",
+                         "auto_find_trees","terrain_labels"}
+                if (type(raw) is dict and set(raw)==allowed and
+                        type(raw.get("version")) is int and
+                        raw["version"]==1):
+                    chosen={}
+                    for key in ("terrain_obj","terrain_labels"):
+                        candidate=raw.get(key)
+                        if (candidate is None or
+                                (type(candidate) is str and
+                                 0<len(candidate)<=2048 and
+                                 Path(candidate).is_absolute() and
+                                 not any(ord(ch)<32 for ch in candidate))):
+                            chosen[key]=candidate
+                    if len(chosen)==2:
+                        settings=SimpleNamespace(**chosen)
+                        report["source_preferences_migrated_read_only"]=True
+        except (OSError,ValueError,UnicodeError,TypeError):
+            settings=None
     dae_path=Path(dae) if dae is not None else FC3_DEFAULT
     terrain_path=(Path(terrain) if terrain is not None else
                   Path(settings.terrain_obj) if settings and settings.terrain_obj
