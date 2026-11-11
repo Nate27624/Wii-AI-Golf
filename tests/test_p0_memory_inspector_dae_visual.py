@@ -171,7 +171,8 @@ class DirectDAETests(unittest.TestCase):
         # as UNALIGNED geometry-library preview, NOT native scene/collision.
         modified=DAE.replace(
             '<node id="grass-node">',
-            '<node id="grass-node"><instance_controller url="#golf-skin"/>')
+            '<node id="grass-node"><translate>10 0 20</translate>'
+            '<instance_controller url="#golf-skin"/>')
         self.dae.write_text(modified,encoding="utf-8")
         with self.assertRaisesRegex(
                 UnsupportedSceneFeature, "instance_controller"):
@@ -183,6 +184,8 @@ class DirectDAETests(unittest.TestCase):
                          hashlib.sha256(self.png.read_bytes()).hexdigest())
         self.assertEqual(result.obj_sha256,
                          hashlib.sha256(self.dae.read_bytes()).hexdigest())
+        self.assertEqual(result.vertices[:3],
+                         ((10.,0.,20.),(18.,0.,20.),(10.,8.,20.)))
         self.assertIn("PARTIAL ORIGINAL SCENE",result.source_scene_warning)
         self.assertIn("instance_controller",result.source_scene_warning)
         self.assertIn("Supported source node transforms",result.source_scene_warning)
