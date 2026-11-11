@@ -221,3 +221,50 @@ textures. Reopen same existing private DAE via --visual-dae in updated
 PR #429 worktree. Remaining perspective/model transformations,
 Wii GX multi-pass TEV, palette material and original active-hole
 identity/world-to-collision alignment are NOT yet proven.
+
+
+## Integrated DAE inspector tab and fixed-position scene editor camera
+
+The source original DAE texture viewer is now an INTEGRATED tab in the
+main P0 inspector, not a second floating Toplevel window. The 2,498-face
+SHA-qualified source KCL colored terrain, ball/tee/flag candidate
+indicators and original sample controls remain in the independent
+Collision / KCL candidates tab. No unproven native world/axis/scale
+mapping is applied between these two views.
+
+With the private collision OBJ already selected at the operator's
+D:\Projects level, the inspector checks the exact sibling candidate
+D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1\glf_course_fc1.dae
+and loads the UV/PNG model automatically into the visual tab on startup.
+A DAE supplied explicitly with --visual-dae has priority over that
+candidate. The archive/model naming does not establish active-hole
+identity; this is a source-model inspection convenience, not gameplay
+physics. Users can still load a different local model via the visual
+selection button, with no game asset changes or network scans.
+
+Source-local visual camera controls (Unity Scene view behavior):
+- RIGHT click + drag: free-look from exactly the same camera world
+  position; no projected-bounds recentering and no orbiting.
+- LEFT drag: orbit the source-local focus point (moves camera position).
+- MIDDLE drag: pan camera and focus together.
+- Wheel: dolly camera forward/back relative to gaze.
+- Hold RIGHT mouse + W/A/S/D: fly forward/left/back/right.
+- Hold RIGHT mouse + Q/E: fly vertically; hold Shift to speed up.
+- F / Frame button: reset scene camera to initial fit.
+
+The perspective visual projection uses source UVs with
+reciprocal-depth-correct interpolation. Existing orthographic CPU preview
+API remains for old synthetic tests. Camera rendering still takes place
+on a single cancellable background thread (no Tk main thread blocking).
+The 780 original untextured source faces with unknown appearance remain
+explicitly omitted, not synthetically recolored. Wii GX/TEV and
+scene/world alignment remain unproven.
+
+Operator launch without separately specifying --visual-dae:
+
+    py -3 -I "D:\Projects\Wii Golf AI\Wii-AI-Golf-Texture-UI-P0\scripts\p0_memory_inspector.py" --terrain-obj "D:\Projects\hole01-collision-candidate-PRIVATE.obj" --terrain-labels "D:\Projects\hole01-collision-candidate-labels-PRIVATE.json"
+
+Windows and Ubuntu synthetic CI verifies fixed-position right look,
+scene-camera math, distinct orbit/pan/dolly, source-perspective render,
+new DAE integrated panel, original KCL source labels, and full offline
+regression. Real Windows layout/navigation still needs operator screenshot.
