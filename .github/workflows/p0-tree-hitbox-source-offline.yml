@@ -25,6 +25,8 @@ on:
       - tests/test_p0_tree_flag_receiver_disambiguation_private.py
       - scripts/p0_fieldmanager_tree_caller_receivers_private.py
       - tests/test_p0_fieldmanager_tree_caller_receivers_private.py
+      - scripts/p0_tree_second_loop_geometry_private.py
+      - tests/test_p0_tree_second_loop_geometry_private.py
       - research/studies/P0-GOLF-TREE-HITBOX-01.md
       - .github/workflows/p0-tree-hitbox-source-offline.yml
 permissions:
@@ -61,5 +63,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_tree_flag_receiver_disambiguation_private.py -v
       - name: Source-authenticated FieldManager true-tree vs other reader caller
         run: python -m unittest discover -s tests -p test_p0_fieldmanager_tree_caller_receivers_private.py -v
+      - name: Source 94-tree second loop and camera geometry receiver
+        run: python -m unittest discover -s tests -p test_p0_tree_second_loop_geometry_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
