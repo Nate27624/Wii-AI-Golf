@@ -16,6 +16,8 @@ on:
       - scripts/p0_ball_kcol_material_branch_private.py
       - scripts/p0_ball_kcol_result_provenance_private.py
       - scripts/p0_ball_kcol_prism_type_origin_private.py
+      - scripts/p0_ball_kcol_active_resource_private.py
+      - tests/test_p0_ball_kcol_active_resource_private.py
       - tests/test_p0_ball_kcol_prism_type_origin_private.py
       - tests/test_p0_ball_kcol_result_provenance_private.py
       - tests/test_p0_ball_kcol_material_branch_private.py
@@ -97,5 +99,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_ball_kcol_result_provenance_private.py -v
       - name: Native KCL prism type-to-result and Ball state-copy provenance audit
         run: python -m unittest discover -s tests -p test_p0_ball_kcol_prism_type_origin_private.py -v
+      - name: Source-qualified Ball KCol global resource and true terrain KCL identity
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_active_resource_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
