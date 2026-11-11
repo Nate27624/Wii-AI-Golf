@@ -3498,3 +3498,124 @@ native pointer values or XYZ.
 No Dolphin, screenshots, video,
 new swings or live writes.
 `training_approved=false`.
+
+
+## Original static CFG report: forward skip has a possible conditional back-route into CC and FC copies
+
+The operator uploaded the original
+`P0_ORIGINAL_BALL_CACHE_ENTRY_BRANCH_REACHABILITY_V1`
+report generated on SHA-qualified private
+Rev1 original seven-pair source capture 7,
+at research branch head
+`81a70fe4e1e35d81c4097d1625f69bc3e67b8cb0`.
+`original_seven_pair_sha_and_scene_gates_passed=true`.
+No Dolphin, additional swing, or gameplay video
+was used; per user request all future work
+on this branch stays **memory/native-source-only**.
+
+**Crucial correction to the prior native
+skip concern:** the original unconditional
+PPC branch at published Ball+0x2CCC
+to Ball+0x2FB8 **skips CC and FC
+copy blocks on that initial straight-line
+edge**, but the bounded static CFG shows
+possible paths back into both blocks.
+The CFG model explored **242 source
+instructions**, including **31 conditional
+`bc`**, **7 linked direct `bl`**,
+**3 unconditional direct `b`**,
+and **2 unresolved indirect `bclr/bcctr`**.
+There were no successors leaving the
+chosen coarse source window under
+this model (NOT proof the function ends
+there or external calls never execute).
+
+The bounded *may-reach* model reports:
+- Ball+0x2CB8 receiver-save site: **reachable**;
+- Ball+0x2CD4 global source load:
+  **reachable** through a route traversing
+  conditional branches at
+  **Ball+0x2FC4** and **Ball+0x2FCC**;
+- Ball+0x2D00 original source
+  `lfs` and Ball+0x2D04
+  first `+0xCC` writer:
+  **both reachable**;
+- Ball+0x2F98 original
+  `+0xCC` copy load, Ball+0x2FA8
+  first `+0xFC` store, and
+  Ball+0x2FB0 final store:
+  **all reachable** under the bounded
+  conditional-branch overapproximation.
+- The two unresolved indirect transfers
+  lie at Ball+0x2DAC and
+  Ball+0x305C; direct inbound
+  census found zero *exact direct
+  targets* for +0x2D00 and +0x2F98,
+  which does not exclude normal
+  linear fallthrough.
+
+**Do not read this as a verified
+guest execution trace.** The
+original reported route is a **possible
+static path**, not a solved system
+of concrete CR-register conditions,
+guest frame timing, r31/r27 selected
+object identity, or actual runtime
+Ball/Tree collision handling.
+In particular, a conditional
+backedge could be unsatisfiable on
+the relevant runtime state; no
+material-specific handler is proven.
+Our earlier conclusion that the
+two native local copies exist
+remains correct, but claims that
+they actively update the selected
+Ball during wood/canopy impacts
+remain **unproven**.
+
+**Focused next source-only audit**
+`scripts/p0_ball_cache_backedge_condition_private.py`
+and 12 synthetic regression tests
+`tests/test_p0_ball_cache_backedge_condition_private.py`
+are added to the same PR branch,
+with Windows and Ubuntu CI:
+- Strictly read the original
+  SHA-qualified Rev1 MEM1/MEM2
+  source and previous
+  exact native-copy and CFG gates.
+- Decode original PPC `bc`
+  BO/BI conditions and targets
+  at Ball+0x2FC4 and +0x2FCC;
+  summarize whether simple
+  CR-bit true/false interpretation
+  applies, plus nearby bounded
+  comparison syntax, never CR
+  guest register values.
+- For sources at +0x2D00,
+  +0x2D04, +0x2F98,
+  +0x2FA8 and +0x2CD4,
+  report the static *witness*
+  branch choices: direct target,
+  conditional fallthrough, or
+  assumed return after `bl`.
+  The latter is an overapproximation,
+  not guaranteed guest call return.
+- Preserve the separate facts:
+  original native memory-copy
+  instructions exist, static
+  may-reachability established,
+  active selected Ball receiver
+  UNKNOWN, source r13 global
+  object UNKNOWN, dynamic
+  branch outcomes UNKNOWN,
+  wood/leaf collision physics
+  UNKNOWN. `training_approved=false`.
+
+Only source-unit-relative
+code sites and syntactic branch
+registers/offsets leave the private
+original archive. No original
+binary/code word, RAM value,
+pointer, XYZ coordinate, game asset
+or ROM is committed; original files
+remain untouched.
