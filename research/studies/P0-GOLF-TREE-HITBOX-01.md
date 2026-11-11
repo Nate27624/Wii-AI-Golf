@@ -251,3 +251,48 @@ pointer and active collision-geometry resource owner, and whether
 tree positions participate in that source. If no provenance to tree
 structures, avoid generalizing terrain KCL collision into tree hitboxes.
 Training false.
+
+## Original PPC KCL query/narrowphase receipt, 2026-11-10
+
+Original SHA/scene-gated phase7 `p0_golf_kcol_collision_windows_private.py`
+output identified:
+- `GolfKCol+0x0000` query entry calls `+0x1540`, manages
+  return `r3` and best-result numeric comparisons. This is a
+  credible collision query, but no tree owner proven.
+- `GolfKCol+0x1540` initializes KCL query state and cached output
+  `r3+0x027C/0x0284`, writes a VEC3-like query position at
+  `r3+0x0294/0x0298/0x029C` and stores `f1` at `+0x54`.
+  Do not label the last float radius until correlated with KCL source
+  struct and geometric usage.
+- `GolfKCol+0x1AC4` loads `f1` at `+0x54(r3)`,
+  points r4 at `r3+0x40`, and tail-calls `+0x2090`.
+- `GolfKCol+0x2090` uses `r3+0x58` and vertex/prism pointers
+  at `r3+0x04/+0x08/+0x0C`, caching leaf/candidate state
+  `r3+0x027C`, then at `+0x21B8..+0x21D4` reads a
+  16-byte indexed primitive and points to 12-byte float vertices.
+  This is solid evidence of triangle geometry calculations, not
+  evidence of 94 tree collision objects in the same dataset.
+- `GolfKCol+0x31F0` subtracts three float components and converts
+  results to integer bit operations, consistent with spatial
+  octree/index or bounds filters. Exact purpose requires following
+  remaining branches.
+
+**Critical open question:** native `RPGolKCol` accesses what active
+KCL resource? Is it solely the terrain surface KCL, or are tree
+colliders a second KCL resource or separate object callbacks? The
+previous 5 Ball/KCol calls into Tree source were proven generic math,
+not tree collision. No trunk/canopy hitboxes or restitution verified.
+
+### Independent test of the known 94 tree objects (next)
+
+Added `scripts/p0_tree_hitbox_object_dispatch_private.py` to classify
+the **first word** of each source-proven 0x54 tree object and see if
+it plausibly indexes common runtime method dispatch slots leading
+into public Tree/Ball/Sim/KCol code. It also reports source
+`mModel+0x04`, `mMapObj+0x08`, and self-pointer checks at
+`mpRotation+0x40`, `mpTrans+0x44`, and exact `mulli/addi 84`
+instruction locations in Ball/Tree/Sim/FieldManager sources.
+**No private firstword pointers, game code bytes or any XYZ are
+published**. A common vtable or source-code stride use is a lead,
+not a proven collision interface; the actual native method and
+receiver must be traced before inferring geometry or response.
