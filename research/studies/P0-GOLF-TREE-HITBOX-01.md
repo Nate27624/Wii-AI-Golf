@@ -2148,3 +2148,110 @@ candidate windows against the negative
 control, with optional visual review
 if a video was actually recorded.
 `training_approved=false`.
+
+
+## Deep offline original live trial RAM differential — no new swings required
+
+Operator successfully recovered the **original** source-selected Ball/trees
+session `tree-contact-20261111T042646Z-64fb3def-PRIVATE`
+with original recorded raw SHA/packet validation:
+**45/39/26** Ball candidate packets for target intents
+`wood/leaves/near_miss`, **6/5/4** snapshots of the
+94×84-byte tree array, **110** and **15** total respectively.
+The source-selected Ball identity and raw hole index match
+across all trials. Operator-observed contacts are **LEAVES
+in wood-intent trial**, **WOOD in leaves-intent trial**, and
+**NO CONTACT in near-miss**; user reported changed flight
+in first two, unchanged flight in the control.
+Same savestate, launch power or pose has **not** been proven
+across trials. All three optional FFmpeg videos are
+reported created, but their frame content has not been
+inspected independently; reported video_created does not
+prove the recording shows actual trajectory.
+
+Created **read-only, offline-only** bounded study:
+`scripts/analyze_p0_tree_contact_memory_private.py`,
+synthetic tests `tests/test_analyze_p0_tree_contact_memory_private.py`.
+It calls `recover_p0_tree_contact_record_private.recover`
+to independently SHA-verify original source-selected
+recordings, their 110 packet schemas/counts,
+source-identity digests, and 94-tree metadata.
+It neither calls Felk RPC nor launches Dolphin, nor
+writes any RAM/savestate, nor modifies the original
+raw logs or their manifests. It writes a new
+`tree-contact-deep-memory-SAFE.json` **exclusively**
+in the already-private source session folder. Repeated
+execution refuses to overwrite a prior result.
+
+Methods:
+- **Non-atomic temporal coverage**: within each trial
+  validates monotonic host nanosecond timestamps
+  and Dolphin RPC frame-count brackets (NOT guest
+  physics frames). Summarizes sample cadence,
+  median/max read duration, and total observed
+  capture interval; explicitly denies impact-frame
+  synchronization or comparable swing timing.
+- **Object-by-object big-endian word transitions**:
+  for source-selected `Ball+0x000..0x1BF`,
+  selected player record `+0x000..0x0CB`,
+  and Ball nested translation candidate 12-byte
+  window, enumerates exact successive word-bit
+  changes, first/last differences and source
+  object-relative offsets. No memory addresses or
+  native word values are exported.
+- **Source-bound field windows (candidate ONLY)**:
+  `Ball+0x30` (12 bytes), `Ball+0xAC` structural
+  copy triad **NOT velocity**, cache candidates
+  `Ball+0xCC,+0xF0,+0xFC`; selected record aim
+  `+0x3C`, start/initial candidate triplets
+  `+0x54,+0x60`, selected Ball pointer `+0x88`;
+  nested Ball 12-byte translation candidate.
+  Emits distinct raw bit-pattern counts and
+  transition sample indices, **NOT** guessed XYZ,
+  velocity, frame-exact physics changes or
+  decoded f32 coordinates.
+- **Tree-by-tree temporal source audit**:
+  for each periodic original 94×84 source-tree
+  snapshot, compares all **21** native big-endian
+  words per tree and tallies changing source
+  tree-array indices and record-relative offsets.
+  Records candidate `Tree+0x48` flag word
+  changes separately; that flag has an original
+  **source-proven proximity/visibility** code
+  path but **no proven collision-handler meaning**
+  (prior camera receiver ambiguity). Likewise
+  tree position-like `+0x30..+0x38`
+  are observed source geometry, not verified
+  physical collision hulls.
+- **Negative-control comparison, no false
+  impact inference**: identifies words whose
+  bit-patterns transition in **both** operator
+  contact-intent trials but **never** in the
+  near-miss trial, also those only one trial
+  changes, and ordinary changes in all three.
+  Tests equal-baseline exact memory words/tree
+  arrays across trials but does not equate
+  equal bytes to an identical savestate.
+  Unequal trial lengths/launch parameters,
+  animation and unrelated state changes
+  remain confounders. Candidate enrichment is
+  a search prioritization, NOT a collision
+  classifier or statistical proof.
+- **Optional FFmpeg metadata only**: uses local
+  `ffprobe` when available to report aggregate
+  video existence/duration/size, but does NOT
+  watch frames or time-align frames to RAM
+  without an authoritative shared clock.
+
+The new report contains no native words/bytes,
+MEM1/MEM2 heap addresses, source code, private
+tree coordinates or local file paths. Findings
+are source-candidate dynamics only; a true
+wood-vs-leaf physics branch and response
+remain unverified. The report is meant to be
+shared privately here alongside short
+human-reviewed Dolphin-window clips before
+further original PPC dispatch tracing.
+No tree hitbox, canopy drag or impulse policy
+should be fit solely to this dataset;
+`training_approved=false`.
