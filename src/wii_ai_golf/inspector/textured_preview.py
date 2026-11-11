@@ -14,7 +14,8 @@ from tkinter import ttk
 
 from .navigation import wheel_steps
 from .scene_camera import (
-    fit_camera, frame_playable_camera, look_in_place, orbit, pan, dolly, move)
+    fit_camera, frame_playable_camera, look_in_place, orbit, pan, dolly,
+    move_continuous)
 from .unified_source_view import (
     prepare_comparison_kcl, draw_comparison, draw_tree_comparison, overlay_summary)
 from .texture_render import PreviewCancelled, prepare_textures, render_preview
@@ -56,6 +57,14 @@ class TexturedPreviewWindow:
             value="KCL: none loaded · texture source coordinates unverified.")
         self.drag_origin: tuple[int, int] | None = None
         self.drag_button: int | None = None
+        # Held-key state drives monotonic-time camera motion at ~60Hz.
+        # OS keyboard repeat events do NOT determine motion speed.
+        self._held_keys: set[str] = set()
+        self._pending_key_releases: dict[str, str] = {}
+        self._nav_timer = None
+        self._last_nav_tick = 0.0
+        self._last_nav_render = 0.0
+        self._shift_held = False
         self.image_ref = None
         self._pending = None
         self._poll_id = None
@@ -118,7 +127,13 @@ class TexturedPreviewWindow:
         self.canvas.bind("<Button-4>", self.wheel)
         self.canvas.bind("<Button-5>", self.wheel)
         self.canvas.bind("<KeyPress>", self.key_move)
+        self.canvas.bind("<KeyRelease>", self.key_release)
+        self.canvas.bind("<FocusOut>", self.focus_lost)
 
+        self.camera_status = tk.StringVar()
+        ttk.Label(self.top, textvariable=self.camera_status,
+                  wraplength=820, padding=(8, 1)).pack(fill="x")
+        self._update_camera_status()
         ttk.Label(self.top, textvariable=self.comparison_status,
                   wraplength=820, padding=(8, 1)).pack(fill="x")
         self.status = tk.StringVar(
@@ -134,12 +149,17 @@ class TexturedPreviewWindow:
             16 if self.fast_active else 40, self._poll_completed)
         self.schedule()
 
-    def schedule(self):
-        """Coalesce rapid mouse/key events; never rasterize on Tk's UI thread."""
+    def schedule(self, *, navigation: bool = False):
+        """Request a frame: nav ticks coalesce without starving the renderer.
+
+        Holding keys may cause more pose updates than the CPU can render.
+        Don't cancel every in-flight native frame, or NONE will ever display.
+        """
         if self._closed:
             return
+        self._update_camera_status()
         self._request_version += 1
-        if self._cancel_render is not None:
+        if not navigation and self._cancel_render is not None:
             self._cancel_render.set()
         if self._pending is not None:
             try:
@@ -147,7 +167,16 @@ class TexturedPreviewWindow:
             except tk.TclError:
                 pass
         self._pending = self.top.after(
-            24 if self.fast_active else 85, self._request_full_render)
+            0 if navigation else (24 if self.fast_active else 85),
+            self._request_full_render)
+
+    def _update_camera_status(self):
+        cam = self.camera
+        self.camera_status.set(
+            f"Camera EYE (source local): X={cam.position[0]:.3f}, "
+            f"Y={cam.position[1]:.3f}, Z={cam.position[2]:.3f} "
+            f"· yaw={cam.yaw:.3f}, pitch={cam.pitch:.3f} "
+            "· RMB turn must NOT change eye X/Y/Z")
 
     def _request_full_render(self):
         self._pending = None
@@ -159,13 +188,12 @@ class TexturedPreviewWindow:
             return
         # Low-resolution interactions keep the full source mesh but reduce
         # pixel shading; pointer-up always requests full-quality rendering.
-        if getattr(self, "drag_button", None) is not None and self.fast_active:
+        if (getattr(self, "drag_button", None) is not None
+                or bool(getattr(self, "_held_keys", ()))) and self.fast_active:
             width = max(16, int(width * .68))
             height = max(16, int(height * .68))
         mode = self.mode.get() if hasattr(self, "mode") else "Textures"
         kcl = getattr(self, "comparison_kcl", None)
-        # Preserve the existing six-field source frame request ABI.
-        # A separate immutable visual-only tree snapshot travels with it.
         self._queued = (self._request_version, width, height,
                         self.camera, mode, kcl)
         self._queued_tree_snapshot = (
@@ -195,9 +223,9 @@ class TexturedPreviewWindow:
         self._render_future = (version, camera, future)
 
     def _render_frame(self, width, height, camera, cancelled,
-                      mode="Textures", collision=None,
-                      tree_points=(), tree_visible=True,
-                      tree_illustrations=True, tree_labels=False):
+                      mode="Textures", collision=None, tree_points=(),
+                       tree_visible=True, tree_illustrations=True,
+                       tree_labels=False):
         """Worker-only: one source-local camera, no Tk operations or writes."""
         if cancelled():
             raise PreviewCancelled()
@@ -233,7 +261,12 @@ class TexturedPreviewWindow:
             self._cancel_render = None
             try:
                 image, drawn, render_ms = future.result()
-                if version == self._request_version:
+                if (version == self._request_version
+                        or bool(getattr(self, "_held_keys", ()))
+                        or getattr(self, "drag_button", None) is not None):
+                    # During continuous navigation, show completed poses even
+                    # if a newer one is queued. Otherwise slow rendering could
+                    # starve the visible canvas until the key is released.
                     from PIL import ImageTk
                     # Interactive half-resolution frames reduce raster cost.
                     # Scale the presentation ONLY, never omit source triangles.
@@ -287,14 +320,27 @@ class TexturedPreviewWindow:
         else:
             return
         self.drag_origin = (event.x, event.y)
-        self.schedule()
+        # Mouse look/orbit must not discard every in-flight native frame.
+        # Display progressive completed poses while continuously dragging.
+        self.schedule(navigation=True)
 
     def drag_end(self, event):
         if self.drag_button == getattr(event, "num", None):
             self.drag_origin = None
             self.drag_button = None
-            # Replace low-resolution interactive frame with full-quality UVs.
-            self.schedule()
+            # Fly keys are valid ONLY while RMB is held; arrows still work.
+            for key in ("w", "a", "s", "d", "q", "e"):
+                self._held_keys.discard(key)
+                handle = self._pending_key_releases.pop(key, None)
+                if handle is not None:
+                    try:
+                        self.top.after_cancel(handle)
+                    except tk.TclError:
+                        pass
+            if not self._held_keys and self._nav_timer is not None:
+                self._stop_navigation()
+            else:
+                self.schedule()
 
     def wheel(self, event):
         n = wheel_steps(getattr(event, "delta", None),
@@ -305,37 +351,100 @@ class TexturedPreviewWindow:
             self.schedule()
 
     def key_move(self, event):
+        """Start smooth navigation; key repeat must not cause discrete jumps."""
         key = getattr(event, "keysym", "").lower()
         shifted = bool(getattr(event, "state", 0) & 0x0001)
+        if key in {"shift_l", "shift_r"}:
+            self._shift_held = True
+            return None
         if key == "f":
             if shifted:
                 self.frame_all()
             else:
                 self.frame()
-            return
-        # Arrows are active whenever the shared 3D canvas is focused,
-        # independently of RMB. NEVER change game control/shot power.
-        arrows = {
-            "up": (1., 0., 0.), "down": (-1., 0., 0.),
-            "left": (0., -1., 0.), "right": (0., 1., 0.),
-        }
-        if key in arrows:
-            motion = arrows[key]
-        elif self.drag_button == 3:
-            motion = {
-                "w": (1., 0., 0.), "s": (-1., 0., 0.),
-                "a": (0., -1., 0.), "d": (0., 1., 0.),
-                "q": (0., 0., -1.), "e": (0., 0., 1.),
-            }.get(key)
-        else:
-            motion = None
-        if motion is None:
-            return
-        self.camera = move(
-            self.camera, forward=motion[0],
-            right=motion[1], vertical=motion[2], fast=shifted)
-        self.schedule()
+            return "break"
+        arrows = {"up", "down", "left", "right"}
+        fly = {"w", "a", "s", "d", "q", "e"}
+        if key not in arrows and not (key in fly and self.drag_button == 3):
+            return None
+        self._shift_held = shifted or self._shift_held
+        pending = self._pending_key_releases.pop(key, None)
+        if pending is not None:
+            try:
+                self.top.after_cancel(pending)
+            except tk.TclError:
+                pass
+        self._held_keys.add(key)
+        if self._nav_timer is None:
+            self._last_nav_tick = time.perf_counter()
+            self._last_nav_render = 0.
+            self._nav_timer = self.top.after(16, self._navigation_tick)
         return "break"
+
+    def key_release(self, event):
+        """Debounce Windows/Linux auto-repeat KeyRelease/KeyPress pairs."""
+        key = getattr(event, "keysym", "").lower()
+        if key in {"shift_l", "shift_r"}:
+            self._shift_held = False
+            return None
+        if key not in self._held_keys:
+            return None
+        existing = self._pending_key_releases.pop(key, None)
+        if existing is not None:
+            try:
+                self.top.after_cancel(existing)
+            except tk.TclError:
+                pass
+        self._pending_key_releases[key] = self.top.after(
+            45, lambda held_key=key: self._finish_key_release(held_key))
+        return "break"
+
+    def _finish_key_release(self, key):
+        self._pending_key_releases.pop(key, None)
+        self._held_keys.discard(key)
+        if not self._held_keys:
+            self._stop_navigation()
+
+    def _navigation_tick(self):
+        """Apply time-proportional velocity even with NO key-repeat events."""
+        self._nav_timer = None
+        if self._closed or not self._held_keys:
+            return
+        now = time.perf_counter()
+        dt = max(0., min(.05, now - self._last_nav_tick))
+        self._last_nav_tick = now
+        previous = self.camera
+        self.camera = move_continuous(
+            self.camera, self._held_keys, dt,
+            right_mouse=self.drag_button == 3, fast=self._shift_held)
+        if self.camera != previous and now - self._last_nav_render >= .035:
+            self._last_nav_render = now
+            self.schedule(navigation=True)
+        self._nav_timer = self.top.after(16, self._navigation_tick)
+
+    def _stop_navigation(self):
+        if self._nav_timer is not None:
+            try:
+                self.top.after_cancel(self._nav_timer)
+            except tk.TclError:
+                pass
+            self._nav_timer = None
+        if not self._closed:
+            # One final exact full-pixel source render after the key stops.
+            self.schedule()
+
+    def focus_lost(self, event=None):
+        """Never keep flying when user Alt+Tabs or clicks another control."""
+        for handle in self._pending_key_releases.values():
+            try:
+                self.top.after_cancel(handle)
+            except tk.TclError:
+                pass
+        self._pending_key_releases.clear()
+        self._held_keys.clear()
+        self._shift_held = False
+        self._stop_navigation()
+
 
     def frame(self, event=None):
         self.camera = self.home_camera
@@ -361,7 +470,7 @@ class TexturedPreviewWindow:
 
     def set_tree_overlay(self, points, *, visible: bool, illustrations: bool,
                          labels: bool):
-        """Pass only strict-loader tree bases; source/KCL fit is unverified."""
+        """Only strict-loader positions; visual/KCL fit remains display-only."""
         from .tree_positions import SOURCE_TREE_COUNT
         points = tuple(points)
         if points and len(points) != SOURCE_TREE_COUNT:
@@ -378,12 +487,16 @@ class TexturedPreviewWindow:
         self._closed = True
         if self._cancel_render is not None:
             self._cancel_render.set()
-        for handle in (self._pending, self._poll_id):
+        for handle in (self._pending, self._poll_id, self._nav_timer,
+                       *self._pending_key_releases.values()):
             if handle is not None:
                 try:
                     self.top.after_cancel(handle)
                 except tk.TclError:
                     pass
+        self._held_keys.clear()
+        self._pending_key_releases.clear()
+        self._nav_timer = None
         self._executor.shutdown(wait=False, cancel_futures=True)
         self.image_ref = None
         self.top.destroy()
