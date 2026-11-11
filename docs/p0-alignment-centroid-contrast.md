@@ -204,9 +204,17 @@ The original private operator audit returned the following counts:
 | Bunker | 257 / 301 triangles | 4 / 946 triangles |
 
 The KCL source exporter emitted **7,494 vertex records for 2,498
-triangles**, exactly three vertex records per face. Vertex-index reuse in
-this OBJ is therefore impossible; lack of shared vertex indices does not
-imply disjoint original geometry. The earlier footprint diagnostic
+triangles**, exactly three vertex records per face. PR #413's source
+(`scripts/p0_kcl_obj_export_private.py`) explicitly reconstructs each
+original KCL prism via `p0_kcl_private_probe._triangle`, stores every
+prism as three fresh OBJ vertices, and serializes them to nine significant
+digits. That is an **intentional export format**, not native shared
+topology. The underlying original prism table passed separate static
+validation and source-capture cross-consistency gates; the exporter
+study records original *hole 1* in captures 1, 5, 7, but the original
+DAE FC1 ↔ same-hole geometry identity and live KCL collision ownership
+are not independently established. Lack of shared vertex indices does
+not imply disjoint original geometry. The earlier footprint diagnostic
 already welded fully matching source coordinates at four decimal places.
 Most reconstructed KCL faces still appear separate under that precise
 test, but this is **not yet native-topology evidence**.
@@ -228,6 +236,12 @@ The new `source_material_footprints.whole_mesh_connectivity` and
   own squared XZ diagonal. These distinguish coarse sparse KCL faces
   from much more densely tessellated visual faces without assuming the
   two sources have the same physical material coverage.
+
+The relative matching parameters are **rounding-grid cell widths**,
+not guaranteed endpoint-distance thresholds. Floating-point seam errors
+can straddle a grid boundary even when closer than one cell, while larger
+grid cells can spuriously merge unrelated source triangles. The
+diagnostic does not certify native adjacency under any grid.
 
 All statistics remain aggregate, source-local, nontrainable and
 **do not reveal original XYZ or transform matrices**. A larger loose-
