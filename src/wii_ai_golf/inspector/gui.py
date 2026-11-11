@@ -18,6 +18,7 @@ from .a_live import LiveAIndicator
 from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE, MAX_DRAW_FACES
 from .terrain_solid import back_to_front, shaded_hex
 from .terrain_labels import apply_private_surface_labels
+from .navigation import pan_by, wheel_steps, zoom_at_cursor
 from .visual_model import VisualAssetError, load_private_visual_model
 from .dae_visual import load_private_dae_visual_model
 from .startup import StartupError, occupied_bridge, powershell_command, runtime_checkout
@@ -149,6 +150,8 @@ class Inspector:
         self.replay: Replay | None = None
         self.index = tk.IntVar(value=0)
         self.yaw, self.pitch = 0.65, 0.48
+        self.camera_zoom = 1.0
+        self.camera_pan = (0.0, 0.0)
         self.drag_origin: tuple[int, int] | None = None
         self.drag_button: int | None = None
         self.live_worker: LiveSampler | None = None
@@ -279,6 +282,14 @@ class Inspector:
         self.canvas.bind("<ButtonPress-3>", self.drag_start)
         self.canvas.bind("<B3-Motion>", self.drag_move)
         self.canvas.bind("<ButtonRelease-3>", self.drag_end)
+        self.canvas.bind("<ButtonPress-2>", self.drag_start)
+        self.canvas.bind("<B2-Motion>", self.drag_move)
+        self.canvas.bind("<ButtonRelease-2>", self.drag_end)
+        self.canvas.bind("<MouseWheel>", self.scene_wheel)
+        self.canvas.bind("<Button-4>", self.scene_wheel)
+        self.canvas.bind("<Button-5>", self.scene_wheel)
+        self.canvas.bind("<KeyPress-f>", self.frame_view)
+        self.canvas.bind("<KeyPress-F>", self.frame_view)
         # Narrow center pane: split terrain controls into real rows rather
         # than silently clipping checkboxes beyond the viewport width.
         mesh_actions = ttk.Frame(terrain_tab)
@@ -304,6 +315,7 @@ class Inspector:
         view_actions.pack(fill="x", pady=2)
         ttk.Button(view_actions, text="Top-down", command=lambda: self.set_terrain_view(0.0, 1.35)).pack(side="left")
         ttk.Button(view_actions, text="Isometric", command=lambda: self.set_terrain_view(0.65, 0.60)).pack(side="left", padx=5)
+        ttk.Button(view_actions, text="Frame KCL (F)", command=self.frame_view).pack(side="left", padx=5)
         ttk.Label(terrain_tab, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
         ttk.Label(terrain_tab, textvariable=self.surface_label_status, wraplength=650).pack(anchor="w")
         source_legend = ttk.Frame(terrain_tab)
@@ -882,6 +894,10 @@ class Inspector:
     def drag_start(self, event: tk.Event) -> None:
         self.drag_origin = (event.x, event.y)
         self.drag_button = getattr(event, "num", 1)
+        # Only the scene canvas owns F-to-frame; shortcuts never reach Dolphin.
+        canvas = getattr(self, "canvas", None)
+        if canvas is not None and hasattr(canvas, "focus_set"):
+            canvas.focus_set()
 
     def drag_end(self, event: tk.Event) -> None:
         if self.drag_button == getattr(event, "num", 1):
@@ -892,9 +908,34 @@ class Inspector:
         if self.drag_origin is None:
             return
         x, y = self.drag_origin
-        self.yaw += (event.x - x) * 0.01
-        self.pitch = min(1.4, max(-1.4, self.pitch + (event.y - y) * 0.01))
+        if self.drag_button == 2:
+            self.camera_pan = pan_by(getattr(self, "camera_pan", (0.0, 0.0)),
+                                     event.x - x, event.y - y)
+        else:
+            # Left/right orbit existing source-coordinate orthographic camera.
+            self.yaw += (event.x - x) * 0.01
+            self.pitch = min(1.4, max(-1.4, self.pitch + (event.y - y) * 0.01))
         self.drag_origin = (event.x, event.y)
+        self.draw_path()
+
+    def scene_wheel(self, event: tk.Event) -> None:
+        """Scene-style scroll zoom anchored to the pointer, not source data."""
+        steps = wheel_steps(getattr(event, "delta", None), getattr(event, "num", None))
+        if steps == 0:
+            return
+        canvas = self.canvas
+        self.camera_zoom, self.camera_pan = zoom_at_cursor(
+            getattr(self, "camera_zoom", 1.0), getattr(self, "camera_pan", (0.0, 0.0)),
+            (event.x, event.y), (max(canvas.winfo_width(), 1), max(canvas.winfo_height(), 1)),
+            steps)
+        if hasattr(canvas, "focus_set"):
+            canvas.focus_set()
+        self.draw_path()
+
+    def frame_view(self, event: tk.Event | None = None) -> None:
+        """Like Unity's F: frame the currently visible, qualified scene."""
+        self.camera_zoom = 1.0
+        self.camera_pan = (0.0, 0.0)
         self.draw_path()
 
     def draw_a_overlay(self) -> None:
@@ -1008,9 +1049,12 @@ class Inspector:
         scale = min(max(1, width - 100) / max(1e-7, high_x - low_x),
                     max(1, height - 90) / max(1e-7, high_y - low_y))
         cx, cy = (low_x + high_x) / 2, (low_y + high_y) / 2
+        camera_zoom = getattr(self, "camera_zoom", 1.0)
+        pan_x, pan_y = getattr(self, "camera_pan", (0.0, 0.0))
         def xy(p):
             u, v = project(p, self.yaw, self.pitch)
-            return width / 2 + (u - cx) * scale, height / 2 - (v - cy) * scale
+            return (width / 2 + pan_x + (u - cx) * scale * camera_zoom,
+                    height / 2 + pan_y - (v - cy) * scale * camera_zoom)
         canvas.create_text(12, 12, text="Rotatable 3D source-coordinate projection · unknown units", anchor="nw", fill="#bacbe1")
         label_setting = getattr(self, "terrain_point_labels", None)
         point_labels = label_setting is None or label_setting.get()
