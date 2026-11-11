@@ -1,0 +1,29 @@
+{
+  "worker": "S000 support - offline environment candidate inventory",
+  "issue": 3,
+  "coordination_issue": 121,
+  "branch": "agent/research/environment-memory-offline-audit",
+  "status": "draft_owner_review_required",
+  "paths": [
+    "src/wii_ai_golf/audit/environment_state_candidate.py",
+    "scripts/audit_environment_private.py",
+    "tests/test_environment_state_candidate.py",
+    "research/studies/S002-ENV-STATE-01.md",
+    "research/claims/environment-state-audit.json"
+  ],
+  "upstream": [
+    "S002 merged outcome_transition source windows",
+    "S002 PR #122 Rev1 sources",
+    "S002 PR #129 source-root",
+    "S000/S002 PR #148 environment pivot"
+  ],
+  "downstream": [
+    "S002 canonical game state verification",
+    "S003/S004 environment observation contract"
+  ],
+  "tested": "11 synthetic unittest pass in isolated Linux source-equivalent files, CLI synthetic smoke pass, compileall pass",
+  "not_done": "full current Windows checkout tests, operator private capture run, actual Dolphin sensor validation",
+  "owner_ack_required_before_merge": true,
+  "live_capture_or_publisher_changed": false,
+  "physics_verified": false
+}
