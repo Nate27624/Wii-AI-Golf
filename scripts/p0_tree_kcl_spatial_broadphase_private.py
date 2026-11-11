@@ -63,7 +63,7 @@ def vec3(rd,addr):
     return tuple(f32(rd,addr+4*j) for j in range(3))
 
 
-def parse_candidate(bank,offset,*,required_prisms=KCL_PRISMS):
+def parse_candidate(bank,offset,*,required_prisms=KCL_PRISMS,include_vertices=False):
     """Strict KCL prism parser, returns (tri bounds/normals/attr, histogram).
 
     KCL "height" is part of triangle reconstruction, not tree vertical size.
@@ -131,18 +131,22 @@ def parse_candidate(bank,offset,*,required_prisms=KCL_PRISMS):
             if not 1e-12<norm2(area)<1e26:
                 return None
             points=(p,q,r)
-            tris.append((
+            row=(
                 min(t[0] for t in points),max(t[0] for t in points),
                 min(t[2] for t in points),max(t[2] for t in points),
                 min(t[1] for t in points),max(t[1] for t in points),
-                abs(face[1]),attr))
+                abs(face[1]),attr)
+            # Preserve the existing 8-field API by default. In the
+            # new exact-distance probe, include only operator-private
+            # reconstructed vertices as a ninth tuple value.
+            tris.append((*row,points) if include_vertices else row)
             counts[attr]+=1
         return tris,dict(counts)
     except (ValueError,IndexError,OverflowError,struct.error,ZeroDivisionError):
         return None
 
 
-def scan_exact_candidate(banks):
+def scan_exact_candidate(banks,*,include_vertices=False):
     """Locate exactly one original 2498-prism histogram among MEM1/MEM2."""
     matches=[]
     for bank in banks:
@@ -155,7 +159,7 @@ def scan_exact_candidate(banks):
                     break
                 if at%4:
                     continue
-                parsed=parse_candidate(bank,at)
+                parsed=parse_candidate(bank,at,include_vertices=include_vertices)
                 if parsed and parsed[1]==EXPECTED_FLAGS:
                     matches.append(parsed[0])
                     if len(matches)>=MAX_CANDIDATES:
