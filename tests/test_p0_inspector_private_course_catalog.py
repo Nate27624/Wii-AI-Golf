@@ -60,6 +60,23 @@ class PrivateCourseCatalogTests(unittest.TestCase):
         self.assertFalse(report["collision_world_alignment_verified"])
         self.assertFalse(report["training_approved"])
 
+    def test_carc_present_but_not_yet_extracted_is_not_missing(self):
+        original = self.root.parent / "RPGolScene" / "glf_course_fc3.carc"
+        original.parent.mkdir()
+        original.write_bytes(b"synthetic original placeholder")
+        result = inspect_private_course(3, self.root)
+        self.assertEqual(result.status, "SOURCE_CARC_PRESENT_EXTRACT_AND_EXPORT")
+        self.assertTrue(result.source_carc_present)
+        self.assertFalse(result.native_course_identity_verified)
+        self.assertTrue(private_course_report(result)
+                        ["original_course_carc_archive_present"])
+        self.assertNotIn(str(original), json.dumps(private_course_report(result)))
+
+    def test_noncontiguous_archive_numbers_supported(self):
+        result = inspect_private_course(18, self.root)
+        self.assertEqual(result.course_number, 18)
+        self.assertFalse(result.native_course_identity_verified)
+
     def test_no_fc1_fallback_when_fc2_missing(self):
         fc1 = (self.root / "visual_exports" / "glf_course_fc1" /
                "glf_course_fc1.dae")
@@ -109,7 +126,7 @@ class PrivateCourseCatalogTests(unittest.TestCase):
         launch.assert_not_called()
 
     def test_invalid_course_numbers_and_ambiguous_flags_fail_closed(self):
-        for value in (0, 10, True, "2", 2.0):
+        for value in (0, 100, True, "2", 2.0):
             with self.subTest(course=value), self.assertRaises(ValueError):
                 inspect_private_course(value, self.root)
         launcher = _load_launcher()
