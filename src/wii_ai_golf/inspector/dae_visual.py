@@ -12,6 +12,9 @@ from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
 
+from .collada_scene_graph import (
+    IDENTITY, apply_source_node_transform, source_scene_instances,
+)
 from .visual_model import (
     MAX_OBJ_BYTES, MAX_PNG_BYTES, MAX_TOTAL_TEXTURE_BYTES, MAX_TEXTURES,
     MAX_VERTICES, MAX_UVS, MAX_TRIANGLES, MAX_MODEL_COMPONENT,
@@ -272,12 +275,34 @@ def load_private_dae_visual_model(filename: str | Path) -> PrivateVisualModel:
     if _tag(root) != "COLLADA":
         raise VisualAssetError("Not a Collada visual model")
     aliases, textures, solid = _materials(root, path)
+    # Original Collada 1.5 visual scene is part of the SOURCE model. Ignoring
+    # its matrices (previous behavior) can rotate/offset all textured art
+    # relative to source collision and source RAM. Never invent a transform.
+    authored_scene = source_scene_instances(root)
 
     vertices, uvs, faces = [], [], []
+    visited_geometry_ids = set()
     skipped_source_faces = 0
     source_triangle_count = 0
     for lib in (n for n in root.iter() if _tag(n) == "library_geometries"):
         for geometry in _children(lib, "geometry"):
+            geometry_id = _id(geometry.get("id"))
+            if geometry_id in visited_geometry_ids:
+                raise VisualAssetError("Duplicate original Collada geometry identity")
+            visited_geometry_ids.add(geometry_id)
+            if authored_scene is not None:
+                instances = authored_scene.get(geometry_id, ())
+                if not instances:
+                    # A library geometry not referenced by the chosen
+                    # visual_scene is not part of the original rendered model.
+                    continue
+                if len(instances) != 1:
+                    raise VisualAssetError(
+                        "Original Collada geometry instanced multiple times; "
+                        "explicit instance handling required, never silently flatten")
+                authored_transform = instances[0]
+            else:
+                authored_transform = IDENTITY
             mesh = _one(geometry, "mesh")
             floats = _source_arrays(mesh)
             bindings = {}
@@ -346,7 +371,8 @@ def load_private_dae_visual_model(filename: str | Path) -> PrivateVisualModel:
                             if len(vertices) >= MAX_VERTICES:
                                 raise VisualAssetError("Visual model exceeds vertex limit")
                             used_v[vi] = len(vertices)
-                            vertices.append(tuple(positions[vi][:3]))
+                            vertices.append(apply_source_node_transform(
+                                tuple(positions[vi][:3]), authored_transform))
                         vi_out.append(used_v[vi])
                         if chosen:
                             ti = idx[k + chosen[2]]
@@ -366,6 +392,9 @@ def load_private_dae_visual_model(filename: str | Path) -> PrivateVisualModel:
                     if len(set(vi_out)) != 3:
                         raise VisualAssetError("Degenerate original source triangle")
                     faces.append(VisualFace(tuple(vi_out), tuple(ti_out), material))
+    if authored_scene is not None:
+        if any(key not in visited_geometry_ids for key in authored_scene):
+            raise VisualAssetError("Original scene references missing geometry")
     if not faces or not any(f.material in textures for f in faces):
         raise VisualAssetError("No source-textured Collada triangles are renderable")
     used = {face.material for face in faces}
