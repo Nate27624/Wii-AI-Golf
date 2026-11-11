@@ -61,6 +61,9 @@ class PrivateVisualModel:
     # Source DAE may contain materials with no resolvable original diffuse
     # art/color. These triangles were OMITTED, not assigned invented colors.
     skipped_source_faces: int = 0
+    # Non-authoritative compatibility-mode warning. Original .dae/.png
+    # source remains unchanged; native KCL/world alignment not established.
+    source_scene_warning: str | None = None
 
     @property
     def textured_face_count(self) -> int:
