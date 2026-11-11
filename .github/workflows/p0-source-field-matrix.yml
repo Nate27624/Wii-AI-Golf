@@ -1,0 +1,27 @@
+name: P0 offline PowerShell source-field matrix
+on:
+  pull_request:
+    paths:
+      - 'scripts/Invoke-P0SourceFieldMatrix.ps1'
+      - 'tests/test_p0_source_field_matrix.py'
+      - '.github/workflows/p0-source-field-matrix.yml'
+  workflow_dispatch:
+jobs:
+  windows-native-powershell:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Synthetic source-gated B0-B3 tests using PowerShell 7
+        run: python -m unittest discover -s tests -p test_p0_source_field_matrix.py -v
+  linux-static-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Static no-live/no-upload contract; PowerShell execution skipped when absent
+        run: python -m unittest discover -s tests -p test_p0_source_field_matrix.py -v

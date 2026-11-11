@@ -1,0 +1,18 @@
+{
+  "worker_id": "p0-ps-source-field-matrix-20261028",
+  "role": "S002-support",
+  "issue": 121,
+  "branch": "agent/research/p0-powershell-source-field-matrix-20261028",
+  "claimed_paths": [
+    "scripts/Invoke-P0SourceFieldMatrix.ps1",
+    "tests/test_p0_source_field_matrix.py",
+    ".github/workflows/p0-source-field-matrix.yml",
+    "research/studies/P0-SOURCE-FIELD-MATRIX-PS-01.md",
+    "research/claims/p0-ps-source-field-matrix.json"
+  ],
+  "status": "draft_review",
+  "evidence": "Synthetic only; actual B0-B3 native data remains local, separate S002 PPC checks not rerun",
+  "privacy": "count-and-boolean-only stdout, no raw RAM/pointers/paths or uploads",
+  "handoff": "S002 source/ball owner and S000 privacy/registry reviewer",
+  "training_approved": false
+}
