@@ -141,18 +141,19 @@ class DirectDAETests(unittest.TestCase):
     def test_original_scene_instance_node_resolves_source_matrix(self):
         # Common Collada 1.5 source DAG reuse; no unproven flattening or
         # invented 180-degree world rotation. Parent @ referenced child.
+        import re
         data=DAE.replace(
             '<library_visual_scenes>',
             '<library_nodes><node id="shared-ground">'
             '<translate>10 0 20</translate>'
             '<instance_geometry url="#grass"/>'
             '</node></library_nodes><library_visual_scenes>'
-        ).replace(
-            '<instance_geometry url="#grass"><bind_material><technique_common>'
-            '<instance_material symbol="fairway_symbol" target="#M_Fairway"/>'
-            '</technique_common></bind_material></instance_geometry>',
-            '<instance_node url="#shared-ground"/>'
         )
+        data,n=re.subn(
+            r'<instance_geometry url="#grass">.*?</instance_geometry>',
+            '<instance_node url="#shared-ground"/>',
+            data, count=1, flags=re.S)
+        self.assertEqual(n,1)
         self.dae.write_text(data,encoding="utf-8")
         model=load_private_dae_visual_model(self.dae)
         self.assertEqual(model.vertices[:3],
