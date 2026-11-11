@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import tkinter as tk
 from tkinter import ttk
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 
 from .navigation import pan_by, wheel_steps, zoom_at_cursor
-from .texture_render import prepare_textures, render_preview
+from .texture_render import PreviewCancelled, prepare_textures, render_preview
 from .visual_model import PrivateVisualModel, VisualAssetError
 
 
@@ -30,6 +32,16 @@ class TexturedPreviewWindow:
         self.drag_button: int | None = None
         self.image_ref = None
         self._pending = None
+        self._poll_id = None
+        self._closed = False
+        self._request_version = 0
+        self._queued = None
+        self._render_future = None
+        self._cancel_render = None
+        # Expensive full-source UV raster jobs never execute on Tk's UI thread.
+        # One worker plus cooperative cancellation bounds queued render work.
+        self._executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="WiiGolfPrivateUV")
         head = ttk.Frame(self.top,padding=8)
         head.pack(fill="x")
         ttk.Label(head,text=f"PRIVATE visual mesh: {model.source_name} · {len(model.faces):,} UV triangles · {len(model.textures)} PNG texture(s)",font=("Segoe UI",12,"bold")).pack(anchor="w")
@@ -59,30 +71,87 @@ class TexturedPreviewWindow:
         self.status = tk.StringVar(value="Preparing texture preview (no Dolphin/guest access)")
         ttk.Label(self.top,textvariable=self.status,padding=(8,0)).pack(fill="x")
         self.top.protocol("WM_DELETE_WINDOW",self.close)
+        self._poll_id = self.top.after(40, self._poll_completed)
         self.schedule()
 
     def schedule(self):
+        """Coalesce rapid mouse events; never rasterize on the Tk event loop."""
+        if self._closed:
+            return
+        self._request_version += 1
+        if self._cancel_render is not None:
+            self._cancel_render.set()
         if self._pending is not None:
-            try:self.top.after_cancel(self._pending)
-            except tk.TclError:pass
-        self._pending = self.top.after(70,self.draw)
+            try:
+                self.top.after_cancel(self._pending)
+            except tk.TclError:
+                pass
+        self._pending = self.top.after(85, self._request_full_render)
+
+    def _request_full_render(self):
+        self._pending = None
+        if self._closed:
+            return
+        width = min(1280, self.canvas.winfo_width())
+        height = min(800, self.canvas.winfo_height())
+        if width < 16 or height < 16:
+            return
+        self._queued = (self._request_version, width, height,
+                        self.yaw, self.pitch, self.zoom, self.pan)
+        self.status.set(
+            f"Rendering all {len(self.model.faces):,} source triangles "
+            "(background worker; camera remains responsive)")
+        self._start_latest()
+
+    def _start_latest(self):
+        # Called ONLY from Tk; never create unbounded ThreadPoolExecutor jobs.
+        if self._closed or self._render_future is not None or self._queued is None:
+            return
+        version, width, height, yaw, pitch, zoom, pan = self._queued
+        self._queued = None
+        cancel = Event()
+        self._cancel_render = cancel
+        future = self._executor.submit(
+            render_preview, self.model, width, height,
+            yaw=yaw, pitch=pitch, zoom=zoom, pan=pan,
+            textures=self.textures, cancelled=cancel.is_set)
+        self._render_future = (version, zoom, future)
+
+    def _poll_completed(self):
+        if self._closed:
+            return
+        active = self._render_future
+        if active is not None and active[2].done():
+            version, zoom, future = active
+            self._render_future = None
+            self._cancel_render = None
+            try:
+                image, drawn = future.result()
+                # PhotoImage and all Canvas work MUST stay on Tk main thread.
+                if version == self._request_version:
+                    from PIL import ImageTk
+                    self.image_ref = ImageTk.PhotoImage(image, master=self.canvas)
+                    self.canvas.delete("all")
+                    self.canvas.create_image(
+                        0, 0, image=self.image_ref, anchor="nw")
+                    self.status.set(
+                        f"{drawn:,} visible triangles from "
+                        f"{len(self.model.faces):,} fully processed source faces · "
+                        f"{zoom:.2f}× zoom · native/world alignment unverified")
+            except PreviewCancelled:
+                pass  # A newer camera request superseded this frame.
+            except (VisualAssetError, OSError, ValueError, ImportError,
+                    RuntimeError) as exc:
+                if version == self._request_version:
+                    self.status.set(f"Textured visual preview unavailable: {exc}")
+            if self._queued is not None:
+                self._start_latest()
+        if not self._closed:
+            self._poll_id = self.top.after(40, self._poll_completed)
 
     def draw(self):
-        self._pending = None
-        width=min(1280,self.canvas.winfo_width())
-        height=min(800,self.canvas.winfo_height())
-        if width<16 or height<16:
-            return
-        try:
-            from PIL import ImageTk
-            image,drawn=render_preview(self.model,width,height,yaw=self.yaw,pitch=self.pitch,
-                                       zoom=self.zoom,pan=self.pan,textures=self.textures)
-            self.image_ref=ImageTk.PhotoImage(image,master=self.canvas)
-            self.canvas.delete("all")
-            self.canvas.create_image(0,0,image=self.image_ref,anchor="nw")
-            self.status.set(f"{drawn:,} UV-textured faces shown (bounded 4,000 max) · {self.zoom:.2f}× zoom · visual/world alignment unverified")
-        except (VisualAssetError, OSError, ValueError, ImportError) as exc:
-            self.status.set(f"Textured visual preview unavailable: {exc}")
+        """Compatibility entry point: request, but never block, a full redraw."""
+        self.schedule()
 
     def drag_start(self,event):
         self.drag_origin=(event.x,event.y)
@@ -121,8 +190,15 @@ class TexturedPreviewWindow:
         self.schedule()
 
     def close(self):
-        if self._pending is not None:
-            try:self.top.after_cancel(self._pending)
-            except tk.TclError:pass
-        self.image_ref=None
+        self._closed = True
+        if self._cancel_render is not None:
+            self._cancel_render.set()
+        for pending in (self._pending, self._poll_id):
+            if pending is not None:
+                try:
+                    self.top.after_cancel(pending)
+                except tk.TclError:
+                    pass
+        self._executor.shutdown(wait=False, cancel_futures=True)
+        self.image_ref = None
         self.top.destroy()
