@@ -155,21 +155,34 @@ def private_tree_candidates(checkout: Path) -> tuple[Path, ...]:
     )
 
 
-def discover_private_tree(checkout: Path) -> Path | None:
-    """Find and STRICTLY validate a local source artifact before using it.
+def inspect_private_trees(checkout: Path) -> tuple[Path | None, tuple[tuple[Path, str], ...]]:
+    """Validate known PRIVATE locations and report why each was not used.
 
-    Reject the candidate rather than weakening #420's private/Git/symlink
-    guards. This never reads Dolphin and does not publish source positions.
+    This deliberately never scans arbitrary directories and never bypasses
+    the strict schema, Git-location or Windows reparse-point checks. Results
+    contain paths and diagnostic strings only, not coordinate data.
     """
+    checked: list[tuple[Path, str]] = []
     seen: set[str] = set()
     for path in private_tree_candidates(checkout):
-        key = str(path)
+        key = str(path).casefold() if os.name == "nt" else str(path)
         if key in seen:
             continue
         seen.add(key)
+        if not path.is_file():
+            checked.append((path, "missing"))
+            continue
         try:
             load_private_tree_positions(path)
-        except (TreePositionsError, OSError, ValueError):
+        except (TreePositionsError, OSError, ValueError) as exc:
+            checked.append((path, f"rejected: {exc}"))
             continue
-        return path
-    return None
+        checked.append((path, "validated"))
+        return path, tuple(checked)
+    return None, tuple(checked)
+
+
+def discover_private_tree(checkout: Path) -> Path | None:
+    """Backward-compatible read-only strict automatic lookup."""
+    result, _ = inspect_private_trees(checkout)
+    return result
