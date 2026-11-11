@@ -165,9 +165,11 @@ class TexturedPreviewWindow:
         mode = self.mode.get() if hasattr(self, "mode") else "Textures"
         kcl = getattr(self, "comparison_kcl", None)
         self._queued = (self._request_version, width, height,
-                        self.camera, mode, kcl, self.tree_overlay,
-                        self.tree_overlay_visible, self.tree_illustrations,
-                        self.tree_labels)
+                        self.camera, mode, kcl,
+                        getattr(self, "tree_overlay", ()),
+                        getattr(self, "tree_overlay_visible", True),
+                        getattr(self, "tree_illustrations", True),
+                        getattr(self, "tree_labels", False))
         self.status.set(
             f"Rendering all {len(self.model.faces):,} native UV triangles "
             "(" + ("compiled CPU" if self.fast_active else "slow NumPy fallback") + ")")
