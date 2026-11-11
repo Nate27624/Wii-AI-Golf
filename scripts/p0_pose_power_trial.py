@@ -234,6 +234,10 @@ def precheck(rows: list[dict], plan: dict, bridge_sha: str) -> None:
                 or row.get("expected_pose") != plan["expected_pose"]
                 or row.get("expected_pose_detail") != plan["expected_pose_detail"]
                 or row.get("expected_club") != plan["expected_club"]
+                or (row.get("expected_club_change") not in (None, "unspecified")
+                    and row["expected_club_change"] != plan["expected_club_change"])
+                or (row.get("club_change_human") not in (None, "unknown")
+                    and row["club_change_human"] != plan["expected_club_change"])
                 or row.get("aim_marker") != plan["aim_marker"]
                 or row.get("bridge_sha256") != bridge_sha
                 or not eligible(row)):
