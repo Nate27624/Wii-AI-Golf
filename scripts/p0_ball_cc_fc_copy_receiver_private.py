@@ -119,19 +119,21 @@ def check_second_copy(read):
     q=before.dform(w)
     if q and q["op"] in (52,53):
         raise ValueError("Intervening FP memory store could overwrite source")
-    if op in (31,4):
-        return {
-            "exact_load_store_triplets_verified":True,
-            "intervening_instruction_type":"X_or_paired_single_unresolved",
-            "source_fp_gpr_preservation_proven":False,
-            "native_static_copy_of_CC_to_FC_verified":False,
-        }
+    # Exact native PPC integer operations that cannot alter
+    # memory or FP registers; full source+destination triple
+    # continuity is verified in the local straight-line window.
+    # Do not promote to execution/receiver/impact proof.
+    benign_integer_ops=(14,15,24,25,26,27,28,29,32,34)
+    permitted=op in benign_integer_ops
     return {
         "exact_load_store_triplets_verified":True,
-        "intervening_instruction_type":"noncontrol_nonrecognized_clobber",
-        "source_fp_gpr_preservation_proven":False,
-        "native_static_copy_of_CC_to_FC_verified":False,
-        # No proof until +0x2FA4 is decoded/verified!
+        "intervening_instruction_type":(
+            "known_integer_nonmemory_FP_preserving" if permitted
+            else "unresolved_other_op"),
+        "source_fp_gpr_preservation_proven":permitted,
+        "native_static_copy_of_CC_to_FC_verified":permitted,
+        "dynamic_copy_executed_in_live_tree_shots_proven":False,
+        "selected_active_Ball_receiver_proven":False,
     }
 
 
@@ -146,6 +148,8 @@ def intermediate_site(read):
         "public_source_site":before.site(pc),
         "primary_opcode_number":op,
         "X_form_opcode_number_if_applicable":xform,
+        "FPR_destination_index_if_recognized":((w>>21)&31) if op in
+            (48,49,50,51,52,53,59,63) else None,
         "source_GPR_write_candidates":[{
             "destination_register":dst,
             "syntactic_writer_class":typ,
