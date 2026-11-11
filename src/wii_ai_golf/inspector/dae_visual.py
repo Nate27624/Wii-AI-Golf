@@ -108,7 +108,12 @@ def _materials(root: ET.Element, dae: Path):
     for lib in (n for n in root.iter() if _tag(n) == "library_images"):
         for image in _children(lib, "image"):
             iid = _id(image.get("id"))
-            path = (_one(image, "init_from").text or "").strip()
+            init = _one(image, "init_from")
+            # Collada 1.4 allows direct text; Collada 1.5 may wrap in <ref>.
+            refs = _children(init, "ref")
+            if refs and len(refs) != 1:
+                raise VisualAssetError("Ambiguous Collada 1.5 image reference")
+            path = ((refs[0].text if refs else init.text) or "").strip()
             if iid in images or not path.endswith(".png") or not _NAME.fullmatch(path):
                 raise VisualAssetError("Unsafe or duplicate Collada image reference")
             images[iid] = path
