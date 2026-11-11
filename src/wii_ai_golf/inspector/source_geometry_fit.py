@@ -16,7 +16,7 @@ import math
 from typing import Any
 
 from .scene_camera import playable_source_vertices
-from .material_alignment import SURFACES, source_class_counts
+from .material_alignment import SURFACES
 
 MAX_SAMPLE_FACES = 220
 MAX_CANDIDATE_EVALUATIONS = 1600
@@ -43,6 +43,32 @@ class SurfaceFit:
     initial_holdout_fraction: float
     improvement_fraction: float
     native_world_verified: bool = False
+
+
+def source_class_counts(terrain, visual) -> dict:
+    """Original material sample population, even before #432 rebase.
+
+    No geometry, private position or texture data is returned.
+    A 2,498-entry array of None is NOT proof of original KCL IDs.
+    """
+    source_ids=getattr(terrain,"face_materials",())
+    kcl_faces=getattr(terrain,"faces",())
+    if source_ids and len(source_ids)!=len(kcl_faces):
+        raise SurfaceFitError("KCL original material ID/face count mismatch")
+    result={}
+    for name,(source_id,materials) in SURFACES.items():
+        result[name]={
+            "kcl_source_faces":sum(x==source_id for x in source_ids),
+            "visual_source_faces":sum(
+                f.material in materials for f in visual.faces)}
+    return {
+        "categories":result,
+        "source_kcl_has_recognized_ogws_ids":any(
+            v["kcl_source_faces"]>0 for v in result.values()),
+        "source_dae_has_corresponding_materials":any(
+            v["visual_source_faces"]>0 for v in result.values()),
+        "native_scene_alignment_proven":False,
+    }
 
 
 def _source_points(terrain, visual):
