@@ -38,6 +38,45 @@ Leave off `--offline` to attempt two **read-only**, source-identity-gated
 tee/pin memory samples from an already running Felk bridge. Pass
 `--require-live` to fail instead of silently accepting missing live evidence.
 
+## Original DAE rejection: safe source inventory (2026-11-10)
+
+An actual operator run of the combined source audit stopped with:
+
+```text
+ABSTAIN_SOURCE_ASSETS: VisualAssetError Unsupported original scene graph transform/controller
+```
+
+This is **not** a KCL label or 180° camera-control error. The original
+BrawlCrate Collada DAE contains at least one active node child in the
+loader's unsupported set: `instance_controller`, `instance_node`,
+`lookat`, or `skew`. **We have not yet identified which**, because the
+prior loader collapsed them into one diagnostic.
+
+A newer read-only `--scene-only` mode identifies each source construct,
+reporting bounded counts only. It does not touch the KCL OBJ, textures,
+private models, bridge, selected player, or game. Run:
+
+```powershell
+$repo = 'D:\Projects\Wii-Golf-Alignment-PR434'
+py -3 -I "$repo\scripts\p0_inspect_course_alignment_private.py" `
+    --visual-dae 'D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1\glf_course_fc1.dae' `
+    --scene-only
+```
+
+If the normal combined scan is retried, the loader will now output a
+structured `ABSTAIN_SOURCE_VISUAL_MODEL` JSON with a
+`dae_visual_scene.active_unsupported_construct_counts` breakdown
+instead of a generic exception message. The script still exits nonzero:
+until all required original source scene references/transforms are
+handled correctly, scoring visual-vs-KCL geometry would be misleading.
+Do **not** disable the source graph check or infer a 180° native transform
+from the result. Share only the printed JSON.
+
+The Python `SyntaxWarning` about `D:\\Projects` in an old module
+docstring is not related to this scene-graph rejection and does not
+indicate corruption of the private OBJ.
+
+
 ## Interpreting `geometry.display_fit_surface_contrast`
 
 The report tests 0°, 90°, 180°, and 270° using exactly the same uniform
