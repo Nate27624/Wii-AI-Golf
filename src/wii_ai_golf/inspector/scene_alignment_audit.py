@@ -44,6 +44,172 @@ _IDENTITY_4 = (1., 0., 0., 0.,
                0., 0., 0., 1.)
 
 
+def _controller_structural_inventory(root: ET.Element,
+                                     active_scenes: list[ET.Element]) -> dict:
+    """Count real Collada controller evidence without disclosing source IDs.
+
+    Controllers may use skinning, bind matrices, joints and weights. Merely
+    resolving <skin source="#mesh"> is *not* equivalent to rendering the
+    original skinned mesh. This function parses only structural metadata,
+    never silently converts a controller into a geometry instance.
+    """
+    controllers = [
+        child for lib in root
+        if _local_name(lib.tag) == "library_controllers"
+        for child in lib if _local_name(child.tag) == "controller"
+    ]
+    if len(controllers) > 512:
+        raise RegistrationAuditError("Controller inventory exceeds safety bound")
+    by_id = {c.get("id"): c for c in controllers}
+    if len(by_id) != len(controllers) or None in by_id:
+        raise RegistrationAuditError("Invalid or duplicate Collada controller IDs")
+    geometry_ids = {
+        node.get("id") for lib in root
+        if _local_name(lib.tag) == "library_geometries"
+        for node in lib if _local_name(node.tag) == "geometry"
+    }
+    references = [
+        child for scene in active_scenes for node in scene.iter()
+        if _local_name(node.tag) == "node" for child in node
+        if _local_name(child.tag) == "instance_controller"
+    ]
+    if len(references) > 20000:
+        raise RegistrationAuditError("Controller instances exceed safety bound")
+
+    summaries = []
+    kinds = Counter()
+    for instance in references:
+        url = instance.get("url", "")
+        controller = by_id.get(url[1:]) if url.startswith("#") else None
+        info = {
+            "kind": "UNRESOLVED",
+            "controller_reference_resolved": controller is not None,
+            "skeleton_reference_count": sum(
+                _local_name(ch.tag) == "skeleton" for ch in instance),
+        }
+        if controller is None:
+            summaries.append(info)
+            kinds["UNRESOLVED"] += 1
+            continue
+        bodies = [c for c in controller if _local_name(c.tag) in ("skin", "morph")]
+        if len(bodies) != 1:
+            info["kind"] = "INVALID_CONTROLLER_BODY"
+            summaries.append(info)
+            kinds["INVALID_CONTROLLER_BODY"] += 1
+            continue
+        body = bodies[0]
+        kind = _local_name(body.tag)
+        info["kind"] = kind
+        kinds[kind] += 1
+        origin = body.get("source", "")
+        info["source_geometry_resolved"] = (
+            origin.startswith("#") and origin[1:] in geometry_ids
+        ) if kind == "skin" else False
+        if kind == "morph":
+            info["requires_morph_target_evaluation"] = True
+            summaries.append(info)
+            continue
+        source_by_id = {
+            child.get("id"): child for child in body
+            if _local_name(child.tag) == "source"
+        }
+        if len(source_by_id) > 256:
+            raise RegistrationAuditError("Skin source count exceeds bound")
+        shape = [c for c in body if _local_name(c.tag) == "bind_shape_matrix"]
+        if len(shape) > 1:
+            info["bind_shape_matrix_state"] = "MULTIPLE_UNSUPPORTED"
+        elif not shape:
+            info["bind_shape_matrix_state"] = "IMPLICIT_IDENTITY"
+        else:
+            try:
+                numbers = _float_array(shape[0].text, 16)
+                info["bind_shape_matrix_state"] = (
+                    "IDENTITY" if all(abs(v - expected) < 1e-6
+                                  for v, expected in zip(numbers, _IDENTITY_4))
+                    else "NONIDENTITY"
+                )
+            except RegistrationAuditError:
+                info["bind_shape_matrix_state"] = "INVALID"
+        joint_fields = [c for c in body if _local_name(c.tag) == "joints"]
+        weight_fields = [c for c in body
+                         if _local_name(c.tag) == "vertex_weights"]
+        info["joints_element_count"] = len(joint_fields)
+        info["vertex_weights_element_count"] = len(weight_fields)
+        if len(joint_fields) == 1:
+            inputs = {
+                c.get("semantic"): c.get("source", "")
+                for c in joint_fields[0]
+                if _local_name(c.tag) == "input"
+            }
+            info["has_joint_input"] = "JOINT" in inputs
+            info["has_inverse_bind_matrix_input"] = "INV_BIND_MATRIX" in inputs
+            for field, semantic in (
+                ("joint_name_count", "JOINT"),
+                ("inverse_bind_matrix_count", "INV_BIND_MATRIX"),
+            ):
+                source_ref = inputs.get(semantic, "")
+                source = (source_by_id.get(source_ref[1:])
+                          if source_ref.startswith("#") else None)
+                if source is None:
+                    info[field] = None
+                    continue
+                if semantic == "JOINT":
+                    arrays = [c for c in source
+                              if _local_name(c.tag) in ("Name_array", "IDREF_array")]
+                    if len(arrays) != 1:
+                        info[field] = None
+                    else:
+                        try:
+                            info[field] = int(arrays[0].get("count", "-1"))
+                        except ValueError:
+                            info[field] = None
+                else:
+                    accessors = [
+                        c for c in source.iter() if _local_name(c.tag) == "accessor"
+                    ]
+                    if len(accessors) != 1:
+                        info[field] = None
+                    else:
+                        try:
+                            info[field] = int(accessors[0].get("count", "-1"))
+                        except ValueError:
+                            info[field] = None
+        if len(weight_fields) == 1:
+            weights = weight_fields[0]
+            try:
+                info["weighted_vertex_count"] = int(weights.get("count", "-1"))
+            except ValueError:
+                info["weighted_vertex_count"] = None
+            vcounts = [c for c in weights if _local_name(c.tag) == "vcount"]
+            if len(vcounts) == 1:
+                try:
+                    counts = [int(word) for word in (vcounts[0].text or "").split()]
+                    if (len(counts) > 200000 or any(v < 0 or v > 256 for v in counts)
+                            or sum(counts) > 2000000):
+                        raise ValueError("Unsupported weight counts")
+                    info["max_influences_per_vertex"] = max(counts, default=0)
+                    info["vcount_matches_declared"] = (
+                        len(counts) == info["weighted_vertex_count"])
+                except ValueError:
+                    info["max_influences_per_vertex"] = None
+                    info["vcount_matches_declared"] = False
+            info["weight_semantics_present"] = sorted({
+                c.get("semantic", "") for c in weights
+                if _local_name(c.tag) == "input"
+            })
+        info["static_skinning_evaluated"] = False
+        info["bind_pose_world_alignment_proven"] = False
+        summaries.append(info)
+    return {
+        "controller_definition_count": len(controllers),
+        "active_controller_instance_count": len(references),
+        "active_controller_kind_counts": dict(sorted(kinds.items())),
+        "active_controller_structural_summaries": summaries,
+        "controller_skinning_or_morphing_applied": False,
+        "native_world_alignment_verified": False,
+    }
+
+
 def audit_collada_scene(filename: str | Path) -> dict[str, object]:
     """Inspect actual source-authored Collada scene transforms without exporting art.
 
@@ -158,6 +324,7 @@ def audit_collada_scene(filename: str | Path) -> dict[str, object]:
         "active_unsupported_construct_counts": dict(sorted(active_unsupported.items())),
         "all_scene_unsupported_construct_counts": dict(sorted(all_unsupported.items())),
         "active_scene_requires_unimplemented_processing": bool(active_unsupported),
+        "controllers": _controller_structural_inventory(root, active_scenes),
         "unsupported_constructs_are_not_safely_ignorable": True,
         "up_axis": up_axis,
         "current_loader_applies_visual_scene_transforms": True,
