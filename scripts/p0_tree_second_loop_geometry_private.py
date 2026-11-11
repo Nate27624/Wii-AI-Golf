@@ -48,7 +48,7 @@ UNIT_RANGES={
     "Camera":(CAMERA,0x8029C2F8),
     "MapObjBase":(BASE,0x80290B44),
 }
-assert sum((hi-lo)//4 for _,__,lo,hi in WINDOWS)==184
+assert sum((hi-lo)//4 for _,__,lo,hi in WINDOWS)==197
 ANCHORS={
     # Reader: source-owned FieldManager-like r31 +0x20 array, r29 argument,
     # 84-byte element stride, count +0x1C.
