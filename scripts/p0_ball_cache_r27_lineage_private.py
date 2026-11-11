@@ -88,8 +88,12 @@ def gpr_writers(w):
             return [(ra,"or",rt,None)]
         if xo in (339,371):
             return [(rt,"mfspr",None,None)]
-        # Partial X-form destination; not complete SSA/CFG.
-        if xo in (23,55,87,119,266,40,28,316):
+        # Partial X-form destination classes, not complete SSA/CFG.
+        # Logical operations (and/xor) write rA, whereas
+        # arithmetic/load results commonly write rD (word's RT slot).
+        if xo in (28,316):
+            return [(ra,"X_form_logic_dest_rA",rt,None)]
+        if xo in (23,55,87,119,266,40):
             return [(rt,"X_form_register_result",ra,None)]
     return []
 
