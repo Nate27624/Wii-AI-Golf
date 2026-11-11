@@ -84,6 +84,63 @@ class DirectDAETests(unittest.TestCase):
         self.assertEqual(visual.solid_colors["M_Kiwa_Black"], (26, 76, 128))
         self.assertEqual(visual.obj_sha256, hashlib.sha256(self.dae.read_bytes()).hexdigest())
 
+    def test_brawlcrate_sampler_surface_ref_to_image_name(self):
+        # The real FC1 DAE has image ID glf_fairway1-image and image NAME
+        # glf_fairway1. Collada newparams can refer to either.
+        params = (
+            '<newparam sid="glf_fairway1-surface">'
+            '<surface type="2D"><init_from>glf_fairway1</init_from></surface>'
+            '</newparam><newparam sid="glf_fairway1-sampler">'
+            '<sampler2D><source>glf_fairway1-surface</source></sampler2D>'
+            '</newparam>'
+        )
+        patched = DAE.replace(
+            '<effect id="M_Fairway-fx"><profile_COMMON>',
+            '<effect id="M_Fairway-fx"><profile_COMMON>' + params)
+        self.dae.write_bytes(patched.encode("utf-8"))
+        model = load_private_dae_visual_model(self.dae)
+        self.assertIn("M_Fairway", model.textures)
+        self.assertEqual(model.textures["M_Fairway"].sha256,
+                         hashlib.sha256(self.png.read_bytes()).hexdigest())
+
+    def test_brawlcrate_sampler_surface_ref_to_image_id(self):
+        params = (
+            '<newparam sid="glf_fairway1-surface">'
+            '<surface type="2D"><init_from>glf_fairway1-image</init_from></surface>'
+            '</newparam><newparam sid="glf_fairway1-sampler">'
+            '<sampler2D><source>glf_fairway1-surface</source></sampler2D>'
+            '</newparam>'
+        )
+        patched = DAE.replace(
+            '<effect id="M_Fairway-fx"><profile_COMMON>',
+            '<effect id="M_Fairway-fx"><profile_COMMON>' + params)
+        self.dae.write_bytes(patched.encode("utf-8"))
+        self.assertIn("M_Fairway", load_private_dae_visual_model(self.dae).textures)
+
+    def test_invalid_sampler_surface_cannot_guess_material(self):
+        params = (
+            '<newparam sid="glf_fairway1-surface">'
+            '<surface type="2D"><init_from>other-image</init_from></surface>'
+            '</newparam><newparam sid="glf_fairway1-sampler">'
+            '<sampler2D><source>glf_fairway1-surface</source></sampler2D>'
+            '</newparam>'
+        )
+        self.dae.write_bytes(DAE.replace(
+            '<effect id="M_Fairway-fx"><profile_COMMON>',
+            '<effect id="M_Fairway-fx"><profile_COMMON>' + params
+        ).encode("utf-8"))
+        with self.assertRaisesRegex(VisualAssetError, "sampler does not match image"):
+            load_private_dae_visual_model(self.dae)
+
+    def test_ambiguous_name_alias_rejected(self):
+        duplicate = ('<image id="glf_fake-image" name="glf_fairway1">'
+                     '<init_from>glf_fake.png</init_from></image>')
+        self.dae.write_bytes(DAE.replace(
+            '</library_images>', duplicate + '</library_images>'
+        ).encode("utf-8"))
+        with self.assertRaisesRegex(VisualAssetError, "Ambiguous Collada source image alias"):
+            load_private_dae_visual_model(self.dae)
+
     def test_original_png_and_scene_render_no_blender(self):
         try:
             from PIL import Image
