@@ -90,7 +90,7 @@ def overlay_summary(comp: ComparisonKCL) -> str:
         f"KCL {len(comp.faces):,} source faces · x-ray display-only "
         f"uniform bounds fit {comp.source_scale:.5g}× "
         f"(X/Z fit-ratio disagreement {ratio:.2f}×) · "
-        "NOT verified native/world alignment")
+        "UNVERIFIED native/world alignment")
 
 
 def draw_comparison(image, comp: ComparisonKCL | None, camera: "VisualCamera",
