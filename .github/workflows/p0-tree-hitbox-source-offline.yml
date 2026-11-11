@@ -21,6 +21,8 @@ on:
       - scripts/p0_ball_kcol_seven_capture_active_kcl_private.py
       - scripts/p0_tree_ball_indirect_dispatch_private.py
       - scripts/p0_tree_ball_runtime_table_alias_private.py
+      - scripts/p0_tree_full_public_table_targets_private.py
+      - tests/test_p0_tree_full_public_table_targets_private.py
       - tests/test_p0_tree_ball_runtime_table_alias_private.py
       - tests/test_p0_tree_ball_indirect_dispatch_private.py
       - tests/test_p0_ball_kcol_seven_capture_active_kcl_private.py
@@ -117,5 +119,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_tree_ball_indirect_dispatch_private.py -v
       - name: Source-gated 94-tree table versus Ball child dispatch receiver memory identity
         run: python -m unittest discover -s tests -p test_p0_tree_ball_runtime_table_alias_private.py -v
+      - name: Exact Tree shared-table 64 slots versus complete public Rev1 text map
+        run: python -m unittest discover -s tests -p test_p0_tree_full_public_table_targets_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
