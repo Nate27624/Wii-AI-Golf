@@ -73,7 +73,7 @@ class TreeObjectDispatchTests(unittest.TestCase):
     def test_bad_count_abstain(self):
         read,bank,base=fixture()
         with self.assertRaises(ValueError):
-            m.inspect_objects(read,bank,93)
+            m.inspect_objects(read,bank,base,93)
 
     def test_inline_mulli_84_in_ball_not_assumed_hitbox(self):
         base=m.native.UNITS["Ball"][0]
