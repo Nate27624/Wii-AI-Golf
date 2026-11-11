@@ -434,7 +434,7 @@ class Inspector:
         if not isinstance(scene_warning, str) or not scene_warning:
             scene_warning = None
         self.visual_status.set(
-            ("WARNING: GEOMETRY-ONLY COMPATIBILITY VIEW · "
+            ("WARNING: ORIGINAL SCENE COMPATIBILITY VIEW · "
              if scene_warning else "PRIVATE source preview: ") +
             f"{model.source_name} · {len(model.faces):,} renderable UV triangles · " +
             (scene_warning if scene_warning else
