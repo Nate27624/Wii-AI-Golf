@@ -182,6 +182,8 @@ class LabelsTests(unittest.TestCase):
         view.terrain_status=Mock()
         view.surface_label_status=Mock()
         view.asset_settings_status=Mock()
+        view.tree_status=Mock()
+        view.tree_visible=Mock()
         view.terrain_visible=Mock()
         view.tree_positions=None
         view.saved_assets=AssetSelections(auto_find_trees=False)
