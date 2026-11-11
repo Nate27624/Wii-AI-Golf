@@ -50,6 +50,11 @@ def ppc_bcctrl():
     return ((19 << 26) | (20 << 21) | (528 << 1) | 1)
 
 
+def ppc_rlwinm(rs, ra, sh, mb, me, rc=0):
+    return ((21 << 26) | (rs << 21) | (ra << 16) | (sh << 11) |
+            (mb << 6) | (me << 1) | rc)
+
+
 def fixture():
     words = {}
     for pc in range(*m.EXCERPT, 4):
@@ -83,6 +88,8 @@ def fixture():
         words[pc] = dform(32, reg, base, disp)
     for pc in m.MAG_BCCTRL_SITES:
         words[pc] = ppc_bcctrl()
+    words[0x802B48A0] = ppc_rlwinm(0, 0, 2, 0, 29)
+    words[0x802B48D0] = ppc_rlwinm(0, 0, 2, 0, 29)
     # Synthetic FP63 example at non-gated site for generic symbolizer test.
     words[0x802B486C] = (
         (63 << 26) | (30 << 21) | (28 << 16) |
@@ -198,6 +205,21 @@ class Tests(unittest.TestCase):
             words[pc] &= ~1
             with self.assertRaisesRegex(m.Abstain, "virtual_getter_call"):
                 m.verify_magnitude_arithmetic(words.__getitem__)
+
+    def test_original_virtual_selector_rotate_mask_operands_exposed(self):
+        words = fixture()
+        first = m.symbolize(0x802B48A0, words[0x802B48A0])
+        second = m.symbolize(0x802B48D0, words[0x802B48D0])
+        self.assertEqual(first["class"], "rlwinm")
+        self.assertEqual(tuple(first[k] for k in
+                               ("rs","ra","sh","mb","me","record")),
+                         (0,0,2,0,29,False))
+        self.assertEqual(first["sh"], second["sh"])
+        report = m.source_slice(words.__getitem__)
+        selections = report["virtual_return_selector_source_instructions"]
+        self.assertEqual(len([x for x in selections if x["class"]=="rlwinm"]),2)
+        self.assertFalse(
+            report["native_magnitude_arithmetic"]["two_callbacks_same_object_verified"])
 
     def test_wrong_bank_or_unaligned_source_address_abstains(self):
         fake = bytes(64)
