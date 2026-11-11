@@ -324,3 +324,61 @@ or GPU-vs-CPU constraints.
 
 Native Wii GX shaders, original visual-to-KCL transform, exact active
 hole identity, gameplay physics collision and training remain unverified.
+
+
+## Unified original source visuals + KCL candidates, navigation, and scale
+
+Operator screenshot on 2026-11-10 showed a playable green/fairway
+"island" surrounded by a much larger textured scenery plane.
+That alone does NOT prove game geometry was exported at the wrong scale:
+the source visual DAE contains both playable course textures and
+large distant/background artwork. Native model/bone/scene transforms,
+hole identity and collision/visual registration are NOT yet verified.
+
+The inspector now defaults F / Frame course to source-bound materials
+M_Fairway, M_Green, M_Rough, M_Bunker and original edge materials rather
+than the huge M_Enkei background. Shift+F / Frame whole scene still
+fits every original model vertex. This changes CAMERA ONLY, not source
+mesh size, KCL physics, tee/flag or game-world units.
+
+The main GUI now shows ONE visible source 3D viewport once visual DAE
+is loaded automatically. The previous KCL replay canvas is kept
+available internally for source/replay tools and as a fallback if
+original visual art is not supplied, not a second side-by-side viewer.
+Inside the single source visual canvas the operator chooses:
+  Textures   exact original DAE triangles and source PNG texels
+  Collision  source KCL triangle category colors alone
+  Both       original UV/PNG visual with thin cyan X-ray KCL wire edges
+
+The collision geometry is the exact separate private source OBJ with
+SHA-bound source label metadata; no source KCL assets are modified.
+IMPORTANT: the exact native KCL->visual common world transform has
+NOT been established. A *DISPLAY-ONLY* uniform X/Z bounding-box fit
+is applied to the candidate KCL for side-by-side visual comparison in
+the same camera. It does not assert source physical scale or even
+matching hole ownership. The GUI explicitly reports its scale and X/Z
+span-ratio disagreement and labels the fit UNVERIFIED. Never reuse
+these display coordinates for game physics, training, collision tests,
+ball/flag/tee overlay or tree collision.
+
+The original compiled full-source 11,995-face visual renderer and
+fixed-position RMB camera are preserved. While dragging on the visual
+canvas, the complete source mesh is rasterized at ~68% of display
+resolution for speed and presented scaled to the canvas; releasing
+mouse requests full-size pixels. No triangles are silently dropped.
+Arrow keys Up/Down move camera forward/backwards and Left/Right
+strafe camera-left/right when the 3D canvas has keyboard focus,
+without holding RMB. Shift accelerates. Existing RMB+WASD/QE, LMB
+orbit, MMB pan, F, Shift+F remain available and never send Wii
+controller input.
+
+Validation uses synthetic meshes and source-material category labels;
+CI tests include playable-vs-distant scene framing, original geometry
+immutability, display transform diagnostics, shared camera in all
+three modes, KCL origin colors, arrow-key movement independent of RMB,
+and adaptive raster quality with all original triangle indices.
+
+Open issues: actual game source transforms, correct hole selection,
+full graphics shader/TEV and tree collision structures. NONE were
+proven by this UI change. Private original ROM/CARC/BRRES/DAE/TEX0 PNG,
+KCL OBJ and local captures remain out of Git.
