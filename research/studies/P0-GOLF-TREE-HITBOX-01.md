@@ -2641,3 +2641,167 @@ tree coordinates, private raw RAM,
 game assets or personal data are
 included in Git. Draft PR stays
 `training_approved=false`.
+
+
+## Operator signed-response report and original Ball self-reference correction
+
+The operator shared original **`tree-contact-memory-response-SAFE.json`**
+generated at `ea46eef6c89869fcbafead00b45a96eff42fcf1f`,
+using the already SHA-verified **110 live source-selected Ball
+packets / 15 tree-array snapshots**. No new gameplay
+or video has been used; the user explicitly wants
+**memory-only analysis**.
+
+### Signed candidate displacement, not true collision physics
+
+The strongest Ball+0x30 BE-f32 candidate direction turn
+and the newly computed **after/before per-host-second
+displacement ratio** in each trial are:
+
+| Operator actually observed | Original intent | Turn | Original sample | After/before ratio | Interpretation |
+| --- | --- | ---: | ---: | ---: | --- |
+| **Wood** | `leaves` | **59.79°** | **28** | **0.2511** | candidate displacement rate fell by ~74.89% |
+| **Leaves/foliage** | `wood` | **66.06°** | **27** | **0.8841** | candidate displacement rate fell by ~11.59% |
+| **No contact** | `near_miss` | **14.74°** | **11** | **0.8993** | candidate displacement rate fell by ~10.07% |
+
+These are strongly distinguishable observed **candidate
+trajectory profiles**, and the wood event merits the
+highest priority for native response tracing. However,
+each shot differs in input profile and candidate
+movement duration; sparse ~4 Hz non-atomic RPC
+reads are not physics-frame-synchronized, and
+`Ball+0x30` is not independently proven to
+be the rendered ball's world-space position.
+**Do not interpret the ratio as an actual physical
+velocity/restitution/energy coefficient**.
+Later near-stop intervals (wood source sample 30
+ratio 0.0447 and foliage sample 33 ratio
+0.0015) may reflect ordinary game-state
+transitions/landing, not collision damping.
+
+### Stationary copy agreement was misleading
+
+The earlier high overall nested-to-Ball and
+Ball-to-cache equality was driven by a majority
+of **stationary** samples. Across all three:
+- **Ball+0x30 vs Ball+0xCC**:
+  exact bytes in **84/84** Ball-stationary
+  samples, but only **6/26** Ball-moving
+  samples (**2/7 wood**, **2/10 leaves**,
+  **2/9 near-miss**).
+- **Nested source triplet vs Ball+0x30**:
+  same-packet exact match in **83/84**
+  Ball-stationary samples but **6/26**
+  Ball-moving. Nested `+0xAC` matching
+  zero across moving and idle samples.
+- Motion-only same-packet cache equality
+  is too weak to declare either cached
+  location the independently authoritative
+  rendered/physics position. This may be
+  non-atomic reads, separate cache lifecycles,
+  interpolation or other unverified writes.
+
+**More important original source constraint**:
+the *original seven-capture* SHA-qualified
+`audit_p0_seven_numbered_source_pairs_private.py`
+reader enforces:
+`u(ball + 0x4C) == ball + 0x30`.
+That is a *source-qualified pointer self-reference*
+in the original archival cohort. Our **new November
+operator live** `p0_tree_contact_record_private.py`
+recorder reads `nested = u(ball+0x4C)` and
+checks only that the resulting 12-byte MEM2
+window is bounded, **not** that it equals
+`ball+0x30`. Crucially, it reads the 448-byte
+Ball window first and the so-called
+`nested` triplet **later through a second
+RPC call**. Therefore, IF the original pointer
+self-reference still holds in all 110 live
+packets, this is a **re-read of the exact
+same native memory address**, not an
+independent nested transform object.
+A mismatch during flight would then be
+expected under non-atomic updates and
+MUST NOT be treated as evidence of a
+second position cache. This remains a
+**conditional hypothesis** until the
+new live pointer identity is checked.
+
+### Tree "contact-only" candidates are pointer-like and largely in the no-contact control
+
+Across all 15 original complete snapshots
+(94 source tree records each = 1410
+tree-record-word observations):
+- `Tree+0x24`: **1410/1410 aligned
+  MEM2-range words** (pointer-like).
+- `Tree+0x2C`: **775/1410 aligned
+  MEM2-range words**, **635/1410 zero**.
+  These are pointer/nullable-handle
+  *bit patterns*, NOT C++ type proof.
+- `Tree+0x48`: **1410/1410 zero**.
+- At each trial's first sustained Ball
+  candidate movement interval, the
+  `+0x24/+0x2C` cochange sets had
+  **23 (foliage), 14 (wood), and 11
+  (near-miss)** tree entries. The contact
+  sets overlapped in **14** source
+  tree indices, of which **11** also
+  changed during the control. Thus
+  **11 of the 14 common "contact" tree
+  changes are not contact-exclusive**;
+  three further common candidates
+  still need source-object receiver
+  proof and are **not** a hit latch.
+  Source tree indices 11,38,40 are
+  not spatially near the recorded Ball
+  candidate under the already-unverified
+  shared-axis hypothesis.
+- For all three trials, `+0x4C/+0x50`
+  changed across all 94 trees around
+  movement. Original PPC Tree source
+  includes `lwz +0x24` and float
+  stores at `+0x4C/+0x50` but native
+  Tree class receiver for those specific
+  94 live records is still unresolved.
+
+### New gated memory-only test of the self-reference, not a guessed identity
+
+Added `scripts/p0_tree_live_ball_selfref_private.py`
+and `tests/test_p0_tree_live_ball_selfref_private.py`.
+The script rereads **only** the already-private,
+previously SHA-verified 110 live JSONL
+source samples, and for each packet:
+- decodes the source-selected Ball address
+  from selected-player-record `+0x88`;
+- decodes the Ball object `+0x4C`
+  nested pointer;
+- checks exact private native pointer
+  identity `Ball+0x4C == BallAddress+0x30`,
+  plus bounded MEM2 and stable ownership;
+- segregates exact Ball `+0x30,+0xCC,
+  +0xF0,+0xFC,+0xAC` matches during
+  moving samples and compares neighbor
+  sample lags.
+It writes **only sanitized counts/booleans**,
+no raw pointers, values, source instructions,
+game position, private paths, or native
+assets, to the new exclusive local
+`tree-contact-ball-selfref-SAFE.json`.
+The original raw capture/manifest/summary
+are unchanged; no Dolphin, video, new
+swing or guest write required.
+
+**Why this check matters:** an original
+`Ball+0x4C` pointer selfref would
+make the previous "nested position"
+and `Ball+0x30` both views of the
+*same address at different moments*,
+rather than two separate memory
+objects. This directly narrows the
+native copy/writer investigation,
+leaving Ball `+0xCC,+0xF0,+0xFC`
+and their original PPC writer/reader
+provenance as the next unresolved source
+dataflow. None of this currently proves
+wood or leaves native physics.
+`training_approved=false`.
