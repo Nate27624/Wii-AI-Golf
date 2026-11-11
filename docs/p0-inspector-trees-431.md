@@ -25,6 +25,30 @@ trees** forgets the JSON and disables automatic rediscovery until another
 manual selection. Invalid/missing files are reported without silently
 substituting unrelated geometry.
 
+### Regenerating the missing PRIVATE JSON from original capture
+
+The coordinates were generated in source-research **draft PR #411** by
+`scripts/p0_tree_position_export_private.py`, not committed to Git.
+The original verified archive was recorded as
+`D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures\p0-new-cohort-20261028-063011392-955fd483-PRIVATE`.
+If your inspector clone lacks the JSON, run the **bootstrap from PR #432**:
+
+```powershell
+& powershell -NoProfile -ExecutionPolicy Bypass -File "D:\Projects\Wii-Golf-Tree-PR432\scripts\bootstrap_inspector_private_trees.ps1"
+```
+
+The bootstrap checks the original archive, fetches **PR #411** into a
+separate clean detached worktree nested under `D:\Projects\Wii Golf AI`
+(so its original source gating resolves the correct sibling Data root),
+invokes the SHA/scene/PPC/94-object-gated exporter once, validates the exact
+JSON via the inspector loader, and persists its location to local user
+settings. It will **not overwrite** an existing private JSON, copy native
+banks to Git, edit ROM/Dolphin, fabricate positions, or claim hitboxes.
+It prints an explicit error if the original capture is missing: a Git
+checkout alone cannot recover original coordinates that were intentionally
+never committed. Previously selecting **Clear trees** will not prevent
+this bootstrap from re-enabling the validated saved path.
+
 If trees do not load automatically, use the **read-only local diagnostic**:
 `py -3 -I scripts/diagnose_inspector_tree_loading.py`.
 It reports which known private locations were checked, which file (if any)
