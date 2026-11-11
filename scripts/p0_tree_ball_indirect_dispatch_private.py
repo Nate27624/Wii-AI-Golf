@@ -36,6 +36,7 @@ SOURCE_UNITS=("Ball","FieldManager","Simulation","Tree",
               "CollisionChecker","CollisionModel")
 METHOD_SLOTS=64
 MAX_DETAIL_WINDOWS=30
+MAX_DETAIL_PER_OWNER=8
 PREVIOUS_WORDS=9
 FOLLOWING_WORDS=2
 MAX_SITE_SUMMARY_PER_UNIT=64
@@ -97,6 +98,7 @@ def inspect_indirect_calls(read,detail=False):
         lo,hi=native.UNITS[owner]
         sites=[]
         kinds=Counter()
+        owner_detail=0
         for pc in range(lo,hi,4):
             kind=native.indirect_call(read(pc))
             if kind is None:
@@ -110,13 +112,17 @@ def inspect_indirect_calls(read,detail=False):
                 "nearby_mtctr_syntax_at_relative_site":nearby_mtctr(read,pc,lo),
                 "CTR_reaching_target_or_tree_receiver_proven":False,
             }
-            if detail and used<MAX_DETAIL_WINDOWS and pc-PREVIOUS_WORDS*4>=lo and pc+FOLLOWING_WORDS*4<hi:
+            if (detail and used<MAX_DETAIL_WINDOWS
+                    and owner_detail<MAX_DETAIL_PER_OWNER
+                    and pc-PREVIOUS_WORDS*4>=lo
+                    and pc+FOLLOWING_WORDS*4<hi):
                 site["operator_local_original_code_context"]=[
                     f"{owner}+0x{p-lo:04X}  {read(p):08X}  {decoder.ppc(p,read(p))}"
                     for p in range(pc-PREVIOUS_WORDS*4,
                                    pc+(FOLLOWING_WORDS+1)*4,4)
                 ]
                 used+=1
+                owner_detail+=1
             sites.append(site)
         result.append({
             "source_unit":owner,
