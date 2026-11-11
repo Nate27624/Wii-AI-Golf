@@ -252,12 +252,16 @@ def _raster_loop(screen, front, faces, face_uvs, uv, materials, texels,
                     if filtered:
                         # Bilinear wrapped TEX0 PNG sampling, including alpha.
                         # Premultiplication prevents dark halos at leaf edges.
-                        px = (u-math.floor(u))*tw-0.5
+                        # Do NOT shadow raster pixel-center px/py here:
+                        # py is shared by the entire y scanline. Overwriting
+                        # it with texture coordinates corrupts the next pixel's
+                        # barycentric test and creates black/speckled holes.
+                        tex_u_px = (u-math.floor(u))*tw-0.5
                         fy_u = 1.0-v
-                        py = (fy_u-math.floor(fy_u))*th-0.5
-                        bx = math.floor(px)
-                        by = math.floor(py)
-                        ax, ay = px-bx, py-by
+                        tex_v_py = (fy_u-math.floor(fy_u))*th-0.5
+                        bx = math.floor(tex_u_px)
+                        by = math.floor(tex_v_py)
+                        ax, ay = tex_u_px-bx, tex_v_py-by
                         xx0, xx1 = int(bx)%tw, (int(bx)+1)%tw
                         yy0, yy1 = int(by)%th, (int(by)+1)%th
                         t00 = tex_offset+yy0*tw+xx0
