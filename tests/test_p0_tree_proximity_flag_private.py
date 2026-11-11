@@ -121,7 +121,7 @@ class TreeProximityTests(unittest.TestCase):
     def test_flag_consumer_queries_are_only_syntax(self):
         words,read=native_words()
         code=m.potential_flag_consumers(read)
-        self.assertTrue(any(x["kind"]=="stb" and x["field"]=="0x48"
+        self.assertTrue(any(x["kind"]=="stb" and x["field"]=="+0x48"
                             for x in code["Tree"]))
         self.assertIsInstance(code["Ball"],list)
 
