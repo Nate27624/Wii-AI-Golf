@@ -180,9 +180,28 @@ class DirectDAETests(unittest.TestCase):
                          hashlib.sha256(self.png.read_bytes()).hexdigest())
         self.assertEqual(result.obj_sha256,
                          hashlib.sha256(self.dae.read_bytes()).hexdigest())
-        self.assertIn("GEOMETRY-ONLY",result.source_scene_warning)
+        self.assertIn("PARTIAL ORIGINAL SCENE",result.source_scene_warning)
         self.assertIn("instance_controller",result.source_scene_warning)
-        self.assertIn("NOT APPLIED",result.source_scene_warning)
+        self.assertIn("Supported source node transforms",result.source_scene_warning)
+
+    def test_controller_only_original_scene_uses_explicit_geometry_only_png_fallback(self):
+        original=DAE.replace(
+            '<instance_geometry url="#grass"><bind_material>',
+            '<instance_controller url="#golf-skin"><bind_material>'
+        ).replace(
+            '</bind_material></instance_geometry>',
+            '</bind_material></instance_controller>'
+        )
+        self.dae.write_text(original, encoding="utf-8")
+        with self.assertRaises(UnsupportedSceneFeature):
+            load_private_dae_visual_model(self.dae)
+        model=load_private_dae_visual_model(
+            self.dae,allow_geometry_only_for_unsupported_scene=True)
+        self.assertIn("GEOMETRY-ONLY",model.source_scene_warning)
+        self.assertIn("NOT APPLIED",model.source_scene_warning)
+        self.assertEqual(model.textures["M_Fairway"].sha256,
+                         hashlib.sha256(self.png.read_bytes()).hexdigest())
+        self.assertEqual(len(model.faces),2)
 
     def test_unsupported_source_lookat_skew_report_specific_feature(self):
         for element in (
