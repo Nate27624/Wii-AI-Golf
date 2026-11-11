@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import math
 import time
+import platform
+import subprocess
+import sys
 from collections import deque
 from pathlib import Path
 import tkinter as tk
@@ -15,6 +18,13 @@ from .a_live import LiveAIndicator
 from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE, MAX_DRAW_FACES
 from .terrain_solid import back_to_front, shaded_hex
 from .terrain_labels import apply_private_surface_labels
+from .visual_model import VisualAssetError, load_private_visual_model
+from .dae_visual import load_private_dae_visual_model
+from .tree_positions import (
+    EXPECTED_NAME as PRIVATE_TREE_NAME,
+    load_private_tree_positions, TreePositionsError)
+from .source_markers import marker_snapshot
+from .startup import StartupError, occupied_bridge, powershell_command, runtime_checkout
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -76,9 +86,49 @@ def project(point: tuple[float, float, float], yaw: float, pitch: float) -> tupl
     return u, v
 
 
+def _known_private_visual_candidate(terrain_obj: str) -> Path | None:
+    """Optional local operator candidate, never proof of which hole is active.
+
+    Only auto-discover alongside an explicitly selected private terrain OBJ.
+    Never scan the game disc, Git workspace or any external locations.
+    """
+    if not terrain_obj:
+        return None
+    base = Path(terrain_obj).absolute().parent
+    candidate = (base / "WiiGolfVisualPrivate" / "visual_exports" /
+                 "glf_course_fc1" / "glf_course_fc1.dae")
+    return candidate if candidate.is_file() else None
+
+
+def _known_private_tree_candidate(terrain_obj: str) -> Path | None:
+    """Only exact known private source-94 locations; no recursive scanning.
+
+    The strict loader must validate provenance, schema, directory, SHA,
+    nonlinks, and 94 actual source bases before this becomes display data.
+    """
+    if not terrain_obj:
+        return None
+    base = Path(terrain_obj).absolute().parent
+    choices = (
+        base / "Wii Golf AI" / "Wii-AI-Golf-Data" / "derived" / PRIVATE_TREE_NAME,
+        base / "Wii-AI-Golf-Data" / "derived" / PRIVATE_TREE_NAME,
+        base / "Wii Golf AI" / "Wii-AI-Golf" /
+        "Wii-AI-Golf-Data" / "derived" / PRIVATE_TREE_NAME,
+    )
+    for candidate in choices:
+        if candidate.is_file():
+            try:
+                load_private_tree_positions(candidate)
+            except (TreePositionsError, OSError, ValueError):
+                continue
+            return candidate
+    return None
+
+
 class Inspector:
     def __init__(self, root: tk.Tk, initial_capture: str = "", initial_manifest: str = "",
-                 initial_terrain_obj: str = "", initial_terrain_labels: str = ""):
+                 initial_terrain_obj: str = "", initial_terrain_labels: str = "",
+                 initial_visual_dae: str = ""):
         self.root = root
         root.title("Wii Golf · P0 Memory Inspector — OFFLINE CANDIDATES")
         root.geometry("1320x850")
@@ -105,6 +155,12 @@ class Inspector:
         self.terrain_edges = tk.BooleanVar(value=False)
         self.terrain_status = tk.StringVar(value="Terrain: select a locally exported PRIVATE collision OBJ to display.")
         self.surface_label_status = tk.StringVar(value="Surface colors: no original KCL labels loaded (neutral shading only).")
+        self.visual_status = tk.StringVar(value="Visual source: no private model loaded. Active hole and alignment UNVERIFIED.")
+        self.visual_preview = None
+        self.tree_source = None
+        self.tree_source_status = tk.StringVar(
+            value="94 original tree source positions: not loaded")
+        self.selected_player_index = None
         self.a_reason = tk.StringVar(value="Connect LIVE with A released; 2 stable samples initialize candidate")
         self.baseline: float | None = None
         self.replay: Replay | None = None
@@ -118,11 +174,28 @@ class Inspector:
         self.live_rate = 0.0
         self.live_location = ""
         self.live_port = tk.StringVar(value="55355")
+        self.startup_process: subprocess.Popen | None = None
         self._draw_controls()
         if initial_terrain_obj:
             loaded = self.load_terrain_path(initial_terrain_obj, show_dialog=False)
             if loaded and initial_terrain_labels:
                 self.load_terrain_labels_path(initial_terrain_labels, show_dialog=False)
+        # A prior local original-art export is auto-loaded when the operator
+        # already selected the sibling SHA-qualified private KCL. This is a
+        # visual-source candidate, NOT verified in-game hole or coordinate map.
+        private_candidate = (_known_private_visual_candidate(initial_terrain_obj)
+                             if not initial_visual_dae else None)
+        selected_visual = initial_visual_dae or (
+            str(private_candidate) if private_candidate is not None else "")
+        if selected_visual:
+            if not self.load_visual_path(selected_visual, show_dialog=False):
+                if initial_visual_dae:
+                    raise RuntimeError("Explicit private source visual DAE failed: " +
+                                       self.visual_status.get())
+        if initial_terrain_obj:
+            trees_path = _known_private_tree_candidate(initial_terrain_obj)
+            if trees_path is not None:
+                self.load_tree_source_path(str(trees_path), show_dialog=False)
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(200, self.poll_live)
         if initial_capture and initial_manifest:
@@ -146,6 +219,9 @@ class Inspector:
         ttk.Entry(actions, textvariable=self.live_port, width=7).pack(side="left")
         ttk.Button(actions, text="Connect LIVE (read-only)", command=self.connect_live).pack(side="left", padx=5)
         ttk.Button(actions, text="Disconnect", command=self.disconnect_live).pack(side="left")
+        ttk.Button(actions, text="PowerShell: Launch ready for shot",
+                   command=self.open_game_startup,
+                   state="normal" if platform.system() == "Windows" else "disabled").pack(side="left", padx=(10, 0))
         ttk.Label(head, textvariable=self.status, foreground="#9b271d", wraplength=1190).pack(anchor="w")
         a_panel = ttk.Frame(head)
         a_panel.pack(fill="x", pady=3)
@@ -156,7 +232,7 @@ class Inspector:
         main = ttk.PanedWindow(self.root, orient="horizontal")
         main.pack(fill="both", expand=True, padx=10)
         left = ttk.LabelFrame(main, text="Phase / sample", padding=8)
-        center = ttk.LabelFrame(main, text="3D candidate view — left/right drag to rotate", padding=8)
+        center = ttk.LabelFrame(main, text="Unified 3D: original textures + candidate KCL (display fit UNVERIFIED)", padding=8)
         right = ttk.LabelFrame(main, text="Raw source candidates", padding=8)
         main.add(left, weight=1)
         main.add(center, weight=3)
@@ -166,9 +242,34 @@ class Inspector:
         self.phase_list.bind("<<ListboxSelect>>", self.select_phase)
         ttk.Label(left, textvariable=self.phase, wraplength=190).pack(fill="x", pady=6)
         ttk.Button(left, text="Set aim baseline (point at flag)", command=self.set_baseline).pack(fill="x")
+        ttk.Button(left, text="Load PRIVATE visual DAE / OBJ", command=self.open_textured_model).pack(fill="x", pady=(6, 0))
+        ttk.Button(left, text="Show unified 3D source viewer", command=self.show_visual_tab).pack(fill="x", pady=(3, 0))
         ttk.Label(left, textvariable=self.aim, wraplength=200).pack(fill="x", pady=7)
 
-        self.canvas = tk.Canvas(center, background="#111c29", height=450, highlightthickness=0)
+        # ONE visible 3D canvas. The legacy terrain Tk canvas and its
+        # provenance-safe replay drawing functions are retained ONLY as a
+        # fallback when no private source visual DAE has been loaded.
+        # Once a DAE exists, the source KCL is shown in the SAME 3D camera
+        # via an explicitly unverified display-only bounding-box fit.
+        self.visual_tab = ttk.Frame(center, padding=2)
+        terrain_tab = ttk.Frame(center, padding=2)
+        self._legacy_terrain_tab = terrain_tab
+        terrain_tab.pack(fill="both", expand=True)
+        shared_actions = ttk.Frame(center)
+        shared_actions.pack(side="bottom", fill="x")
+        ttk.Button(shared_actions, text="Load KCL OBJ",
+                   command=self.load_terrain).pack(side="left")
+        ttk.Button(shared_actions, text="Load KCL source IDs",
+                   command=self.load_terrain_labels).pack(side="left", padx=3)
+        ttk.Button(shared_actions, text="Clear KCL",
+                   command=self.clear_terrain).pack(side="left")
+        ttk.Label(shared_actions,
+                  text="Shared camera; KCL-vs-texture fit is DISPLAY ONLY, not physics.",
+                  wraplength=260).pack(side="left", padx=5)
+        ttk.Label(self.visual_tab, textvariable=self.visual_status,
+                  wraplength=630).pack(fill="x", pady=(1, 3))
+
+        self.canvas = tk.Canvas(terrain_tab, background="#111c29", height=450, highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
         self.canvas.bind("<Configure>", lambda _: self.draw_path())
         self.canvas.bind("<ButtonPress-1>", self.drag_start)
@@ -179,43 +280,43 @@ class Inspector:
         self.canvas.bind("<ButtonRelease-3>", self.drag_end)
         # Narrow center pane: split terrain controls into real rows rather
         # than silently clipping checkboxes beyond the viewport width.
-        mesh_actions = ttk.Frame(center)
+        mesh_actions = ttk.Frame(terrain_tab)
         mesh_actions.pack(fill="x", pady=2)
         ttk.Button(mesh_actions, text="Load PRIVATE terrain OBJ", command=self.load_terrain).pack(side="left")
         ttk.Button(mesh_actions, text="Load source colors", command=self.load_terrain_labels).pack(side="left", padx=4)
         ttk.Button(mesh_actions, text="Clear terrain", command=self.clear_terrain).pack(side="left", padx=4)
 
-        quality_actions = ttk.Frame(center)
+        quality_actions = ttk.Frame(terrain_tab)
         quality_actions.pack(fill="x", pady=2)
         ttk.Checkbutton(quality_actions, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(quality_actions, text="Solid terrain", variable=self.terrain_solid, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(quality_actions, text="All triangles", variable=self.terrain_full_detail, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(quality_actions, text="Triangle edges", variable=self.terrain_edges, command=self.draw_path).pack(side="left")
 
-        overlay_actions = ttk.Frame(center)
+        overlay_actions = ttk.Frame(terrain_tab)
         overlay_actions.pack(fill="x", pady=2)
         ttk.Checkbutton(overlay_actions, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(overlay_actions, text="Color source surface IDs", variable=self.terrain_colors, command=self.draw_path).pack(side="left")
         ttk.Checkbutton(overlay_actions, text="Point labels", variable=self.terrain_point_labels, command=self.draw_path).pack(side="left")
 
-        view_actions = ttk.Frame(center)
+        view_actions = ttk.Frame(terrain_tab)
         view_actions.pack(fill="x", pady=2)
         ttk.Button(view_actions, text="Top-down", command=lambda: self.set_terrain_view(0.0, 1.35)).pack(side="left")
         ttk.Button(view_actions, text="Isometric", command=lambda: self.set_terrain_view(0.65, 0.60)).pack(side="left", padx=5)
-        ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
-        ttk.Label(center, textvariable=self.surface_label_status, wraplength=650).pack(anchor="w")
-        source_legend = ttk.Frame(center)
+        ttk.Label(terrain_tab, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
+        ttk.Label(terrain_tab, textvariable=self.surface_label_status, wraplength=650).pack(anchor="w")
+        source_legend = ttk.Frame(terrain_tab)
         source_legend.pack(fill="x")
         for label, color in (SURFACE_STYLE[v] for v in (0x0001,0x0002,0x0003,0x0006,0x0007,0x0009)):
             ttk.Label(source_legend, text=label, foreground=color).pack(side="left", padx=4)
         ttk.Label(source_legend, text="other/unknown: neutral; ID hypotheses", foreground="#a1aab7").pack(side="left")
-        ttk.Label(center, text="White: ball +0x30  |  Amber: cache +0xCC  |  Cyan flag: PIN candidate  |  Green diamond: TEE candidate", wraplength=640).pack(anchor="w")
-        ttk.Label(center, textvariable=self.landmark_status, wraplength=640).pack(anchor="w")
-        ttk.Label(center, text="Magenta dashed: flag-aligned aim reference, rotated only by Δ+0x3C (unverified mapping; no player position)", wraplength=640).pack(anchor="w")
-        ttk.Label(center, textvariable=self.aim_status, wraplength=640).pack(anchor="w")
-        self.slider = ttk.Scale(center, from_=0, to=1, command=self.scrub)
+        ttk.Label(terrain_tab, text="White: ball +0x30  |  Amber: cache +0xCC  |  Cyan flag: PIN candidate  |  Green diamond: TEE candidate", wraplength=640).pack(anchor="w")
+        ttk.Label(terrain_tab, textvariable=self.landmark_status, wraplength=640).pack(anchor="w")
+        ttk.Label(terrain_tab, text="Magenta dashed: flag-aligned aim reference, rotated only by Δ+0x3C (unverified mapping; no player position)", wraplength=640).pack(anchor="w")
+        ttk.Label(terrain_tab, textvariable=self.aim_status, wraplength=640).pack(anchor="w")
+        self.slider = ttk.Scale(terrain_tab, from_=0, to=1, command=self.scrub)
         self.slider.pack(fill="x", pady=4)
-        buttons = ttk.Frame(center)
+        buttons = ttk.Frame(terrain_tab)
         buttons.pack(fill="x")
         ttk.Button(buttons, text="◀", command=lambda: self.move(-1)).pack(side="left")
         ttk.Button(buttons, text="▶", command=lambda: self.move(1)).pack(side="left")
@@ -236,6 +337,82 @@ class Inspector:
         lower = ttk.LabelFrame(self.root, text="Sampling / provenance / warnings", padding=8)
         lower.pack(fill="x", padx=10, pady=8)
         ttk.Label(lower, textvariable=self.detail, wraplength=1250, justify="left").pack(anchor="w")
+
+    def load_tree_source_path(self, filename: str, *,
+                              show_dialog: bool = False) -> bool:
+        """Load exact original 94 base points privately, never inferred art."""
+        try:
+            trees = load_private_tree_positions(filename)
+        except (TreePositionsError, OSError, ValueError) as exc:
+            self.tree_source_status.set("Tree source unavailable: " + str(exc))
+            if show_dialog:
+                messagebox.showerror("PRIVATE tree source declined",
+                                     str(exc), parent=self.root)
+            return False
+        self.tree_source = trees
+        self.tree_source_status.set(
+            "94 original tree bases loaded · source frame versus visual "
+            "UNVERIFIED · native meshes and hitboxes unavailable")
+        if self.visual_preview is not None:
+            self.visual_preview.set_source_trees(trees)
+        return True
+
+    def show_visual_tab(self) -> None:
+        """One visible 3D viewport with source texture/KCL visibility modes."""
+        if self.visual_preview is None:
+            return
+        self._legacy_terrain_tab.pack_forget()
+        self.visual_tab.pack(fill="both", expand=True)
+        self.visual_preview.schedule()
+
+    def load_visual_path(self, filename: str, *, show_dialog: bool = False) -> bool:
+        """Embed original source art in the inspector WITHOUT KCL alignment."""
+        try:
+            model = (load_private_dae_visual_model(filename)
+                     if Path(filename).suffix.lower() == ".dae"
+                     else load_private_visual_model(filename))
+            from .textured_preview import TexturedPreviewWindow
+            preview = TexturedPreviewWindow(self.visual_tab, model, embedded=True)
+            if getattr(self, "tree_source", None) is not None:
+                preview.set_source_trees(self.tree_source)
+            if getattr(self, "replay", None) is not None and self.replay.samples:
+                index = min(self.index.get(), len(self.replay.samples)-1)
+                preview.set_actor_snapshot(marker_snapshot(
+                    self.replay.samples[index],
+                    getattr(self, "selected_player_index", None)))
+            if getattr(self, "terrain_mesh", None) is not None:
+                try:
+                    preview.set_collision_terrain(self.terrain_mesh)
+                except ValueError as align_error:
+                    preview.comparison_status.set(
+                        "KCL source comparison unavailable: " + str(align_error))
+        except (VisualAssetError, OSError, RuntimeError, tk.TclError,
+                ImportError, ValueError) as exc:
+            self.visual_status.set("Visual source declined: " + str(exc))
+            if show_dialog:
+                messagebox.showerror("Private visual model unavailable",
+                                     str(exc), parent=self.root)
+            return False
+        prior = self.visual_preview
+        self.visual_preview = preview
+        if prior is not None:
+            prior.close()
+        self.visual_status.set(
+            f"PRIVATE source preview: {model.source_name} · "
+            f"{len(model.faces):,} renderable UV triangles · "
+            "native hole/world/KCL alignment NOT verified")
+        self.show_visual_tab()
+        return True
+
+    def open_textured_model(self) -> None:
+        """Load a source UV visual model in the INTEGRATED visual tab."""
+        filename = filedialog.askopenfilename(
+            parent=self.root,
+            title="Choose PRIVATE original Collada DAE or UV OBJ",
+            filetypes=[("Original Collada DAE", "*.dae"),
+                       ("UV Wavefront OBJ", "*.obj")])
+        if filename:
+            self.load_visual_path(filename, show_dialog=True)
 
     def load_terrain(self) -> None:
         """User opt-in: load only local private OBJ, never read live RAM for terrain."""
@@ -263,6 +440,7 @@ class Inspector:
             f"PRIVATE terrain OBJ: {len(mesh.faces)} candidate triangles, SHA {mesh.sha256[:12]}… "
             "· visual alignment/active collision UNVERIFIED")
         self.draw_path()
+        Inspector._sync_visual_terrain(self)
         return True
 
     def load_terrain_labels(self) -> None:
@@ -300,13 +478,27 @@ class Inspector:
             f"Source colors: {len(labeled.faces)} original KCL per-face IDs linked by OBJ SHA "
             "· candidate visual categories, not physics")
         self.draw_path()
+        Inspector._sync_visual_terrain(self)
         return True
+
+    def _sync_visual_terrain(self) -> None:
+        # Existing GUI source-inspector tests use small SimpleNamespace
+        # stubs without a visual preview. Terrain data must remain usable
+        # independently of the optional source texture viewer.
+        if getattr(self, "visual_preview", None) is None:
+            return
+        try:
+            self.visual_preview.set_collision_terrain(self.terrain_mesh)
+        except ValueError as exc:
+            self.visual_preview.comparison_status.set(
+                "KCL source comparison unavailable: " + str(exc))
 
     def clear_terrain(self) -> None:
         self.terrain_mesh = None
         self.surface_label_status.set("Surface colors: no original KCL labels loaded.")
         self.terrain_status.set("Terrain: no private OBJ loaded.")
         self.draw_path()
+        Inspector._sync_visual_terrain(self)
 
     def pick(self, var: tk.StringVar) -> None:
         name = filedialog.askopenfilename(title="Choose local file (not uploaded)")
@@ -316,6 +508,9 @@ class Inspector:
     def open_capture(self) -> None:
         self.disconnect_live(silent=True)
         self.live_worker = None
+        # Offline replay has no independently selected player identity.
+        # Never carry a stale live metadata ID into another source epoch.
+        self.selected_player_index = None
         try:
             replay = load_replay(Path(self.capture.get()), Path(self.manifest.get()))
         except (OSError, ValueError) as exc:
@@ -384,6 +579,78 @@ class Inspector:
             details += (f"Operator annotation: {sample.annotation}",)
         self.detail.set(f"{timestamp} | " + "  •  ".join(details))
         self.draw_path()
+        Inspector._sync_actor_markers(self)
+
+    def _sync_actor_markers(self) -> None:
+        """Qualified SINGLE sample to shared visual canvas; no joins."""
+        preview = getattr(self, "visual_preview", None)
+        if preview is None:
+            return
+        replay = getattr(self, "replay", None)
+        if replay is None or not replay.samples:
+            preview.set_actor_snapshot(None)
+            return
+        index = max(0, min(self.index.get(), len(replay.samples)-1))
+        preview.set_actor_snapshot(marker_snapshot(
+            replay.samples[index],
+            getattr(self, "selected_player_index", None)))
+
+    def open_game_startup(self) -> None:
+        """Explicit operator-controlled game boot/menu sequence in a visible PS.
+
+        The usual LIVE sampler remains strictly read-only. This separate
+        button (after confirmation) invokes the repo's existing canonical
+        A -> A+B -> A startup; it NEVER fires a shot or fabricates a ready
+        screen claim. Do not run it from an unconfigured detached worktree.
+        """
+        if platform.system() != "Windows":
+            messagebox.showerror("Windows PowerShell required", "This startup button is Windows-only.")
+            return
+        process = getattr(self, "startup_process", None)
+        if process is not None and process.poll() is None:
+            messagebox.showinfo("PowerShell already open", "Close the prior startup PowerShell window before launching again.")
+            return
+        try:
+            port = int(self.live_port.get())
+            runtime = runtime_checkout(Path(__file__).resolve().parents[3])
+            attach = occupied_bridge(port)
+            argv = powershell_command(runtime, Path(sys.executable), port, attach=attach)
+        except (ValueError, OSError, StartupError) as exc:
+            messagebox.showerror("Golf launcher not ready", str(exc))
+            return
+
+        target = "reset the existing game's registered checkpoint" if attach else "start a NEW Dolphin session"
+        if not messagebox.askyesno("Launch Hitting the Green?",
+              "This will " + target + " and automatically send A, A+B, A to the menu.\n\n"
+              "It may discard current in-game progress, but will NOT overwrite a savestate or swing.\n"
+              "You must visually confirm the golfer is ready to hit. Proceed?"):
+            return
+
+        worker = self.live_worker
+        if worker is not None:
+            worker.stop()
+            thread = worker.thread
+            if thread is not None and thread.is_alive():
+                thread.join(timeout=2.0)
+                if thread.is_alive():
+                    messagebox.showerror("Inspector is still sampling",
+                                         "The read-only worker is still exiting. Retry after it disconnects.")
+                    return
+            self.live_worker = None
+            self.live_last = None
+            self.a_indicator.clear()
+            self.a_status.set("A UNKNOWN")
+            self.a_reason.set("Launch in separate PowerShell; reconnect when ready")
+            self.draw_a_overlay()
+        try:
+            self.startup_process = subprocess.Popen(
+                argv, cwd=str(runtime), shell=False,
+                creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+        except (OSError, ValueError) as exc:
+            messagebox.showerror("Unable to open PowerShell", str(exc))
+            return
+        self.status.set("POWERSHELL STARTED · startup/menu dispatch in separate console; "
+                        "visually verify ready golfer, then Connect LIVE. No swing sent.")
 
     def connect_live(self) -> None:
         if self.live_worker is not None and self.live_worker.thread is not None and self.live_worker.thread.is_alive():
@@ -398,6 +665,7 @@ class Inspector:
             messagebox.showerror("Invalid bridge port", str(exc))
             return
         self.live_worker = worker
+        self.selected_player_index = None
         self.live_buffer.clear()
         self.live_last = None
         self.baseline = None
@@ -405,6 +673,8 @@ class Inspector:
         self.a_status.set("A UNKNOWN")
         self.a_reason.set("Connecting; first two samples assume A is RELEASED")
         self.replay = None
+        if self.visual_preview is not None:
+            self.visual_preview.set_actor_snapshot(None)
         self.phases = []
         self.phase_list.delete(0, "end")
         self.rows.delete(*self.rows.get_children())
@@ -417,6 +687,8 @@ class Inspector:
     def disconnect_live(self, silent: bool = False) -> None:
         if self.live_worker is not None:
             self.live_worker.stop()
+            if self.visual_preview is not None:
+                self.visual_preview.set_actor_snapshot(None)
             if not silent:
                 self.status.set("DISCONNECT requested; RPC timeout may delay worker exit. No automatic reconnection.")
 
@@ -428,6 +700,10 @@ class Inspector:
                     self.live_buffer.append(event.sample)
                     self.live_last = time.monotonic()
                     self.live_rate = event.rate_hz
+                    self.selected_player_index = (
+                        event.selected_player
+                        if type(event.selected_player) is int and
+                        0 <= event.selected_player <= 7 else None)
                     self.live_location = f"scene 5 · mode 4 · hole {event.hole} · selected player {event.selected_player}"
                     self.replay = Replay(Path("LIVE-readonly"), "", tuple(self.live_buffer), (), "live")
                     self.phases = [("LIVE", 0)]
@@ -466,6 +742,9 @@ class Inspector:
     def close(self) -> None:
         self.disconnect_live(silent=True)
         self.live_worker = None
+        if self.visual_preview is not None:
+            self.visual_preview.close()
+            self.visual_preview = None
         self.root.destroy()
 
     def set_baseline(self) -> None:
@@ -722,8 +1001,13 @@ class Inspector:
 
 
 def launch(capture: str = "", manifest: str = "", terrain_obj: str = "",
-           terrain_labels: str = "") -> int:
+           terrain_labels: str = "", visual_dae: str = "") -> int:
     root = tk.Tk()
-    Inspector(root, capture, manifest, terrain_obj, terrain_labels)
+    try:
+        Inspector(root, capture, manifest, terrain_obj, terrain_labels,
+                  initial_visual_dae=visual_dae)
+    except (VisualAssetError, OSError, RuntimeError, ImportError, ValueError):
+        root.destroy()
+        raise
     root.mainloop()
     return 0

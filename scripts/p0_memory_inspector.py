@@ -16,6 +16,8 @@ def main(argv=None) -> int:
     parser.add_argument("--terrain-obj", default="", help="Opt-in private OBJ to load on startup")
     parser.add_argument("--terrain-labels", default="",
                         help="Optional local source KCL per-face JSON colors; OBJ stays unmodified")
+    parser.add_argument("--visual-dae", default="",
+                        help="Open original UV Collada DAE+TEX0 PNG preview at startup, no Blender")
     args = parser.parse_args(argv)
     if args.terrain_labels and not args.terrain_obj:
         parser.error("--terrain-labels requires --terrain-obj for SHA binding")
@@ -23,7 +25,8 @@ def main(argv=None) -> int:
         parser.error("--capture and --manifest must be supplied together")
     from wii_ai_golf.inspector.gui import launch
     try:
-        return launch(args.capture, args.manifest, args.terrain_obj, args.terrain_labels)
+        return launch(args.capture, args.manifest, args.terrain_obj,
+                      args.terrain_labels, args.visual_dae)
     except (OSError, RuntimeError) as exc:
         print(f"Offline inspector could not start: {exc}", file=sys.stderr)
         return 2
