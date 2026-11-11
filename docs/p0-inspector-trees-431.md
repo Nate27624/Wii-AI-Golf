@@ -338,20 +338,24 @@ Now resolved conservatively:
   folded into a generic error. External controller links and
   malformed/nonfinite `lookat`/`skew` remain hard rejected.
 - For *only those well-formed but unsupported source scene features*,
-  the GUI uses an **explicitly labeled GEOMETRY-ONLY ORIGINAL-TEXTURE
-  PREVIEW** as a compatibility fallback. This reads the same verified
-  original DAE library POSITION/UV/materials and local source PNG files
-  without applying the unsupported scene hierarchy or skinning. It
-  does **NOT** represent native model/world alignment; original KCL
-  overlays are **not automatically enabled** in this mode.
+  the GUI first offers a **PARTIAL ORIGINAL SCENE PREVIEW**, preserving
+  valid native-authored transform matrices for supported source geometry
+  while omitting unsupported controller/skew/lookat subtrees. If the
+  scene has no renderable supported geometry, it instead offers an
+  explicitly labeled **GEOMETRY-ONLY ORIGINAL-TEXTURE PREVIEW**. That
+  mode reads the same verified original DAE library POSITION/UV/materials
+  and local PNGs without applying any visual-scene hierarchy or skinning.
+  Neither mode represents native world alignment, and original KCL
+  overlays are **not automatically enabled** in either mode.
 - The red warning appears INSIDE the now-visible source-texture
   viewport; status labels NEVER claim a native original scene matrix
   or hole registration was applied. Strict `load_private_dae_visual_model`
   calls still fail closed unless a caller explicitly asks for this
   bounded, non-authoritative compatibility display.
 - `py -3 -I scripts/diagnose_inspector_visual_loading.py` now returns
+  `VISUAL_DAE_PARTIAL_SCENE_PREVIEW` or
   `VISUAL_DAE_GEOMETRY_ONLY_PREVIEW` (instead of a missing-art error)
-  and names the actual unsupported source element. The result proves
+  and names the unsupported source element(s). The result proves
   only exact local PNG/UV loader success, **not** Wii physics, KCL
   registration, tree hitbox correctness, native animation, or game art
   fidelity.
