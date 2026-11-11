@@ -382,3 +382,51 @@ Open issues: actual game source transforms, correct hole selection,
 full graphics shader/TEV and tree collision structures. NONE were
 proven by this UI change. Private original ROM/CARC/BRRES/DAE/TEX0 PNG,
 KCL OBJ and local captures remain out of Git.
+
+
+## RMB horizontal sign / fixed eye and continuous held-arrow navigation
+
+The operator confirmed that left/right RMB dragging feels inverted and
+arrow keys were moving in discrete KEY-PRESS increments. They also
+reported apparent camera panning/translation during RMB look.
+
+New scene_camera.look_in_place reverses the pointer-horizontal yaw
+mapping as explicitly requested. It still returns a new immutable
+camera with precisely the same position and focus tuples, so actual
+source-local camera-eye translation on right drag remains ZERO. The
+integrated viewport now prints the current Camera EYE (X,Y,Z) along
+with yaw/pitch; the eye coordinates MUST remain unchanged on RMB
+rotation with no movement keys held. The scene naturally shifts on
+screen as its viewing direction changes — that is NOT camera motion.
+The GUI uses one camera in Textures/Collision/Both comparison modes.
+
+The arrow keys now use a continuously sampled held-key state and a
+monotonic time step (~16-ms UI/navigation timer). Up/Down forward/back
+and Left/Right strafe work whenever the visual 3D canvas has focus,
+without holding RMB. RMB+WASD/QE still works. Speed is now
+units per second relative to the source playable camera radius,
+not one arbitrary large distance per OS keypress. Frame delta is
+limited to 50 ms to prevent huge jumps after Windows/UI stalls;
+diagonal combinations are normalized and Shift speeds motion.
+Synthetic tests explicitly verify repeat-rate independence and that
+pressing a key does NOT cause an immediate discrete jump.
+
+Windows/Linux native keyboard autorepeat can produce KeyRelease
+followed immediately by KeyPress, so a 45-ms release debounce cancels
+false releases. Losing canvas focus (Alt+Tab, other control) clears
+held keys and stops all navigation. Closing the inspector cancels the
+navigation timers and pending callbacks. Releasing RMB stops WASD/QE
+fly controls but not arrow navigation.
+
+To avoid a subtle continuous-render starvation bug, holding arrows
+or dragging the mouse queues the newest camera pose WITHOUT cancelling
+every in-flight native raster. The UI is allowed to show completed
+slightly-stale poses during motion and queues the newest view
+immediately afterward. On drag/key release it requests a final
+full-resolution render of the exact final pose.
+
+This changes only the read-only source-local camera/viewer. The
+original private collision OBJ, surface-ID labels, DAE, source TEX0
+textures, source live sample channels and actual Wii remote movements
+remain completely untouched. It does NOT resolve native collision
+coordinate transforms, tree hitboxes or game physics/training.
