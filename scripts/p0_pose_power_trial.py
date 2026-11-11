@@ -36,13 +36,18 @@ class RefuseTrial(ValueError):
 
 
 def setup(arm: str, pose: str, scenario: str, *, club: str = "unknown", aim_id: str = "unknown",
-          pose_detail: str = "unspecified") -> dict:
+          pose_detail: str = "unspecified",
+          club_change: str = "unspecified") -> dict:
     if arm not in ARMS or pose not in POSES:
         raise RefuseTrial("unknown arm/pose")
     if pose_detail != "unspecified" and pose_detail not in POSE_DETAILS[pose]:
         raise RefuseTrial("pose detail incompatible with coarse pose")
     if club not in ("unknown", "driver", "iron", "wedge", "putter"):
         raise RefuseTrial("unknown club")
+    if club_change not in ("unspecified", "none", "wedge-to-iron"):
+        raise RefuseTrial("unknown club selection procedure")
+    if club_change == "wedge-to-iron" and club != "iron":
+        raise RefuseTrial("wedge-to-iron requires final club iron")
     if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{2,31}", aim_id):
         raise RefuseTrial("aim_id must be a local 3..32 character label")
     if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{3,31}", scenario):
@@ -50,7 +55,8 @@ def setup(arm: str, pose: str, scenario: str, *, club: str = "unknown", aim_id: 
     return {"arm": arm, "expected_pose": pose,
             "expected_pose_detail": pose_detail, "scenario": scenario,
             "backswing_scale": ARMS[arm], "wind": 0, "a_lead": 45,
-            "expected_club": club, "aim_marker": aim_id}
+            "expected_club": club, "expected_club_change": club_change,
+            "aim_marker": aim_id}
 
 
 def assert_payload_contrast() -> dict:
@@ -156,6 +162,33 @@ def gated_pose_reader(plan: dict, prompt: str, *, reader=input, observed: dict) 
                 "Detailed starting club pose changed/unknown; no experimental A or swing. "
                 "Reset the game and use a new first-ball scene.")
         observed["pose_detail_human"] = detail
+        selected = reader(
+            "BEFORE A, currently selected club [driver/iron/wedge/putter/unknown]: "
+        ).strip().lower()
+        if selected != plan["expected_club"] or selected == "unknown":
+            raise RefuseTrial(
+                "Active club does not match declared final club; "
+                "no experimental A or swing requested.")
+        observed["selected_club_human"] = selected
+        if plan["expected_club_change"] == "wedge-to-iron":
+            changed = reader(
+                "BEFORE A, did you manually change WEDGE to IRON after startup? "
+                "[yes/no/unknown]: ").strip().lower()
+            if changed != "yes":
+                raise RefuseTrial(
+                    "Expected manual wedge-to-iron selection not confirmed; "
+                    "no experimental A or swing requested.")
+            observed["club_change_human"] = "wedge-to-iron"
+        elif plan["expected_club_change"] == "none":
+            changed = reader(
+                "BEFORE A, was the declared club already selected without "
+                "manual change? [yes/no/unknown]: ").strip().lower()
+            if changed != "yes":
+                raise RefuseTrial(
+                    "Club selection procedure does not match; no A or swing.")
+            observed["club_change_human"] = "none"
+        else:
+            observed["club_change_human"] = "unknown"
     return answer
 
 
@@ -224,6 +257,8 @@ def inspect_bridge(path: Path, *, atomic: bool) -> str:
 
 def summarize(result: dict, plan: dict, *, bridge_sha: str, payload: dict,
               observed_pose_detail: str | None = None,
+              observed_club: str | None = None,
+              observed_club_change: str = "unknown",
               power: tuple[float | None, str] = (None, "unknown")) -> dict:
     human = result["human_observation"]
     requested = result["known_good_swing_request"]
@@ -232,6 +267,11 @@ def summarize(result: dict, plan: dict, *, bridge_sha: str, payload: dict,
                      else payload["baseline_trace_sha256"])
     if (observed_pose_detail is not None and observed_pose_detail != plan["expected_pose_detail"]):
         raise RefuseTrial("detailed pose mismatch at report creation")
+    if observed_club is not None and observed_club != plan["expected_club"]:
+        raise RefuseTrial("selected club mismatch at report creation")
+    if (plan["expected_club_change"] != "unspecified"
+            and observed_club_change != plan["expected_club_change"]):
+        raise RefuseTrial("club selection procedure mismatch at report creation")
     if (requested["trace_sha256"] != expected_hash or requested["generated_trace_frames"] != 89
             or requested["backswing_scale"] != plan["backswing_scale"]
             or requested["a_lead_requested_frames"] != 45
@@ -241,6 +281,9 @@ def summarize(result: dict, plan: dict, *, bridge_sha: str, payload: dict,
             "utc": datetime.now(timezone.utc).isoformat(), **plan,
             "initial_pose_human": human["initial_club_pose_human"],
             "initial_pose_detail_human": observed_pose_detail,
+            "selected_club_human": observed_club,
+            "club_change_human": observed_club_change,
+            "selected_club_game_verified": False,
             "initial_pose_game_verified": False,
             "bridge_sha256": bridge_sha,
             "trace_sha256": requested["trace_sha256"],
@@ -304,6 +347,8 @@ def run_live(plan: dict, *, port: int, bridge_source: Path, atomic: bool,
         raise RefuseTrial("bridge changed during shot; quarantined")
     record = summarize(result, plan, bridge_sha=bridge_sha, payload=hashes,
                        observed_pose_detail=observed.get("pose_detail_human"),
+                       observed_club=observed.get("selected_club_human"),
+                       observed_club_change=observed.get("club_change_human", "unknown"),
                        power=reported_power)
     record["calibration_eligible_human_only"] = eligible(record)
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -323,6 +368,9 @@ def main(argv=None):
     parser.add_argument("--scenario", required=True)
     parser.add_argument("--club", choices=("unknown", "driver", "iron", "wedge", "putter"), required=True)
     parser.add_argument("--aim-id", required=True, help="fixed human aim reference label; not source-verified")
+    parser.add_argument("--club-change", choices=("none", "wedge-to-iron", "unspecified"),
+                        default="unspecified",
+                        help="predeclared manual club-selection method (human confirmed before A)")
     parser.add_argument("--send-live-swing", action="store_true", help="one real swing, only via canonical post-boot runner")
     parser.add_argument("--bridge-source", type=Path, help="must be the exact source supplied to outer --bridge")
     parser.add_argument("--atomic-a45", action="store_true", help="REQUIRED for live trial: isolated atomic V1 bridge; host-polled A45 is refused")
@@ -330,7 +378,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         plan = setup(args.arm, args.pose, args.scenario, club=args.club,
-                     aim_id=args.aim_id, pose_detail=args.pose_detail)
+                     aim_id=args.aim_id, pose_detail=args.pose_detail,
+                     club_change=args.club_change)
         if not args.send_live_swing:
             print(json.dumps({"plan": plan, "payload_verification": assert_payload_contrast(),
                               "status": "DRY_RUN_NO_GAME_INPUT"}, indent=2))
@@ -343,6 +392,8 @@ def main(argv=None):
                           "human_power_pct": result["human_power_pct"],
                           "human_power_confidence": result["human_power_confidence"],
                           "initial_pose_detail_human": result["initial_pose_detail_human"],
+                          "selected_club_human": result["selected_club_human"],
+                          "club_change_human": result["club_change_human"],
                           "starting_pose": result["initial_pose_human"],
                           "source": result["source"],
                           "calibration_eligible_human_only": result["calibration_eligible_human_only"],
