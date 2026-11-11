@@ -94,12 +94,19 @@ class TexturedPreviewWindow:
                  f"{len(model.faces):,} triangles · {len(model.textures)} original PNGs",
             font=("Segoe UI", 10, "bold"),
         ).pack(anchor="w")
-        ttk.Label(
-            head,
-            text="Collada-authored scene node matrices are applied where present; "
-                 "KCL/tee/pin native alignment remains UNVERIFIED · shaders approximate",
-            wraplength=820,
-        ).pack(anchor="w")
+        scene_warning = getattr(model, "source_scene_warning", None)
+        if scene_warning:
+            ttk.Label(
+                head, text=scene_warning,
+                foreground="#c84820", wraplength=820,
+            ).pack(anchor="w")
+        else:
+            ttk.Label(
+                head,
+                text="Collada-authored scene transforms applied where supported; "
+                     "KCL/tee/pin native mapping UNVERIFIED · shaders approximate",
+                wraplength=820,
+            ).pack(anchor="w")
         if model.skipped_source_faces:
             ttk.Label(
                 head,
@@ -140,7 +147,9 @@ class TexturedPreviewWindow:
                 variable=self.display_rotation, command=self.set_display_rotation,
             ).pack(side="left", padx=(4, 1))
         ttk.Label(
-            orientation_controls, text="DAE authored matrices applied · yaw remains a visual trial",
+            orientation_controls,
+            text=("GEOMETRY-ONLY: original DAE orientation UNKNOWN" if scene_warning
+                  else "DAE authored matrices applied · yaw is only a display trial"),
         ).pack(side="left", padx=8)
         ttk.Label(
             controls,
