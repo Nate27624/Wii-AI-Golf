@@ -162,8 +162,15 @@ class KCLModeTests(unittest.TestCase):
         self.assertEqual(drawn.size,(320,240))
         self.assertNotEqual(drawn.getbbox(),None)
         self.assertNotEqual(drawn.tobytes(),image.tobytes())
+        # Rendering contract permits only EXACTLY 94 numeric bases;
+        # generate synthetic stand-ins, never relax strict source count.
+        bases=tuple((
+            terrain.vertices[i%len(terrain.vertices)][0]+i*.003,
+            terrain.vertices[i%len(terrain.vertices)][1],
+            terrain.vertices[i%len(terrain.vertices)][2]-i*.002)
+            for i in range(94))
         trees=draw_tree_comparison(
-            image.copy(),raw,cam,tuple(terrain.vertices[:3]),
+            image.copy(),raw,cam,bases,
             illustrations=False, labels=True)
         self.assertEqual(trees.size,(320,240))
 
