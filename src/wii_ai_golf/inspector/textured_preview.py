@@ -19,6 +19,7 @@ from .scene_camera import (
 from .unified_source_view import (
     prepare_comparison_kcl, draw_comparison, draw_tree_comparison, overlay_summary)
 from .texture_render import PreviewCancelled, prepare_textures, render_preview
+from .texture_sampling import build_rgba_mips
 from .fast_texture_render import (
     accelerated_available, prepare_fast_scene, render_fast)
 from .visual_model import PrivateVisualModel, VisualAssetError
@@ -35,6 +36,10 @@ class TexturedPreviewWindow:
         self.fast_scene = (prepare_fast_scene(model, self.textures)
                            if accelerated_available() else None)
         self.fast_active = self.fast_scene is not None
+        # Generated once in memory; preview mips are NOT original Wii TEX0 banks.
+        self.texture_mips = (
+            None if self.fast_active else
+            {name:build_rgba_mips(arr) for name,arr in self.textures.items()})
         self.embedded = embedded
         self.top = ttk.Frame(parent) if embedded else tk.Toplevel(parent)
         if embedded:
@@ -57,6 +62,7 @@ class TexturedPreviewWindow:
         self.tree_illustrations = True
         self.tree_labels = False
         self.mode = tk.StringVar(value="Textures")
+        self.filtered_texture = tk.BooleanVar(value=True)
         self.comparison_status = tk.StringVar(
             value="KCL: none loaded · texture source coordinates unverified.")
         self.drag_origin: tuple[int, int] | None = None
@@ -112,6 +118,16 @@ class TexturedPreviewWindow:
             ttk.Radiobutton(
                 controls, text=label, value=label, variable=self.mode,
                 command=self.schedule).pack(side="left", padx=(1, 3))
+        filter_controls = ttk.Frame(self.top, padding=(6, 2))
+        filter_controls.pack(fill="x")
+        ttk.Checkbutton(
+            filter_controls, text="Smooth grass/terrain textures (preview filtering)",
+            variable=self.filtered_texture, command=self.schedule,
+        ).pack(side="left")
+        ttk.Label(
+            filter_controls,
+            text="Mipmapped bilinear sampling · toggle off to inspect original TEX0 texels",
+        ).pack(side="left", padx=9)
         orientation_controls = ttk.Frame(self.top, padding=(6, 2))
         orientation_controls.pack(fill="x")
         ttk.Label(
@@ -219,6 +235,9 @@ class TexturedPreviewWindow:
             getattr(self, "tree_overlay_visible", True),
             getattr(self, "tree_illustrations", True),
             getattr(self, "tree_labels", False))
+        filter_var = getattr(self, "filtered_texture", None)
+        self._queued_texture_filter = bool(
+            filter_var.get()) if filter_var is not None else False
         self.status.set(
             f"Rendering all {len(self.model.faces):,} native UV triangles "
             "(" + ("compiled CPU" if self.fast_active else "slow NumPy fallback") + ")")
@@ -232,18 +251,20 @@ class TexturedPreviewWindow:
             self, "_queued_tree_snapshot", ((), True, True, False))
         self._queued = None
         self._queued_tree_snapshot = None
+        filtered = getattr(self, "_queued_texture_filter", False)
+        self._queued_texture_filter = None
         cancel = Event()
         self._cancel_render = cancel
         future = self._executor.submit(
             self._render_frame, width, height, camera, cancel.is_set,
             mode, kcl, tree_points, tree_visible, tree_illustrations,
-            tree_labels)
+            tree_labels, filtered)
         self._render_future = (version, camera, future)
 
     def _render_frame(self, width, height, camera, cancelled,
                       mode="Textures", collision=None, tree_points=(),
                        tree_visible=True, tree_illustrations=True,
-                       tree_labels=False):
+                       tree_labels=False, filtered=False):
         """Worker-only: one source-local camera, no Tk operations or writes."""
         if cancelled():
             raise PreviewCancelled()
@@ -252,11 +273,13 @@ class TexturedPreviewWindow:
             from PIL import Image
             image, drawn = Image.new("RGB", (width, height), (19, 32, 46)), 0
         elif self.fast_scene is not None:
-            image, drawn = render_fast(self.fast_scene, width, height, camera)
+            image, drawn = render_fast(
+                self.fast_scene, width, height, camera, filtered=filtered)
         else:
             image, drawn = render_preview(
                 self.model, width, height, camera=camera,
-                textures=self.textures, cancelled=cancelled)
+                textures=self.textures, cancelled=cancelled,
+                filtered=filtered, mipmaps=getattr(self,"texture_mips",None))
         if cancelled():
             raise PreviewCancelled()
         if collision is not None and mode in {"Collision", "Both"}:
