@@ -5,8 +5,10 @@ from dataclasses import replace
 import time
 import unittest
 
-import numpy as np
-from PIL import Image
+try:
+    import numpy as np
+except ImportError:
+    np = None
 
 from pathlib import Path
 import sys
@@ -38,8 +40,8 @@ def synthetic_scene(*, textured: bool = True):
     return model, ({"grass": texels} if textured else {})
 
 
-@unittest.skipUnless(accelerated_available(),
-                     "Optional Numba is not installed")
+@unittest.skipUnless(np is not None and accelerated_available(),
+                     "Optional NumPy/Numba not installed")
 class NativeSourceRasterTests(unittest.TestCase):
     def test_native_cpu_uses_all_original_faces_and_pixels(self):
         model, textures = synthetic_scene()
