@@ -18,6 +18,9 @@ on:
       - 'src/wii_ai_golf/inspector/asset_preferences.py'
       - 'src/wii_ai_golf/inspector/gui.py'
       - 'tests/test_p0_inspector_source_alignment_audit.py'
+      - 'tests/test_p0_inspector_fc3_source_geometry_fit.py'
+      - 'src/wii_ai_golf/inspector/source_geometry_fit.py'
+      - 'scripts/p0_measure_fc3_transform_private.py'
       - 'src/wii_ai_golf/inspector/scene_alignment_audit.py'
       - 'scripts/p0_inspect_course_alignment_private.py'
       - 'src/wii_ai_golf/inspector/unified_source_view.py'
@@ -66,5 +69,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_inspector_visual_fallback_regression.py -v
       - name: Source material scale calibration with independent holdout
         run: python -m unittest discover -s tests -p test_p0_inspector_material_alignment.py -v
+      - name: Original FC3 KCL/DAE source geometry transform fitting and held-out material checks
+        run: python -m unittest discover -s tests -p test_p0_inspector_fc3_source_geometry_fit.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
