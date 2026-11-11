@@ -1,4 +1,4 @@
-"""Four forward-stroke SPEED-PARAMETER shots, ONE Dolphin, saved-state reloads.
+r"""Four forward-stroke SPEED-PARAMETER shots, ONE Dolphin, saved-state reloads.
 
 The controlled parameter is Felk's requested speed_m_s for the 20 FORWARD
 samples only. This is NOT a verified physical angular-velocity injection.
