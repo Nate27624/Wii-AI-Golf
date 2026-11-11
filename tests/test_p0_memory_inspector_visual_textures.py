@@ -152,6 +152,11 @@ class VisualAssetTests(unittest.TestCase):
         win.canvas.winfo_width.return_value = 360
         win.canvas.winfo_height.return_value = 240
         win.status = Mock()
+        win.camera_status = Mock()
+        win._held_keys = set()
+        win._pending_key_releases = {}
+        win._nav_timer = None
+        win._shift_held = False
         win.model = Mock()
         win.model.faces = [None] * 9
         win.textures = {}
