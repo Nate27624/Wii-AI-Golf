@@ -115,6 +115,46 @@ class PhaseTriageTests(unittest.TestCase):
             "source_tree_count_both_plus_0x24_and_plus_0x2C_changed"],3)
         self.assertFalse(result["tree_0x24_or_0x2C_proven_impact_fields"])
 
+    def test_assumed_coordinate_rank_only_can_find_nearest_tree_candidate(self):
+        def snapshot():
+            data=bytearray(m.base.TREE_BYTES)
+            for i in range(m.base.TREE_COUNT):
+                pos=i*m.base.TREE_STRIDE+0x30
+                coords=(1.,0.,1.) if i==11 else (1000.+float(i),0.,1000.)
+                data[pos:pos+12]=floatblob(coords)
+            return data.hex()
+        points=[(0.,0.,0.),(.2,0.,.2),(.4,0.,.4),(.6,0.,.6),(.8,0.,.8)]
+        rows=[{"sample_index":i,
+               "all_94_tree_records_be_hex_PRIVATE":snapshot() if i%2==0 else None}
+              for i in range(5)]
+        r=m.tree_candidate_spatial_rank(
+            rows,points,m.change_runs([floatblob(p) for p in points]))
+        self.assertTrue(r["available"])
+        nearest=r["tentative_source_coordinate_proximity_ranks"][
+            "XZ_plane_UNVERIFIED_shared_axes"]["most_frequent_nearest_source_tree_array_indices"]
+        self.assertEqual(nearest[0]["source_tree_array_index"],11)
+        self.assertFalse(r["source_ball_tree_world_coordinate_frame_aligned_proven"])
+        self.assertFalse(r["contacted_wood_or_foliage_tree_identified"])
+
+    def test_changed_tree_centre_abstains_spatial_rank_instead_of_false_claim(self):
+        values=[]
+        for i in range(5):
+            data=bytearray(m.base.TREE_BYTES)
+            for tree in range(m.base.TREE_COUNT):
+                struct.pack_into(">fff",data,tree*m.base.TREE_STRIDE+0x30,
+                                 float(tree),0.,float(tree))
+            if i==4:
+                struct.pack_into(">fff",data,11*m.base.TREE_STRIDE+0x30,
+                                 999.,0.,999.)
+            values.append({"sample_index":i,
+                           "all_94_tree_records_be_hex_PRIVATE":
+                               data.hex() if i in (0,4) else None})
+        points=[(float(i),0.,float(i)) for i in range(5)]
+        out=m.tree_candidate_spatial_rank(
+            values,points,m.change_runs([floatblob(p) for p in points]))
+        self.assertFalse(out["available"])
+        self.assertEqual(out["reason"],"source_tree_centres_changed")
+
     def test_original_first_packet_tree_differences_are_field_sized(self):
         with tempfile.TemporaryDirectory() as temp:
             session=fix.synthetic_session(temp)
