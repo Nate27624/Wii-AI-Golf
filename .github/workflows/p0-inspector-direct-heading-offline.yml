@@ -1,0 +1,35 @@
+name: Inspector direct source heading candidate offline
+on:
+  push:
+    branches:
+      - agent/s002-inspector-absolute-aim-20261110
+  pull_request:
+    paths:
+      - 'src/wii_ai_golf/inspector/world_heading_candidate.py'
+      - 'src/wii_ai_golf/inspector/gui.py'
+      - 'tests/test_p0_inspector_direct_world_heading.py'
+      - 'research/studies/P0-INSPECTOR-DIRECT-HEADING-20261110.md'
+      - '.github/workflows/p0-inspector-direct-heading-offline.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Direct instantaneous aiming hypothesis
+        run: python -m unittest discover -s tests -p test_p0_inspector_direct_world_heading.py -v
+      - name: Existing inspector behavior regressions
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector.py -v
+      - name: Syntax
+        run: python -m compileall -q src/wii_ai_golf/inspector/world_heading_candidate.py src/wii_ai_golf/inspector/gui.py tests/test_p0_inspector_direct_world_heading.py
+      - name: Full regression
+        run: python -m unittest discover -s tests -v
