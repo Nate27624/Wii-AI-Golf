@@ -123,7 +123,7 @@ class ClubIndexTests(unittest.TestCase):
 
     def test_ui_has_live_and_stale_status_resets(self):
         source=(ROOT/"src/wii_ai_golf/inspector/gui.py").read_text("utf-8")
-        self.assertIn('self.club_status.set("CLUB " + event.club_label)',source)
+        self.assertIn('f"CLUB {event.club_label}  ·  index {event.club_index}"',source)
         self.assertGreaterEqual(source.count('self.club_status.set("CLUB UNKNOWN")'),5)
         self.assertNotIn('memory.write_u32',source)
         self.assertNotIn('controller.set_buttons',source)
