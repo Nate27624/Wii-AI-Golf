@@ -1,0 +1,31 @@
+name: S002 existing-hit handle lifecycle (synthetic only)
+
+on:
+  push:
+    branches:
+      - agent/research/s002-existing-hit-effect-handle-lifecycle-20261028
+  pull_request:
+    paths:
+      - scripts/audit_effect_handle_lifecycle_private.py
+      - tests/test_effect_handle_lifecycle_private.py
+      - .github/workflows/s002-handle-lifecycle-tests.yml
+
+permissions:
+  contents: read
+
+jobs:
+  safe-private-lifecycle-unit:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile standalone source
+        run: python -m compileall -q scripts/audit_effect_handle_lifecycle_private.py tests/test_effect_handle_lifecycle_private.py
+      - name: Synthetic only, never access private captures
+        run: python -m unittest discover -s tests -p test_effect_handle_lifecycle_private.py -v
