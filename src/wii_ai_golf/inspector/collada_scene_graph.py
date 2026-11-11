@@ -161,10 +161,23 @@ def source_scene_instances(root: ET.Element) -> dict[str, tuple[tuple[float, ...
             raise VisualAssetError("Original Collada transform stack exceeds bound")
         for element in node:
             kind=_tag(element)
-            if kind in ("instance_controller","lookat","skew"):
+            if kind == "instance_controller":
+                # A known unsupported *local* source controller can enter
+                # explicitly labeled static geometry preview. Never allow an
+                # external controller URL to be bypassed by that mode.
+                url=element.get("url","")
+                if not url.startswith("#") or not 2 <= len(url) <= 130:
+                    raise VisualAssetError("External/invalid Collada controller reference")
+                raise UnsupportedSceneFeature(
+                    "Unsupported original scene graph <instance_controller>; "
+                    "skin/joint transform not reconstructed")
+            if kind in ("lookat","skew"):
+                # Validate actual authored numeric syntax even if the UI
+                # chooses a source geometry-only compatibility view.
+                _numbers(element,9 if kind=="lookat" else 7)
                 raise UnsupportedSceneFeature(
                     "Unsupported original scene graph <"+kind+">; "
-                    "native node/controller transform not inferred")
+                    "native node transform not inferred")
         local = IDENTITY
         for element in transforms:
             local = _mul(local, _node_transform(element))
