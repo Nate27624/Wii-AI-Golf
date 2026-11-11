@@ -13,6 +13,9 @@ on:
       - 'tests/test_p0_memory_inspector_tree_*.py'
       - 'tests/test_p0_memory_inspector_asset_preferences.py'
       - 'tests/test_p0_inspector_tree_unified.py'
+      - 'tests/test_p0_inspector_source_alignment_audit.py'
+      - 'src/wii_ai_golf/inspector/scene_alignment_audit.py'
+      - 'scripts/p0_inspect_course_alignment_private.py'
       - 'src/wii_ai_golf/inspector/unified_source_view.py'
       - 'src/wii_ai_golf/inspector/textured_preview.py'
       - '.github/workflows/p0-inspector-tree-visual-offline.yml'
@@ -53,5 +56,7 @@ jobs:
           & .\scripts\bootstrap_inspector_private_trees.ps1 -SelfTest
       - name: Unified original UV/KCL + source-94 tree overlay
         run: python -m unittest discover -s tests -p test_p0_inspector_tree_unified.py -v
+      - name: Source DAE scene-graph + read-only tee/pin alignment audit tests
+        run: python -m unittest discover -s tests -p test_p0_inspector_source_alignment_audit.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
