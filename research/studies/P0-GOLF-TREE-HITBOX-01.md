@@ -1626,3 +1626,60 @@ No original native bytes, heap addresses,
 tree XYZ, per-object values or assets
 were added to the repository. No
 training or physical tree geometry approved.
+
+
+### Source-qualified indirect Ball–Tree candidate audit
+
+With all seven *active terrain* KCL buffers validated
+and no native class-13 terrain prism, the next
+discriminator is **non-KCL object dispatch** rather
+than scanning for another prism mesh without an owner.
+
+`scripts/p0_tree_ball_indirect_dispatch_private.py`
+and synthetic-only
+`tests/test_p0_tree_ball_indirect_dispatch_private.py`
+use the original SHA/scene/94×84 source tree array,
+full 5+7 native Ball/KCol and +0x0E primitive
+producer gates. The audit follows the shared
+first word across **all 94 original tree objects**
+as a candidate MEM1 method table, reporting
+only public-source-unit-relative candidate
+targets for its first 64 entries. Separately,
+it enumerates native PPC indirect bctrl/bclrl
+sites in **Ball, FieldManager, Simulation, Tree,
+CollisionChecker and CollisionModel**,
+distinguishes branch-to-CTR vs branch-to-LR,
+and marks only the **syntactic** proximity of
+`mtctr` before indirect calls. With `--detail`,
+at most 30 callsite contexts of 12 original
+instructions are locally printed to the
+operator; the default compact JSON contains
+no ROM words. No native executable bytes,
+memory pointers, tree XYZ or models are
+committed or posted.
+
+**Strict evidentiary separation:** a shared
+object first-word pointing into MEM1 may be
+a vtable or another object header structure;
+an apparent code pointer in a table slot
+does not prove it is a *tree* method; an
+indirect bctrl site in the Ball unit does
+not establish that it invokes a candidate
+table slot without proving its CTR reaching
+definition and the call's receiver.
+A positive result is only a map of likely
+next original PPC code windows for static
+receiver provenance. A negative result does
+not exclude inlined tree collision or
+nonvirtual callbacks.
+
+**Next evaluation:** if any original Ball
+indirect call source context demonstrably
+loads a field/tree object table, follow its
+actual indirect target, native geometry
+inputs, and before/after ball state. If none
+does, shift to controlled *actual tree contact*
+Dolphin capture pairs rather than invent
+a collision shape. Maintain
+`training_approved=false`, and keep
+separate visualization PRs unchanged.
