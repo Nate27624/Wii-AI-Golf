@@ -1683,3 +1683,88 @@ Dolphin capture pairs rather than invent
 a collision shape. Maintain
 `training_approved=false`, and keep
 separate visualization PRs unchanged.
+
+
+## Operator capture7: 94-object firstword table and indirect Ball dispatch
+
+Operator executed the original source-gated
+`p0_tree_ball_indirect_dispatch_private.py --capture 7 --detail`
+on the private RSPE01 Rev1 archive, pinned to
+`9a5fe16c1e54b4b1aba21bb71b252050366c156f`.
+It passed the original scene/SHA, 94×0x54 source tree
+loop, native KCol 5+7 source calls, and original
+primitive+0x0E producer gates.
+
+**Positive source-only facts**:
+- All **94** contiguous tree records' first word
+  contains the **same bounded MEM1 table pointer**.
+  Among its first **64** slots, **20** code-like
+  entries point into the public Ball unit and
+  **2** into FieldManager; the remaining **42**
+  are outside the **selected subset** of source
+  unit intervals (NOT proven non-code).
+  Many slots target the same `Ball+0x1394`
+  address, with a few others
+  `Ball+0x1134/+0x11F0/+0x12AC/+0x1108`
+  and `FieldManager+0x1394/+0x1298`.
+  This may be an object virtual table or another
+  shared structure; its dynamic type and methods
+  are not yet established.
+- Original executable source has **34**
+  Ball, **50** FieldManager and **1**
+  Simulation indirect `bcctr LK` calls;
+  zero in the scanned Tree, CollisionChecker,
+  or CollisionModel units. These are static
+  candidate callsites; no Ball→Tree
+  receiver or contact path is proven.
+- **Concrete candidate reaching definitions**:
+  `Ball+0x03BC/+0x03C4/+0x03C8` load
+  child pointer `BallCandidate+0x144` (via
+  r31), a table at child `+0x78`,
+  and method at table `+0x48`,
+  followed by `mtspr CTR` and
+  `bcctr LK` at +0x03CC/+0x03D0.
+  `Ball+0x0484..+0x04C0` has
+  source-local repeated child pointers
+  `+0x140/+0x13C`, whose **first word**
+  is read as a table and dispatch slots
+  `+0x7C/+0x88` called through CTR.
+  The memory identities of these **Ball child
+  tables vs tree shared firstword** have
+  not yet been compared; source code
+  shows only a possible dispatch mechanism,
+  not a physics handler.
+- Some Ball indirect calls access a stack
+  object's own table (e.g. `Ball+0x1180`);
+  these must not be conflated with an actual
+  94-tree object. The 17 locally printed
+  call contexts preserve this distinction.
+
+**New focused falsifier**:
+`scripts/p0_tree_ball_runtime_table_alias_private.py`
+with synthetic tests
+`tests/test_p0_tree_ball_runtime_table_alias_private.py`
+reuses the fully verified original native
+tree and Ball/KCol source gates and requires
+precise native D-form/CTR/BCTRL instructions
+at the callsites above. It follows ONLY the
+previously source-correlated, four-slot
+PlayerManager **candidate** Ball objects
+(undetermined dynamic activity); examines
+each candidate's +0x13C/+0x140 children
+at table +0 and +0x144 child table at
++0x78. It reports source-relative
+field names, table-bounded booleans,
+and equality against the 94 tree
+objects' common firstword pointer.
+No pointer values, native instruction bytes,
+positions, model or KCL data are output.
+An equality would be an alias lead, NOT
+a tree collider; a non-equality cannot
+exclude other virtual dispatch paths,
+different ball objects, or inlined physics.
+
+Native tree collision/leaf damping/trunk
+dimensions and ball response unverified.
+No visualization modifications and
+`training_approved=false`.
