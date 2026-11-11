@@ -29,6 +29,15 @@ TABLE=0x80000200
 
 def fixture():
     words,read=prior.source_fixture()
+    # Synthetic native FieldManager 94x84 tree loop: the new analyzer
+    # also gates the original loop; fixture must supply those words.
+    loop=m.native.LOOP
+    words[loop+0x06E8]=(32<<26)|(0<<21)|(28<<16)|0x20
+    pc=loop+0x06F0
+    target=m.native.UNITS["Tree"][0]+0x000C
+    words[pc]=(18<<26)|((target-pc)&0x03FFFFFC)|1
+    words[loop+0x06F4]=(14<<26)|(31<<21)|(31<<16)|84
+    words[loop+0x06FC]=(32<<26)|(0<<21)|(28<<16)|0x1C
     ram={}
     for i in range(94):
         ram[TREE_OBJECT+i*84]=TABLE
