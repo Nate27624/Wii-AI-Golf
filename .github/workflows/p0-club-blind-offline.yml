@@ -1,0 +1,29 @@
+name: P0 Club Blind Offline CI
+on:
+  push:
+    branches:
+      - agent/operator-live-club-blind-20261030
+  pull_request:
+    paths:
+      - scripts/p0_live_club_blind.py
+      - scripts/run_p0_live_club_blind.ps1
+      - tests/test_p0_live_club_blind.py
+      - .github/workflows/p0-club-blind-offline.yml
+permissions:
+  contents: read
+jobs:
+  offline-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Club focus (offline only)
+        run: python -m unittest discover -s tests -p test_p0_live_club_blind.py -v
+      - name: Repository full offline suite
+        run: python -m unittest discover -s tests -v
