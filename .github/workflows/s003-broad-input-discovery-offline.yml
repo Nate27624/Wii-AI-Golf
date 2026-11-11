@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'scripts/p0_input_discovery_sweep.py'
+      - 'scripts/prepare_a45_neutral_bridge.py'
+      - 'src/wii_ai_golf/integration/a45_neutral_probe_patch.py'
+      - 'tests/test_p0_true_neutral_control.py'
       - 'tests/test_p0_input_discovery_sweep.py'
       - 'research/studies/S003-BROAD-INPUT-DISCOVERY-01.md'
       - '.github/workflows/s003-broad-input-discovery-offline.yml'
@@ -28,5 +31,9 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_input_discovery_sweep.py -v
       - name: Actual repository broad-input serializer dry run (fake RPC)
         run: python scripts/p0_input_discovery_sweep.py --scenario discover01
+      - name: True button-only bridge and two-shot fake-RPC tests (no Dolphin)
+        run: python -m unittest discover -s tests -p test_p0_true_neutral_control.py -v
+      - name: Two-arm true-neutral real serializer dry run (fake RPC)
+        run: python scripts/p0_input_discovery_sweep.py --scenario neutral01 --true-neutral-control
       - name: Full offline regression (no Dolphin)
         run: python -m unittest discover -s tests -v
