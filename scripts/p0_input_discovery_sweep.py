@@ -258,9 +258,16 @@ def run_discovery(*, scenario: str, catalog: Path, bridge_source: Path,
             "red_human": row["red_shot_human"],
             "training_approved": False,
         }, indent=2), flush=True)
-        # Negative control/no-contact is a VALID discovery observation.
-        # Do not require contact or nonzero gauge to proceed to next reset.
-        # Each subsequent shot still has a separate human reset approval.
+        # A NEGATIVE no-contact result is expected and is retained.
+        # But apparent contact with ZERO commanded motion means requested
+        # movement is not yet a reliable proxy for the in-game swing event.
+        # Stop rather than interpret any later interventions as causal.
+        if arm["arm"] == "ZERO" and row["contact_human"] == "yes":
+            raise RefuseTrial(
+                "ZERO negative control appeared to strike the ball. "
+                "Its observation is saved; abort further tests until A/club "
+                "game-side input acceptance is diagnosed.")
+        # Otherwise continue ONLY with separate human reset approval.
     return rows
 
 
