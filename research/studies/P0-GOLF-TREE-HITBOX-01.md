@@ -2255,3 +2255,93 @@ further original PPC dispatch tracing.
 No tree hitbox, canopy drag or impulse policy
 should be fit solely to this dataset;
 `training_approved=false`.
+
+
+## Operator deep-memory report reviewed — no unique Ball contact word
+
+User provided original `tree-contact-deep-memory-SAFE.json`
+from the SHA-validated original 110 source Ball packets,
+15 snapshots across three trials. Its key findings are:
+
+- **Every one of 60 dynamic Ball candidate words** changes in
+  all three original trials. There are **zero** words changing
+  only in both claimed contacts but static in the no-contact
+  trial, and **zero** words changing in exactly one contact
+  while static in the control. The nested 12-byte candidate has
+  all **3** words dynamic in all three, and the selected player
+  record has all **29** dynamic words in all three. This rules out
+  an *obvious exclusive changing field* in these short recorded
+  windows, not a code/path-specific collision effect.
+- The candidate Ball `+0x30` triplet (and nested triplet)
+  starts changing at consecutive source-packet indices
+  **25..** for both reported contacts; the negative-control
+  first contiguous run begins around source index **10**.
+  The ~0.263s packet cadence and different manual swing start
+  times make raw sample indices **not aligned impact times**.
+  `Ball+0xAC` is an original structural-state copy, **not
+  independently proven velocity**. The game is updating
+  multiple triads during the observed flight.
+- Source tree `+0x48` flag word has **zero recorded changes**
+  across all 94 trees in all three trials. This does not
+  disprove a tree impact: it might be a noncontact proximity
+  / camera flag or change faster than the ~2-second all-tree
+  snapshot cadence.
+- Broad **tree+0x4C and tree+0x50** word updates hit essentially
+  all 94 trees throughout **all** trials, including the near-miss:
+  **470 each** in `wood` intent (operator saw leaves),
+  **303 each** in `leaves` intent (operator saw wood),
+  **188 each** in `near_miss`. This is widespread
+  per-tree runtime/animation state, NOT an exclusive collider
+  signature.
+- Exactly **six** source tree-record word sites were dynamic
+  in both human-reported contact trials and static in the
+  near-miss: source tree **11, 38, 40**, each at member
+  offsets `+0x24` and `+0x2C`. These are **candidate-only**:
+  their native class/field meaning, relation to the visibly
+  contacted tree, and impact-time correlation have NOT been
+  verified. These could be actor-camera/model lifecycle changes
+  synchronized with start times rather than collisions.
+- At the first packet, original selected Ball and nested
+  bytes are bit-identical across all three trials, but the
+  selected player record and full 94-tree arrays are **not**.
+  Exact preshot savestate equality and same launch power/
+  swing pose/wind remain unverified. This is a control-quality
+  limitation; first Ball equality alone is not a full reset.
+- Source packet read spans median ~0.038s, max ~0.2s,
+  and native bridge frame brackets can span up to 23 counts.
+  These are **multi-RPC non-atomic samples**, not single
+  verified impact-frame snapshots. Video durations were
+  **9.5s, 10.42s, 6.83s** for wood-intent,
+  leaves-intent, miss; clips exist but were not
+  visually reviewed/time-aligned to RAM.
+
+**Actionable next narrowed forensic audit**:
+`scripts/p0_tree_contact_source_phase_triage_private.py`
+and synthetic tests
+`tests/test_p0_tree_contact_source_phase_triage_private.py`
+use SHA-gated original source candidate records to:
+- align all three trials by **longest contiguous candidate
+  Ball+0x30 12-byte change run**, not operator launch clock;
+- test **exact bit equality** between the source-selected
+  nested translation triplet and every aligned 12-byte
+  Ball-object window, especially `+0x30` and `+0xAC`;
+- interpret only **bounded finite f32 candidate triplets**
+  to rank abrupt *dimensionless turning angles* and
+  adjacent displacement-length ratios; DO NOT call these
+  native velocities, impulses, verified world XYZ or
+  contact timestamps;
+- find exact coarse tree snapshot *intervals* in which
+  source indices 11/38/40 member `+0x24/+0x2C`
+  change, and compare with the 94-object widespread
+  `+0x4C/+0x50` change pattern;
+- enumerate which **initial source tree/player word offsets**
+  differ between original starts rather than simply
+  reporting whole-record baseline mismatches.
+
+The tool runs **offline** on the existing three original
+private source snapshots, writes only a new safe report
+under the private local session, does not connect to
+Dolphin, and never modifies the original data. Original
+native contact receiver, separate wood/leaves physical
+response, tree-specific hitbox radii and Ball velocity
+remain UNPROVEN; `training_approved=false`.
