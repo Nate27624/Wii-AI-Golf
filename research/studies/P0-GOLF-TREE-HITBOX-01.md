@@ -789,3 +789,68 @@ User can run after exact-head offline CI passes, with
 All original positions/geometry stay local. The outcome
 is *candidate collision mesh overlap*, not a tree-hitbox
 reconstruction.
+
+## Original capture7 94 tree / candidate 2498 KCL near-vertical broadphase: ALL ZERO
+
+Original operator ran SHA/scene/source-PPC-qualified
+`p0_tree_kcl_spatial_broadphase_private.py` at exact
+`1753d7edd5f6573131b60ebfc67066a43e045f37` against
+private seven-phase 2026-10-28 archive. Returned:
+- 94 verified tree objects, 2,498 original source-typed KCL
+  prism triangles, **128 near-vertical faces** with
+  `abs(original face normal Y)<=0.40`.
+- Across all 12 combinations of **XZ triangle bounding-box
+  distance lower bound <=25,50,100,200 source units** and
+  height condition max triangle Y >= tree centre Y
+  +0, +25, +75 source units:
+  **0/94 trees** had ANY qualifying candidate face,
+  median/max qualifying faces per tree **0**; the source
+  tee and pin controls also each had **0** qualifying
+  faces. No native tree hitbox identified; training false.
+
+**Do NOT interpret the negative result as verified independent
+tree collision shapes.** The test expressly did not validate
+that the 2,498-prism KCL and the source tree object array
+are in the same *active world coordinate frame*, nor that
+the KCL octree is used by the ball query. A normal-Y
+threshold, the "face above tree centre" gate and the 200-unit
+window could all exclude relevant geometry.
+The tee/pin controls were filtered to **near-vertical faces
+too**: zero control counts do not demonstrate tree/KCL
+world alignment, especially if tee and green are horizontal.
+
+Follow-up **KCL frame/filter diagnostic**, with independent
+original archive SHA/scene and 94x84 PPC source gates and
+exact unique 2498-prism typed KCL ownership still unverified:
+`scripts/p0_tree_kcl_frame_diagnostics_private.py`.
+It computes aggregate tree vs mesh **axis AABB ranges/spans
+and coordinate gaps**, nearest **XZ and 3D triangle AABB
+distance LOWER BOUNDS** for (i) all 2498 prisms (ii)
+near-vertical subset, **no elevation gate** (iii)
+near-horizontal subset, plus **tee/pin each** as
+positive-control reference points. It explicitly measures
+the cascade near-vertical vs +0 source-centre height gate
+at 50/200/500 source-unit *search windows*. It does
+not report per-point XYZ or triangle vertices. Synthetic
+tests cover positive controls, artificial frame shifts,
+elevation-filter false negatives and noncontact disclaimer.
+All distance outputs are source geometry hypotheses,
+NOT collision radii or hitbox dimensions.
+
+Interpretation plan:
+1. If tee/pin are far from **all** KCL triangles, immediately
+   investigate active course mesh origin/transform/scene
+   ownership; the zero near-tree finding is not meaningful.
+2. If tee/pin align with ordinary course terrain but tree
+   centres align only with horizontal ground triangles and
+   none of 128 vertical faces even without elevation gate,
+   candidate KCL appears **terrain-specific**; then seek
+   other tree collision/graphics geometry source and
+   native ball contact dispatch.
+3. If many near-vertical faces become nearby after dropping
+   the height gate, earlier test was a false negative and
+   must be recalibrated before branching into independent
+   colliders.
+
+All training approvals remain false and inspector trees
+should remain explicit nonphysical markers.
