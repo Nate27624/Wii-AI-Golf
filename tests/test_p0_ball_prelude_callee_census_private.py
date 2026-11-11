@@ -102,7 +102,7 @@ class OriginalCalleeCensusTests(unittest.TestCase):
     def test_target_outside_bounded_original_bank_fails_closed(self):
         p=original(stmw=True)
         pc=m.old.PRELUDE
-        p[pc]=prev.bl(pc,m.BASE-0x100)
+        p[pc]=prev.bl(pc,m.old.BASE-0x100)
         x=m.classify_original_target(read(p),m.MEM1+0x20000)
         self.assertFalse(x["exact_register_r4_preservation_proven"])
         self.assertFalse(x["target_in_original_source_MEM1_bounded_window"])
