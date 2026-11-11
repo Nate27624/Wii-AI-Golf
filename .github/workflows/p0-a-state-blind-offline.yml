@@ -1,0 +1,29 @@
+name: P0 A-state blind offline CI
+on:
+  push:
+    branches:
+      - agent/operator-live-a-blind-20261030
+  pull_request:
+    paths:
+      - scripts/p0_live_a_state_blind.py
+      - scripts/run_p0_live_a_state_blind.ps1
+      - tests/test_p0_live_a_state_blind.py
+      - .github/workflows/p0-a-state-blind-offline.yml
+permissions:
+  contents: read
+jobs:
+  offline-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Focused no-Dolphin tests
+        run: python -m unittest discover -s tests -p test_p0_live_a_state_blind.py -v
+      - name: Full offline tests
+        run: python -m unittest discover -s tests -v
