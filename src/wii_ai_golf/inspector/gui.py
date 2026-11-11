@@ -576,7 +576,7 @@ class Inspector:
             details += (f"Operator annotation: {sample.annotation}",)
         self.detail.set(f"{timestamp} | " + "  •  ".join(details))
         self.draw_path()
-        self._sync_actor_markers()
+        Inspector._sync_actor_markers(self)
 
     def _sync_actor_markers(self) -> None:
         """Qualified SINGLE sample to shared visual canvas; no joins."""
