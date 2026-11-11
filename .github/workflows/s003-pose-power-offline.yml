@@ -1,0 +1,34 @@
+name: S003 pose-gated swing power offline
+
+on:
+  pull_request:
+    paths:
+      - "scripts/p0_pose_power_trial.py"
+      - "tests/test_p0_pose_power_trial.py"
+      - "research/studies/S003-P0-POSE-GATED-SWING-POWER-01.md"
+      - ".github/workflows/s003-pose-power-offline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Focused synthetic pose and waveform tests (no Dolphin)
+        run: python -m unittest discover -s tests -p test_p0_pose_power_trial.py -v
+      - name: Actual repo trace-serializer dry run (fake RPC; no Dolphin)
+        run: python scripts/p0_pose_power_trial.py --arm B1 --pose back --pose-detail partial-back --club-change wedge-to-iron --scenario firstball03 --club iron --aim-id straight
+      - name: Compound 0.6 motion actual repo serializer dry run (fake RPC; no Dolphin)
+        run: python scripts/p0_pose_power_trial.py --arm XM06 --pose back --pose-detail partial-back --club-change wedge-to-iron --scenario firstball03 --club iron --aim-id straight
+      - name: Full offline regression (no Dolphin)
+        run: python -m unittest discover -s tests -v
