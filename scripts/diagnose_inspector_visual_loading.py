@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""Diagnose missing original course textures without starting Dolphin or GUI.
+
+Uses the same strict asset loaders as the inspector and prints only local
+file/status/face/material information, NEVER source XYZ, UVs or textures.
+No writes, no Git changes, no authentication, no game inputs.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from wii_ai_golf.inspector.asset_preferences import load_asset_selections
+from wii_ai_golf.inspector.dae_visual import load_private_dae_visual_model
+from wii_ai_golf.inspector.collada_scene_graph import UnsupportedSceneFeature
+from wii_ai_golf.inspector.gui import _known_private_visual_candidate
+from wii_ai_golf.inspector.texture_render import prepare_textures
+from wii_ai_golf.inspector.visual_model import load_private_visual_model
+from wii_ai_golf.inspector.fast_texture_render import accelerated_available
+from wii_ai_golf.inspector.terrain import load_private_obj
+from wii_ai_golf.inspector.terrain_labels import (
+    apply_private_surface_labels, paired_private_source_labels,
+)
+from wii_ai_golf.inspector.material_alignment import alignment_diagnostic
+from wii_ai_golf.inspector.collada_controller_scale import controller_scale_audit
+
+
+def diagnose(filename: str | None = None) -> dict:
+    result = {
+        "status": "VISUAL_PREFLIGHT",
+        "source_qualified_game_hole": False,
+        "native_shader_match_proven": False,
+    }
+    try:
+        saved = load_asset_selections()
+    except (OSError, ValueError) as exc:
+        return dict(result, status="PREFERENCES_REJECTED",
+                    reason=f"{type(exc).__name__}: {exc}")
+    result["saved_terrain_path_present"] = bool(saved.terrain_obj)
+    result["saved_kcl_surface_label_path_present"] = bool(
+        getattr(saved,"terrain_labels",None))
+    result["saved_tree_path_present"] = bool(saved.tree_json)
+    result["saved_visual_path_present"] = bool(getattr(saved, "visual_dae", None))
+    known = _known_private_visual_candidate(saved.terrain_obj or "")
+    candidate = filename or getattr(saved, "visual_dae", None) or (
+        str(known) if known is not None else None)
+    if candidate is None:
+        return dict(result, status="NO_VISUAL_CANDIDATE",
+                    reason="No saved DAE and expected exact private FC1 DAE not found")
+    path=Path(candidate)
+    result["candidate_file"] = str(path)
+    result["candidate_exists"] = path.is_file()
+    if not path.is_file():
+        return dict(result, status="VISUAL_FILE_MISSING",
+                    reason="Saved or explicitly selected visual DAE/OBJ does not exist")
+    try:
+        if path.suffix.lower()==".dae":
+            try:
+                model=load_private_dae_visual_model(path)
+            except UnsupportedSceneFeature:
+                model=load_private_dae_visual_model(
+                    path, allow_geometry_only_for_unsupported_scene=True)
+        else:
+            model=load_private_visual_model(path)
+        rgba = prepare_textures(model)
+    except (OSError, ValueError, ImportError, RuntimeError) as exc:
+        return dict(result, status="VISUAL_IMPORT_FAILED",
+                    reason=f"{type(exc).__name__}: {exc}")
+    if path.suffix.lower()==".dae":
+        try:
+            result["original_controller_scale_audit"] = controller_scale_audit(path)
+        except (OSError, ValueError) as exc:
+            result["original_controller_scale_audit"] = {
+                "status":"CONTROLLER_SCALE_AUDIT_DECLINED",
+                "reason":type(exc).__name__ + ": " + str(exc),
+                "native_game_world_transform_proven":False}
+    if saved.terrain_obj:
+        try:
+            collision=load_private_obj(saved.terrain_obj)
+            preferred=getattr(saved,"terrain_labels",None)
+            sidecar=(Path(preferred) if preferred else
+                     paired_private_source_labels(saved.terrain_obj))
+            if sidecar is not None and (preferred or sidecar.is_file()):
+                try:
+                    collision=apply_private_surface_labels(collision, sidecar)
+                    result["kcl_surface_labels_status"]=(
+                        "SAVED_SHA_BOUND_IDS_ACCEPTED" if preferred
+                        else "PAIRED_SHA_BOUND_IDS_ACCEPTED")
+                except (OSError, ValueError) as exc:
+                    # Match the GUI: never silently use another label file
+                    # after operator-saved source attribution was refused.
+                    result["kcl_surface_labels_status"]="SOURCE_IDS_DECLINED"
+                    result["kcl_surface_labels_reason"]=(
+                        type(exc).__name__ + ": " + str(exc))
+            else:
+                from wii_ai_golf.inspector.terrain import SURFACE_STYLE
+                result["kcl_surface_labels_status"]=(
+                    "SOURCE_OGWS_GROUPS_IN_OBJ" if any(
+                        attr in SURFACE_STYLE
+                        for attr in collision.face_materials)
+                    else "NO_SHA_BOUND_SOURCE_IDS_FOUND")
+            # Does not publish source XYZ/UV, inferred physics or art;
+            # only category face counts and independent residuals.
+            result["kcl_to_visual_display_fit"] = alignment_diagnostic(
+                collision,model)
+        except (OSError, ValueError) as exc:
+            result["kcl_to_visual_display_fit"] = {
+                "status":"SOURCE_KCL_UNAVAILABLE",
+                "reason":type(exc).__name__,
+                "native_world_proven":False}
+    else:
+        result["kcl_to_visual_display_fit"] = {
+            "status":"NO_SAVED_KCL_SOURCE",
+            "native_world_proven":False}
+    result.update(
+        status=("VISUAL_DAE_PARTIAL_SCENE_PREVIEW"
+                if (getattr(model, "source_scene_warning", None) or "").startswith(
+                    "PARTIAL ORIGINAL SCENE") else
+                "VISUAL_DAE_GEOMETRY_ONLY_PREVIEW"
+                if getattr(model, "source_scene_warning", None)
+                else "VISUAL_DAE_PNG_VERIFIED"),
+        original_scene_warning=getattr(model, "source_scene_warning", None),
+        original_visual_source_name=model.source_name,
+        renderable_triangles=len(model.faces),
+        original_texture_slots=len(model.textures),
+        decoded_texture_slots=len(rgba),
+        omitted_unknown_native_effect_faces=model.skipped_source_faces,
+        compiled_numba_available=accelerated_available(),
+    )
+    return result
+
+
+def main(argv=None):
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--visual-dae",default=None)
+    args=parser.parse_args(argv)
+    report=diagnose(args.visual_dae)
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return (0 if report["status"] in (
+        "VISUAL_DAE_PNG_VERIFIED",
+        "VISUAL_DAE_GEOMETRY_ONLY_PREVIEW",
+        "VISUAL_DAE_PARTIAL_SCENE_PREVIEW") else 2)
+
+
+if __name__=="__main__":
+    raise SystemExit(main())

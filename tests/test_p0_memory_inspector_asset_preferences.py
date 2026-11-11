@@ -1,0 +1,395 @@
+"""Synthetic saved private asset-path persistence; no Dolphin or original files."""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from wii_ai_golf.inspector.asset_preferences import (
+    AssetSelections, SavedAssetError, discover_private_tree, inspect_private_trees, load_asset_selections,
+    remember_asset, save_asset_selections, local_settings_path,
+)
+from wii_ai_golf.inspector.tree_positions import EXPECTED_NAME
+from test_p0_memory_inspector_tree_positions import payload
+
+
+class SelectionTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.base = Path(self.temp.name)
+        self.settings = self.base / "config" / "inspector-assets-v1.json"
+        self.data = self.base / "Wii-AI-Golf-Data" / "derived"
+        self.data.mkdir(parents=True)
+        self.tree = self.data / EXPECTED_NAME
+        self.tree.write_text(json.dumps(payload()), encoding="utf-8")
+        self.obj = self.base / "terrain-PRIVATE.obj"
+        self.obj.write_text("v 0 0 0\nv 1 0 0\nv 0 0 1\nf 1 2 3\n", encoding="ascii")
+
+    def test_register_source_94_private_file_into_settings(self):
+        from scripts import register_inspector_private_tree as entry
+        with patch.object(entry, "load_asset_selections", return_value=AssetSelections()), patch.object(
+                entry, "save_asset_selections") as save:
+            status, count = entry.register(self.tree)
+        self.assertEqual(status, "PRIVATE_TREE_JSON_REGISTERED")
+        self.assertEqual(count, 94)
+        recorded = save.call_args.args[0]
+        self.assertEqual(recorded.tree_json, str(self.tree.resolve()))
+        self.assertTrue(recorded.auto_find_trees)
+
+    def test_register_rejects_missing_or_false_source(self):
+        from scripts import register_inspector_private_tree as entry
+        self.tree.write_text(json.dumps({"kind": "made-up"}), encoding="utf-8")
+        with patch.object(entry, "save_asset_selections") as save:
+            with self.assertRaises(Exception):
+                entry.register(self.tree)
+            save.assert_not_called()
+        self.tree.unlink()
+        with self.assertRaises(Exception):
+            entry.register(self.tree)
+
+    def test_absent_settings_first_run_enables_auto_discovery(self):
+        found = load_asset_selections(self.settings)
+        self.assertIsNone(found.tree_json)
+        self.assertTrue(found.auto_find_trees)
+        self.assertIsNone(found.terrain_obj)
+
+    def test_round_trip_only_paths_and_disabled_flags(self):
+        state = AssetSelections()
+        state = remember_asset(state, "tree_json", self.tree)
+        state = remember_asset(state, "terrain_obj", self.obj)
+        self.assertTrue(state.auto_find_trees)
+        save_asset_selections(state, self.settings)
+        reopened = load_asset_selections(self.settings)
+        self.assertEqual(state, reopened)
+        raw = self.settings.read_text("utf-8")
+        self.assertEqual(json.loads(raw)["tree_json"], str(self.tree.resolve()))
+        self.assertEqual(json.loads(raw)["terrain_obj"], str(self.obj.resolve()))
+        self.assertNotIn("tree_positions", raw)
+        self.assertNotIn("training_approved", raw)
+        self.assertNotIn("170.0", raw)
+        self.assertFalse(list(self.settings.parent.glob("*.tmp")))
+
+    def test_original_dae_selection_persists_independent_of_kcl(self):
+        dae=self.base / "original-private-course.dae"
+        dae.write_text("<COLLADA/>", encoding="ascii")
+        state=remember_asset(AssetSelections(), "tree_json", self.tree)
+        state=remember_asset(state, "visual_dae", dae)
+        save_asset_selections(state, self.settings)
+        loaded=load_asset_selections(self.settings)
+        self.assertEqual(loaded.visual_dae, str(dae.resolve()))
+        self.assertEqual(loaded.tree_json, str(self.tree.resolve()))
+        self.assertIsNone(loaded.terrain_obj)
+        self.assertTrue(loaded.auto_find_trees)
+        self.assertNotIn("<COLLADA", self.settings.read_text("utf-8"))
+        self.assertEqual(remember_asset(loaded, "visual_dae", None).tree_json,
+                         str(self.tree.resolve()))
+
+    def test_legacy_saved_tree_and_terrain_paths_migrate_without_reset(self):
+        legacy={"version":1, "terrain_obj":str(self.obj.resolve()),
+                "tree_json":str(self.tree.resolve()),
+                "auto_find_trees":True}
+        self.settings.parent.mkdir(parents=True)
+        self.settings.write_text(json.dumps(legacy), encoding="utf-8")
+        read=load_asset_selections(self.settings)
+        self.assertIsNone(read.visual_dae)
+        self.assertEqual(read.tree_json,legacy["tree_json"])
+        self.assertEqual(read.terrain_obj,legacy["terrain_obj"])
+        save_asset_selections(read,self.settings)
+        self.assertIn("visual_dae",json.loads(self.settings.read_text("utf-8")))
+        self.assertEqual(load_asset_selections(self.settings).tree_json,
+                         legacy["tree_json"])
+
+    def test_visual_path_rejects_relative_and_malformed_values(self):
+        for bad in ("relative.dae","",42,False,"a\\n.dae"):
+            with self.subTest(bad=bad),self.assertRaises(SavedAssetError):
+                save_asset_selections(AssetSelections(visual_dae=bad),self.settings)
+
+    def test_source_kcl_label_path_persists_across_restart(self):
+        labels=self.base / "hole01-collision-candidate-labels-PRIVATE.json"
+        labels.write_text("synthetic-placeholder", encoding="ascii")
+        state=remember_asset(AssetSelections(), "terrain_obj", self.obj)
+        state=remember_asset(state, "terrain_labels", labels)
+        state=remember_asset(state, "tree_json", self.tree)
+        save_asset_selections(state, self.settings)
+        read=load_asset_selections(self.settings)
+        self.assertEqual(read.terrain_labels,str(labels.resolve()))
+        self.assertEqual(read.terrain_obj,str(self.obj.resolve()))
+        self.assertEqual(read.tree_json,str(self.tree.resolve()))
+        self.assertEqual(json.loads(self.settings.read_text("utf-8"))[
+            "terrain_labels"],str(labels.resolve()))
+        # Persist absolute PATH only: no game labels, SHA digest, or XYZ in JSON.
+        self.assertNotIn("synthetic-placeholder",self.settings.read_text("utf-8"))
+
+    def test_changing_source_kcl_obj_clears_stale_sidecar_but_keeps_tree(self):
+        labels=self.base/"source-labels-PRIVATE.json"
+        labels.write_text("{}",encoding="ascii")
+        changed=self.base/"other-collision-PRIVATE.obj"
+        changed.write_bytes(self.obj.read_bytes())
+        source=remember_asset(AssetSelections(), "terrain_obj", self.obj)
+        source=remember_asset(source, "terrain_labels", labels)
+        source=remember_asset(source, "tree_json", self.tree)
+        changed_sel=remember_asset(source,"terrain_obj", changed)
+        self.assertIsNone(changed_sel.terrain_labels)
+        self.assertEqual(changed_sel.tree_json,source.tree_json)
+        self.assertEqual(remember_asset(
+            source,"terrain_obj",self.obj).terrain_labels,source.terrain_labels)
+        self.assertIsNone(remember_asset(source,"terrain_obj",None).terrain_labels)
+
+    def test_previous_original_visual_v1_settings_migrate_to_labels_key(self):
+        dae=self.base/"private-visual.dae"
+        dae.write_text("<COLLADA/>",encoding="ascii")
+        self.settings.parent.mkdir(parents=True)
+        state={"version":1,"terrain_obj":str(self.obj.resolve()),
+               "tree_json":str(self.tree.resolve()),"auto_find_trees":True,
+               "visual_dae":str(dae.resolve())}
+        self.settings.write_text(json.dumps(state),encoding="utf-8")
+        loaded=load_asset_selections(self.settings)
+        self.assertEqual(loaded.visual_dae,str(dae.resolve()))
+        self.assertEqual(loaded.tree_json,str(self.tree.resolve()))
+        self.assertIsNone(loaded.terrain_labels)
+        save_asset_selections(loaded,self.settings)
+        self.assertIsNone(json.loads(self.settings.read_text("utf-8"))[
+            "terrain_labels"])
+
+    def test_label_path_rejects_malformed_values(self):
+        for bad in ("relative-labels.json", "", True, 7, "bad\\npath"):
+            with self.subTest(bad=bad), self.assertRaises(SavedAssetError):
+                save_asset_selections(
+                    AssetSelections(terrain_labels=bad),self.settings)
+
+    def test_tree_clear_prevents_auto_rediscovery(self):
+        saved = remember_asset(AssetSelections(), "tree_json", self.tree)
+        cleared = remember_asset(saved, "tree_json", None)
+        self.assertIsNone(cleared.tree_json)
+        self.assertFalse(cleared.auto_find_trees)
+        save_asset_selections(cleared, self.settings)
+        reopened = load_asset_selections(self.settings)
+        self.assertFalse(reopened.auto_find_trees)
+        self.assertIsNone(reopened.tree_json)
+
+    def test_terrain_clear_preserves_tree_file(self):
+        state = remember_asset(AssetSelections(), "tree_json", self.tree)
+        state = remember_asset(state, "terrain_obj", self.obj)
+        cleared = remember_asset(state, "terrain_obj", None)
+        self.assertIsNone(cleared.terrain_obj)
+        self.assertEqual(cleared.tree_json, str(self.tree.resolve()))
+
+    def test_autodiscover_only_expected_source_file(self):
+        checkout = self.base / "Wii-Golf-Tree-PR432"
+        checkout.mkdir()
+        self.assertEqual(discover_private_tree(checkout).resolve(), self.tree.resolve())
+        self.tree.unlink()
+        self.assertIsNone(discover_private_tree(checkout))
+        self.tree.write_text(json.dumps({"some_other_source": "not original"}))
+        self.assertIsNone(discover_private_tree(checkout))
+
+    def test_discovery_reports_missing_vs_invalid_exact_private_source(self):
+        checkout = self.base / "Wii-Golf-Tree-PR432"
+        checkout.mkdir()
+        found, checks = inspect_private_trees(checkout)
+        self.assertEqual(found.resolve(), self.tree.resolve())
+        self.assertEqual(checks[0][1], "validated")
+        self.tree.write_text(json.dumps({"unverified": "not real source"}))
+        found, checks = inspect_private_trees(checkout)
+        self.assertIsNone(found)
+        self.assertTrue(any(state.startswith("rejected:") for _, state in checks))
+        self.assertFalse(any("tree_positions" in state for _, state in checks))
+        self.tree.unlink()
+        found, checks = inspect_private_trees(checkout)
+        self.assertIsNone(found)
+        self.assertTrue(all(state == "missing" for _, state in checks))
+
+    def test_discovery_explains_git_inside_refusal(self):
+        checkout = self.base / "Wii-Golf-Tree-PR432"
+        checkout.mkdir()
+        (self.base / ".git").mkdir()
+        found, checks = inspect_private_trees(checkout)
+        self.assertIsNone(found)
+        self.assertTrue(any("outside Git checkout" in state for _, state in checks))
+
+    def test_discover_refuses_git_private_data_and_symlinks(self):
+        checkout = self.base / "Wii-Golf-Tree-PR432"
+        checkout.mkdir(exist_ok=True)
+        (self.base / ".git").mkdir()
+        self.assertIsNone(discover_private_tree(checkout))
+        (self.base / ".git").rmdir()
+        self.tree.unlink()
+        external = self.base / "outside.json"
+        external.write_text(json.dumps(payload()))
+        try:
+            self.tree.symlink_to(external)
+        except (OSError, NotImplementedError):
+            self.skipTest("Symlinks not available on this Windows runner")
+        self.assertIsNone(discover_private_tree(checkout))
+
+    def test_missing_saved_asset_path_is_not_replaced_with_guess(self):
+        state = remember_asset(AssetSelections(), "tree_json", self.tree)
+        self.tree.unlink()
+        save_asset_selections(state, self.settings)
+        restored = load_asset_selections(self.settings)
+        self.assertEqual(restored.tree_json, str(self.tree.resolve()))
+        self.assertFalse(self.tree.exists())
+
+    def test_refuse_malformed_settings_and_extra_fields(self):
+        self.settings.parent.mkdir(parents=True)
+        for text in ('{', json.dumps({"version": 1}), json.dumps({
+                "version": 1, "terrain_obj": None, "tree_json": None,
+                "auto_find_trees": True, "unexpected": True,
+                }), json.dumps({
+                "version": True, "terrain_obj": None, "tree_json": None,
+                "auto_find_trees": True,
+                })):
+            with self.subTest(text=text):
+                self.settings.write_text(text)
+                with self.assertRaises(SavedAssetError):
+                    load_asset_selections(self.settings)
+
+    def test_refuse_relative_or_unsafe_paths(self):
+        for bad in ("relative/file.obj", "\n", "", 1, False):
+            with self.subTest(path=bad):
+                with self.assertRaises(SavedAssetError):
+                    save_asset_selections(AssetSelections(terrain_obj=bad), self.settings)
+        with self.assertRaises(SavedAssetError):
+            remember_asset(AssetSelections(), "evil", self.obj)
+
+    def test_refuse_oversized_settings(self):
+        self.settings.parent.mkdir(parents=True)
+        self.settings.write_bytes(b"x" * 8193)
+        with self.assertRaises(SavedAssetError):
+            load_asset_selections(self.settings)
+
+    def test_settings_file_symlink_is_refused(self):
+        self.settings.parent.mkdir(parents=True)
+        other = self.base / "other.json"
+        other.write_text("{}")
+        try:
+            self.settings.symlink_to(other)
+        except (OSError, NotImplementedError):
+            self.skipTest("Symlink privileges unavailable")
+        with self.assertRaises(SavedAssetError):
+            load_asset_selections(self.settings)
+        with self.assertRaises(SavedAssetError):
+            save_asset_selections(AssetSelections(), self.settings)
+
+    def test_settings_path_is_outside_checkout(self):
+        import os
+        with patch.dict("os.environ", {
+            "XDG_CONFIG_HOME": str(self.base / "xdg"),
+            "LOCALAPPDATA": str(self.base / "local"),
+        }, clear=False):
+            path = local_settings_path()
+        if os.name == "nt":
+            self.assertEqual(path, self.base / "local" / "WiiAIGolf" / "inspector-assets-v1.json")
+        else:
+            self.assertEqual(path, self.base / "xdg" / "wii-ai-golf" / "inspector-assets-v1.json")
+        self.assertNotIn("Wii-Golf-Tree-PR432", str(path))
+
+
+class FakeStatus:
+    def __init__(self, value=""):
+        self.value = value
+
+    def set(self, value):
+        self.value = value
+
+    def get(self):
+        return self.value
+
+
+class GuiRestorationTests(SelectionTests):
+    def fake_inspector(self):
+        from wii_ai_golf.inspector.gui import Inspector
+        inspector = Inspector.__new__(Inspector)
+        inspector.saved_assets = AssetSelections()
+        inspector.terrain_status = FakeStatus()
+        inspector.tree_status = FakeStatus()
+        inspector.asset_settings_status = FakeStatus()
+        inspector.tree_visible = FakeStatus(False)
+        inspector.terrain_visible = FakeStatus(False)
+        inspector.terrain_mesh = None
+        inspector.tree_positions = None
+        inspector.draw_path = lambda: None
+        return inspector
+
+    def test_reopen_reloads_both_with_no_dialog(self):
+        from wii_ai_golf.inspector.gui import Inspector
+        state = remember_asset(AssetSelections(), "terrain_obj", self.obj)
+        state = remember_asset(state, "tree_json", self.tree)
+        inspector = self.fake_inspector()
+        with patch("wii_ai_golf.inspector.gui.load_asset_selections", return_value=state), patch(
+                "wii_ai_golf.inspector.gui.discover_private_tree") as discover:
+            Inspector.restore_private_assets(inspector)
+            discover.assert_not_called()
+        self.assertIsNotNone(inspector.tree_positions)
+        self.assertEqual(len(inspector.tree_positions.positions), 94)
+        self.assertIsNotNone(inspector.terrain_mesh)
+        self.assertTrue(inspector.tree_visible.get())
+        self.assertTrue(inspector.terrain_visible.get())
+
+    def test_cleared_trees_not_auto_discovered(self):
+        from wii_ai_golf.inspector.gui import Inspector
+        inspector = self.fake_inspector()
+        cleared = AssetSelections(auto_find_trees=False)
+        with patch("wii_ai_golf.inspector.gui.load_asset_selections", return_value=cleared), patch(
+                "wii_ai_golf.inspector.gui.discover_private_tree") as discover:
+            Inspector.restore_private_assets(inspector)
+            discover.assert_not_called()
+        self.assertIsNone(inspector.tree_positions)
+
+    def test_invalid_saved_tree_does_not_discover_others(self):
+        from wii_ai_golf.inspector.gui import Inspector
+        inspector = self.fake_inspector()
+        saved = remember_asset(AssetSelections(), "tree_json", self.tree)
+        self.tree.unlink()
+        with patch("wii_ai_golf.inspector.gui.load_asset_selections", return_value=saved), patch(
+                "wii_ai_golf.inspector.gui.discover_private_tree") as discover:
+            Inspector.restore_private_assets(inspector)
+            discover.assert_not_called()
+        self.assertIsNone(inspector.tree_positions)
+        self.assertIn("not loaded", inspector.tree_status.get())
+
+    def test_first_start_missing_reports_expected_location(self):
+        from wii_ai_golf.inspector.gui import Inspector
+        inspector = self.fake_inspector()
+        self.tree.unlink()
+        checkout = self.base / "Wii-Golf-Tree-PR432"
+        checkout.mkdir()
+        with patch("wii_ai_golf.inspector.gui.load_asset_selections", return_value=AssetSelections()), patch(
+                "wii_ai_golf.inspector.gui.discover_private_tree", return_value=None), patch(
+                "wii_ai_golf.inspector.gui.inspect_private_trees",
+                return_value=inspect_private_trees(checkout)):
+            Inspector.restore_private_assets(inspector)
+        self.assertIn("not found", inspector.tree_status.get())
+        self.assertIn(EXPECTED_NAME, inspector.tree_status.get())
+
+    def test_first_start_rejected_reports_reason(self):
+        from wii_ai_golf.inspector.gui import Inspector
+        inspector = self.fake_inspector()
+        self.tree.write_text(json.dumps({"wrong": True}))
+        checkout = self.base / "Wii-Golf-Tree-PR432"
+        checkout.mkdir()
+        with patch("wii_ai_golf.inspector.gui.load_asset_selections", return_value=AssetSelections()), patch(
+                "wii_ai_golf.inspector.gui.discover_private_tree", return_value=None), patch(
+                "wii_ai_golf.inspector.gui.inspect_private_trees",
+                return_value=inspect_private_trees(checkout)):
+            Inspector.restore_private_assets(inspector)
+        self.assertIn("rejected:", inspector.tree_status.get())
+
+    def test_first_start_detects_safe_original_private_tree(self):
+        from wii_ai_golf.inspector.gui import Inspector
+        inspector = self.fake_inspector()
+        with patch("wii_ai_golf.inspector.gui.load_asset_selections", return_value=AssetSelections()), patch(
+                "wii_ai_golf.inspector.gui.discover_private_tree", return_value=self.tree), patch(
+                "wii_ai_golf.inspector.gui.save_asset_selections") as write:
+            Inspector.restore_private_assets(inspector)
+            write.assert_called_once()
+        self.assertEqual(len(inspector.tree_positions.positions), 94)
+
+
+if __name__ == "__main__":
+    unittest.main()
