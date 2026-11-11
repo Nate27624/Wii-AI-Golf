@@ -14,6 +14,9 @@ from typing import Any, Callable
 
 from .visual_model import PrivateVisualModel, VisualAssetError, _read_local, MAX_PNG_BYTES
 from .scene_camera import VisualCamera, camera_axes
+from .texture_sampling import (
+    build_rgba_mips, bilinear_wrapped_rgba, screen_texture_lod,
+)
 
 MAX_VIEW_WIDTH = 1280
 MAX_VIEW_HEIGHT = 800
@@ -69,8 +72,10 @@ def render_preview(model: PrivateVisualModel, width: int, height: int, *,
                    textures: dict[str, Any] | None = None,
                    max_faces: int = MAX_PREVIEW_FACES,
                    cancelled: Callable[[], bool] | None = None,
-                   camera: VisualCamera | None = None):
-    """Depth-tested UV raster preview with repeated nearest-neighbor PNG texels.
+                   camera: VisualCamera | None = None,
+                   filtered: bool = False,
+                   mipmaps: dict[str, tuple] | None = None):
+    """Depth-tested UV raster preview with source PNGs and optional filtering.
 
     Explicit limits prevent a single malformed triangle from allocating an
     unbounded raster. This is a first-pass source-UV preview, not GX rendering.
@@ -81,6 +86,8 @@ def render_preview(model: PrivateVisualModel, width: int, height: int, *,
             type(max_faces) is not int or not 1 <= max_faces <= MAX_PREVIEW_FACES or
             not all(math.isfinite(v) for v in (yaw,pitch,zoom,*pan)) or not 0.04 <= zoom <= 64):
         raise VisualAssetError('Invalid preview dimensions or camera')
+    if type(filtered) is not bool:
+        raise VisualAssetError("Texture filtering mode must be a bool")
     if len(model.faces) > max_faces:
         # A source mesh must never be presented as complete after
         # drawing a random/stride-thinned subset of its native faces.
@@ -89,6 +96,11 @@ def render_preview(model: PrivateVisualModel, width: int, height: int, *,
         raise PreviewCancelled()
     if textures is None:
         textures = prepare_textures(model)
+    if filtered and mipmaps is None:
+        # Standalone API derives preview-only levels from verified base
+        # textures; the embedded viewer supplies a once-per-model cache.
+        mipmaps = {name:build_rgba_mips(arr)
+                   for name,arr in textures.items()}
     # Project the whole model in vectorized NumPy to reduce per-drag overhead.
     src = np.asarray(model.vertices, dtype=np.float64)
     if src.ndim != 2 or src.shape[1] != 3 or not len(src):
@@ -195,10 +207,17 @@ def render_preview(model: PrivateVisualModel, width: int, height: int, *,
             u=w0*uv[0,0]+w1*uv[1,0]+w2*uv[2,0]
             v=w0*uv[0,1]+w1*uv[1,1]+w2*uv[2,1]
             texture=textures[face.material]
-            th,tw=texture.shape[:2]
-            tx=np.floor(np.mod(u,1.)*tw).astype(np.intp)%tw
-            ty=np.floor(np.mod(1.-v,1.)*th).astype(np.intp)%th
-            pixels=texture[ty,tx]
+            if filtered:
+                levels=mipmaps[face.material]
+                mip=screen_texture_lod(
+                    pts[:,:2], uv, texture.shape[1], texture.shape[0],
+                    len(levels))
+                pixels=bilinear_wrapped_rgba(levels[mip],u,v)
+            else:
+                th,tw=texture.shape[:2]
+                tx=np.floor(np.mod(u,1.)*tw).astype(np.intp)%tw
+                ty=np.floor(np.mod(1.-v,1.)*th).astype(np.intp)%th
+                pixels=texture[ty,tx]
             alpha_ok=pixels[:,3]>16
             if not alpha_ok.any():
                 continue
