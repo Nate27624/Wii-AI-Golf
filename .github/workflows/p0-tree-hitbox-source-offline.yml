@@ -37,6 +37,8 @@ on:
       - scripts/p0_ball_cc_fc_copy_receiver_private.py
       - scripts/p0_ball_cc_global_caller_source_private.py
       - scripts/p0_ball_cache_cfg_reachability_private.py
+      - scripts/p0_ball_cache_backedge_condition_private.py
+      - tests/test_p0_ball_cache_backedge_condition_private.py
       - tests/test_p0_ball_cache_cfg_reachability_private.py
       - tests/test_p0_ball_cc_global_caller_source_private.py
       - tests/test_p0_ball_cc_fc_copy_receiver_private.py
@@ -170,5 +172,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_ball_cc_global_caller_source_private.py -v
       - name: Original cache entry unconditional branch and bounded CFG source reachability
         run: python -m unittest discover -s tests -p test_p0_ball_cache_cfg_reachability_private.py -v
+      - name: Native Ball cache return backedge CR predicates and static witness routes
+        run: python -m unittest discover -s tests -p test_p0_ball_cache_backedge_condition_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
