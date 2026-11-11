@@ -132,6 +132,37 @@ class VisualAssetTests(unittest.TestCase):
             render_preview(model,10000,10000,textures=textures)
 
 
+    def test_untextured_dae_material_uses_only_explicit_original_kd(self):
+        # A real DAE has 12 materials, but only 11 texture slots. Never
+        # fabricate a PNG for untextured M_Kiwa_Black. Use exported MTL Kd.
+        self.obj.write_text(OBJ.replace('usemtl grass', 'usemtl M_Kiwa_Black'))
+        self.mtl.write_text(MTL + 'newmtl M_Kiwa_Black\nKd 0.2 0.4 0.6\n')
+        model = load_private_visual_model(self.obj)
+        self.assertEqual(model.solid_colors['M_Kiwa_Black'], (51, 102, 153))
+        self.assertNotIn('M_Kiwa_Black', model.textures)
+        try:
+            import numpy as np
+            from PIL import Image
+        except ImportError:
+            self.skipTest('Optional Pillow/NumPy unavailable')
+        preview, drawn = render_preview(model, 180, 180, yaw=0., pitch=0.)
+        self.assertEqual(drawn, 1)
+        arr = np.asarray(preview)
+        self.assertTrue(((arr[:, :, 0] == 51) &
+                         (arr[:, :, 1] == 102) &
+                         (arr[:, :, 2] == 153)).any())
+
+    def test_untextured_material_cannot_invent_or_accept_invalid_kd(self):
+        self.obj.write_text(OBJ.replace('usemtl grass', 'usemtl M_Kiwa_Black'))
+        for material in ('newmtl M_Kiwa_Black\n',
+                         'newmtl M_Kiwa_Black\nKd NaN 0 0\n',
+                         'newmtl M_Kiwa_Black\nKd 1.2 0 0\n',
+                         'newmtl M_Kiwa_Black\nKd 0 0\n'):
+            with self.subTest(material=material):
+                self.mtl.write_text(MTL + material)
+                with self.assertRaises(VisualAssetError):
+                    load_private_visual_model(self.obj)
+
     def test_inspector_texture_button_is_explicit_and_does_not_touch_dolphin(self):
         try:
             from wii_ai_golf.inspector.gui import Inspector
