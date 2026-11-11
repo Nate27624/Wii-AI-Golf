@@ -179,3 +179,45 @@ verified aligned to native scene transforms/KCL/ball/tee/flag. Skinning,
 multi-TEV GPU shader passes, shadows, model and hole ownership and
 training/physics remain unverified. This is a separate static source art
 preview, not an in-game native graphics replacement.
+
+
+## Operator visual quality/performance issue and full-source fix
+
+An authentic first-window screenshot of glf_course_fc1.dae showed:
+- 11,995 renderable source UV triangles and 11 PNG-bound textures.
+- 780 original source triangles omitted because untextured DAE effect
+  lacked any source-authentic diffuse color. This remains explicitly
+  omitted, not replaced by guessed art.
+- A severe checkerboard/speckled course with large uncovered areas.
+- GUI orbit/zoom felt very laggy.
+
+Root-cause confirmed in CPU raster code: MAX_PREVIEW_FACES was only
+4,000, and the viewer drew every third source face via stride sampling
+of the 11,995 native triangle mesh; a triangle soup with 2/3 faces
+missing will never form continuous grass/fairway/green surfaces.
+Also, the costly per-triangle Pillow/NumPy raster ran synchronously on
+the Tk event loop.
+
+Fix on #429:
+- MAX_PREVIEW_FACES now equals the bounded 100,000 source-loader face
+  budget. No silent triangle stride; if source exceeds chosen maximum,
+  fail closed rather than falsely calling a sparse scene the full model.
+- NumPy array camera projection is vectorized and PNG samples are
+  evaluated only at pixels inside a depth-visible triangle, including
+  a fast no-blend path for opaque source texels.
+- One cancellable ThreadPoolExecutor worker renders source PNG+UV in the
+  background, coalescing mouse move requests. The worker never accesses
+  Tk; all PhotoImage/canvas writes run on Tk main thread. Closing
+  invalidates the worker and stops future UI callbacks.
+- Status identifies source triangle count and drawn faces, not an
+  invented pixel-identical Wii render. Original 780 unknown material
+  faces still explicitly omitted.
+- Synthetic CI exercises full quad coverage, no silent >4000-face
+  stride, cancellable camera view, stale-frame suppression, 100k
+  preview cap, and the entire existing terrain/label/startup suite.
+
+Do NOT rerun Blender install, change original assets, or commit game
+textures. Reopen same existing private DAE via --visual-dae in updated
+PR #429 worktree. Remaining perspective/model transformations,
+Wii GX multi-pass TEV, palette material and original active-hole
+identity/world-to-collision alignment are NOT yet proven.
