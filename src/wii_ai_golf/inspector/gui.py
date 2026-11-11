@@ -82,9 +82,24 @@ def project(point: tuple[float, float, float], yaw: float, pitch: float) -> tupl
     return u, v
 
 
+def _known_private_visual_candidate(terrain_obj: str) -> Path | None:
+    """Optional local operator candidate, never proof of which hole is active.
+
+    Only auto-discover alongside an explicitly selected private terrain OBJ.
+    Never scan the game disc, Git workspace or any external locations.
+    """
+    if not terrain_obj:
+        return None
+    base = Path(terrain_obj).absolute().parent
+    candidate = (base / "WiiGolfVisualPrivate" / "visual_exports" /
+                 "glf_course_fc1" / "glf_course_fc1.dae")
+    return candidate if candidate.is_file() else None
+
+
 class Inspector:
     def __init__(self, root: tk.Tk, initial_capture: str = "", initial_manifest: str = "",
-                 initial_terrain_obj: str = "", initial_terrain_labels: str = ""):
+                 initial_terrain_obj: str = "", initial_terrain_labels: str = "",
+                 initial_visual_dae: str = ""):
         self.root = root
         root.title("Wii Golf · P0 Memory Inspector — OFFLINE CANDIDATES")
         root.geometry("1320x850")
@@ -111,6 +126,8 @@ class Inspector:
         self.terrain_edges = tk.BooleanVar(value=False)
         self.terrain_status = tk.StringVar(value="Terrain: select a locally exported PRIVATE collision OBJ to display.")
         self.surface_label_status = tk.StringVar(value="Surface colors: no original KCL labels loaded (neutral shading only).")
+        self.visual_status = tk.StringVar(value="Visual source: no private model loaded. Active hole and alignment UNVERIFIED.")
+        self.visual_preview = None
         self.a_reason = tk.StringVar(value="Connect LIVE with A released; 2 stable samples initialize candidate")
         self.baseline: float | None = None
         self.replay: Replay | None = None
@@ -130,6 +147,18 @@ class Inspector:
             loaded = self.load_terrain_path(initial_terrain_obj, show_dialog=False)
             if loaded and initial_terrain_labels:
                 self.load_terrain_labels_path(initial_terrain_labels, show_dialog=False)
+        # A prior local original-art export is auto-loaded when the operator
+        # already selected the sibling SHA-qualified private KCL. This is a
+        # visual-source candidate, NOT verified in-game hole or coordinate map.
+        private_candidate = (_known_private_visual_candidate(initial_terrain_obj)
+                             if not initial_visual_dae else None)
+        selected_visual = initial_visual_dae or (
+            str(private_candidate) if private_candidate is not None else "")
+        if selected_visual:
+            if not self.load_visual_path(selected_visual, show_dialog=False):
+                if initial_visual_dae:
+                    raise RuntimeError("Explicit private source visual DAE failed: " +
+                                       self.visual_status.get())
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(200, self.poll_live)
         if initial_capture and initial_manifest:
@@ -166,7 +195,7 @@ class Inspector:
         main = ttk.PanedWindow(self.root, orient="horizontal")
         main.pack(fill="both", expand=True, padx=10)
         left = ttk.LabelFrame(main, text="Phase / sample", padding=8)
-        center = ttk.LabelFrame(main, text="3D candidate view — left/right drag to rotate", padding=8)
+        center = ttk.LabelFrame(main, text="3D candidate inspector — independent source views", padding=8)
         right = ttk.LabelFrame(main, text="Raw source candidates", padding=8)
         main.add(left, weight=1)
         main.add(center, weight=3)
@@ -176,10 +205,22 @@ class Inspector:
         self.phase_list.bind("<<ListboxSelect>>", self.select_phase)
         ttk.Label(left, textvariable=self.phase, wraplength=190).pack(fill="x", pady=6)
         ttk.Button(left, text="Set aim baseline (point at flag)", command=self.set_baseline).pack(fill="x")
-        ttk.Button(left, text="Preview PRIVATE game textures", command=self.open_textured_model).pack(fill="x", pady=(6, 0))
+        ttk.Button(left, text="Load PRIVATE visual DAE / OBJ", command=self.open_textured_model).pack(fill="x", pady=(6, 0))
+        ttk.Button(left, text="Show textured course tab", command=self.show_visual_tab).pack(fill="x", pady=(3, 0))
         ttk.Label(left, textvariable=self.aim, wraplength=200).pack(fill="x", pady=7)
 
-        self.canvas = tk.Canvas(center, background="#111c29", height=450, highlightthickness=0)
+        # The candidate KCL and authentic visual DAE are independent scene
+        # views. Do NOT draw unqualified visual art atop live collision actors.
+        self.center_tabs = ttk.Notebook(center)
+        self.center_tabs.pack(fill="both", expand=True)
+        terrain_tab = ttk.Frame(self.center_tabs, padding=4)
+        self.visual_tab = ttk.Frame(self.center_tabs, padding=4)
+        self.center_tabs.add(terrain_tab, text="Collision / KCL candidates")
+        self.center_tabs.add(self.visual_tab, text="Original visual textures")
+        ttk.Label(self.visual_tab, textvariable=self.visual_status,
+                  wraplength=630).pack(fill="x", pady=(1, 3))
+
+        self.canvas = tk.Canvas(terrain_tab, background="#111c29", height=450, highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
         self.canvas.bind("<Configure>", lambda _: self.draw_path())
         self.canvas.bind("<ButtonPress-1>", self.drag_start)
@@ -213,18 +254,18 @@ class Inspector:
         view_actions.pack(fill="x", pady=2)
         ttk.Button(view_actions, text="Top-down", command=lambda: self.set_terrain_view(0.0, 1.35)).pack(side="left")
         ttk.Button(view_actions, text="Isometric", command=lambda: self.set_terrain_view(0.65, 0.60)).pack(side="left", padx=5)
-        ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
-        ttk.Label(center, textvariable=self.surface_label_status, wraplength=650).pack(anchor="w")
+        ttk.Label(terrain_tab, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
+        ttk.Label(terrain_tab, textvariable=self.surface_label_status, wraplength=650).pack(anchor="w")
         source_legend = ttk.Frame(center)
         source_legend.pack(fill="x")
         for label, color in (SURFACE_STYLE[v] for v in (0x0001,0x0002,0x0003,0x0006,0x0007,0x0009)):
             ttk.Label(source_legend, text=label, foreground=color).pack(side="left", padx=4)
         ttk.Label(source_legend, text="other/unknown: neutral; ID hypotheses", foreground="#a1aab7").pack(side="left")
-        ttk.Label(center, text="White: ball +0x30  |  Amber: cache +0xCC  |  Cyan flag: PIN candidate  |  Green diamond: TEE candidate", wraplength=640).pack(anchor="w")
-        ttk.Label(center, textvariable=self.landmark_status, wraplength=640).pack(anchor="w")
-        ttk.Label(center, text="Magenta dashed: flag-aligned aim reference, rotated only by Δ+0x3C (unverified mapping; no player position)", wraplength=640).pack(anchor="w")
-        ttk.Label(center, textvariable=self.aim_status, wraplength=640).pack(anchor="w")
-        self.slider = ttk.Scale(center, from_=0, to=1, command=self.scrub)
+        ttk.Label(terrain_tab, text="White: ball +0x30  |  Amber: cache +0xCC  |  Cyan flag: PIN candidate  |  Green diamond: TEE candidate", wraplength=640).pack(anchor="w")
+        ttk.Label(terrain_tab, textvariable=self.landmark_status, wraplength=640).pack(anchor="w")
+        ttk.Label(terrain_tab, text="Magenta dashed: flag-aligned aim reference, rotated only by Δ+0x3C (unverified mapping; no player position)", wraplength=640).pack(anchor="w")
+        ttk.Label(terrain_tab, textvariable=self.aim_status, wraplength=640).pack(anchor="w")
+        self.slider = ttk.Scale(terrain_tab, from_=0, to=1, command=self.scrub)
         self.slider.pack(fill="x", pady=4)
         buttons = ttk.Frame(center)
         buttons.pack(fill="x")
@@ -248,24 +289,46 @@ class Inspector:
         lower.pack(fill="x", padx=10, pady=8)
         ttk.Label(lower, textvariable=self.detail, wraplength=1250, justify="left").pack(anchor="w")
 
-    def open_textured_model(self) -> None:
-        """Open a source original Collada DAE, or a UV OBJ, not collision KCL."""
-        filename = filedialog.askopenfilename(
-            parent=self.root,
-            title="Choose ORIGINAL Wii Golf Collada DAE or UV OBJ (no Blender)",
-            filetypes=[("Original Collada DAE", "*.dae"),
-                       ("UV Wavefront OBJ", "*.obj")])
-        if not filename:
-            return
+    def show_visual_tab(self) -> None:
+        self.center_tabs.select(self.visual_tab)
+        if self.visual_preview is not None:
+            self.visual_preview.schedule()
+
+    def load_visual_path(self, filename: str, *, show_dialog: bool = False) -> bool:
+        """Embed original source art in the inspector WITHOUT KCL alignment."""
         try:
             model = (load_private_dae_visual_model(filename)
                      if Path(filename).suffix.lower() == ".dae"
                      else load_private_visual_model(filename))
             from .textured_preview import TexturedPreviewWindow
-            TexturedPreviewWindow(self.root, model)
-        except (VisualAssetError, OSError, RuntimeError, tk.TclError, ImportError, ValueError) as exc:
-            messagebox.showerror(
-                "Private texture preview unavailable", str(exc), parent=self.root)
+            preview = TexturedPreviewWindow(self.visual_tab, model, embedded=True)
+        except (VisualAssetError, OSError, RuntimeError, tk.TclError,
+                ImportError, ValueError) as exc:
+            self.visual_status.set("Visual source declined: " + str(exc))
+            if show_dialog:
+                messagebox.showerror("Private visual model unavailable",
+                                     str(exc), parent=self.root)
+            return False
+        prior = self.visual_preview
+        self.visual_preview = preview
+        if prior is not None:
+            prior.close()
+        self.visual_status.set(
+            f"PRIVATE source preview: {model.source_name} · "
+            f"{len(model.faces):,} renderable UV triangles · "
+            "native hole/world/KCL alignment NOT verified")
+        self.show_visual_tab()
+        return True
+
+    def open_textured_model(self) -> None:
+        """Load a source UV visual model in the INTEGRATED visual tab."""
+        filename = filedialog.askopenfilename(
+            parent=self.root,
+            title="Choose PRIVATE original Collada DAE or UV OBJ",
+            filetypes=[("Original Collada DAE", "*.dae"),
+                       ("UV Wavefront OBJ", "*.obj")])
+        if filename:
+            self.load_visual_path(filename, show_dialog=True)
 
     def load_terrain(self) -> None:
         """User opt-in: load only local private OBJ, never read live RAM for terrain."""
@@ -553,6 +616,9 @@ class Inspector:
     def close(self) -> None:
         self.disconnect_live(silent=True)
         self.live_worker = None
+        if self.visual_preview is not None:
+            self.visual_preview.close()
+            self.visual_preview = None
         self.root.destroy()
 
     def set_baseline(self) -> None:
@@ -811,16 +877,11 @@ class Inspector:
 def launch(capture: str = "", manifest: str = "", terrain_obj: str = "",
            terrain_labels: str = "", visual_dae: str = "") -> int:
     root = tk.Tk()
-    Inspector(root, capture, manifest, terrain_obj, terrain_labels)
-    if visual_dae:
-        # An authentic separate preview, never overlaid on source-qualified KCL.
-        # No Blender and no writes to model/texture files.
-        try:
-            model = load_private_dae_visual_model(visual_dae)
-            from .textured_preview import TexturedPreviewWindow
-            TexturedPreviewWindow(root, model)
-        except (VisualAssetError, OSError, RuntimeError, ImportError, ValueError) as exc:
-            root.destroy()
-            raise RuntimeError("Original source DAE preview declined: " + str(exc)) from exc
+    try:
+        Inspector(root, capture, manifest, terrain_obj, terrain_labels,
+                  initial_visual_dae=visual_dae)
+    except (VisualAssetError, OSError, RuntimeError, ImportError, ValueError):
+        root.destroy()
+        raise
     root.mainloop()
     return 0
