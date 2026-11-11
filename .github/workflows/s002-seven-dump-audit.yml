@@ -1,0 +1,47 @@
+name: S002 P0 seven manual golf RAM dumps offline
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/Invoke-P0SevenDumpAudit.ps1'
+      - 'tests/test_s002_seven_dump_powershell.py'
+      - '.github/workflows/s002-seven-dump-audit.yml'
+  workflow_dispatch:
+
+jobs:
+  windows_ps5:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Parse PowerShell script with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $parseErrors = $null
+          $tokens = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            'scripts/Invoke-P0SevenDumpAudit.ps1', [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -gt 0) { $parseErrors | ForEach-Object { Write-Host ('PS PARSER: line ' + $_.Extent.StartLineNumber + ': ' + $_.Message) }; throw 'Script parsing failed' }
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw 'Must run real Windows PowerShell 5.1' }
+      - name: Run non-skipping native-size fake RAM tests
+        run: python -m unittest discover -s tests -p 'test_s002_seven_dump_powershell.py' -v
+
+  ubuntu_ps7:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Parse script with PowerShell 7
+        shell: pwsh
+        run: |
+          $parseErrors = $null
+          $tokens = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            'scripts/Invoke-P0SevenDumpAudit.ps1', [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -gt 0) { $parseErrors | ForEach-Object { Write-Host ('PS PARSER: line ' + $_.Extent.StartLineNumber + ': ' + $_.Message) }; throw 'Script parsing failed' }
+      - name: Run non-skipping native-size fake RAM tests
+        run: python -m unittest discover -s tests -p 'test_s002_seven_dump_powershell.py' -v

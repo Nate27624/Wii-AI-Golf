@@ -1,0 +1,51 @@
+{
+  "worker_id": "s002-seven-human-dumps-20261028",
+  "role": "S002 independent research",
+  "branch": "agent/research/s002-seven-human-dumps-20261028",
+  "study_id": "S002-SEVEN-HUMAN-DUMPS-01",
+  "claim_comment": "https://github.com/Nate27624/Wii-AI-Golf/pull/205#issuecomment-6462265365",
+  "paths": [
+    "research/studies/S002-SEVEN-HUMAN-DUMPS-01.md",
+    "research/claims/s002-seven-human-dumps-20261028.json",
+    "scripts/Invoke-P0SevenDumpAudit.ps1",
+    "tests/test_s002_seven_dump_powershell.py",
+    ".github/workflows/s002-seven-dump-audit.yml"
+  ],
+  "owner_scope": "human seven label annotations, offline SHA-verified whole-bank per-phase inventory and private page-level delta only",
+  "upstream": [
+    "source-gated S002 #223,#224,#225,#227",
+    "S000 #205"
+  ],
+  "downstream": [
+    "S002 memory mapping",
+    "S001 swing/frame mapping only after source gate"
+  ],
+  "data_classification": "human observation labels public; raw RAM, SHA and absolute file paths RAW-PRIVATE",
+  "status": "draft PR #228, real operator 7/7 bank pairs and 4 page contrasts recorded; real wedge temporal mask recorded; S002 #230 and #231 independent real source-gated observations recorded (no raw bytes read by this agent); owner review pending",
+  "guards": {
+    "same_guest_frame_verified": false,
+    "ball_xyz_verified": false,
+    "score_memory_verified": false,
+    "approved_for_training": false,
+    "allowed_to_publish_raw": false
+  },
+  "handoff_to": [
+    "S002 #230 source-selected dynamic ball candidate",
+    "S002 #231 preserved seven bank archive cross-check and per-snapshot cache equality",
+    "S002 #225 and #219 source cache-coherence and update-writer provenance",
+    "S000 #205 variable registry / gates"
+  ],
+  "evidence": {
+    "all_seven_native_pairs_24MiB_MEM1_and_64MiB_MEM2_reported": true,
+    "real_within_shot_page_counts_observed": true,
+    "real_wedge_temporal_mask_observed": true,
+    "independent_source_gated_seven_phase_runs_observed": true,
+    "live_ball_translation_candidate_3_of_3_changed_W5_to_W6_and_W6_to_W7": true,
+    "pin_and_start_0_of_3_changed_those_edges": true,
+    "cache_CC_0_of_3_changed_those_edges": true,
+    "cache_CC_matches_current_ball_at_W7_not_W5_or_W6": true,
+    "independent_guest_frame_timing_verified": false,
+    "absolute_xyz_axes_units_verified": false,
+    "endpoint_cache_semantics_verified": false
+  }
+}
