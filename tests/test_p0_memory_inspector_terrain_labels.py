@@ -55,7 +55,7 @@ class LabelsTests(unittest.TestCase):
     def test_line_ending_change_requires_new_sha(self):
         # A different OBJ byte stream must fail source-label SHA binding.
         # This is a negative control; never normalize real OBJ content.
-        self.obj.write_bytes(OBJ.replace("\\n", "\\r\\n").encode("ascii"))
+        self.obj.write_bytes(OBJ.replace("\n", "\r\n").encode("ascii"))
         different = load_private_obj(self.obj)
         self.assertNotEqual(different.sha256, SHA)
         self.save(self.data())
