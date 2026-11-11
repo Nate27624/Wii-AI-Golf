@@ -130,6 +130,15 @@ class BallCacheR27LineageTests(unittest.TestCase):
                          "abstain_prior_control_transfer")
         self.assertFalse(q["source_float_producer_is_same_object_proven"])
 
+    def test_powerpc_xor_destination_is_ra_not_rs(self):
+        # PPC xor r27,r3,r4 encodes rS=3,rA=27,rB=4,XO=316.
+        w=(31<<26)|(3<<21)|(27<<16)|(4<<11)|(316<<1)
+        self.assertEqual(m.gpr_writers(w),
+                         [(27,"X_form_logic_dest_rA",3,None)])
+        # Distinguish rS==27 from destination rA=2.
+        w2=(31<<26)|(27<<21)|(2<<16)|(4<<11)|(316<<1)
+        self.assertFalse(any(t[0]==27 for t in m.gpr_writers(w2)))
+
     def test_wide_register_restore_does_not_become_receiver_proof(self):
         r=m.gpr_writers(d(46,26,1,0x20))
         self.assertIn((27,"lmw_register_restored_from_memory",None,None),r)
