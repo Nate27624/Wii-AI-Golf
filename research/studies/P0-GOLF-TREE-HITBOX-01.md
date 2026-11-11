@@ -1405,3 +1405,88 @@ Research isolation remains intact: only
 are changed; #431/#432 tree visualization
 is independently owned. No trainable tree
 collision label or geometry is approved.
+
+
+## Original phase7: active KCL vertex+normal identity, prism offset discrepancy
+
+The operator ran `p0_ball_kcol_active_resource_private.py
+--capture 7 --detail` from exact commit
+`dd78c5a383eacf148af8d567abba552e4bdb7d64`
+against the original private archive; the original
+seven-bank-pair SHA/scene/94x84 tree/PPC, five
+Ball→KCol and seven inverse calls all passed.
+Public Rev1 `__init_registers` symbol native
+startup instructions at offsets +0x84/+0x88
+uniquely establish the `r13` SDA base;
+`Ball+0x0A80` loads r27 from the validated
+`-23160(r13)` global. This leads to a
+captured MEM2 KCol candidate instance whose
++0x04/+0x08/+0x0C fields all point into
+captured MEM2.
+
+The result was:
+- **Active vertex buffer = original recovered 2498-prism
+  terrain KCL vertex buffer**: exact source
+  address AND complete byte equality TRUE.
+- **Active normal buffer = terrain KCL normals**:
+  exact address AND complete byte equality TRUE.
+- **Active +0x0C prism pointer** did **not** match
+  the prior comparison target, and neither did
+  its full 2498×16-byte byte comparison.
+- The original known terrain candidate has no
+  literal classification 13. Neither another
+  collision source nor a tree-specific hitbox is
+  established by this one negative comparison.
+  `training_approved=false`.
+
+**Possible 16-byte comparator alignment mistake:**
+The terrain KCL parser explicitly uses
+`prism_offset + 16` as its first valid
+primitive, skipping a 16-byte leading slot.
+The earlier active comparator assumed
+`KCol obj+0x0C` points at that **first usable
+primitive**. However, native KCol indexes
+prisms as `obj+0x0C + (u16 index * 16)`.
+Its object pointer could legitimately point
+to the **start of the prism table including
+the leading dummy**, not the first usable
+primitive. Thus the previous FALSE/FALSE
+prism comparison **cannot on its own
+establish a second prism dataset**. We must
+test that exact off-by-one-record alternative
+before following any suspected tree resource.
+
+New bounded, read-only
+`scripts/p0_ball_kcol_prism_dummy_layout_private.py`
+and synthetic-only test file
+`tests/test_p0_ball_kcol_prism_dummy_layout_private.py`
+reuse the full original qualified source/SDA
+gates, exact KCol vertex/normal pointers and
+unique original terrain-header histogram.
+The probe checks both exact conventions:
+`header+pr` as dummy-inclusive base,
+and `header+pr+16` as first usable prism,
+then compares the **full** 2498-prism
+payload at the corresponding active pointer
+offset without printing RAM addresses, bytes,
+per-prism classifications or game assets.
+The only conditional class-13 outcome is
+`0` when all active 2498 prism bytes
+are independently verified identical to
+the original known terrain candidate;
+otherwise it is **null/unknown**.
+No pointer searches or guesses over private
+memory. No training labels, ball velocity
+or collision geometry promoted.
+
+**Next operator experiment:** run the new
+dummy-16 alignment probe on original capture7.
+If the alignment matches, the active Ball
+KCol object **uses the existing known
+2498-prism terrain primitive data in this
+snapshot**, leaving class 13 a native
+special branch without evidence of
+a reachable class-13 primitive in that resource.
+If it does not match, investigate source-qualified
+active prism-table identity and length
+rather than claiming a new tree mesh.
