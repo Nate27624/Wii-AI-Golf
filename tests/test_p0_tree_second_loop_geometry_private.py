@@ -50,7 +50,9 @@ def fake_source():
     words.update(m.ANCHORS)
     for pc,target in m.LINKS.items():
         words[pc]=bl(pc,target)
-    # Possible prologue and receiver assignment upstream of the reader loop.
+    # Native second-loop method prologue and receiver assignment.
+    words[fm+0x2138]=d(37,1,1,-64)
+    words[fm+0x214C]=0x7C7F1B78
     words[fm+0x1E00]=d(37,1,1,-64)
     words[fm+0x1E10]=0x7C7F1B78
     return words, lambda pc:words.get(pc,0)
@@ -61,8 +63,8 @@ class TreeSecondLoopTests(unittest.TestCase):
         words,read=fake_source()
         result=m.inspect(read)
         self.assertEqual([w["words"] for w in result["windows"]],
-                         [15,12,106,36,28])
-        self.assertEqual(sum(w["words"] for w in result["windows"]),197)
+                         [12,15,12,106,36,28])
+        self.assertEqual(sum(w["words"] for w in result["windows"]),209)
         self.assertTrue(result["read_loop_and_flag_writer_use_same_plus_0x20_array_field"])
         self.assertTrue(result["both_loops_use_84_byte_element_stride"])
 
@@ -81,6 +83,21 @@ class TreeSecondLoopTests(unittest.TestCase):
             m.FIELD+0x230C,read(m.FIELD+0x230C)),(m.TREE+0x047C,True))
         self.assertEqual(m.native.direct_b(
             m.FIELD+0x2BB4,read(m.FIELD+0x2BB4)),(m.TREE+0x000C,True))
+
+    def test_second_loop_entry_receiver_anchor(self):
+        words,read=fake_source()
+        row=m.inspect(read)
+        self.assertEqual(row["r31_assigned_from_method_r3_at_source_relative"],"+0x214C")
+        self.assertTrue(row["second_loop_within_same_native_method_frame"])
+        words[m.FIELD+0x214C]=0
+        with self.assertRaises(ValueError):
+            m.inspect(read)
+
+    def test_unexpected_nested_frame_abstains(self):
+        words,read=fake_source()
+        words[m.FIELD+0x2200]=d(37,1,1,-48)
+        with self.assertRaises(ValueError):
+            m.inspect(read)
 
     def test_wrong_array_field_abstains(self):
         words,read=fake_source()
@@ -120,7 +137,7 @@ class TreeSecondLoopTests(unittest.TestCase):
         for w in result["windows"]:
             self.assertEqual(len(w["code"]),w["words"])
             self.assertTrue(w["code"][0].startswith(w["public_source_owner"]+"+0x"))
-        self.assertEqual(len(result["windows"]),5)
+        self.assertEqual(len(result["windows"]),6)
 
     def test_default_has_no_native_hex(self):
         import json
