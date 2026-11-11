@@ -79,9 +79,17 @@ class BallCCFCCopyTests(unittest.TestCase):
     def test_second_copy_loads_source_CC_and_stores_dest_FC(self):
         x=m.check_second_copy(read(program()))
         self.assertTrue(x["exact_load_store_triplets_verified"])
-        self.assertFalse(x["native_static_copy_of_CC_to_FC_verified"])
+        self.assertTrue(x["native_static_copy_of_CC_to_FC_verified"])
         self.assertEqual(x["intervening_instruction_type"],
-                         "noncontrol_nonrecognized_clobber")
+                         "known_integer_nonmemory_FP_preserving")
+        self.assertFalse(x["dynamic_copy_executed_in_live_tree_shots_proven"])
+
+    def test_second_copy_unrecognized_X_form_abstains(self):
+        p=program()
+        p[m.BASE+0x2FA4]=(31<<26)|(2<<21)|(3<<16)|(4<<11)|(266<<1)
+        q=m.check_second_copy(read(p))
+        self.assertFalse(q["native_static_copy_of_CC_to_FC_verified"])
+        self.assertEqual(q["intervening_instruction_type"],"unresolved_other_op")
 
     def test_second_copy_prior_FP_clobber_abstains(self):
         p=program()
