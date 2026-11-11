@@ -3819,3 +3819,130 @@ word, original ROM byte, heap
 pointer or world XYZ is needed
 or exported.
 `training_approved=false`.
+
+
+## Native r28 backedge: two distinct caller arguments and a possible compiler register-save thunk
+
+Operator supplied original success report
+`P0_ORIGINAL_BALL_BACKEDGE_POSTCALL_R4_AND_FLAG_V1`
+at SHA-qualified original seven-pair Rev1 source capture
+**7**, head `d22fc2303f8826ba7edf8c43f878da6ccdd79e3a`.
+The exact branch condition from the previous study is
+**nonzero byte at current r3+0x5C** plus **signed
+r28 less than zero**. Both native GPR roles are now
+tighter, yet runtime selected Ball/impact identity
+remains unverified.
+
+**First original caller at Ball+0x2B8C:**
+the nearest native r4 setter is **`addi r4,r4,+1`
+at Ball+0x2B84**, rather than a fixed value.
+Upstream original syntactic r4 loads/moves also
+occur at +0x2B14, +0x2B34, +0x2B54, +0x2B6C
+and +0x2B74. It is not safe to infer r4's sign
+on that caller's path from this increment alone.
+
+**Second original caller at Ball+0x2C80:**
+the nearest original native r4 setter is
+**`li r4,-1` at Ball+0x2C78**.
+This directly suggests a negative sentinel
+argument at the function's entry, **if the
+caller executes this source path**.
+That is significant because the candidate
+backedge's second branch tests signed
+r28 < 0.
+
+**Critical qualifier:** original `fn_80299C70`
+has a linked `bl` at **Ball+0x2CB0**,
+before `mr r28,r4` at +0x2CBC.
+No recognized r4 assignments were reported
+in the linear instructions between that
+call and r28's copy, but r4 is normally
+volatile across PPC ABI calls. Thus
+the second caller's `li r4,-1`
+cannot yet be propagated through
+the **actual callee** by relying
+on calling-convention assumptions.
+
+**Byte flag receiver is not the caller
+or selected Ball by default**.
+Native source instruction sequence:
+`Ball+0x2FB8: lwz r3,-23304(r13)`,
+`Ball+0x2FBC: lbz r0,+0x5C(r3)`.
+Therefore the branch's byte comes
+from an **r13-relative global object
+pointer** (a runtime object not yet
+identified). Even though the live
+selected Ball self-pointer
+`Ball+0x4C→Ball+0x30` was
+confirmed in 110/110 samples,
+that alone does not identify the
+r13-relative global object's +0x5C
+as a Ball field or a tree collision
+material flag.
+
+**Next source-only audit** implemented in
+`scripts/p0_ball_prelude_save_thunk_private.py`
+with 12 synthetic-only tests
+`tests/test_p0_ball_prelude_save_thunk_private.py`
+and Win/Ubuntu offline CI. The
+placement of the linked BL at
++0x2CB0 relative to prologue
+register saves suggests the call
+might be a **compiler-generated
+nonvolatile GPR-save thunk**
+rather than gameplay code.
+This is an unverified hypothesis,
+not a symbol identification.
+
+The tool decodes the actual
+original PPC direct BL target from
+the existing SHA-verified private
+MEM1 executable bank. It will only
+certify **r4 unchanged by that
+callee** if the full bounded
+target block consists exclusively
+of recognized **plain `stw`
+of r27–r31 to stack/save slots
+through r1/r11**, followed by
+unconditional standard `blr`.
+Any other op, control transfer,
+unbounded region, or failed source
+SHA gate **abstains** from
+r4 preservation; unknown ABI
+callee effects are not presumed.
+It separately rechecks the exact
+`addi r4,r4,+1` and
+`li r4,-1` at the two callers
+and bounds any intervening
+source writes/branches before
+their direct calls.
+
+If the actual original target
+matches the strict save-thunk
+pattern, the **static local
+r28==entry r4 relationship**
+would be established
+through the call for this
+source path, and the second
+caller's negative r4
+would make r28<0 feasible
+on a conditional execution
+path. This would still not
+show the global object's
+byte is nonzero, that the
+function is actually called
+during tree contact,
+which live Ball receives
+the copy, or native
+wood-versus-leaf response.
+No training.
+Only relative instruction
+indices, PPC syntax classes
+and boolean source gates
+are output, no original
+binary/code words, RAM
+pointers, game coordinates,
+private capture paths,
+screenshots or videos. No
+Dolphin or new recording.
+`training_approved=false`.
