@@ -2805,3 +2805,153 @@ provenance as the next unresolved source
 dataflow. None of this currently proves
 wood or leaves native physics.
 `training_approved=false`.
+
+
+## Original live Ball selfref verified in all 110 packets; next bounded native writer audit
+
+Operator ran the original in-repo offline
+`p0_tree_live_ball_selfref_private.py` against
+the existing SHA-verified 2026-11-11
+wood-intent/leaves-intent/near-miss recording
+session; reported `original_sha_verified=true`,
+**110 original source-selected Ball packets**.
+The exact saved private selected Ball+0x4C
+pointer was **`Ball+0x30` in every packet**:
+
+| Human reported observation | Recorded intent | Exact selfref matches | Selected Ball identity |
+| --- | --- | ---: | --- |
+| Leaves | `wood` | **45/45** | stable |
+| Wood | `leaves` | **39/39** | stable |
+| No contact | `near_miss` | **26/26** | stable |
+| **All** | | **110/110** | same across trials |
+
+This **confirms** the native pointer/address
+identity, not merely a matching twelve-byte
+float value. The previous term "nested
+translation candidate" was misleading:
+it is a **later RPC re-read of the identical
+`Ball+0x30` native memory address**,
+not a separate allocated position object.
+
+The recorder reads the 448-byte Ball source
+object in an earlier bridge memory read,
+then the selected player record, then
+12 bytes by the `Ball+0x4C` pointer.
+Because these operations are not atomic,
+the memory at the same physical address
+can legitimately differ during flight.
+Do not treat a mismatch as two
+physical position vectors or as
+interpolation/collision-induced
+cache disagreement. As measured,
+same packet selfref reread matches
+are only **6/26 during Ball motion**,
+vs **83/84 during Ball stationary
+candidate state** (one stationary
+near-miss anomaly).
+
+The separately recorded 12-byte
+`Ball+0xCC` cache **also** equals
+Ball+0x30 in only **6/26 moving packets**
+and 84/84 idle packets. Compared to
+captured Ball+0x30 in the *following*
+source packet, `Ball+0xCC` equals it
+**3 times per original trial**
+(3/7 wood, 3/10 leaves, 3/9 miss).
+This one-packet apparent *lead*
+is **not** a prediction proof or an
+exact guest-frame cache relation:
+the operator's ~4 Hz sampling, possible
+same-RPC non-atomicity and source
+update ordering are unverified. The
+`Ball+0xAC` 12-byte field matched
+`Ball+0x30` in **0/26** moving
+samples (and did not match during
+stationary samples), and native
+velocity semantics are still NOT
+proven.
+
+Original **signed** Ball+0x30
+candidate turn ratios remain:
+operator-observed wood **59.79°**
+at packet 28, after/before
+host-second-displacement **0.2511**;
+foliage **66.06°** at packet 27,
+ratio **0.8841**; no contact
+**14.74°** at packet 11,
+ratio **0.8993**. Because the
+native sampled Ball+0x30 coordinate
+frame, actual tree contact,
+guest frame atomicity, comparable
+swing profiles, collision impulse,
+and branch semantics remain
+unproven, these numbers are
+**candidate motion evidence**,
+not true material-specific
+coefficients. No training.
+
+### Source-side next step: inspect original PPC writer syntax, not broad RAM scans
+
+Added `scripts/p0_tree_ball_source_store_inventory_private.py`
+and synthetic-only
+`tests/test_p0_tree_ball_source_store_inventory_private.py`.
+The source audit reads the **original seven-pair
+SHA-gated Rev1 MEM1/MEM2 archive**, verifies
+original Golf scene, FieldManager
+94×84 Tree source loop, Tree
+source anchors, and the exact
+five Ball→GolfKCol plus seven reverse
+source-code calls before examining
+**bounded public .text units only**
+(Ball, Simulation, Player, PlayerManager).
+
+The script enumerates direct PPC
+`stfs`/`stw` instructions with
+D-form displacements overlapping
+`+0x30/+0x34/+0x38`,
+`+0xAC/+0xB0/+0xB4`,
+`+0xCC/+0xD0/+0xD4`,
+`+0xF0/+0xF4/+0xF8`,
+`+0xFC/+0x100/+0x104`.
+It also scans for bounded
+`lwz rN,+0x4C(rX)` followed by
+`stfs 0/4/8(rN)` without
+intervening branch or obvious GPR
+clobber, a candidate for writing
+through the demonstrated live
+self-pointer. Includes public known
+`Ball fn_80299C70` potential cache
+update function window and
+`Player fn_802A0320`
+potential translation writer window.
+
+**Crucial caveat:** matching PPC
+D-form field offsets on *other
+objects* are not proof of a store
+to the selected Ball. Even pointer
+chaining is syntactic unless the
+receiver type/dataflow are proven.
+This study does **not** establish
+the game executed these writers
+in any of the November shots,
+nor the native wood/leaf contact
+branch or impulse. Output is
+only public-code-relative
+instruction site labels and
+categorical counts, with **no
+ROM bytes, original code words,
+private pointers, coordinates,
+raw memory, file paths or hashes**.
+Do not infer physics from source
+ownership or method names alone.
+
+The next operator task is to run
+this **read-only original archive
+PPC audit**, not to record
+another shot or upload video.
+The existing original seven-capture
+archive is required; the 110
+live JSONL packets cannot themselves
+recover native .text. Research
+branch PR remains draft,
+`training_approved=false`.
