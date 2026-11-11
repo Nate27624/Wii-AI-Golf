@@ -1,34 +1,40 @@
-"""Optional separate Tk scene preview for original user-extracted UV visual models.
+"""Tk source-UV viewport, embedded in the inspector or a standalone window.
 
-A second window avoids running texture rasterization on each live Felk read.
-It does NOT alter the native game, source-aligned KCL, or main inspector plot.
+Expensive full-source CPU raster runs on ONE cancellable worker. Tk widgets
+and PhotoImage are exclusively updated on the main UI thread. Source models,
+game memory, original collision OBJ and PNGs are NEVER modified.
 """
 from __future__ import annotations
 
-import tkinter as tk
-from tkinter import ttk
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
+import tkinter as tk
+from tkinter import ttk
 
-from .navigation import pan_by, wheel_steps, zoom_at_cursor
+from .navigation import wheel_steps
+from .scene_camera import fit_camera, look_in_place, orbit, pan, dolly, move
 from .texture_render import PreviewCancelled, prepare_textures, render_preview
 from .visual_model import PrivateVisualModel, VisualAssetError
 
 
 class TexturedPreviewWindow:
-    def __init__(self, parent: tk.Misc, model: PrivateVisualModel):
-        # Decode/verify before creating a window so failures are handled by
-        # the inspector's existing error dialog and do not leave blank UI.
+    def __init__(self, parent: tk.Misc, model: PrivateVisualModel,
+                 *, embedded: bool = False):
+        # Confirm source-bound PNG bytes before creating the viewport.
         self.textures = prepare_textures(model)
         self.model = model
-        self.top = tk.Toplevel(parent)
-        self.top.title("Wii Golf · PRIVATE game visual model / UV texture preview")
-        self.top.geometry("1040x720")
-        self.top.minsize(480,360)
-        self.zoom = 1.0
-        self.pan = (0., 0.)
-        self.yaw, self.pitch = 0.65, 0.48
-        self.drag_origin: tuple[int,int] | None = None
+        self.embedded = embedded
+        self.top = ttk.Frame(parent) if embedded else tk.Toplevel(parent)
+        if embedded:
+            self.top.pack(fill="both", expand=True)
+        else:
+            self.top.title("Wii Golf · PRIVATE source visual model")
+            self.top.geometry("1040x720")
+            self.top.minsize(480, 360)
+
+        self.home_camera = fit_camera(model.vertices)
+        self.camera = self.home_camera
+        self.drag_origin: tuple[int, int] | None = None
         self.drag_button: int | None = None
         self.image_ref = None
         self._pending = None
@@ -38,44 +44,64 @@ class TexturedPreviewWindow:
         self._queued = None
         self._render_future = None
         self._cancel_render = None
-        # Expensive full-source UV raster jobs never execute on Tk's UI thread.
-        # One worker plus cooperative cancellation bounds queued render work.
         self._executor = ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="WiiGolfPrivateUV")
-        head = ttk.Frame(self.top,padding=8)
+
+        head = ttk.Frame(self.top, padding=(6, 4))
         head.pack(fill="x")
-        ttk.Label(head,text=f"PRIVATE visual mesh: {model.source_name} · {len(model.faces):,} UV triangles · {len(model.textures)} PNG texture(s)",font=("Segoe UI",12,"bold")).pack(anchor="w")
-        ttk.Label(head,text="Original-file preview only · NOT KCL collision/physics · Wii lighting/shaders & model-to-world transform UNVERIFIED",wraplength=990).pack(anchor="w")
+        ttk.Label(
+            head,
+            text=f"Source visual: {model.source_name} · "
+                 f"{len(model.faces):,} triangles · {len(model.textures)} original PNGs",
+            font=("Segoe UI", 10, "bold"),
+        ).pack(anchor="w")
+        ttk.Label(
+            head,
+            text="STATIC visual-model LOCAL coordinates · not aligned with "
+                 "the separate KCL/ball/tee/flag view · native Wii shaders unverified",
+            wraplength=820,
+        ).pack(anchor="w")
         if model.skipped_source_faces:
             ttk.Label(
                 head,
-                text=f"Source DAE has {model.skipped_source_faces:,} face(s) with no recoverable original diffuse appearance: omitted, NOT recolored.",
-                wraplength=990,
+                text=f"{model.skipped_source_faces:,} source faces omitted: "
+                     "untextured effect lacks original diffuse appearance.",
+                wraplength=820,
             ).pack(anchor="w")
-        controls=ttk.Frame(self.top,padding=(8,2))
+
+        controls = ttk.Frame(self.top, padding=(6, 3))
         controls.pack(fill="x")
-        ttk.Button(controls,text="Frame visual model (F)",command=self.frame).pack(side="left")
-        ttk.Label(controls,text="Scroll: cursor zoom · Middle drag: pan · Left/right drag: orbit · F: frame",padding=(10,0)).pack(side="left")
-        self.canvas = tk.Canvas(self.top, background="#13202e",highlightthickness=0)
-        self.canvas.pack(fill="both",expand=True,padx=8,pady=8)
-        self.canvas.bind("<Configure>",lambda e:self.schedule())
-        for button in (1,2,3):
-            self.canvas.bind(f"<ButtonPress-{button}>",self.drag_start)
-            self.canvas.bind(f"<B{button}-Motion>",self.drag_move)
-            self.canvas.bind(f"<ButtonRelease-{button}>",self.drag_end)
-        self.canvas.bind("<MouseWheel>",self.wheel)
-        self.canvas.bind("<Button-4>",self.wheel)
-        self.canvas.bind("<Button-5>",self.wheel)
-        self.canvas.bind("<KeyPress-f>",self.frame)
-        self.canvas.bind("<KeyPress-F>",self.frame)
-        self.status = tk.StringVar(value="Preparing texture preview (no Dolphin/guest access)")
-        ttk.Label(self.top,textvariable=self.status,padding=(8,0)).pack(fill="x")
-        self.top.protocol("WM_DELETE_WINDOW",self.close)
+        ttk.Button(controls, text="Frame (F)", command=self.frame).pack(side="left")
+        ttk.Label(
+            controls,
+            text="RMB: look in place · LMB: orbit · MMB: pan · "
+                 "Wheel: dolly · Hold RMB + WASD/QE: fly · Shift: faster",
+            wraplength=670,
+        ).pack(side="left", padx=8)
+
+        self.canvas = tk.Canvas(self.top, background="#13202e",
+                                highlightthickness=0, height=460)
+        self.canvas.pack(fill="both", expand=True, padx=6, pady=(2, 6))
+        self.canvas.bind("<Configure>", lambda event: self.schedule())
+        for button in (1, 2, 3):
+            self.canvas.bind(f"<ButtonPress-{button}>", self.drag_start)
+            self.canvas.bind(f"<B{button}-Motion>", self.drag_move)
+            self.canvas.bind(f"<ButtonRelease-{button}>", self.drag_end)
+        self.canvas.bind("<MouseWheel>", self.wheel)
+        self.canvas.bind("<Button-4>", self.wheel)
+        self.canvas.bind("<Button-5>", self.wheel)
+        self.canvas.bind("<KeyPress>", self.key_move)
+
+        self.status = tk.StringVar(value="Preparing authentic UV texture preview")
+        ttk.Label(self.top, textvariable=self.status,
+                  padding=(8, 0)).pack(fill="x")
+        if not embedded:
+            self.top.protocol("WM_DELETE_WINDOW", self.close)
         self._poll_id = self.top.after(40, self._poll_completed)
         self.schedule()
 
     def schedule(self):
-        """Coalesce rapid mouse events; never rasterize on the Tk event loop."""
+        """Coalesce rapid mouse/key events; never rasterize on Tk's UI thread."""
         if self._closed:
             return
         self._request_version += 1
@@ -96,107 +122,125 @@ class TexturedPreviewWindow:
         height = min(800, self.canvas.winfo_height())
         if width < 16 or height < 16:
             return
-        self._queued = (self._request_version, width, height,
-                        self.yaw, self.pitch, self.zoom, self.pan)
+        self._queued = (self._request_version, width, height, self.camera)
         self.status.set(
             f"Rendering all {len(self.model.faces):,} source triangles "
             "(background worker; camera remains responsive)")
         self._start_latest()
 
     def _start_latest(self):
-        # Called ONLY from Tk; never create unbounded ThreadPoolExecutor jobs.
         if self._closed or self._render_future is not None or self._queued is None:
             return
-        version, width, height, yaw, pitch, zoom, pan = self._queued
+        version, width, height, camera = self._queued
         self._queued = None
         cancel = Event()
         self._cancel_render = cancel
         future = self._executor.submit(
             render_preview, self.model, width, height,
-            yaw=yaw, pitch=pitch, zoom=zoom, pan=pan,
-            textures=self.textures, cancelled=cancel.is_set)
-        self._render_future = (version, zoom, future)
+            textures=self.textures, cancelled=cancel.is_set, camera=camera)
+        self._render_future = (version, camera, future)
 
     def _poll_completed(self):
         if self._closed:
             return
         active = self._render_future
         if active is not None and active[2].done():
-            version, zoom, future = active
+            version, camera, future = active
             self._render_future = None
             self._cancel_render = None
             try:
                 image, drawn = future.result()
-                # PhotoImage and all Canvas work MUST stay on Tk main thread.
                 if version == self._request_version:
                     from PIL import ImageTk
                     self.image_ref = ImageTk.PhotoImage(image, master=self.canvas)
                     self.canvas.delete("all")
-                    self.canvas.create_image(
-                        0, 0, image=self.image_ref, anchor="nw")
+                    self.canvas.create_image(0, 0, image=self.image_ref,
+                                             anchor="nw")
                     self.status.set(
-                        f"{drawn:,} visible triangles from "
-                        f"{len(self.model.faces):,} fully processed source faces · "
-                        f"{zoom:.2f}× zoom · native/world alignment unverified")
+                        f"{drawn:,} visible of {len(self.model.faces):,} "
+                        "processed source faces · source-local camera, not KCL-aligned")
             except PreviewCancelled:
-                pass  # A newer camera request superseded this frame.
-            except (VisualAssetError, OSError, ValueError, ImportError,
-                    RuntimeError) as exc:
+                pass
+            except (VisualAssetError, OSError, ValueError,
+                    ImportError, RuntimeError) as exc:
                 if version == self._request_version:
-                    self.status.set(f"Textured visual preview unavailable: {exc}")
+                    self.status.set(f"Source texture preview unavailable: {exc}")
             if self._queued is not None:
                 self._start_latest()
         if not self._closed:
             self._poll_id = self.top.after(40, self._poll_completed)
 
     def draw(self):
-        """Compatibility entry point: request, but never block, a full redraw."""
         self.schedule()
 
-    def drag_start(self,event):
-        self.drag_origin=(event.x,event.y)
-        self.drag_button=getattr(event,"num",1)
+    def drag_start(self, event):
+        self.drag_origin = (event.x, event.y)
+        self.drag_button = getattr(event, "num", 1)
         self.canvas.focus_set()
 
-    def drag_move(self,event):
+    def drag_move(self, event):
         if self.drag_origin is None:
             return
-        dx,dy=event.x-self.drag_origin[0],event.y-self.drag_origin[1]
-        if self.drag_button==2:
-            self.pan=pan_by(self.pan,dx,dy)
+        dx = event.x - self.drag_origin[0]
+        dy = event.y - self.drag_origin[1]
+        if self.drag_button == 3:
+            self.camera = look_in_place(self.camera, dx, dy)
+        elif self.drag_button == 2:
+            self.camera = pan(self.camera, dx, dy,
+                              max(16, self.canvas.winfo_height()))
+        elif self.drag_button == 1:
+            self.camera = orbit(self.camera, dx, dy)
         else:
-            self.yaw += dx*0.01
-            self.pitch=max(-1.4,min(1.4,self.pitch+dy*.01))
-        self.drag_origin=(event.x,event.y)
-        self.schedule()
-
-    def drag_end(self,event):
-        if self.drag_button==getattr(event,"num",None):
-            self.drag_origin=None
-            self.drag_button=None
-
-    def wheel(self,event):
-        n=wheel_steps(getattr(event,"delta",None),getattr(event,"num",None))
-        if not n:
             return
-        viewport=(max(16,self.canvas.winfo_width()),max(16,self.canvas.winfo_height()))
-        self.zoom,self.pan=zoom_at_cursor(self.zoom,self.pan,(event.x,event.y),viewport,n)
-        self.canvas.focus_set()
+        self.drag_origin = (event.x, event.y)
         self.schedule()
 
-    def frame(self,event=None):
-        self.zoom=1.
-        self.pan=(0.,0.)
+    def drag_end(self, event):
+        if self.drag_button == getattr(event, "num", None):
+            self.drag_origin = None
+            self.drag_button = None
+
+    def wheel(self, event):
+        n = wheel_steps(getattr(event, "delta", None),
+                        getattr(event, "num", None))
+        if n:
+            self.camera = dolly(self.camera, n)
+            self.canvas.focus_set()
+            self.schedule()
+
+    def key_move(self, event):
+        if getattr(event, "keysym", "").lower() == "f":
+            self.frame()
+            return
+        if self.drag_button != 3:
+            return
+        motion = {
+            "w": (1., 0., 0.), "s": (-1., 0., 0.),
+            "a": (0., -1., 0.), "d": (0., 1., 0.),
+            "q": (0., 0., -1.), "e": (0., 0., 1.),
+        }.get(getattr(event, "keysym", "").lower())
+        if motion is None:
+            return
+        self.camera = move(
+            self.camera, forward=motion[0],
+            right=motion[1], vertical=motion[2],
+            fast=bool(getattr(event, "state", 0) & 0x0001))
+        self.schedule()
+
+    def frame(self, event=None):
+        self.camera = self.home_camera
         self.schedule()
 
     def close(self):
+        if self._closed:
+            return
         self._closed = True
         if self._cancel_render is not None:
             self._cancel_render.set()
-        for pending in (self._pending, self._poll_id):
-            if pending is not None:
+        for handle in (self._pending, self._poll_id):
+            if handle is not None:
                 try:
-                    self.top.after_cancel(pending)
+                    self.top.after_cancel(handle)
                 except tk.TclError:
                     pass
         self._executor.shutdown(wait=False, cancel_futures=True)
