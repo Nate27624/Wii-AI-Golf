@@ -134,6 +134,72 @@ class VisualAssetTests(unittest.TestCase):
             render_preview(model,10000,10000,textures=textures)
 
 
+    def test_preview_mouse_requests_do_not_render_on_ui_thread(self):
+        from concurrent.futures import Future
+        from unittest.mock import Mock, patch
+        from wii_ai_golf.inspector.textured_preview import TexturedPreviewWindow
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest('Pillow optional renderer unavailable')
+
+        # Synthetic Tk objects. No real Tk display, Dolphin, network or
+        # original course art required to verify asynchronous camera behavior.
+        win = object.__new__(TexturedPreviewWindow)
+        win.top = Mock()
+        win.top.after.return_value = 'after-token'
+        win.canvas = Mock()
+        win.canvas.winfo_width.return_value = 360
+        win.canvas.winfo_height.return_value = 240
+        win.status = Mock()
+        win.model = Mock()
+        win.model.faces = [None] * 9
+        win.textures = {}
+        win.yaw, win.pitch, win.zoom, win.pan = .65, .48, 1., (0., 0.)
+        win._closed = False
+        win._pending = None
+        win._poll_id = None
+        win._request_version = 0
+        win._queued = None
+        win._render_future = None
+        win._cancel_render = None
+        win.image_ref = None
+
+        first = Future()
+        second = Future()
+        win._executor = Mock()
+        win._executor.submit.side_effect = [first, second]
+
+        win.schedule()
+        win._request_full_render()
+        self.assertIs(win._render_future[2], first)
+        self.assertTrue(win._cancel_render.is_set() is False)
+        self.assertEqual(win._executor.submit.call_count, 1)
+
+        # The new request invalidates the running frame but does NOT queue
+        # a second worker job until the cancelled first one completes.
+        win.yaw = 1.0
+        win.schedule()
+        self.assertTrue(win._cancel_render.is_set())
+        win._request_full_render()
+        self.assertEqual(win._executor.submit.call_count, 1)
+        first.set_exception(PreviewCancelled())
+        win._poll_completed()
+        self.assertIs(win._render_future[2], second)
+        self.assertEqual(win._executor.submit.call_count, 2)
+
+        frame = Image.new('RGB', (360, 240), (30, 180, 70))
+        second.set_result((frame, 9))
+        with patch('PIL.ImageTk.PhotoImage', return_value='fake-photo'):
+            win._poll_completed()
+        win.canvas.create_image.assert_called_once()
+        self.assertEqual(win.image_ref, 'fake-photo')
+        self.assertIn('9', win.status.set.call_args[0][0])
+        win.close()
+        win._executor.shutdown.assert_called_once_with(
+            wait=False, cancel_futures=True)
+        win.top.destroy.assert_called_once()
+
     def test_source_face_cap_never_stride_drops_original_triangles(self):
         try:
             from PIL import Image
