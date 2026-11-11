@@ -205,7 +205,7 @@ class DirectDAETests(unittest.TestCase):
             '<node id="grass-node">',
             '<node id="grass-node"><instance_controller url="#unknown"/>'),
             encoding="utf-8")
-        with self.assertRaisesRegex(VisualAssetError, "Unsupported original scene"):
+        with self.assertRaisesRegex(VisualAssetError, "controller unresolved or duplicated"):
             load_private_dae_visual_model(self.dae)
 
     def test_brawlcrate_sampler_surface_ref_to_image_name(self):
