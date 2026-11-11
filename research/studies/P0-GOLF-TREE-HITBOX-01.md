@@ -347,3 +347,59 @@ This can reveal whether Ball's +84 iteration actually accesses
 the known 94 trees or unrelated structures. No tree collision
 shape/branch/velocity response approved. Do not conflate
 source-unit ownership and semantic method identity.
+
+## Original +0x48 tree proximity flag and +84 shared-global offset (not tree stride)
+
+The operator supplied an original source-qualified capture7 report and bounded
+`Ball+0x0640..+0x081C` and `Tree+0x0000..+0x00BC` native disassembly.
+Independently checked the call targets against public
+[`RSPE_r1.map.csv`](https://github.com/kiwi515/ogws_info/blob/main/RSPE_r1.map.csv):
+
+- Public symbol **`PSVECSquareDistance` at `0x800E86D0`**.
+  `Tree+0x0030`, `Ball+0x0750` and `Ball+0x0760`
+  all BL to exactly this function.
+- **`Tree+0x000C`** takes source tree `mTrans +0x30`,
+  passes `r4 = (global context->+0x334)+0x54` as other VEC3,
+  calls `PSVECSquareDistance`, compares squared distance `f1`
+  with native static small-data float `lfs f0,-14912(r2)`, and
+  stores a one-bit result with **`stb r0,+0x48(r31)`** at
+  `Tree+0x0044`. FieldManager's known 94-tree loop invokes the
+  function at `Tree+0x000C`. This is **native source-proven
+  per-tree squared-distance threshold flag computation**, but NOT
+  evidence that the threshold means physical collision. It could
+  indicate proximity/LOD/rendering/other state. The comparison
+  constant's numeric value remains unresolved without validated r2
+  small-data-base provenance.
+- The `addi +84` at `Ball+0x0738` is NOT the same as the verified
+  FieldManager tree-array stride. `Ball` reads a global context
+  `+0x334` pointer and adds an internal **byte offset +84** before
+  calling the same squared-distance function. `Tree+0x002C`
+  also takes the shared-global `+0x334` and adds 84 before its call.
+  Neither source module shows a 94-tree array iteration here.
+- Corrected native `+0x3C/+0x40/+0x44` VEC3 scale reports **94
+  finite vectors**, component ranges **1.0..2.64**. Therefore neither
+  `+0x40/+0x44` (old header comments) nor guessed
+  `+0x48/+0x4C` are verified transform-pointer pair fields:
+  actual **+0x48 is a byte flag**, and was 0/94 for capture7
+  in original full-word check. `+0x4C` remains 94 distinct raw
+  words in source capture7, unknown type; the old selfref test
+  was 0/94. The 94 common firstwords may point to a method table,
+  but no native virtual dispatch or hitbox method is proven.
+- `+0x04 mModel` and `+0x08 mMapObj` each had **2 distinct raw
+  word patterns** across 94 objects, despite strict aligned pointer
+  validator classifying both as other nonzero. These may correlate
+  with different tree variants or memory layout; **do not claim
+  model types until source object ownership is verified**.
+
+New standalone `scripts/p0_tree_proximity_flag_private.py`
+requires original exact 7-pair SHA and scene, 94x84 source array,
+native squared-distance/tree-flag PPC instruction fingerprint.
+It reports only aggregate (no raw XYZ/pointers/code words) source
+byte+0x48 flag histograms across original captures 1,5,7,
+`mScale` axis equality, +0x4C raw-word float/pointer pattern
+counts, distinct pair groups of +0x04/+0x08 and public-source
+code relative *syntactic* candidates reading +0x48.
+**Any code reading +0x48 at a matching displacement may refer
+to other object classes**: receiver identity must be proven.
+No tree contact, native foliage/trunk hitboxes or bounce response
+has been derived. Training false.
