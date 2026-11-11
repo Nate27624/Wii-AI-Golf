@@ -48,9 +48,10 @@ def fit_points(positions: tuple[Point3, ...], *, illustrations: bool) -> tuple[P
     s = placeholder_size(positions)
     extra = []
     for x, y, z in positions:
-        extra.extend(((x, y + 2.4*s, z),
-                      (x-s, y+0.75*s, z-s),
-                      (x+s, y+0.75*s, z+s)))
+        extra.append((x, y + 2.4*s, z))
+        # All four corners matter for bounds at arbitrary camera yaw.
+        extra.extend((x+dx*s, y+0.75*s, z+dz*s)
+                     for dx, dz in ((-1,-1),(-1,1),(1,-1),(1,1)))
     return positions + tuple(extra)
 
 
