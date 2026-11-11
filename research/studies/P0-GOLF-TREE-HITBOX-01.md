@@ -1020,3 +1020,76 @@ No game memory addresses, original tree XYZ,
 individual records or private triangle vertices
 are ever emitted to repo or console; source
 values stay local. Tree hitboxes and training false.
+
+## Original capture7 94-tree terrain-group joint result and native ball contact pivot
+
+Operator ran original SHA/scene/native 94x84 source-gated
+`p0_tree_kcl_surface_group_join_private.py` and supplied the
+private aggregate result:
+
+| Original tree raw +0x04/+0x08 resource-word pair | Rough 0x0002 | OOB 0x0004 | Count | Nonuniform scale |
+|---|---:|---:|---:|---:|
+| Larger anonymous word group | 22 | 50 | 72 | 16 |
+| Smaller anonymous word group | 0 | 22 | 22 | 2 |
+| Total | 22 | 72 | 94 | 18 |
+
+**The 72/22 resource-vs-terrain marginal match is NOT a per-tree
+categorical mapping.** Both groups contain OOB trees; the
+72 group also has all 22 rough trees. Neither group is a
+verified tree species or collider type. The 2498 candidate
+KCL faces reproduce terrain under all 94 tree origins but
+none of the 128 near-vertical faces come within 50
+source units of the tree centres on actual triangle
+geometry. The candidate KCL looks terrain-focused,
+but absent independent active KCL octree membership,
+this does not prove there is a separate tree collision
+resource or that trees have physical collision at all.
+
+**Focus shifted to NATIVE Ball → GolfKCol postcall
+semantics**, separate from the other agent's
+[visual-only tree inspector issue #431](https://github.com/Nate27624/Wii-AI-Golf/issues/431).
+Earlier operator native source+SHA gated
+`p0_ball_kcol_twelve_calls_private.py --detail` verified
+5 + 7 cross-compiled-unit calls; the 7 GolfKCol→Ball
+calls are all to the generic vector scaling helper
+`Ball+0x15C4`, NOT proof of ball mutation.
+Exact five original Ball→GolfKCol BL pairs recovered
+from operator's recorded source receipt:
+
+| Ball source-relative BL site | Original KCol source-relative target |
+|---|---|
+| +0x05C0 | +0x0000 |
+| +0x0AFC | +0x1BB8 |
+| +0x0B60 | +0x1AC4 |
+| +0x14D0 | +0x0000 |
+| +0x27B0 | +0x0000 |
+
+`GolfKCol+0x0000` had native query dispatcher
+`+0x1540`; `+0x1AC4` reads source `+0x54(r3)`
+and tail branches to `+0x2090` indexed triangle
+processing. `+0x1BB8` reaches a source
+`+0x31F0` spatial helper. These are real source
+graph edges but do NOT yet establish that a
+specific game KCL octree is the active ball
+resource, or that a return means tree hit.
+
+New read-only `scripts/p0_ball_kcol_postcall_context_private.py`
+requires the original seven-pair SHA, scene and
+94x84 FieldManager loop; **exact 5+7 source calls AND
+all five precise BL caller/target offset pairs**
+before printing up to 15 pre-call + 36 post-call
+Ball instructions and 34 KCol target instructions
+for each. Reports syntactic compare, branch and
+store sites near the calls separately from
+verified receiver/return dataflow. Native PPC
+opcodes printed locally only with `--detail`;
+no private heap/positions/triangle mesh/source bytes
+committed. No inferred ball velocity mutation,
+tree collision geometry or trainable labels.
+
+Primary next falsifiable question: for each Ball
+BL to KCol, what native function data/geometry
+is passed, which return/status is tested,
+and where (if anywhere) a collision result causes
+a write to the ball's velocity/position?
+Tree contact remains UNVERIFIED, training false.
