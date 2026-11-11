@@ -66,7 +66,9 @@ def ppc_mtctr(rs):
 
 def fixture():
     words = {}
-    for pc in list(range(0x802B4794, 0x802B4820, 4)) + list(range(*m.EXCERPT, 4)):
+    for pc in (list(range(0x802B4794, 0x802B4820, 4))
+               + list(range(*m.EXCERPT, 4))
+               + list(range(*m.CONTROLLER_ACCESSOR_WINDOW, 4))):
         words[pc] = dform(14, 1, 1, 0)
     for pc, (freg, base, disp) in m.STFS_GATES.items():
         words[pc] = dform(52, freg, base, disp)
@@ -78,6 +80,16 @@ def fixture():
         words[pc] = bl(pc, dest)
     for pc, (dest, src) in m.MR_GATES.items():
         words[pc] = mr(dest, src)
+    for pc, target in m.CONTROLLER_ACCESS_CALLS.items():
+        words[pc] = bl(pc,target)
+    for pc,idx in m.CONTROLLER_ACCESS_SELECTORS.items():
+        words[pc] = dform(14,4,0,idx)
+    for pc,(dest,src) in m.CONTROLLER_RESULT_COPIES.items():
+        words[pc] = mr(dest,src)
+    for pc,(reg,base,disp) in m.CONTROLLER_ENTRY_GATES.items():
+        words[pc] = dform(32,reg,base,disp)
+    words[m.CONTROLLER_FP_CONSTANT_LOAD] = dform(48,31,2,-12892)
+    words[m.CONTROLLER_RETURN_FP_LOAD] = dform(48,1,31,0x18)
     # Known candidate intermediate r24-relative stores (synthetic payload).
     words[0x802B482C] = dform(52, 1, 24, 0x18)
     words[0x802B4840] = dform(52, 2, 24, 0x1C)
@@ -296,6 +308,42 @@ class Tests(unittest.TestCase):
                     else m.verify_virtual_selector_reuse)
                 with self.assertRaisesRegex(m.Abstain,reason):
                     fn(words.__getitem__)
+
+    def test_controller_extended_status_caller_and_public_field_annotation(self):
+        report=m.source_slice(fixture().__getitem__)
+        call=report["controller_extended_status_call_chain"]
+        self.assertEqual(call["status"],
+            "REV1_CONTROLLER_THREE_EXTENDED_STATUS_CALLERS_SOURCE_PASS")
+        self.assertEqual(call["selector_codes"],[1,2,3])
+        self.assertEqual(call["record_2_register"],"r31")
+        self.assertEqual(call["public_KPADStatus_fields"]["record+0x18"],
+                         "acc_value")
+        self.assertEqual(call["public_KPADStatus_fields"]["record+0x1C"],
+                         "acc_speed")
+        self.assertFalse(call[
+            "native_accessor_body_exactly_matched_to_public_method"])
+        self.assertEqual(call["read_length_source_field_offset"],0x854)
+        self.assertEqual(
+            len(report["candidate_getExCoreStatus_binary_excerpt"]),
+            (m.CONTROLLER_ACCESSOR_WINDOW[1]-m.CONTROLLER_ACCESSOR_WINDOW[0])//4)
+
+    def test_controller_call_and_selector_gates_fail_closed(self):
+        checks=[
+            (m.CONTROLLER_ACCESS_CALLS,"controller_accessor_caller_call"),
+            (m.CONTROLLER_ACCESS_SELECTORS,"controller_accessor_selector"),
+            (m.CONTROLLER_RESULT_COPIES,"controller_accessor_record_copy"),
+            (m.CONTROLLER_ENTRY_GATES,"controller_accessor_sample_count"),
+            ({m.CONTROLLER_FP_CONSTANT_LOAD:None},
+             "controller_accessor_decay_constant"),
+            ({m.CONTROLLER_RETURN_FP_LOAD:None},
+             "controller_accessor_return_field"),
+        ]
+        for group,reason in checks:
+            for pc in group:
+                words=fixture()
+                words[pc] ^= (1 << 21)
+                with self.assertRaisesRegex(m.Abstain,reason):
+                    m.verify_controller_selector_call_chain(words.__getitem__)
 
     def test_wrong_bank_or_unaligned_source_address_abstains(self):
         fake = bytes(64)
