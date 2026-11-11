@@ -1,6 +1,6 @@
 # S003 — pose-gated swing-power pilot (Hitting the Green, zero wind)
 
-**Status:** isolated draft code, no real game result. Operator-reported constraint: **Hitting the Green wind is always 0**. The *initial club position affects shot power*, so never compare different starting poses as if the controller waveform alone were responsible. This implementation only **observes and gates** the pose; it does **not** manipulate the club into a particular pose or prove how the game computes power.
+**Status:** isolated draft; one atomic shot had operator-confirmed visible contact but its numeric power was UI-truncated and is NOT a calibration reference. Operator-reported constraint: **Hitting the Green wind is always 0**. The *initial club position affects shot power*, so never compare different starting poses as if the controller waveform alone were responsible. This implementation only **observes and gates** the pose; it does **not** manipulate the club into a particular pose or prove how the game computes power.
 
 ## Scope and ownership
 
@@ -37,9 +37,23 @@ Operator reached first-ball ready screen and confirmed initial club pose back. A
 
 This is a known limitation of frame-expiring Felk A requests controlled by a host polling loop; do NOT weaken the gap check, increase host polling to mask it, or retry the old V1 host-polled A45 path. The corrected pilot rejects live non-atomic mode before invoking controller RPC, and checks the **actually loaded** atomic A45 capability before human prompts. All B1/B2/X1 trials must now use the exact same isolated atomic V1 bridge. Use new scenario ID **firstball02** to separate the failed prehold epoch.
 
-## One-shot operator protocol — atomic A45, never unattended
+## Nov 10 completed atomic B1: exploratory contact, invalid numeric power
 
-1. Close existing Dolphin. Reuse the saved original game path and registered checkpoint from the main checkout (not the new worktree); no game path copy/paste. Prepare a **distinct** isolated atomic bridge without overwriting the historical legacy V1:
+The operator completed a firstball02 B1 swing with the existing atomic A45 V1 bridge, and visually confirmed ball contact plus M:100ft OFF-GREEN (a **censored score penalty**, never carry). Human initially entered 120 for displayed swing power; the shared S002 collector rejected values above 100, so the operator entered 100 to complete the trial. The operator later stated that power **might be above 100 but was uncertain** and that the club was **partially**, not fully, drawn back.
+
+**Evidence decision:** Preserve the original firstball02 private JSONL unchanged; its value 100 was a form-limited fallback, NOT a reliable native or human measured 100%. **Do not reuse firstball02 as a B2/X1 calibration baseline.** Its coarse back label did not distinguish partial from full backswing. Successful dispatch and visual contact did not establish native accepted power, launch velocity, or physical distance. Record this interpretation on #399 and #433. Start new firstball03 series.
+
+### Corrected measurement and action design
+
+- Predeclared starting club pose detail now required: partial-back or full-back when coarse pose=back, and center/forward otherwise. Before sending A, user must affirm exact declared detailed category. It is only a HUMAN visual category, not a verified club angle.
+- Power prompt now accepts 120, 120?, >100, 100+, and blank. A clear number is still a **human visual estimate**, not native accepted power. Questionable values and lower bounds are persisted for analysis but **do not qualify as a numeric baseline**. Bound 500 only protects against input typos and is not a claim about game maximum.
+- B1 and B2 continue exact same 45 bridge-callback A lead + 89 input samples. Same reported pre-A detailed pose, club, aim, source SHA, and scenario. Only after two repeatable qualified baselines can one third contrast be attempted: XLOW reduces the **15 backswing requested distances from 0.25 m to 0.20 m**, while X1 raises them to 0.30 m. Neither requested value guarantees any particular swing power, since emulator dynamics and club pose matter.
+- Do not automatically run B2/XLOW/X1. We recommend first exploring XLOW because the initial shot may have been above 100, and re-evaluating after a repeatable control.
+- The club reaching only partially back **during** the atomic action is not necessarily the same as the **initial pre-A** club pose. Establish that distinction with synchronized frame/video or native club state measurements. The new prompt only gates the latter.
+
+### Operator's local one-shot protocol (new firstball03; no ROM path entry)
+
+Close Dolphin between trials. Reuse main checkout's gitignored launch.local.json and savestates.local.json. The already prepared distinct mcp_bridge_swing_atomic_a45.py source must be the same original-reviewed bridge. Do not regenerate/overwrite or use the legacy host-polled bridge.
 
 ~~~powershell
 $ErrorActionPreference = 'Stop'
@@ -47,41 +61,47 @@ $repo = 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Pose-Pilot'
 $main = 'D:\Projects\Wii Golf AI\Wii-AI-Golf'
 $config = Join-Path $main 'research\launch.local.json'
 $catalog = Join-Path $main 'research\savestates.local.json'
-$legacy = 'D:\Projects\Wii Golf AI\tools\mcp_bridge_swing_legacy_eval.py'
 $atomic = 'D:\Projects\Wii Golf AI\tools\mcp_bridge_swing_atomic_a45.py'
-foreach ($item in @($config, $catalog, $legacy)) {
-    if (-not (Test-Path -LiteralPath $item -PathType Leaf)) {
-        throw "Missing required file: $item"
-    }
-}
-$settings = Get-Content -LiteralPath $config -Raw | ConvertFrom-Json
-if (-not (Test-Path -LiteralPath $settings.game -PathType Leaf)) {
-    throw 'Saved game path is invalid'
-}
+
 Set-Location -LiteralPath $repo
-py -3 -I scripts/prepare_atomic_a45_bridge.py --source $legacy --output $atomic
-if ($LASTEXITCODE -ne 0) { throw 'Atomic bridge preparation failed; no shot' }
-~~~
+if (git status --porcelain) { throw 'Worktree has local changes' }
+git fetch origin refs/pull/433/head
+if ($LASTEXITCODE -ne 0) { throw 'Fetch failed' }
+git switch --detach FETCH_HEAD
+if ($LASTEXITCODE -ne 0) { throw 'Update failed' }
 
-2. Run tests and the outer **dry-run** with the new scenario; no buttons or game input are sent by these:
-
-~~~powershell
 py -3 -I -m unittest discover -s tests -p test_p0_pose_power_trial.py -v
-if ($LASTEXITCODE -ne 0) { throw 'Focused tests failed; no shot' }
-py -3 -I scripts/run_golf_experiment.py --config $config --catalog $catalog --bridge $atomic --script p0_pose_power_trial.py -- --send-live-swing --arm B1 --pose back --scenario firstball02 --club iron --aim-id straight --bridge-source $atomic --atomic-a45
-if ($LASTEXITCODE -ne 0) { throw 'Outer dry-run failed; no shot' }
+if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+
+foreach ($item in @($config, $catalog, $atomic)) {
+    if (-not (Test-Path -LiteralPath $item -PathType Leaf)) { throw "Missing: $item" }
+}
+$saved = Get-Content -LiteralPath $config -Raw | ConvertFrom-Json
+if (-not (Test-Path -LiteralPath $saved.game -PathType Leaf)) {
+    throw 'Saved game file was not found'
+}
+
+$trial = @(
+    '--config', $config, '--catalog', $catalog, '--bridge', $atomic,
+    '--script', 'p0_pose_power_trial.py', '--',
+    '--send-live-swing', '--arm', 'B1',
+    '--pose', 'back', '--pose-detail', 'partial-back',
+    '--scenario', 'firstball03',
+    '--club', 'iron', '--aim-id', 'straight',
+    '--bridge-source', $atomic, '--atomic-a45'
+)
+py -3 -I scripts/run_golf_experiment.py @trial
+if ($LASTEXITCODE -ne 0) { throw 'Outer launcher dry run failed' }
+
+if ((Read-Host 'Type RUN-B1 for ONE live, consented firstball03 trial') -eq 'RUN-B1') {
+    py -3 -I scripts/run_golf_experiment.py --send-live @trial
+    if ($LASTEXITCODE -ne 0) { throw 'B1 not qualified, stop here' }
+} else {
+    Write-Host 'No live shot requested.'
+}
 ~~~
 
-3. After confirming these outputs and the prepared source's identity, run **ONE** separately consented B1 from fresh saved first-ball state:
-
-~~~powershell
-py -3 -I scripts/run_golf_experiment.py --send-live --config $config --catalog $catalog --bridge $atomic --script p0_pose_power_trial.py -- --send-live-swing --arm B1 --pose back --scenario firstball02 --club iron --aim-id straight --bridge-source $atomic --atomic-a45
-if ($LASTEXITCODE -ne 0) { throw 'B1 did not complete; do not run B2' }
-~~~
-
-The child checks runtime atomic capability **before any A or motion**, confirms initial pose before A, and requests human consent. Stop with q if club/scene/aim/pin differ. A callback receipt is NOT evidence that the game accepted A/contact, and human-visible percent is NOT a source-verified power scalar. The first-ball condition and wind=0 remain operator-established, not memory-qualified.
-
-4. Only if B1 yields a qualifying observed shot, proceed later to a separately consented B2 and then X1 on fresh first-ball starts, changing only --arm and retaining the same firstball02 scenario, pose, club, aim, and **same atomic bridge SHA**. Off-green 100ft is a censored penalty, not measured carry; no training.
+If user sees >100 but cannot read an exact number, enter >100 or 100+; if approximate 120, enter 120?; do NOT replace an over-100 reading with 100. If initial pose differs, cancel with q before A. An incomplete/unqualified B1 cannot advance to B2. No scripting of multiple automatic live shots is permitted. Off-green 100ft remains a censored penalty.
 
 ## Next scientific step
 
