@@ -30,6 +30,7 @@ import audit_p0_seven_numbered_source_pairs_private as seven
 
 BASE=before.SOURCE_BALL
 MEM1=before.MEM1
+MEM1=before.MEM1
 ENTRY=before.FN_START
 FIRST_COPY=[
     (0x2D00,0x2D04,0,0xCC),
