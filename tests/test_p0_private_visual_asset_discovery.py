@@ -57,6 +57,31 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(found["archive_headers"]["BRRES"], 1)
         self.assertFalse(found["source_hole_and_alignment_verified"])
 
+    def test_partial_real_brres_export_marks_only_missing_palette(self):
+        base = "visual_exports/glf_course_fc1"
+        self.save(base + "/3DModels(NW4R)/glf_course_fc1.mdl0",
+                  b"MDL0" + b"\\x00" * 20)
+        texfolder = base + "/Textures(NW4R)/"
+        self.save(texfolder + "glf_fairway1.tex0", b"TEX0" + b"\\x00" * 20)
+        self.save(texfolder + "glf_fairway1.tex0.png", PNG)
+        self.save(texfolder + "glf_tokosenFix.tex0", b"TEX0" + b"\\x00" * 20)
+        result = mod.scan(self.root)
+        self.assertEqual(result["stage"],
+                         "MDL0_WITH_EXTRACTED_PNG_NEEDS_UV_DAE_EXPORT")
+        self.assertEqual(result["count_by_extension"]["mdl0"], 1)
+        self.assertEqual(result["count_by_extension"]["tex0"], 2)
+        self.assertEqual(result["unresolved_tex0_count"], 1)
+        self.assertEqual(result["raw_tex0_without_matching_base_png"],
+                         [texfolder + "glf_tokosenFix.tex0"])
+        self.assertFalse(result["source_hole_and_alignment_verified"])
+
+    def test_mdl0_without_png_does_not_claim_texture_readiness(self):
+        self.save("course.mdl0", b"MDL0" + b"\\x00" * 20)
+        result = mod.scan(self.root)
+        self.assertEqual(result["stage"],
+                         "MDL0_FOUND_NEEDS_ORIGINAL_TEXTURE_EXPORT")
+        self.assertFalse(result["ready_uv_models"])
+
     def test_dae_precedes_archive_for_model_export_guidance(self):
         self.save("course.dae", b"synthetic DAE")
         self.save("sample.carc", b"Yaz0" + b"\x00"*8)
