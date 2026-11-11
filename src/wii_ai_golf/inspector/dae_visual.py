@@ -297,13 +297,24 @@ def load_private_dae_visual_model(
     except UnsupportedSceneFeature as exc:
         if not allow_geometry_only_for_unsupported_scene:
             raise
-        # Source-authored vertex arrays + original material/UV/PNG binding
-        # are still valid, just not the (unsupported) visual-scene mapping.
-        # Do NOT silently apply guessed root yaw or KCL correspondence.
-        authored_scene = None
-        scene_warning = (
-            "GEOMETRY-ONLY ORIGINAL-TEXTURE PREVIEW: " + str(exc) +
-            ". Visual-scene/world alignment NOT APPLIED or verified.")
+        # Prefer accurate native-authored static scene transforms while
+        # omitting ONLY unsupported controller/skew/lookat subtrees. If no
+        # supported geometry remains, fall back to the original library
+        # POSITION/UV+PNG, with every scene transform clearly unverified.
+        limitations: list[str] = []
+        try:
+            authored_scene = source_scene_instances(
+                root, omit_unsupported=True, limitations=limitations)
+            scene_warning = (
+                "PARTIAL ORIGINAL SCENE PREVIEW: " +
+                "; ".join(sorted(set(limitations))) +
+                ". Supported source node transforms ARE applied; omitted "
+                "elements and native world/KCL alignment are NOT reconstructed.")
+        except UnsupportedSceneFeature:
+            authored_scene = None
+            scene_warning = (
+                "GEOMETRY-ONLY ORIGINAL-TEXTURE PREVIEW: " + str(exc) +
+                ". Visual-scene/world alignment NOT APPLIED or verified.")
 
     vertices, uvs, faces = [], [], []
     visited_geometry_ids = set()
