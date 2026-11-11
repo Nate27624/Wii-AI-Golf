@@ -149,7 +149,7 @@ def fit_source_surface_display(terrain, visual, *,
     # The 0/90/180/270 trial is the SAME yaw as PR436 x-ray display.
     rotated={}
     for name,(kp,vp) in groups.items():
-        delta=kp[:,(0,2)]-kcenter[(0,2)]
+        delta=kp[:,(0,2)]-kcenter[[0,2]]
         rot=np.column_stack((c*delta[:,0]-s*delta[:,1],
                              s*delta[:,0]+c*delta[:,1]))
         rotated[name]=(rot,vp[:,(0,2)])
