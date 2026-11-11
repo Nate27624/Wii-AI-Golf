@@ -81,6 +81,43 @@ py -3 -I scripts/p0_calc_magnitude_upstream_private.py --detailed
 This does not start Dolphin or send controller input. It re-checks all original archive SHA gates and prints symbolic PC, relative field and FP operand information only. The next reverse trace should identify `r31` source-object provenance and the indirect vtable +56 callee for each virtual call.
 
 
+## 2026-11-11 second operator --detailed source PASS (13 local focused tests)
+
+User ran the SHA-gated `--detailed` audit on the original archived 14 banks. `original_14_bank_sha_pre_and_post_verified=true` and phase-1/5/7 code-identical confirmed again. The result exposed the previously missing `0x802B4820..485C` instructions, completing the **current field-level recurrence** on this path. Strict compare/skip conditions are PPC `fcmpo` and BO4/BI1, not the Python `max()` operation for NaNs or denormals; single precision rounding is not modeled.
+
+~~~python
+# Simplified instruction semantics; NOT named Wii Remote axes.
+if incoming_f1 > calc[0x18]:
+    calc[0x18] = incoming_f1
+if source_r31[0x18] > calc[0x1C]:
+    calc[0x1C] = source_r31[0x18]
+
+calc[0x20] = (calc[0x20] * f31) + source_r31[0x1C]
+calc[0x24] = (calc[0x24] * f31) + source_r31[0x1C]
+
+if calc[0x20] > calc[0x28]:
+    calc[0x28] = calc[0x20]
+if calc[0x24] > calc[0x2C]:
+    calc[0x2C] = calc[0x24]
+
+V1 = virtual_call_at_0x802B48B8()
+V2 = virtual_call_at_0x802B48EC()
+A = (calc[0x18] * V1) * calc[0x28]
+B = (calc[0x1C] * V2) * calc[0x2C]
+# Then the earlier known +0x08/+0x0C strict-greater updates.
+~~~
+
+The first track `+0x20/+0x28` and second `+0x24/+0x2C` apply the **same new `r31+0x1C` field** to separate persisted accumulators, weighted by incoming `f31`. This may be smoothing/history, but the origin/meaning of `f31` and `r31` are still unknown and should NOT be called physical acceleration, velocity or angle.
+
+**New selector insight:** both virtual returns are requested using the exact same *static* expression: `root=lwz(-23168,r13)`, `idx=lwz(root+0x1C)`, `offset=idx*4` via `rlwinm SH=2 MB=0 ME=29`, `object=lwz(root+offset+0x0C)`, `target=lwz(lwz(object)+0x38)`, then `mtctr/bctrl`. They can be **two calls to the same virtual method on the same selected object** if the first callback does not mutate global selection or vtable. So calling V1/V2 "two distinct sensor sources" is UNJUSTIFIED. Static code does not prove both return exactly the same value at runtime or identify the virtual callee.
+
+### New bounded gates and next read
+
+The newly extended source audit additionally validates exact `stfs/lfs/fmuls/fadds/fcmpo/bc` for `+0x18/+0x1C/+0x20/+0x24/+0x28/+0x2C`, and the **full duplicate global-indexed virtual-getter selection path**. It now emits symbolic instructions from function ENTRY `0x802B4794..0x802B481C`, which were absent in the second operator output. This entry prelude is the next source-only place to find where `r31`, `f31` and incoming `f1` came from. No new game/controller input required.
+
+**Source-quality boundary:** the operator has verified original original-bank code for earlier operations; the *expanded gates* themselves are not confirmed against the original archive until the operator re-runs the updated isolated PR script. Exact-head Windows/Ubuntu synthetic and full CI are a separate check and are not a replacement for the private original source pass.
+
+
 ## What the microaudit actually checks
 
 New-only `scripts/p0_calc_magnitude_upstream_private.py`:
