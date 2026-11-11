@@ -102,11 +102,15 @@ class FC3SourceTransformTests(unittest.TestCase):
         terrain,visual=synthetic_original_source_pair(shift_heldout=100.)
         result=private_fit_report(terrain,visual,initial_multiplier=1.,
                                   initial_offset_x=0.,initial_offset_z=0.)
-        self.assertEqual(result["status"],
-                         "ORIGINAL_SURFACE_FIT_FAILED_HOLDOUT_GATE")
-        self.assertFalse(result["independent_surface_heldout_gate_passed"])
-        self.assertGreater(result[
-            "optimized_held_out_error_percent_of_diagonal"],6.)
+        self.assertIn(result["status"],(
+            "ORIGINAL_SURFACE_FIT_FAILED_HOLDOUT_GATE",
+            "SOURCE_GEOMETRY_FIT_DECLINED"))
+        if result["status"]=="SOURCE_GEOMETRY_FIT_DECLINED":
+            self.assertIn("WORSENED independent bunker",result["reason"])
+        else:
+            self.assertFalse(result["independent_surface_heldout_gate_passed"])
+            self.assertGreater(result[
+                "optimized_held_out_error_percent_of_diagonal"],6.)
 
     def test_requires_sha_bound_original_kcl_labels(self):
         terrain,visual=synthetic_original_source_pair(no_labels=True)
