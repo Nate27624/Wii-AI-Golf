@@ -78,7 +78,9 @@ class DirectDAETests(unittest.TestCase):
         self.assertEqual(visual.faces[0].material, "M_Fairway")
         self.assertEqual(visual.faces[1].material, "M_Kiwa_Black")
         self.assertEqual(visual.uvs[:3], ((0., 0.), (1., 0.), (0., 1.)))
-        self.assertEqual(visual.textures["M_Fairway"].filename, self.png)
+        self.assertEqual(visual.textures["M_Fairway"].filename.name, self.png.name)
+        self.assertEqual(visual.textures["M_Fairway"].sha256,
+                         hashlib.sha256(self.png.read_bytes()).hexdigest())
         self.assertEqual(visual.solid_colors["M_Kiwa_Black"], (26, 76, 128))
         self.assertEqual(visual.obj_sha256, hashlib.sha256(self.dae.read_bytes()).hexdigest())
 
