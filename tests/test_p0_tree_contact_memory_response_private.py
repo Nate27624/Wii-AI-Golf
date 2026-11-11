@@ -78,7 +78,7 @@ class TreeMemoryOnlyResponseTests(unittest.TestCase):
         source=out["nested_exact_matches_by_ball_offset_and_phase"]["+0x030"]
         self.assertEqual(source["stationary"]["exact_same_packet_nested_matches"],3)
         self.assertEqual(source["moving"]["exact_same_packet_nested_matches"],0)
-        self.assertEqual(source["moving"]["exact_nested_previous_packet_matches"],3)
+        self.assertEqual(source["moving"]["exact_nested_next_packet_matches"],2)
         inter=out["ball_candidate_exact_interfield_matches_by_phase"][
             "+0x030_versus_+0x0CC"]
         self.assertEqual(inter["moving"]["exact_same_packet_triplet_matches"],3)
