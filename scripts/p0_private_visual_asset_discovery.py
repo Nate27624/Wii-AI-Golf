@@ -20,13 +20,15 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from wii_ai_golf.inspector.visual_model import VisualAssetError, load_private_visual_model
 
-EXTS = {".carc", ".arc", ".szs", ".brres", ".dae", ".obj", ".mtl", ".png"}
+EXTS = {".carc", ".arc", ".szs", ".brres", ".mdl0", ".tex0", ".dae", ".obj", ".mtl", ".png"}
 MAX_FILES = 20_000
 MAX_DEPTH = 9
 MAX_REPORT_ITEMS = 80
 MAX_FILE_SIZE = 512 * 1024 * 1024
 MAGICS = (
     (b"bres", "BRRES"),
+    (b"MDL0", "MDL0"),
+    (b"TEX0", "TEX0"),
     (b"Yaz0", "YAZ0_COMPRESSED"),
     (b"Yay0", "YAY0_COMPRESSED"),
     (b"RARC", "RARC"),
@@ -69,6 +71,8 @@ def scan(root: Path) -> dict:
     valid_models: list[dict] = []
     scanned = 0
     truncated = False
+    raw_tex0: set[Path] = set()
+    base_pngs: set[Path] = set()
 
     # Never follow symlinks, even when their target is inside the root.
     for current, dirs, files in os.walk(root, topdown=True, followlinks=False):
@@ -89,7 +93,11 @@ def scan(root: Path) -> dict:
                 continue
             kind = source.suffix.lower().removeprefix(".")
             counts[kind] += 1
-            status = _classify(source) if kind in {"carc", "arc", "szs", "brres"} else "FILE_FOUND"
+            status = _classify(source) if kind in {"carc", "arc", "szs", "brres", "mdl0", "tex0"} else "FILE_FOUND"
+            if kind == "tex0":
+                raw_tex0.add(source.relative_to(root))
+            if kind == "png" and ".mm" not in source.stem:
+                base_pngs.add(source.relative_to(root))
             if status != "FILE_FOUND":
                 formats[status] += 1
             if len(names) < MAX_REPORT_ITEMS:
@@ -112,10 +120,16 @@ def scan(root: Path) -> dict:
                 })
         if truncated:
             break
+    unresolved_tex0 = sorted(str(p) for p in raw_tex0
+                            if Path(str(p) + ".png") not in base_pngs)
     if valid_models:
         stage = "UV_VISUAL_MODELS_READY_TO_PREVIEW_HOLE_UNVERIFIED"
     elif counts["dae"]:
         stage = "DAE_FOUND_NEEDS_UV_OBJ_MTL_PNG_CONVERSION"
+    elif counts["mdl0"] and counts["png"]:
+        stage = "MDL0_WITH_EXTRACTED_PNG_NEEDS_UV_DAE_EXPORT"
+    elif counts["mdl0"]:
+        stage = "MDL0_FOUND_NEEDS_ORIGINAL_TEXTURE_EXPORT"
     elif counts["brres"]:
         stage = "BRRES_FOUND_NEEDS_MDL0_TEX0_EXPORT"
     elif counts["carc"] or counts["arc"] or counts["szs"]:
@@ -129,6 +143,8 @@ def scan(root: Path) -> dict:
         "files_examined": min(scanned, MAX_FILES),
         "truncated": truncated, "candidates": names,
         "ready_uv_models": valid_models[:MAX_REPORT_ITEMS],
+        "raw_tex0_without_matching_base_png": unresolved_tex0[:MAX_REPORT_ITEMS],
+        "unresolved_tex0_count": len(unresolved_tex0),
         "source_hole_and_alignment_verified": False,
         "training_approved": False, "allowed_to_publish": False,
     }
