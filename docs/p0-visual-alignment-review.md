@@ -131,3 +131,52 @@ To open the source DAE model once extracted/exported, use
 The inspector's FC archive spinbox also accepts 1-99. The explicit course
 probe now detects available original `RPGolScene/glf_course_fcN.carc`
 without asserting that it has been unpacked or converted to a DAE.
+
+
+## 2026-11-11: FC3 exact original KCL and quantitative transform investigation
+
+The operator proved that **original glf_course_fc3 KCL** is the UNIQUE
+order-independent nine-significant-digit exact 2,498-triangle match among
+11 checked on-disc FC archives. The operator exported original FC3 DAE
+from BrawlCrate and visually aligned the original texture surface and
+source KCL in the unified viewer. Manual visual trial: display-scale
+multiplier **2.0789×** the initial bounds fit, offsets **X +0.020 /
+Z +0.010 of the original playable DAE diagonal**, yaw **0°**.
+That is a useful preview adjustment, not an inferred/native Wii world
+transformation or game physics.
+
+`scripts/p0_measure_fc3_transform_private.py` now computes a separate
+read-only original-source **surface-registration diagnostic** from the
+confirmed FC3 DAE and original, SHA-bound labeled KCL OBJ. It uses only
+source OGWS green/fairway groups and original DAE M_Green/M_Fairway
+triangle-centroid geometry to optimize a bounded 2D display similarity.
+A separate original bunker (or rough) category is **held out entirely
+from optimization** and scored before and after. It starts at the
+operator's confirmed displayed correction, does not modify this trial
+in the UI, and reports the scale/offset and residual as scalar summaries.
+
+```powershell
+Set-Location 'D:\Projects\Wii-Golf-Visual-Review'
+py -3 -I scripts/p0_measure_fc3_transform_private.py `
+  --visual-dae 'D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc3\glf_course_fc3.dae' `
+  --terrain-obj '<exact previously checked FC3 PRIVATE KCL OBJ>' `
+  --labels '<matching SHA-bound original KCL label sidecar>'
+```
+
+The script defaults to manual multiplier=2.0789, x=.020, z=.010, yaw=0,
+reads the OS-local selection if available, enforces the source-FC3
+2,498-face count, verifies strict OBJ+sidecar hashes and original DAE
+source safety, and prints **no original source XYZ, UV, TEX0, or tree
+coordinates**. It never writes game source assets, inspector settings,
+public Git files or Dolphin RAM, and never approves training.
+
+`ORIGINAL_SURFACE_DISPLAY_FIT_CANDIDATE` means only that the green /
+fairway nearest-neighbor mismatch AND independent held-out category pass
+conservative *display* residual gates. It is **not** a native original
+BRRES root matrix or Wii/KCL world coordinate proof. If the original
+FC3 DAE has multiple disparate surface patches, missing OGWS source
+labels, or separately triangulated collision, the diagnostic must
+abstain/report error instead of claiming a physical transform. Native
+alignment still requires further source scene transform/memory ownership
+checks. Always preserve the user's manual review state until an
+independently checked replacement has actually been accepted by them.
