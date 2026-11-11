@@ -177,13 +177,29 @@ class TestPosePilot(unittest.TestCase):
                 p.read_rows(path)
 
     def test_symlink_rejected(self):
+        """Use a real link where permitted; simulate Windows WinError 1314 otherwise.
+
+        Neither a normal Windows account nor CI is required to hold the
+        SeCreateSymbolicLinkPrivilege; the refusal branch must still be tested.
+        """
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "file.jsonl"
             target = Path(tmp) / "target"
             target.write_text("{}\n")
-            path.symlink_to(target)
-            with self.assertRaises(p.RefuseTrial):
-                p.read_rows(path)
+            try:
+                path.symlink_to(target)
+            except OSError as exc:
+                if sys.platform != "win32" or getattr(exc, "winerror", None) != 1314:
+                    raise
+                # Native symlink creation was denied. Exercise the security
+                # guard deterministically, without Developer Mode/admin rights.
+                with patch.object(Path, "is_symlink", return_value=True) as is_link:
+                    with self.assertRaisesRegex(p.RefuseTrial, "unsafe ledger target"):
+                        p.read_rows(path)
+                    is_link.assert_called_once_with()
+            else:
+                with self.assertRaisesRegex(p.RefuseTrial, "unsafe ledger target"):
+                    p.read_rows(path)
 
 
 if __name__ == "__main__":
