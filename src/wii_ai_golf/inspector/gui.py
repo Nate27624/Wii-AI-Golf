@@ -20,6 +20,10 @@ from .terrain_solid import back_to_front, shaded_hex
 from .terrain_labels import apply_private_surface_labels
 from .visual_model import VisualAssetError, load_private_visual_model
 from .dae_visual import load_private_dae_visual_model
+from .tree_positions import (
+    EXPECTED_NAME as PRIVATE_TREE_NAME,
+    load_private_tree_positions, TreePositionsError)
+from .source_markers import marker_snapshot
 from .startup import StartupError, occupied_bridge, powershell_command, runtime_checkout
 
 # Source-qualified candidate channels already captured by the existing read-only
@@ -96,6 +100,31 @@ def _known_private_visual_candidate(terrain_obj: str) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
+def _known_private_tree_candidate(terrain_obj: str) -> Path | None:
+    """Only exact known private source-94 locations; no recursive scanning.
+
+    The strict loader must validate provenance, schema, directory, SHA,
+    nonlinks, and 94 actual source bases before this becomes display data.
+    """
+    if not terrain_obj:
+        return None
+    base = Path(terrain_obj).absolute().parent
+    choices = (
+        base / "Wii Golf AI" / "Wii-AI-Golf-Data" / "derived" / PRIVATE_TREE_NAME,
+        base / "Wii-AI-Golf-Data" / "derived" / PRIVATE_TREE_NAME,
+        base / "Wii Golf AI" / "Wii-AI-Golf" /
+        "Wii-AI-Golf-Data" / "derived" / PRIVATE_TREE_NAME,
+    )
+    for candidate in choices:
+        if candidate.is_file():
+            try:
+                load_private_tree_positions(candidate)
+            except (TreePositionsError, OSError, ValueError):
+                continue
+            return candidate
+    return None
+
+
 class Inspector:
     def __init__(self, root: tk.Tk, initial_capture: str = "", initial_manifest: str = "",
                  initial_terrain_obj: str = "", initial_terrain_labels: str = "",
@@ -128,6 +157,10 @@ class Inspector:
         self.surface_label_status = tk.StringVar(value="Surface colors: no original KCL labels loaded (neutral shading only).")
         self.visual_status = tk.StringVar(value="Visual source: no private model loaded. Active hole and alignment UNVERIFIED.")
         self.visual_preview = None
+        self.tree_source = None
+        self.tree_source_status = tk.StringVar(
+            value="94 original tree source positions: not loaded")
+        self.selected_player_index = None
         self.a_reason = tk.StringVar(value="Connect LIVE with A released; 2 stable samples initialize candidate")
         self.baseline: float | None = None
         self.replay: Replay | None = None
@@ -159,6 +192,10 @@ class Inspector:
                 if initial_visual_dae:
                     raise RuntimeError("Explicit private source visual DAE failed: " +
                                        self.visual_status.get())
+        if initial_terrain_obj:
+            trees_path = _known_private_tree_candidate(initial_terrain_obj)
+            if trees_path is not None:
+                self.load_tree_source_path(str(trees_path), show_dialog=False)
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(200, self.poll_live)
         if initial_capture and initial_manifest:
@@ -301,6 +338,25 @@ class Inspector:
         lower.pack(fill="x", padx=10, pady=8)
         ttk.Label(lower, textvariable=self.detail, wraplength=1250, justify="left").pack(anchor="w")
 
+    def load_tree_source_path(self, filename: str, *,
+                              show_dialog: bool = False) -> bool:
+        """Load exact original 94 base points privately, never inferred art."""
+        try:
+            trees = load_private_tree_positions(filename)
+        except (TreePositionsError, OSError, ValueError) as exc:
+            self.tree_source_status.set("Tree source unavailable: " + str(exc))
+            if show_dialog:
+                messagebox.showerror("PRIVATE tree source declined",
+                                     str(exc), parent=self.root)
+            return False
+        self.tree_source = trees
+        self.tree_source_status.set(
+            "94 original tree bases loaded · source frame versus visual "
+            "UNVERIFIED · native meshes and hitboxes unavailable")
+        if self.visual_preview is not None:
+            self.visual_preview.set_source_trees(trees)
+        return True
+
     def show_visual_tab(self) -> None:
         """One visible 3D viewport with source texture/KCL visibility modes."""
         if self.visual_preview is None:
@@ -317,6 +373,13 @@ class Inspector:
                      else load_private_visual_model(filename))
             from .textured_preview import TexturedPreviewWindow
             preview = TexturedPreviewWindow(self.visual_tab, model, embedded=True)
+            if getattr(self, "tree_source", None) is not None:
+                preview.set_source_trees(self.tree_source)
+            if getattr(self, "replay", None) is not None and self.replay.samples:
+                index = min(self.index.get(), len(self.replay.samples)-1)
+                preview.set_actor_snapshot(marker_snapshot(
+                    self.replay.samples[index],
+                    getattr(self, "selected_player_index", None)))
             if getattr(self, "terrain_mesh", None) is not None:
                 try:
                     preview.set_collision_terrain(self.terrain_mesh)
@@ -513,6 +576,21 @@ class Inspector:
             details += (f"Operator annotation: {sample.annotation}",)
         self.detail.set(f"{timestamp} | " + "  •  ".join(details))
         self.draw_path()
+        self._sync_actor_markers()
+
+    def _sync_actor_markers(self) -> None:
+        """Qualified SINGLE sample to shared visual canvas; no joins."""
+        preview = getattr(self, "visual_preview", None)
+        if preview is None:
+            return
+        replay = getattr(self, "replay", None)
+        if replay is None or not replay.samples:
+            preview.set_actor_snapshot(None)
+            return
+        index = max(0, min(self.index.get(), len(replay.samples)-1))
+        preview.set_actor_snapshot(marker_snapshot(
+            replay.samples[index],
+            getattr(self, "selected_player_index", None)))
 
     def open_game_startup(self) -> None:
         """Explicit operator-controlled game boot/menu sequence in a visible PS.
@@ -584,6 +662,7 @@ class Inspector:
             messagebox.showerror("Invalid bridge port", str(exc))
             return
         self.live_worker = worker
+        self.selected_player_index = None
         self.live_buffer.clear()
         self.live_last = None
         self.baseline = None
@@ -591,6 +670,8 @@ class Inspector:
         self.a_status.set("A UNKNOWN")
         self.a_reason.set("Connecting; first two samples assume A is RELEASED")
         self.replay = None
+        if self.visual_preview is not None:
+            self.visual_preview.set_actor_snapshot(None)
         self.phases = []
         self.phase_list.delete(0, "end")
         self.rows.delete(*self.rows.get_children())
@@ -603,6 +684,8 @@ class Inspector:
     def disconnect_live(self, silent: bool = False) -> None:
         if self.live_worker is not None:
             self.live_worker.stop()
+            if self.visual_preview is not None:
+                self.visual_preview.set_actor_snapshot(None)
             if not silent:
                 self.status.set("DISCONNECT requested; RPC timeout may delay worker exit. No automatic reconnection.")
 
@@ -614,6 +697,10 @@ class Inspector:
                     self.live_buffer.append(event.sample)
                     self.live_last = time.monotonic()
                     self.live_rate = event.rate_hz
+                    self.selected_player_index = (
+                        event.selected_player
+                        if type(event.selected_player) is int and
+                        0 <= event.selected_player <= 7 else None)
                     self.live_location = f"scene 5 · mode 4 · hole {event.hole} · selected player {event.selected_player}"
                     self.replay = Replay(Path("LIVE-readonly"), "", tuple(self.live_buffer), (), "live")
                     self.phases = [("LIVE", 0)]
