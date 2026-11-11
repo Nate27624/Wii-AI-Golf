@@ -136,6 +136,30 @@ def fixture():
         words[pc]=ppc_add(3,3,0)
     for pc in m.SELECTOR_MTCTR:
         words[pc]=ppc_mtctr(12)
+    for lo, hi in (m.PLAYER_CONTEXT_WINDOW,m.EGG_HELPER_WINDOW,
+                   m.PREPROCESSOR_WINDOW):
+        for pc in range(lo,hi,4):
+            words.setdefault(pc,dform(14,1,1,0))
+    words[m.PLAYER_CALLSITE]=bl(m.PLAYER_CALLSITE,0x802B4794)
+    words[0x802B449C]=bl(0x802B449C,0x800A6400)
+    for pc,op,reg,base,disp in (
+        (0x802B44A0,34,0,31,0xA8),
+        (0x802B44AC,48,0,1,56),
+        (0x802B44B4,52,0,1,56),
+        (0x802B44B8,32,0,31,0xA4),
+        (0x802B44BC,48,1,1,60),
+        (0x802B44C8,32,3,31,0x9C),
+        (0x802B44D4,52,1,3,4),
+        (0x802B44DC,32,0,31,0xA0),
+        (0x802B44EC,36,3,31,0xA4),
+        (0x802B44F8,36,0,31,0xA4)):
+        words[pc]=dform(op,reg,base,disp)
+    words[0x802B44C4]=ppc_rlwinm(0,0,3,0,28)
+    words[0x802B44D0]=(31<<26)|(3<<16)|(695<<1)
+    words[0x802B44B0]=(63<<26)|(40<<1)
+    for pc,dst,bo,bi in ((0x802B44A8,0x802B44B8,12,2),
+                         (0x802B44F0,0x802B44FC,12,0)):
+        words[pc]=(16<<26)|(bo<<21)|(bi<<16)|((dst-pc)&0xFFFC)
     return words
 
 
@@ -375,6 +399,34 @@ class Tests(unittest.TestCase):
                       (m.OWNER_START,m.OWNER_START)]:
             with self.assertRaisesRegex(m.Abstain,"direct_call_scan_window"):
                 m.scan_direct_golf_call_sites(lambda pc:0,start=lo,end=hi)
+
+    def test_cross_unit_player_caller_and_preprocessor_ring(self):
+        words=fixture()
+        report=m.verify_cross_unit_input_and_ring(words.__getitem__)
+        self.assertEqual(report["status"],
+            "REV1_PLAYER_TO_CALC_AND_PREPROCESSOR_RING_SOURCE_PASS")
+        self.assertEqual(report["player_caller_pc"],"0x8029ECF0")
+        self.assertEqual(report["preprocessor_helper_pc"],"0x800A6400")
+        self.assertEqual(report["ring_float_pair_stride_bytes"],8)
+        self.assertEqual(report["ring_buffer_pointer_field"],"+0x9C")
+        self.assertFalse(report["source_player_execution_or_power_commit_verified"])
+        self.assertFalse(report["preprocessor_vector_physical_meaning_verified"])
+
+    def test_cross_unit_player_and_ring_mutation_abstains(self):
+        for pc,reason in (
+            (m.PLAYER_CALLSITE,"cross_unit_player_or_egg_bl"),
+            (0x802B449C,"cross_unit_player_or_egg_bl"),
+            (0x802B44A0,"preprocessor_pair_ring_fields"),
+            (0x802B44D4,"preprocessor_pair_ring_fields"),
+            (0x802B44C4,"preprocessor_pair_ring_stride"),
+            (0x802B44D0,"preprocessor_pair_ring_indexed_float_store"),
+            (0x802B44B0,"preprocessor_first_float_sign"),
+            (0x802B44A8,"preprocessor_control_or_wrap_branch"),
+            (0x802B44F0,"preprocessor_control_or_wrap_branch")):
+            words=fixture()
+            words[pc] ^= 4
+            with self.assertRaisesRegex(m.Abstain,reason):
+                m.verify_cross_unit_input_and_ring(words.__getitem__)
 
     def test_wrong_bank_or_unaligned_source_address_abstains(self):
         fake = bytes(64)
