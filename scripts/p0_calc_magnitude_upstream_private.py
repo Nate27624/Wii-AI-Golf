@@ -24,6 +24,8 @@ import audit_p0_inflight_vs_b0_private as source
 DATA = HERE.parents[1] / "Wii-AI-Golf-Data"
 PUBLIC_OWNER = "Pack/RPSports/RPGolScene/RPGolScene_unsplit.o"
 OWNER_START, OWNER_END = 0x802A79F8, 0x802C7924
+CONTROLLER_OWNER_START, CONTROLLER_OWNER_END = 0x8019B214, 0x8019C74C
+CONTROLLER_ACCESSOR_WINDOW = (0x8019BAE8, 0x8019BB38)
 MEM1_BASE = roster.MEM1_BASE
 
 # The original operator's exact PPC proof on the preserved Rev1 cohort.
@@ -43,6 +45,27 @@ CALL_GATES = {
     0x802B4938: 0x802B3BA0,
     0x802B3D04: 0x802B2F90,
 }
+# Source-window instructions copied from the operator's actual original
+# SHA-qualified disassembly (not reconstructed from public C++):
+CONTROLLER_ACCESS_CALLS = {
+    0x802B47E0: 0x8019BAE8,
+    0x802B47F4: 0x8019BAE8,
+    0x802B4808: 0x8019BAE8,
+    0x802B4818: 0x802B4474,
+}
+CONTROLLER_ACCESS_SELECTORS = {
+    0x802B47DC: 1, 0x802B47F0: 2, 0x802B4804: 3,
+}
+CONTROLLER_RESULT_COPIES = {
+    0x802B47E4: (28,3), 0x802B47F8: (31,3),
+    0x802B480C: (27,3),
+}
+CONTROLLER_ENTRY_GATES = {
+    0x802B47B8: (30,4,0x854),
+}
+CONTROLLER_FP_CONSTANT_LOAD = 0x802B47C0
+CONTROLLER_RETURN_FP_LOAD = 0x802B481C
+
 # PPC "mr" is OR rA,rS,rS (primary31, XO444). Earlier original
 # operator source trace showed a calc receiver preserved through two calls.
 # This proves register copies only; branches/guest invocation still matter.
@@ -127,7 +150,8 @@ SELECTOR_MTCTR=(0x802B48B4,0x802B48E8)
 PEAK_WINDOW = (0x802B4794, 0x802B493C)
 STATED_LATCH_WINDOW = (0x802B31A8, 0x802B31C8)
 SOURCE_CALL_WINDOWS = ((0x802B3BC0, 0x802B3D08),)
-COHORT_PPC_WINDOWS = (PEAK_WINDOW, STATED_LATCH_WINDOW, *SOURCE_CALL_WINDOWS)
+COHORT_PPC_WINDOWS = (PEAK_WINDOW, STATED_LATCH_WINDOW,
+                      CONTROLLER_ACCESSOR_WINDOW, *SOURCE_CALL_WINDOWS)
 EXCERPT = (0x802B4820, 0x802B4938)
 
 class Abstain(ValueError):
@@ -135,8 +159,10 @@ class Abstain(ValueError):
 
 
 def _pc_check(pc: int) -> None:
-    if type(pc) is not int or pc % 4 or not OWNER_START <= pc < OWNER_END:
-        raise Abstain("source_window_outside_verified_golf_unit")
+    if (type(pc) is not int or pc % 4 or not (
+            OWNER_START <= pc < OWNER_END or
+            CONTROLLER_ACCESSOR_WINDOW[0] <= pc < CONTROLLER_ACCESSOR_WINDOW[1])):
+        raise Abstain("source_window_outside_verified_golf_unit_or_controller_accessor")
 
 
 def _word(mm, pc: int) -> int:
@@ -339,6 +365,52 @@ def verify_virtual_selector_reuse(read) -> dict:
     }
 
 
+def verify_controller_selector_call_chain(read) -> dict:
+    """Verify the caller ABI and sample-record consumers, not callee identity."""
+    for pc,target in CONTROLLER_ACCESS_CALLS.items():
+        w=read(pc)
+        b=_branch(pc,w)
+        if (w>>26!=18 or b is None or not b["link"] or b["absolute"]
+                or b["dest"]!=target):
+            raise Abstain("controller_accessor_caller_call_gate_failed")
+    for pc,index in CONTROLLER_ACCESS_SELECTORS.items():
+        if not _dform_match(read,pc,14,4,0,index):
+            raise Abstain("controller_accessor_selector_gate_failed")
+    for pc,(dest,source) in CONTROLLER_RESULT_COPIES.items():
+        if not _mr_matches(read(pc),dest,source):
+            raise Abstain("controller_accessor_record_copy_gate_failed")
+    for pc,(reg,base,disp) in CONTROLLER_ENTRY_GATES.items():
+        if not _dform_match(read,pc,32,reg,base,disp):
+            raise Abstain("controller_accessor_sample_count_gate_failed")
+    if not _dform_match(read,CONTROLLER_FP_CONSTANT_LOAD,48,31,2,-12892):
+        raise Abstain("controller_accessor_decay_constant_gate_failed")
+    if not _dform_match(read,CONTROLLER_RETURN_FP_LOAD,48,1,31,0x18):
+        raise Abstain("controller_accessor_return_field_gate_failed")
+    return {
+      "status":"REV1_CONTROLLER_THREE_EXTENDED_STATUS_CALLERS_SOURCE_PASS",
+      "selector_codes":[1,2,3],
+      "record_1_register":"r28",
+      "record_2_register":"r31",
+      "record_3_register":"r27",
+      "second_record_0x18_consumed_in_f1":True,
+      "second_record_0x1C_consumed_in_accumulators":True,
+      "read_length_source_field_offset":0x854,
+      "f31_constant_source":"SDA2 r2-12892",
+      "compiled_accessor_address":"0x8019BAE8",
+      "compiled_accessor_unit":"Pack/RPKernel/RPSysController.cpp",
+      "source_controller_access_method_candidate":"RPSysCoreController::getExCoreStatus",
+      "native_accessor_body_exactly_matched_to_public_method":False,
+      "sample_record_KPAD_acc_value_and_acc_speed_link_verified":False,
+      "public_KPADStatus_fields":{"record+0x18":"acc_value",
+                                  "record+0x1C":"acc_speed"},
+      "source_controller_filter_config":{"1":[0.1,0.015],
+                                          "2":[0.1,0.05],
+                                          "3":[0.1,0.02]},
+      "source_reference":"doldecomp/ogws src/Pack/RPKernel/RPSysController.cpp; include/revolution/KPAD/KPAD.h",
+      "guest_runtime_controller_consumption_verified":False,
+    }
+
+
 def verify_static_gates(read) -> dict:
     for pc in (*STFS_GATES, *LFS_GATES, *STW_GATES, *CALL_GATES, *MR_GATES):
         _pc_check(pc)
@@ -430,6 +502,9 @@ def source_slice(read) -> dict:
     math_report = verify_magnitude_arithmetic(read)
     history_report = verify_history_pipeline(read)
     selector_report = verify_virtual_selector_reuse(read)
+    controller_call_report = verify_controller_selector_call_chain(read)
+    accessor_excerpt=[symbolize(pc,read(pc))
+                      for pc in range(*CONTROLLER_ACCESSOR_WINDOW,4)]
     entry = [symbolize(pc, read(pc)) for pc in range(0x802B4794, 0x802B4820,4)]
     words = [symbolize(pc, read(pc)) for pc in range(*EXCERPT, 4)]
     # Candidate upstream scratch fields on the same r24 CALC base.
@@ -466,6 +541,8 @@ def source_slice(read) -> dict:
         "upstream_two_accumulators_and_four_peak_sites":history_report,
         "repeated_global_virtual_getter_selector":selector_report,
         "input_function_entry_source_excerpt":entry,
+        "controller_extended_status_call_chain":controller_call_report,
+        "candidate_getExCoreStatus_binary_excerpt":accessor_excerpt,
         "current_and_peak_register_writer_annotations":{
             "+0x08":"f30 through calc r24",
             "+0x0C":"f1 through calc r24 (comparison-before-store to be proved by control flow)",
