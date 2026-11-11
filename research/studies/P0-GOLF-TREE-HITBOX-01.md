@@ -1093,3 +1093,110 @@ is passed, which return/status is tested,
 and where (if anywhere) a collision result causes
 a write to the ball's velocity/position?
 Tree contact remains UNVERIFIED, training false.
+
+## Original phase7 source-qualified Ball→GolfKCol return/flag and vector stores
+
+Operator executed `scripts/p0_ball_kcol_postcall_context_private.py
+--detail` on exact original source/SHA/scene/94x84 PPC-gated
+capture7, and supplied all five native caller/target windows.
+These refine **actual ball→KCL query flow**, NOT tree hitboxes:
+
+- `Ball+0x05C0 -> GolfKCol+0x0000` passes stack
+  query/output pointers via r4/r5/r7 and zeros via r6/r8.
+  **`Ball+0x05C4 cmpwi r3,0`** immediately
+  branches to `Ball+0x06A4` if zero. In the other
+  branch, it loads query coordinates from stack and
+  records 3-component float values in a shared global
+  12-byte-stride ring buffer; the pointer and counts
+  at `r13-23296` require source owner proof. No
+  hitbox or ball-velocity write demonstrated here.
+- `Ball+0x0AFC -> GolfKCol+0x1BB8` is a source
+  **query-object configuration** call, not a
+  post-return hit handler:
+  `GolfKCol+0x1BB8` invokes its own
+  `+0x31F0` spatial helper; stores a 3-component
+  stack-supplied vector into source receiver
+  `+0x40,+0x44,+0x48`, pointer/state at
+  `+0x58`, and float `+0x54`.
+- `Ball+0x0B60 -> GolfKCol+0x1AC4` enters
+  the wrapper that forwards to original
+  KCL triangle processor `+0x2090`. Caller
+  **tests r3 for zero** at `+0x0B64`, and
+  if nonzero reads a **u16 classification
+  from stack+0x0A** at `+0x0B6C`.
+  If zero, it repeats query at `+0x0B4C`.
+  If nonzero, `Ball+0x0B78` is source
+  PPC `slw r0,r30,r3` and `+0x0B7C`
+  is `and. r0,r0,r28` (branch to
+  `+0x0C1C` when mask matches);
+  other branches explicitly compare the same
+  halfword against **13** (`+0x0B84`) and
+  **7** (`+0x0B90`). These are **control
+  flow classification values, not yet proven
+  to be the native KCL primitive flag itself**,
+  nor evidence for a dedicated tree collision
+  class. Existing candidate course KCL 2498
+  prism histogram has no literal 13, but a
+  source category 13 may be synthetic/sentinel
+  or belong to separate collision logic.
+  Require the native producer/consumer path
+  through KCol before assigning semantics.
+- `Ball+0x14D0 -> GolfKCol+0x0000` immediately
+  tests **return r3 != 0** at `+0x14D4`;
+  then reads a **different stack u16 at
+  +0x08** and compares to **7** and **12**
+  at `Ball+0x14F4/+0x14FC`. When neither
+  excluded class matches, it copies the
+  three floats from stack+0x4C,+0x50,+0x54
+  into **`r23+0xAC,+0xB0,+0xB4`** by
+  native `stfs` at `+0x1508/+0x1510/+0x1518`.
+  This is a source-proven Ball-unit
+  object-member **three-component vector
+  store**, NOT yet a proven velocity field.
+  Other code elsewhere may read these members
+  as contact normal, reference location, or
+  cached collision geometry. Read
+  reaching definitions and consumers before
+  naming the vector.
+- `Ball+0x27B0 -> GolfKCol+0x0000` has
+  **no immediate r3 result check** in
+  the supplied 36-word postcall window.
+  It copies stack/output vectors into
+  separate objects accessed from
+  `r31+0x19C` and `r31+0x198`,
+  indicating source state propagation,
+  not by itself ball contact.
+
+All five direct Ball→KCol sites and seven
+reverse calls match original. The seven
+GolfKCol→Ball calls earlier were verified
+to target a **generic vector-scaling helper**,
+not physics response as the caller unit name
+alone would suggest.
+
+### Next targeted native source falsification
+
+`scripts/p0_ball_kcol_material_branch_private.py`
+source-gates the original archive, exact five
+callsite/target pairs, 94x84 source array,
+and exact native PPC anchors for material
+halfwords, mask/branch, checks 7/12/13,
+three stores `r23+0xAC/+0xB0/+0xB4`.
+With `--detail`, locally prints bounded
+original Ball branch targets
+`+0x0BF4`, `+0x0C1C`, `+0x0E68`,
+event helper `+0x01B8`, KCol result
+handler `+0x0120..+0x024C` and
+narrowphase `+0x2090..+0x223C`.
+Also reports syntactic Ball-unit
+accesses to +0xAC/+0xB0/+0xB4,
+without falsely attaching same-offset
+accesses to the same object.
+Original private code words are emitted
+to operator terminal **only**;
+repository includes static-source
+decoder and synthetic-only tests.
+No claimed tree-specific collision
+class, trunk/canopy dimensions,
+object contact, or ball velocity
+impulse. `training_approved=false`.
