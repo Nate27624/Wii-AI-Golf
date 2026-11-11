@@ -271,26 +271,70 @@ class Inspector:
             messagebox.showerror("Private visual texture preview declined", str(exc), parent=self.root)
 
     def load_terrain(self) -> None:
-        """User opt-in: load only local private OBJ, never read live RAM for terrain."""
+        """Operator-selected private collision mesh only; never guest RAM."""
         filename = filedialog.askopenfilename(
             title="Select local source-coordinate private KCL collision OBJ",
             filetypes=[("Wavefront OBJ", "*.obj")])
-        if not filename:
-            return
+        if filename:
+            self.load_terrain_path(filename, show_dialog=True)
+
+    def load_terrain_path(self, filename: str, *, show_dialog: bool = False) -> bool:
+        """Source-checked OBJ, without changing any existing live club reader."""
         try:
             mesh = load_private_obj(filename)
         except (TerrainError, OSError) as exc:
-            messagebox.showerror("Private terrain declined", str(exc))
-            return
+            if show_dialog:
+                messagebox.showerror("Private terrain declined", str(exc))
+            self.terrain_status.set("Terrain: private OBJ declined by path/format verification.")
+            return False
         self.terrain_mesh = mesh
+        if hasattr(self, "surface_label_status"):
+            self.surface_label_status.set("Surface colors: no original KCL labels loaded (neutral shading only).")
         self.terrain_visible.set(True)
         self.terrain_status.set(
             f"PRIVATE collision OBJ: {len(mesh.faces)} candidate triangles, SHA {mesh.sha256[:12]}… "
             "· visual alignment/active collision UNVERIFIED")
         self.draw_path()
+        return True
+
+    def load_terrain_labels(self) -> None:
+        """Operator opt-in: source color data stays beside the private OBJ."""
+        filename = filedialog.askopenfilename(
+            title="Select SHA-bound PRIVATE KCL source surface labels",
+            filetypes=[("Private source label JSON", "*.json")])
+        if filename:
+            self.load_terrain_labels_path(filename, show_dialog=True)
+
+    def load_terrain_labels_path(self, filename: str, *, show_dialog: bool = False) -> bool:
+        """Color only the loaded OBJ by its matching source SHA; no writes."""
+        mesh = self.terrain_mesh
+        if mesh is None:
+            self.surface_label_status.set("Surface colors: load the private terrain OBJ first.")
+            return False
+        try:
+            labeled = apply_private_surface_labels(mesh, filename)
+        except TerrainError as exc:
+            if show_dialog:
+                messagebox.showerror("Private source colors declined", str(exc))
+            self.surface_label_status.set(f"Source colors: rejected — {exc}")
+            return False
+        except OSError:
+            if show_dialog:
+                messagebox.showerror("Private source colors declined",
+                                     "Local labels could not be read safely.")
+            self.surface_label_status.set("Source colors: rejected — local file read error")
+            return False
+        self.terrain_mesh = labeled
+        self.surface_label_status.set(
+            f"Source colors: {len(labeled.faces)} original KCL per-face IDs linked by OBJ SHA "
+            "· candidate visual categories, not physics")
+        self.draw_path()
+        return True
 
     def clear_terrain(self) -> None:
         self.terrain_mesh = None
+        if hasattr(self, "surface_label_status"):
+            self.surface_label_status.set("Surface colors: no original KCL labels loaded.")
         self.terrain_status.set("Terrain: no private OBJ loaded.")
         self.draw_path()
 
