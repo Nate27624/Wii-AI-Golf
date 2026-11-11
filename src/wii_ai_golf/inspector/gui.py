@@ -317,7 +317,7 @@ class Inspector:
                      else load_private_visual_model(filename))
             from .textured_preview import TexturedPreviewWindow
             preview = TexturedPreviewWindow(self.visual_tab, model, embedded=True)
-            if self.terrain_mesh is not None:
+            if getattr(self, "terrain_mesh", None) is not None:
                 try:
                     preview.set_collision_terrain(self.terrain_mesh)
                 except ValueError as align_error:
