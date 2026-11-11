@@ -317,14 +317,17 @@ def main(argv=None) -> int:
                              "distinct neutral bridge; original eight-arm mode is disabled")
     args = parser.parse_args(argv)
     try:
-        plan = make_variants()
+        plan = make_variants()[:2] if args.true_neutral_control else make_variants()
         if not args.send_live_sweep:
             print(json.dumps({
                 "status": "DRY_RUN_NO_EMULATOR_INPUT",
-                "purpose": "identify input change that first creates reduced/non-red power",
+                "purpose": ("distinguish true button-only from a real swing"
+                            if args.true_neutral_control else
+                            "historical V1 requested-input discovery; NOT a true zero-call control"),
                 "not_game_angular_velocity": True,
                 "savestate": PRE_START_PROFILE,
                 "no_savestate_save": True,
+                "requires_isolated_neutral_bridge": bool(args.true_neutral_control),
                 "shots": [{k: v for k, v in x.items() if k != "samples"} for x in plan]
             }, indent=2))
             return 0
