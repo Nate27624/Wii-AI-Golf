@@ -8,12 +8,15 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
+import time
 import tkinter as tk
 from tkinter import ttk
 
 from .navigation import wheel_steps
 from .scene_camera import fit_camera, look_in_place, orbit, pan, dolly, move
 from .texture_render import PreviewCancelled, prepare_textures, render_preview
+from .fast_texture_render import (
+    accelerated_available, prepare_fast_scene, render_fast)
 from .visual_model import PrivateVisualModel, VisualAssetError
 
 
@@ -23,6 +26,11 @@ class TexturedPreviewWindow:
         # Confirm source-bound PNG bytes before creating the viewport.
         self.textures = prepare_textures(model)
         self.model = model
+        # Original texture PNG admission is unchanged. Pack source triangles
+        # and texels once; compiled C-level rendering then reuses this data.
+        self.fast_scene = (prepare_fast_scene(model, self.textures)
+                           if accelerated_available() else None)
+        self.fast_active = self.fast_scene is not None
         self.embedded = embedded
         self.top = ttk.Frame(parent) if embedded else tk.Toplevel(parent)
         if embedded:
@@ -92,12 +100,17 @@ class TexturedPreviewWindow:
         self.canvas.bind("<Button-5>", self.wheel)
         self.canvas.bind("<KeyPress>", self.key_move)
 
-        self.status = tk.StringVar(value="Preparing authentic UV texture preview")
+        self.status = tk.StringVar(
+            value=("Preparing compiled original UV renderer "
+                   "(first frame warms the JIT cache once)"
+                   if self.fast_active else
+                   "Slow fallback UV renderer: install Numba for fast navigation"))
         ttk.Label(self.top, textvariable=self.status,
                   padding=(8, 0)).pack(fill="x")
         if not embedded:
             self.top.protocol("WM_DELETE_WINDOW", self.close)
-        self._poll_id = self.top.after(40, self._poll_completed)
+        self._poll_id = self.top.after(
+            16 if self.fast_active else 40, self._poll_completed)
         self.schedule()
 
     def schedule(self):
@@ -112,7 +125,8 @@ class TexturedPreviewWindow:
                 self.top.after_cancel(self._pending)
             except tk.TclError:
                 pass
-        self._pending = self.top.after(85, self._request_full_render)
+        self._pending = self.top.after(
+            24 if self.fast_active else 85, self._request_full_render)
 
     def _request_full_render(self):
         self._pending = None
@@ -124,8 +138,8 @@ class TexturedPreviewWindow:
             return
         self._queued = (self._request_version, width, height, self.camera)
         self.status.set(
-            f"Rendering all {len(self.model.faces):,} source triangles "
-            "(background worker; camera remains responsive)")
+            f"Rendering all {len(self.model.faces):,} native UV triangles "
+            "(" + ("compiled CPU" if self.fast_active else "slow NumPy fallback") + ")")
         self._start_latest()
 
     def _start_latest(self):
@@ -136,9 +150,23 @@ class TexturedPreviewWindow:
         cancel = Event()
         self._cancel_render = cancel
         future = self._executor.submit(
-            render_preview, self.model, width, height,
-            textures=self.textures, cancelled=cancel.is_set, camera=camera)
+            self._render_frame, width, height, camera, cancel.is_set)
         self._render_future = (version, camera, future)
+
+    def _render_frame(self, width, height, camera, cancelled):
+        """Worker-only: no Tk methods or UI graphics calls."""
+        if cancelled():
+            raise PreviewCancelled()
+        started = time.perf_counter()
+        if self.fast_scene is not None:
+            image, drawn = render_fast(self.fast_scene, width, height, camera)
+        else:
+            image, drawn = render_preview(
+                self.model, width, height, camera=camera,
+                textures=self.textures, cancelled=cancelled)
+        if cancelled():
+            raise PreviewCancelled()
+        return image, drawn, (time.perf_counter()-started)*1000.
 
     def _poll_completed(self):
         if self._closed:
@@ -149,16 +177,19 @@ class TexturedPreviewWindow:
             self._render_future = None
             self._cancel_render = None
             try:
-                image, drawn = future.result()
+                image, drawn, render_ms = future.result()
                 if version == self._request_version:
                     from PIL import ImageTk
                     self.image_ref = ImageTk.PhotoImage(image, master=self.canvas)
                     self.canvas.delete("all")
                     self.canvas.create_image(0, 0, image=self.image_ref,
                                              anchor="nw")
+                    engine = ("compiled CPU" if self.fast_active
+                              else "slow NumPy CPU")
                     self.status.set(
-                        f"{drawn:,} visible of {len(self.model.faces):,} "
-                        "processed source faces · source-local camera, not KCL-aligned")
+                        f"{drawn:,} visible / {len(self.model.faces):,} "
+                        f"source triangles · {render_ms:.0f} ms {engine} "
+                        "· source-local, not KCL-aligned")
             except PreviewCancelled:
                 pass
             except (VisualAssetError, OSError, ValueError,
@@ -168,7 +199,8 @@ class TexturedPreviewWindow:
             if self._queued is not None:
                 self._start_latest()
         if not self._closed:
-            self._poll_id = self.top.after(40, self._poll_completed)
+            self._poll_id = self.top.after(
+                16 if self.fast_active else 40, self._poll_completed)
 
     def draw(self):
         self.schedule()
