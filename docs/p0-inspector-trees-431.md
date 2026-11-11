@@ -122,3 +122,52 @@ PR #419 terrain-solid branch. When merging #419/this PR, preserve the
 integrating terrain material shading. Revisit **shared depth ordering**
 only after solid terrain is fully integrated. The existing private
 texture-preview window is not itself a native 94-tree model renderer.
+
+
+## Combined original texture + 2,498-face KCL + 94 source trees (PR #432)
+
+This branch now integrates the latest cohesive **#419 and #429** renderer
+into the PR #432 tree-inspector entrypoint. It preserves source-color filled
+KCL polygons, the full 2,498-face option, separate SHA-bound surface-label
+sidecars, original FC1 Collada DAE/TEX0 PNG source geometry, accelerated
+Numba CPU raster where installed, and a single shared Unity-style visual
+camera with RMB look, orbit, WASD/arrow movement, and playable-area framing.
+The earlier Tk candidate KCL canvas remains a fallback when private visual
+assets are absent. Its merged pan, wheel zoom, RMB orbit and F-to-frame
+controls are retained independently of the high-performance UV renderer.
+
+When a valid strict source-94 JSON exists, the **94 base markers** and
+optional clearly **illustrative, nonphysical** foliage render in:
+- the source-qualified 3D KCL fallback canvas; and
+- the SAME original UV/KCL visual canvas when a visual DAE and KCL are both
+  loaded, in **Collision** or **Both** comparison mode.
+
+The second case deliberately uses the **unverified visual-vs-KCL bounding-box
+display-fit**; native source-to-DAE alignment is NOT established. Markers and
+crowns are painter-order/x-ray graphics, not actual tree geometry, collisions,
+or true visual-model Z-buffer meshes. They are not displayed in
+**Textures-only** mode or if KCL has not been loaded to establish a display
+fit. Tree toggles and status stay visible below the single integrated source
+canvas, even after switching into the DAE visual preview.
+
+The last validated terrain OBJ and tree JSON are retained in the OS-local
+path-only preference file; normal startup restores both, and manual
+`--terrain-obj` replaces the saved OBJ. Private original tree XYZ, DAE, TEX0
+textures, binary banks, KCL OBJ and source-label sidecars are never committed.
+
+To launch with the local optional fast source renderer:
+
+```powershell
+cd 'D:\Projects\Wii-Golf-Tree-PR432'
+py -3 -m pip install -e '.[visual-fast]'
+py -3 -I scripts/p0_memory_inspector.py
+```
+
+The private original FC1 DAE is looked up only after a private terrain OBJ
+has been supplied or remembered, from the known local
+`D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1\glf_course_fc1.dae`
+or a matching private location beside the OBJ; it is **not an assertion that
+FC1 is the active game hole**. Users may always choose
+`Load PRIVATE visual DAE / OBJ` manually instead. Original-game accuracy,
+source-to-visual 3D alignment, tree model ownership, and operator screenshot
+confirmation remain pending.
