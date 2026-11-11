@@ -148,7 +148,7 @@ class TexturedPreviewWindow:
             ).pack(side="left", padx=(4, 1))
         ttk.Label(
             orientation_controls,
-            text=("GEOMETRY-ONLY: original DAE orientation UNKNOWN" if scene_warning
+            text=("INCOMPLETE SOURCE GRAPH: verify omitted scene features" if scene_warning
                   else "DAE authored matrices applied · yaw is only a display trial"),
         ).pack(side="left", padx=8)
         ttk.Label(
