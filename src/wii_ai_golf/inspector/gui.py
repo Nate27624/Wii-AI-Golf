@@ -809,8 +809,18 @@ class Inspector:
 
 
 def launch(capture: str = "", manifest: str = "", terrain_obj: str = "",
-           terrain_labels: str = "") -> int:
+           terrain_labels: str = "", visual_dae: str = "") -> int:
     root = tk.Tk()
     Inspector(root, capture, manifest, terrain_obj, terrain_labels)
+    if visual_dae:
+        # An authentic separate preview, never overlaid on source-qualified KCL.
+        # No Blender and no writes to model/texture files.
+        try:
+            model = load_private_dae_visual_model(visual_dae)
+            from .textured_preview import TexturedPreviewWindow
+            TexturedPreviewWindow(root, model)
+        except (VisualAssetError, OSError, RuntimeError, ImportError, ValueError) as exc:
+            root.destroy()
+            raise RuntimeError("Original source DAE preview declined: " + str(exc)) from exc
     root.mainloop()
     return 0
