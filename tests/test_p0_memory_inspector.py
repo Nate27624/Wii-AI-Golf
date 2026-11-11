@@ -459,10 +459,12 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(viewer.drag_button, 3)
         viewer.drag_end(SimpleNamespace(x=140, y=80, num=3))
         viewer.drag_move(SimpleNamespace(x=150, y=90))
-        self.assertEqual(len(redraws), 1)
+        # Releasing the mouse now requests one FULL-KCL/crown-quality
+        # redraw after the adaptive low-detail movement preview.
+        self.assertEqual(len(redraws), 2)
         viewer.drag_start(SimpleNamespace(x=10, y=10, num=1))
         viewer.drag_move(SimpleNamespace(x=10, y=20))
-        self.assertEqual(len(redraws), 2)
+        self.assertEqual(len(redraws), 3)
 
     def test_no_controller_bridge_or_training_imports(self):
         for path in (ROOT / "src/wii_ai_golf/inspector/replay.py", ROOT / "src/wii_ai_golf/inspector/gui.py", ROOT / "scripts/p0_memory_inspector.py"):
