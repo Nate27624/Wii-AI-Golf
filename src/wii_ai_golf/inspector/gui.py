@@ -92,15 +92,14 @@ def project(point: tuple[float, float, float], yaw: float, pitch: float) -> tupl
 def _known_private_visual_candidate(terrain_obj: str) -> Path | None:
     """Optional local operator candidate, never proof of which hole is active.
 
-    Only auto-discover alongside an explicitly selected private terrain OBJ.
-    Never scan the game disc, Git workspace or any external locations.
+    Check the user's established exact LOCAL original-model path even when
+    no KCL OBJ has been selected yet. Never crawl the disc or arbitrary
+    directories. An asset filename does not verify the active game hole.
     """
-    if not terrain_obj:
-        return None
-    base = Path(terrain_obj).absolute().parent
+    base = Path(terrain_obj).absolute().parent if terrain_obj else None
     candidates = (
-        base / "WiiGolfVisualPrivate" / "visual_exports" /
-        "glf_course_fc1" / "glf_course_fc1.dae",
+        *((base / "WiiGolfVisualPrivate" / "visual_exports" /
+           "glf_course_fc1" / "glf_course_fc1.dae",) if base is not None else ()),
         Path("D:/Projects/WiiGolfVisualPrivate/visual_exports/glf_course_fc1/glf_course_fc1.dae"),
     )
     return next((candidate for candidate in candidates if candidate.is_file()), None)
@@ -143,7 +142,9 @@ class Inspector:
         self.tree_status = tk.StringVar(value="Trees: no original PRIVATE 94-position JSON loaded.")
         self.asset_settings_status = tk.StringVar(value="Private tree/terrain file paths saved locally, never in Git.")
         self.saved_assets = AssetSelections()
-        self.visual_status = tk.StringVar(value="Visual source: no private model loaded. Active hole and alignment UNVERIFIED.")
+        self.visual_status = tk.StringVar(value=(
+            "TEXTURED MODEL NOT LOADED — choose Load PRIVATE visual DAE / OBJ. "
+            "Gray collision view is FALLBACK only."))
         self.visual_preview = None
         self.a_reason = tk.StringVar(value="Connect LIVE with A released; 2 stable samples initialize candidate")
         self.baseline: float | None = None
@@ -152,6 +153,12 @@ class Inspector:
         self.yaw, self.pitch = 0.65, 0.48
         self.camera_zoom = 1.0
         self.camera_pan = (0.0, 0.0)
+        self._fallback_held: set[str] = set()
+        self._fallback_pending_release: dict[str, str] = {}
+        self._fallback_nav_timer = None
+        self._fallback_last_tick = time.perf_counter()
+        self._fallback_last_render = 0.0
+        self._fallback_last_live_redraw = 0.0
         self.drag_origin: tuple[int, int] | None = None
         self.drag_button: int | None = None
         self.live_worker: LiveSampler | None = None
@@ -169,19 +176,28 @@ class Inspector:
                 self._remember_private_asset("terrain_obj", initial_terrain_obj)
             if loaded and initial_terrain_labels:
                 self.load_terrain_labels_path(initial_terrain_labels, show_dialog=False)
-        # A prior local original-art export is auto-loaded when the operator
-        # already selected the sibling SHA-qualified private KCL. This is a
-        # visual-source candidate, NOT verified in-game hole or coordinate map.
+        # The original private DAE must not depend on loading a KCL OBJ first.
+        # Respect explicit startup path, then prior accepted file, then the
+        # one exact operator-known original course location. Failed saved
+        # choices are NOT silently substituted with unrelated art.
         effective_terrain = initial_terrain_obj or self.saved_assets.terrain_obj or ""
-        private_candidate = (_known_private_visual_candidate(effective_terrain)
-                             if not initial_visual_dae else None)
-        selected_visual = initial_visual_dae or (
+        saved_visual = getattr(self.saved_assets, "visual_dae", None)
+        private_candidate = (
+            _known_private_visual_candidate(effective_terrain)
+            if not initial_visual_dae and not saved_visual else None)
+        selected_visual = initial_visual_dae or saved_visual or (
             str(private_candidate) if private_candidate is not None else "")
         if selected_visual:
             if not self.load_visual_path(selected_visual, show_dialog=False):
                 if initial_visual_dae:
                     raise RuntimeError("Explicit private source visual DAE failed: " +
                                        self.visual_status.get())
+        else:
+            self.visual_status.set(
+                "NO PRIVATE TEXTURE MODEL FOUND. Gray KCL + illustrative trees "
+                "are the FALLBACK, not the original course. Click "
+                "'Load PRIVATE visual DAE / OBJ' or supply --visual-dae. "
+                "Expected original FC1 export under D:/Projects/WiiGolfVisualPrivate.")
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(200, self.poll_live)
         if initial_capture and initial_manifest:
@@ -241,6 +257,12 @@ class Inspector:
         terrain_tab = ttk.Frame(center, padding=2)
         self._legacy_terrain_tab = terrain_tab
         terrain_tab.pack(fill="both", expand=True)
+        # If the optional DAE declines, this fallback is visible, whereas
+        # self.visual_tab is hidden. Show import failure HERE prominently.
+        ttk.Label(
+            terrain_tab, textvariable=self.visual_status,
+            foreground="#cf4c27", wraplength=650,
+        ).pack(fill="x", pady=(2, 5))
         shared_actions = ttk.Frame(center)
         shared_actions.pack(side="bottom", fill="x")
         ttk.Button(shared_actions, text="Load KCL OBJ",
@@ -290,6 +312,9 @@ class Inspector:
         self.canvas.bind("<Button-5>", self.scene_wheel)
         self.canvas.bind("<KeyPress-f>", self.frame_view)
         self.canvas.bind("<KeyPress-F>", self.frame_view)
+        self.canvas.bind("<KeyPress>", self._fallback_key_press)
+        self.canvas.bind("<KeyRelease>", self._fallback_key_release)
+        self.canvas.bind("<FocusOut>", self._fallback_focus_out)
         # Narrow center pane: split terrain controls into real rows rather
         # than silently clipping checkboxes beyond the viewport width.
         mesh_actions = ttk.Frame(terrain_tab)
@@ -375,7 +400,10 @@ class Inspector:
                         "KCL source comparison unavailable: " + str(align_error))
         except (VisualAssetError, OSError, RuntimeError, tk.TclError,
                 ImportError, ValueError) as exc:
-            self.visual_status.set("Visual source declined: " + str(exc))
+            self.visual_status.set(
+                "TEXTURED MODEL FAILED — fallback collision-only canvas. "
+                + type(exc).__name__ + ": " + str(exc)
+                + " · Choose Load PRIVATE visual DAE / OBJ to correct.")
             if show_dialog:
                 messagebox.showerror("Private visual model unavailable",
                                      str(exc), parent=self.root)
@@ -389,6 +417,8 @@ class Inspector:
             f"PRIVATE source preview: {model.source_name} · "
             f"{len(model.faces):,} renderable UV triangles · "
             "native hole/world/KCL alignment NOT verified")
+        if hasattr(self, "saved_assets"):
+            Inspector._remember_private_asset(self, "visual_dae", filename)
         self.show_visual_tab()
         return True
 
@@ -966,6 +996,11 @@ class Inspector:
                                tags=("a_state_overlay",))
 
     def draw_path(self) -> None:
+        # The Tk source-coordinate painter is unseen once the original DAE
+        # viewport is active; rebuilding 2,498 KCL triangles + 1,128 tree
+        # polygons on EVERY live sample can stall Tk and cause input lag.
+        if getattr(self, "visual_preview", None) is not None:
+            return
         canvas = self.canvas
         canvas.delete("all")
         if self.replay is None:
