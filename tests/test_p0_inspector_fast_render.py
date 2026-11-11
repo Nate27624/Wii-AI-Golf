@@ -69,7 +69,7 @@ class NativeSourceRasterTests(unittest.TestCase):
 
     def test_compiled_rejects_missing_source_material(self):
         model, textures = synthetic_scene()
-        with self.assertRaisesRegex(VisualAssetError, "source face lacks"):
+        with self.assertRaisesRegex(VisualAssetError, "No original TEX0 diffuse appearance|source face lacks"):
             prepare_fast_scene(model, {})
 
     def test_compiled_rejects_oversized_rgba_arrays(self):
