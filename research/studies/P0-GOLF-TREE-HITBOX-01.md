@@ -3382,3 +3382,119 @@ to upload video. No additional
 gameplay is required for this
 source qualification step.
 `training_approved=false`.
+
+
+## Crucial original branch gate: exact cache stores do not imply executable path from 0x80299C70
+
+The original operator ran the SHA-gated
+`P0_ORIGINAL_BALL_NATIVE_CACHE_SOURCE_GLOBAL_AND_CALLER_V1`
+audit on Rev1 original source capture 7, following
+the earlier static native three-float `r3→r27+CC`
+and `r27+CC→r27+FC` copies. The result
+**does not yet establish executable path
+reachability of either group from the
+published cache-function entry**.
+
+The original source audit returned
+the following exact source-relative
+native direct/conditional transfer
+sites in the small published Ball unit:
+
+| Original site | Static PPC transfer | Target |
+| --- | --- | --- |
+| Ball+0x2CCC | **unconditional `b`** | **Ball+0x2FB8** |
+| Ball+0x2CDC | `bc` BO=12 BI=2 | Ball+0x2CF4 |
+| Ball+0x2CEC | `bc` BO=4 BI=2 | Ball+0x2CF4 |
+| Ball+0x2CF4 | linked `bl` | Ball+0x28B8 |
+
+**Crucial interpretation:** the
+unconditional branch at Ball+0x2CCC,
+if reached from the published
+`fn_80299C70` entry (Ball+0x2C98),
+jumps to Ball+0x2FB8, **past**
+the exact `+0xCC` writer
+at +0x2D00..+0x2D14 AND the
+`+0xFC` writer at
++0x2F98..+0x2FB0. The
+earlier source-copy finding remains
+a **verified static instruction
+relationship** but is NOT proof
+that these instructions execute
+when callers invoke the published
+cache entry. A branch at or after
++0x2FB8 may jump *back* into
+the copy code; other native
+direct/indirect entries could reach
+it, and function boundaries are
+not independently proven. Thus
+simply declaring those native
+stores 'the active Ball cache
+update function' would be premature.
+
+Other original register findings:
+- At Ball+0x2CB8 `mr r27,r3`.
+- Ball+0x2CD4 and +0x2CF8
+  both load `r3` from signed
+  `-23304(r13)`; +0x2CFC
+  follows the **second** load
+  with `lwz r3,+0x4C(r3)`,
+  then consecutive
+  `lfs f0,0(r3)` at +0x2D00.
+- Two native callers at Ball+0x2B8C
+  and +0x2C80 save incoming
+  `r3` to `r31` at +0x2B08
+  and +0x2C5C respectively,
+  then restore via `mr r3,r31`
+  at +0x2B80 and +0x2C70.
+  No recognized `r31` reassignment
+  in the bounded linear spans,
+  but the report showed 4
+  and 1 intervening control-transfer
+  instructions; exact per-path
+  receiver preservation and
+  actual selected-Ball identity
+  remain unproven.
+
+Added bounded static PPC CFG audit
+`scripts/p0_ball_cache_cfg_reachability_private.py`
+and synthetic-only regression
+`tests/test_p0_ball_cache_cfg_reachability_private.py`
+to check:
+- exact original unconditional
+  Ball+0x2CCC → Ball+0x2FB8,
+  full native source/scene
+  SHA and both exact copy gates;
+- bounded direct PPC `b`/conditional
+  `bc` targets and conditional
+  fallthrough, with linked `bl`
+  modeled as possible call-return
+  fallthrough;
+- whether a possible path from
+  `0x80299C70` reaches
+  Ball+0x2D00/04 and
+  +0x2F98/+0x2FA8, and a
+  bounded branch-route witness
+  where one exists;
+- direct static branches to
+  suspected CC/FC source
+  entry sites across the
+  public Ball code unit.
+
+This is a *bounded static
+may-reachability model*.
+A missing route is not proof of
+native unreachability because
+LR/CTR indirect paths and exact
+function boundaries remain unresolved;
+a found route is not evidence
+of dynamic execution, collision
+or native material response.
+The report only prints public
+source-relative code sites,
+branch syntax and counts.
+It does not export original
+PPC words, private RAM,
+native pointer values or XYZ.
+No Dolphin, screenshots, video,
+new swings or live writes.
+`training_approved=false`.
