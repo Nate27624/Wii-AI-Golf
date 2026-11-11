@@ -551,3 +551,74 @@ targets. A positive result should identify where the receiver r3
 comes from in the two different FieldManager contexts and establish
 whether the two call receivers could be the same object type. No
 native RAM, positions or model art is emitted to Git; no game writes.
+
+## CRITICAL correction: FieldManager+0x230C also loops 0x54-byte source objects
+
+Operator provided original capture7 SHA/scene/source-bounded native PPC code for
+both FieldManager callers. **This REFUTES the earlier conclusion that
+`Tree+0x047C` almost certainly receives some other object type.** The
+actual caller's iteration is directly aligned with the known 94-tree source
+array:
+
+```asm
+FieldManager+0x22EC lwz  r3, -23328(r13) ; shared global object
+FieldManager+0x22F8 lwz  r29, +12(r3)    ; second argument pointer
+FieldManager+0x2300 lwz  r0, +32(r31)    ; +0x20 candidate tree array
+FieldManager+0x2304 mr   r4, r29        ; additional argument
+FieldManager+0x2308 add  r3, r0, r26    ; current 84-byte element
+FieldManager+0x230C bl   Tree+0x047C   ; calls source method on element
+FieldManager+0x2310 addi r26,r26,+84
+FieldManager+0x2314 addi r30,r30,+1
+FieldManager+0x2318 lwz  r0,+28(r31)    ; +0x1C candidate count
+FieldManager+0x231C cmpw r30,r0
+FieldManager+0x2320 blt  FieldManager+0x2300
+```
+
+Known per-tree distance flag writer:
+
+```asm
+FieldManager+0x2BAC lwz  r0, +32(r28)  ; +0x20 source array
+FieldManager+0x2BB0 add  r3, r0, r31   ; current 84-byte element
+FieldManager+0x2BB4 bl   Tree+0x000C
+FieldManager+0x2BB8 addi r31,r31,+84
+FieldManager+0x2BBC addi r30,r30,+1
+FieldManager+0x2BC0 lwz  r0,+28(r28)   ; +0x1C source count
+FieldManager+0x2BC4 cmpw r30,r0
+FieldManager+0x2BC8 blt  FieldManager+0x2BAC
+```
+
+**Evidence ranking:** both use the same +0x20 pointer field, +0x1C
+count, and +84-byte elements. The earlier original code established
+source FieldManager fields as 94x0x54 tree array. Writer's receiver
+`r28` is explicitly saved from `r3` at `FieldManager+0x2B80`.
+The second loop uses `r31`, whose actual reaching definition has not
+yet been examined. **Same array is highly likely, not yet 100% proven
+without tracing r31's provenance and seeing that it is the same
+FieldManager class/instance.**
+
+The second routine `Tree+0x047C` writes floats to element +0x4C and
++0x50 and reads flag byte +0x48, after calling MapObjBase functions and
+a camera-compiled helper with the element position +0x30.
+The previous 94-record captures had almost no sane float candidates
+at +0x4C/+0x50; that observation may reflect *before update*,
+uninitialized values or different state epoch, rather than a different
+receiver class. It is **NOT valid** to use snapshot-field values alone
+to exclude the second loop's source object identity.
+
+The global second argument originates at `lwz global,-23328(r13)`,
+then `lwz +0x0C(global)` (r29). Its semantic class, camera vs ball
+vs another entity, is **unproven**. The callee called from the tree
+method is compiled in RPGolCamera.cpp, but source-unit attribution
+alone does not establish its purpose (we previously debunked the
+source-unit name heuristic for generic clamp/vector-sub math).
+
+**Now highest-priority next research:** Read-only bounded original
+archive PPC routine `scripts/p0_tree_second_loop_geometry_private.py`
+traces (1) prologue candidates for r31's FieldManager receiver,
+(2) exact +0x230C/+0x2BB4 loops,
+(3) full Tree+0x047C..+0x0620 branch and response code,
+(4) first instructions of the MapObjBase+0x0B84 and
+Camera+0x028C callees. Strict source SHA/scene/94x84/BL anchors,
+no RAM/coords or native code committed. Does not infer a trunk radius,
+canopy hitbox or physical response merely from these calls. Training
+still false.
