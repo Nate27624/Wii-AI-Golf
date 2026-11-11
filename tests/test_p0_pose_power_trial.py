@@ -268,15 +268,15 @@ class TestPosePilot(unittest.TestCase):
                 p.parse_power_observation(bad)
 
     def test_partial_back_pose_detail_checked_before_a(self):
-        plan = p.setup("B1", "back", "firstball03",
+        plan = p.setup("B1", "back", "firstball03", club="iron",
                        pose_detail="partial-back")
         messages = []
-        answers = iter(("back", "partial-back"))
+        answers = iter(("back", "partial-back", "iron"))
         got = p.gated_pose_reader(plan, "BEFORE pressing A, initial club position [back/center/forward/unknown]: ",
                                   reader=lambda prompt: (messages.append(prompt), next(answers))[1],
                                   observed={})
         self.assertEqual(got, "back")
-        self.assertEqual(len(messages), 2)
+        self.assertEqual(len(messages), 3)
 
     def test_full_back_cannot_masquerade_as_partial(self):
         plan = p.setup("B1", "back", "firstball03",
@@ -332,6 +332,58 @@ class TestPosePilot(unittest.TestCase):
         self.assertFalse(p.eligible(record))
         self.assertEqual(record["initial_pose_detail_human"], "partial-back")
         self.assertFalse(record["training_approved"])
+
+
+    def test_manual_wedge_to_iron_confirmed_before_a(self):
+        plan = p.setup("B2", "back", "firstball03", club="iron",
+                       pose_detail="partial-back", club_change="wedge-to-iron")
+        observed = {}
+        answers = iter(("back", "partial-back", "iron", "yes"))
+        got = p.gated_pose_reader(
+            plan, "BEFORE pressing A, initial club position [back/center/forward/unknown]: ",
+            reader=lambda _: next(answers), observed=observed)
+        self.assertEqual(got, "back")
+        self.assertEqual(observed["selected_club_human"], "iron")
+        self.assertEqual(observed["club_change_human"], "wedge-to-iron")
+
+    def test_wrong_selected_club_refuses_before_a(self):
+        plan = p.setup("B2", "back", "firstball03", club="iron",
+                       pose_detail="partial-back", club_change="wedge-to-iron")
+        answers = iter(("back", "partial-back", "wedge"))
+        with self.assertRaisesRegex(p.RefuseTrial, "Active club"):
+            p.gated_pose_reader(
+                plan, "BEFORE pressing A, initial club position [back/center/forward/unknown]: ",
+                reader=lambda _: next(answers), observed={})
+
+    def test_missing_manual_club_change_refuses_before_a(self):
+        plan = p.setup("B2", "back", "firstball03", club="iron",
+                       pose_detail="partial-back", club_change="wedge-to-iron")
+        for response in ("no", "unknown", ""):
+            answers = iter(("back", "partial-back", "iron", response))
+            with self.assertRaisesRegex(p.RefuseTrial, "Expected manual"):
+                p.gated_pose_reader(
+                    plan, "BEFORE pressing A, initial club position [back/center/forward/unknown]: ",
+                    reader=lambda _: next(answers), observed={})
+
+    def test_bad_club_change_plan_rejected(self):
+        with self.assertRaisesRegex(p.RefuseTrial, "requires final club iron"):
+            p.setup("B2", "back", "firstball03", club="wedge",
+                    pose_detail="partial-back", club_change="wedge-to-iron")
+
+    def test_summary_retains_club_transition_as_human(self):
+        human = {"initial_club_pose_human": "back"}
+        request = {"trace_sha256": "trace", "generated_trace_frames": 89,
+                   "backswing_scale": 1.0, "a_lead_requested_frames": 45}
+        record = p.summarize(
+            {"human_observation": human, "known_good_swing_request": request},
+            p.setup("B2", "back", "firstball03", club="iron",
+                    pose_detail="partial-back", club_change="wedge-to-iron"),
+            bridge_sha="bridge", payload={"baseline_trace_sha256": "trace"},
+            observed_pose_detail="partial-back", observed_club="iron",
+            observed_club_change="wedge-to-iron", power=(101.0, "clear"))
+        self.assertEqual(record["selected_club_human"], "iron")
+        self.assertEqual(record["club_change_human"], "wedge-to-iron")
+        self.assertFalse(record["selected_club_game_verified"])
 
     def test_symlink_rejected(self):
         """Use a real link where permitted; simulate Windows WinError 1314 otherwise.
