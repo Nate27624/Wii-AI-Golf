@@ -431,10 +431,12 @@ class Inspector:
         if prior is not None:
             prior.close()
         scene_warning = getattr(model, "source_scene_warning", None)
+        if not isinstance(scene_warning, str) or not scene_warning:
+            scene_warning = None
         self.visual_status.set(
             ("WARNING: GEOMETRY-ONLY COMPATIBILITY VIEW · "
              if scene_warning else "PRIVATE source preview: ") +
-            f"{model.source_name} · {len(model.faces):,} renderable UV triangles · "
+            f"{model.source_name} · {len(model.faces):,} renderable UV triangles · " +
             (scene_warning if scene_warning else
              "native hole/world/KCL alignment NOT verified"))
         if hasattr(self, "saved_assets"):
