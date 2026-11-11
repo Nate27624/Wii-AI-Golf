@@ -622,3 +622,76 @@ Camera+0x028C callees. Strict source SHA/scene/94x84/BL anchors,
 no RAM/coords or native code committed. Does not infer a trunk radius,
 canopy hitbox or physical response merely from these calls. Training
 still false.
+
+## Original phase7 second tree-loop + camera math native receipt
+
+Operator ran original SHA/scene-qualified `p0_tree_second_loop_geometry_private.py --detail`
+and supplied **both** loops and full `Tree+0x047C..+0x0620`
+body, native Camera+0x028C and MapObjBase+0x0B84 targets:
+
+- `FieldManager+0x2300` loads `+0x20(r31)`, forms
+  `r3=base+r26`; `+0x230C` calls `Tree+0x047C`; `+0x2310`
+  increments element by 84; `+0x2318` reads
+  `+0x1C(r31)` as count. This **directly agrees** with the
+  known writer `FieldManager+0x2BAC..+0x2BC8` which iterates
+  same +0x20-array,+0x1C-count, +84 stride using r28. This
+  *corrects and supersedes* an earlier false conclusion that
+  the +0x48 reader had to target another struct because
+  its +0x4C/+0x50 values were mostly nonfinite in the captured
+  records. Those fields are explicitly overwritten as float
+  values during this tree-update routine and may be uninitialized
+  or stale in static capture. Still need confirm owner register.
+- Source `FieldManager+0x22EC` loads a shared global pointer and
+  `+0x22F8` takes its `+0x0C` member as additional argument
+  `r29`; `+0x2304` passes it via `r4` on every tree iteration.
+  Actual dynamic type/role not proven.
+- `Tree+0x047C` receives `r3` element and `r4` additional
+  pointer. It first conditionally exits based on element
+  `+0x24`, obtains 3 source objects from `+0x1C,+0x20,+0x28`
+  and passes each through `RPGolMapObjBase+0x0B84`, which
+  loads a pointer at **+0x04 of each resource object** and
+  tail-jumps to an external helper. This gives **source-code
+  evidence that at least some of these offsets behave as
+  pointer-like model/resource handles in this routine**, rather
+  than matrix coefficients. It does not identify collision
+  vs visual geometry.
+- `Tree+0x04C4..+0x04D8` calls
+  `RPGolCamera+0x028C` with extra argument and
+  `element+0x30` tree position; stores a resulting float
+  to tree `+0x4C`. Code compares a floating-point result
+  to a source constant; if admitted, repeats this function,
+  storing another float at `+0x50`. `Camera+0x028C`
+  reads `r3+0x40` as a pointer to a reference vector,
+  `r3+0x38` as a float and loads two horizontal
+  components from the reference point and tree location.
+  It computes horizontal positional differences and
+  floating-point math. This is compatible with camera
+  effects/proximity; **NOT a verified ball collision test**.
+- `Tree+0x0504` now plausibly reads the SAME tree object's
+  native `+0x48` distance flag, then conditionally updates
+  a global timer/counter with source maximum 180 and writes a
+  byte to a referenced object. Later branches use `+0x50`
+  float, clamp values through `Tree+0x0604` (known generic
+  clamp), and update another global value. Source-native
+  geometry and state updates, but NO observed ball receiver,
+  ball velocity write, tree collider radius or canopy split.
+  Do not name the updated byte or global value a hit indicator
+  without its owner class or gameplay state source.
+- Source `r31` receiver origin: bounded original scan finds
+  `mr r31,r3` at `FieldManager+0x214C` and only one
+  stack prologue at `+0x2138` in the upstream relevant
+  function span. This **strongly supports** second-loop
+  receiver being FieldManager method's `this` pointer.
+  New tightened native audit adds exact +0x214C source
+  register anchor, prologue structural check, scan for
+  unexpected intervening new stack frame and prints
+  +0x2130..+0x215C entry disassembly. It does not falsely
+  claim complete CFG proof or collision semantics.
+
+**Key distinction:** The second routine almost certainly belongs to
+*tree update / visibility / effect state*, not yet identified as
+tree hitbox physics. Further direct evidence would require a
+ball contact query traversing the tree-owned structures or KCL
+geometry associated with source tree positions and ball-velocity
+response. A camera-relative scalar used for visual/effect
+thresholds must never be treated as physical collision radius.
