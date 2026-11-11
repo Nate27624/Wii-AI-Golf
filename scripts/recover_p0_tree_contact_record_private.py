@@ -33,10 +33,10 @@ MAX_RAW_SIZE=300*1024*1024
 MAX_PACKETS=3000
 
 
-def regular(path,limit):
+def regular(path,limit,allow_empty=False):
     if path.is_symlink() or not path.is_file():
         raise ValueError("Expected regular unsymlinked private file")
-    if path.stat().st_size<=0 or path.stat().st_size>limit:
+    if (path.stat().st_size==0 and not allow_empty) or path.stat().st_size>limit:
         raise ValueError("Private source file exceeds expected size")
     return path
 
@@ -166,7 +166,8 @@ def recover(session):
             if not isinstance(item,dict) or item.get("name") not in (
                     "candidate-stream-RAW-PRIVATE.jsonl","dolphin-window-PRIVATE.mp4"):
                 raise ValueError("Unexpected private file manifest entry")
-            f=regular(trial_dir/item["name"],MAX_RAW_SIZE*3)
+            f=regular(trial_dir/item["name"],MAX_RAW_SIZE*3,
+                      allow_empty=(item["name"]=="dolphin-window-PRIVATE.mp4"))
             if (type(item.get("bytes")) is not int or item["bytes"]!=f.stat().st_size
                     or recorder.file_sha(f)!=item.get("sha256")):
                 raise ValueError("Original private file changed after recording")
