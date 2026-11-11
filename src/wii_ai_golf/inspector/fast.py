@@ -11,7 +11,8 @@ import time
 from .club import CLUB_GLOBAL_SLOT, CLUB_FIELD_OFFSET, PLAYER_MANAGER_GLOBAL_SLOT
 
 
-def packet(rpc, phase: str, index: int, *, include_a_state: bool = False,\n           include_club_state: bool = False) -> dict:
+def packet(rpc, phase: str, index: int, *, include_a_state: bool = False,
+           include_club_state: bool = False) -> dict:
     import p0_live_no_contact_compare as base
 
     def region(address: int, count: int, bank: str | None = None) -> tuple[int, ...]:
@@ -41,12 +42,25 @@ def packet(rpc, phase: str, index: int, *, include_a_state: bool = False,\n     
         return value
 
     def snapshot_globals() -> dict[int, int]:
-        # All source-qualified MEM1 roots are one bounded contiguous block.\n        # Include the distinct club .sbss slot ONLY for opt-in club display.\n        start = base.SCENE_STATIC\n        end = (CLUB_GLOBAL_SLOT if include_club_state else base.PLAYER_MANAGER_STATIC) + 4
+        # All source-qualified MEM1 roots are one bounded contiguous block.
+        # Include the distinct club .sbss slot ONLY for opt-in club display.
+        start = base.SCENE_STATIC
+        end = (CLUB_GLOBAL_SLOT if include_club_state else base.PLAYER_MANAGER_STATIC) + 4
         block = region(start, (end - start)//4, 'MEM1')
-        addresses = (base.SCENE_STATIC, base.SCENE_STATIC+4,\n                     base.CONFIG_STATIC, base.FIELD_STATIC, base.PLAYER_MANAGER_STATIC)\n        if include_club_state:\n            addresses += (CLUB_GLOBAL_SLOT,)\n        return {addr: block[(addr-start)//4] for addr in addresses}
+        addresses = (base.SCENE_STATIC, base.SCENE_STATIC+4,
+                     base.CONFIG_STATIC, base.FIELD_STATIC, base.PLAYER_MANAGER_STATIC)
+        if include_club_state:
+            addresses += (CLUB_GLOBAL_SLOT,)
+        return {addr: block[(addr-start)//4] for addr in addresses}
 
-    end_roots = None\n\n    def epoch_matches(identity: tuple[int,...]) -> bool:\n        nonlocal end_roots\n        mgr, scene, config, field, pm, selected, record, ball, nested, tee, tee_vec, pin, pin_vec, hole = identity
-        roots = snapshot_globals()\n        end_roots = roots\n        if (roots[base.SCENE_STATIC] != mgr or roots[base.CONFIG_STATIC] != config
+    end_roots = None
+
+    def epoch_matches(identity: tuple[int,...]) -> bool:
+        nonlocal end_roots
+        mgr, scene, config, field, pm, selected, record, ball, nested, tee, tee_vec, pin, pin_vec, hole = identity
+        roots = snapshot_globals()
+        end_roots = roots
+        if (roots[base.SCENE_STATIC] != mgr or roots[base.CONFIG_STATIC] != config
                 or roots[base.FIELD_STATIC] != field or roots[base.PLAYER_MANAGER_STATIC] != pm):
             return False
         # Every item in directional source.end_epoch_matches is independently
@@ -96,7 +110,16 @@ def packet(rpc, phase: str, index: int, *, include_a_state: bool = False,\n     
     if conf[0]!=4 or conf[1]>8:
         raise ValueError('not active Hitting-the-Green hole')
     hole=conf[1]
-    pm=ptr(roots[base.PLAYER_MANAGER_STATIC],'MEM2',0x33C)\n    # This is intentionally NOT pm+0x1C; that older candidate failed an\n    # operator D-pad change test while the distinct global passed.\n    club_owner = roots.get(CLUB_GLOBAL_SLOT) if include_club_state else None\n    club_valid = (type(club_owner) is int\n                  and base.in_bank(club_owner, CLUB_FIELD_OFFSET+4, 'MEM2')\n                  and club_owner != pm)\n    club_before = (region(club_owner+CLUB_FIELD_OFFSET,1,'MEM2')[0]\n                   if club_valid else None)\n    manager_words=region(pm,0x338//4,'MEM2')
+    pm=ptr(roots[base.PLAYER_MANAGER_STATIC],'MEM2',0x33C)
+    # This is intentionally NOT pm+0x1C; that older candidate failed an
+    # operator D-pad change test while the distinct global passed.
+    club_owner = roots.get(CLUB_GLOBAL_SLOT) if include_club_state else None
+    club_valid = (type(club_owner) is int
+                  and base.in_bank(club_owner, CLUB_FIELD_OFFSET+4, 'MEM2')
+                  and club_owner != pm)
+    club_before = (region(club_owner+CLUB_FIELD_OFFSET,1,'MEM2')[0]
+                   if club_valid else None)
+    manager_words=region(pm,0x338//4,'MEM2')
     if not 0x803C7DD0<=manager_words[0]<0x803C7DE0:
         raise ValueError('invalid player manager type')
     record=manager_words[0x334//4]
@@ -139,9 +162,25 @@ def packet(rpc, phase: str, index: int, *, include_a_state: bool = False,\n     
         if (region(ball+0x30,3,'MEM2')==values['selected_ball_plus_0x30']
                 and region(record+0x3C,1,'MEM2')==(get(r,0x3C),)):
             a_record=r
-    if not epoch_matches(identity):\n        raise ValueError('source identity changed across packet')\n    # Club is a passive add-on. Invalid, changing or unqualified values are\n    # UNKNOWN without corrupting the independent ball/A packet. The common\n    # source epoch above still fails closed for the rest of the inspector.\n    club_index = None\n    if (include_club_state and club_valid and end_roots is not None\n            and end_roots.get(CLUB_GLOBAL_SLOT) == club_owner\n            and type(club_before) is int and 0 <= club_before <= 3):\n        club_after = region(club_owner+CLUB_FIELD_OFFSET,1,'MEM2')[0]\n        if club_after == club_before:\n            club_index = club_before\n    end=rpc.call('frame.get_count',[])
+    if not epoch_matches(identity):
+        raise ValueError('source identity changed across packet')
+    # Club is a passive add-on. Invalid, changing or unqualified values are
+    # UNKNOWN without corrupting the independent ball/A packet. The common
+    # source epoch above still fails closed for the rest of the inspector.
+    club_index = None
+    if (include_club_state and club_valid and end_roots is not None
+            and end_roots.get(CLUB_GLOBAL_SLOT) == club_owner
+            and type(club_before) is int and 0 <= club_before <= 3):
+        club_after = region(club_owner+CLUB_FIELD_OFFSET,1,'MEM2')[0]
+        if club_after == club_before:
+            club_index = club_before
+    end=rpc.call('frame.get_count',[])
     if type(end) is not int or end<mid:
         raise ValueError('invalid bridge ordering')
     payload={'phase':phase,'index':index,'start_ns':start_ns,'end_ns':time.monotonic_ns(),
              'frame_bracket':(before,end),'identity':identity,'words':{**values,**extras}}
-    if include_a_state:\n        payload['a_record']=a_record\n    if include_club_state:\n        payload['club_index']=club_index\n    return payload
+    if include_a_state:
+        payload['a_record']=a_record
+    if include_club_state:
+        payload['club_index']=club_index
+    return payload
