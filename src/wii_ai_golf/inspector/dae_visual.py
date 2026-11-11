@@ -296,102 +296,101 @@ def load_private_dae_visual_model(filename: str | Path) -> PrivateVisualModel:
                     # A library geometry not referenced by the chosen
                     # visual_scene is not part of the original rendered model.
                     continue
-                if len(instances) != 1:
-                    raise VisualAssetError(
-                        "Original Collada geometry instanced multiple times; "
-                        "explicit instance handling required, never silently flatten")
-                authored_transform = instances[0]
             else:
-                authored_transform = IDENTITY
-            mesh = _one(geometry, "mesh")
-            floats = _source_arrays(mesh)
-            bindings = {}
-            for vertex in _children(mesh, "vertices"):
-                bindings[_id(vertex.get("id"))] = {
-                    item.get("semantic"): _ref(item.get("source"))
-                    for item in _children(vertex, "input")}
-            for triangles in _children(mesh, "triangles"):
-                try:
-                    count = int(triangles.get("count", "-1"))
-                except ValueError as exc:
-                    raise VisualAssetError("Invalid original triangle count") from exc
-                if not 0 < count <= MAX_TRIANGLES - source_triangle_count:
-                    raise VisualAssetError("Collada triangle count exceeds limit")
-                source_triangle_count += count
-                symbol = triangles.get("material")
-                if symbol not in aliases:
-                    raise VisualAssetError("Unknown source triangle material: " + str(symbol))
-                material = aliases[symbol]
-                if material not in textures and material not in solid:
-                    # Unknown native effect: omit just these faces, preserving
-                    # 11 authentic texture slots, and report exact loss.
-                    skipped_source_faces += count
-                    continue
-                inputs = []
-                for item in _children(triangles, "input"):
+                instances = (IDENTITY,)
+            # One original library geometry can be instanced multiple times:
+            # every instance receives its own exact authored matrix and
+            # duplicate UV/vertex seams. Never silently drop or overwrite.
+            for authored_transform in instances:
+                mesh = _one(geometry, "mesh")
+                floats = _source_arrays(mesh)
+                bindings = {}
+                for vertex in _children(mesh, "vertices"):
+                    bindings[_id(vertex.get("id"))] = {
+                        item.get("semantic"): _ref(item.get("source"))
+                        for item in _children(vertex, "input")}
+                for triangles in _children(mesh, "triangles"):
                     try:
-                        off = int(item.get("offset", "0"))
+                        count = int(triangles.get("count", "-1"))
                     except ValueError as exc:
-                        raise VisualAssetError("Malformed source face index offset") from exc
-                    if not 0 <= off <= 15:
-                        raise VisualAssetError("Source index offset exceeds bound")
-                    inputs.append((item.get("semantic"), _ref(item.get("source")),
-                                   off, item.get("set")))
-                if not inputs:
-                    raise VisualAssetError("Source triangles have no coordinate inputs")
-                stride = max(inp[2] for inp in inputs) + 1
-                idx = _numbers(_one(triangles, "p").text,
-                               integer=True, limit=MAX_TRIANGLES * 3 * 16)
-                if len(idx) != count * 3 * stride:
-                    raise VisualAssetError("Source face indexes/count inconsistent")
-                vertex_input = [i for i in inputs if i[0] == "VERTEX"]
-                if len(vertex_input) != 1:
-                    raise VisualAssetError("Source triangle VERTEX input invalid")
-                target = bindings.get(vertex_input[0][1], {})
-                positions = floats.get(target.get("POSITION"))
-                if positions is None:
-                    raise VisualAssetError("Original POSITION array unavailable")
-                tex_inputs = [i for i in inputs if i[0] == "TEXCOORD"]
-                chosen = next((i for i in tex_inputs if i[3] in (None, "0")), None)
-                if material in textures and chosen is None:
-                    raise VisualAssetError("Textured source triangle missing UV0")
-                texcoords = floats.get(chosen[1]) if chosen else None
-                if chosen and texcoords is None:
-                    raise VisualAssetError("Original texture coordinate array missing")
-                # Bounded duplication per primitive; preserves per-corner UV seams.
-                used_v, used_t = {}, {}
-                for f in range(count):
-                    vi_out, ti_out = [], []
-                    for corner in range(3):
-                        k = (3 * f + corner) * stride
-                        vi = idx[k + vertex_input[0][2]]
-                        if vi >= len(positions) or len(positions[vi]) < 3:
-                            raise VisualAssetError("Source POSITION index invalid")
-                        if vi not in used_v:
-                            if len(vertices) >= MAX_VERTICES:
-                                raise VisualAssetError("Visual model exceeds vertex limit")
-                            used_v[vi] = len(vertices)
-                            vertices.append(apply_source_node_transform(
-                                tuple(positions[vi][:3]), authored_transform))
-                        vi_out.append(used_v[vi])
-                        if chosen:
-                            ti = idx[k + chosen[2]]
-                            if ti >= len(texcoords) or len(texcoords[ti]) < 2:
-                                raise VisualAssetError("Original TEXCOORD index invalid")
-                            if ti not in used_t:
+                        raise VisualAssetError("Invalid original triangle count") from exc
+                    if not 0 < count <= MAX_TRIANGLES - source_triangle_count:
+                        raise VisualAssetError("Collada triangle count exceeds limit")
+                    source_triangle_count += count
+                    symbol = triangles.get("material")
+                    if symbol not in aliases:
+                        raise VisualAssetError("Unknown source triangle material: " + str(symbol))
+                    material = aliases[symbol]
+                    if material not in textures and material not in solid:
+                        # Unknown native effect: omit just these faces, preserving
+                        # 11 authentic texture slots, and report exact loss.
+                        skipped_source_faces += count
+                        continue
+                    inputs = []
+                    for item in _children(triangles, "input"):
+                        try:
+                            off = int(item.get("offset", "0"))
+                        except ValueError as exc:
+                            raise VisualAssetError("Malformed source face index offset") from exc
+                        if not 0 <= off <= 15:
+                            raise VisualAssetError("Source index offset exceeds bound")
+                        inputs.append((item.get("semantic"), _ref(item.get("source")),
+                                       off, item.get("set")))
+                    if not inputs:
+                        raise VisualAssetError("Source triangles have no coordinate inputs")
+                    stride = max(inp[2] for inp in inputs) + 1
+                    idx = _numbers(_one(triangles, "p").text,
+                                   integer=True, limit=MAX_TRIANGLES * 3 * 16)
+                    if len(idx) != count * 3 * stride:
+                        raise VisualAssetError("Source face indexes/count inconsistent")
+                    vertex_input = [i for i in inputs if i[0] == "VERTEX"]
+                    if len(vertex_input) != 1:
+                        raise VisualAssetError("Source triangle VERTEX input invalid")
+                    target = bindings.get(vertex_input[0][1], {})
+                    positions = floats.get(target.get("POSITION"))
+                    if positions is None:
+                        raise VisualAssetError("Original POSITION array unavailable")
+                    tex_inputs = [i for i in inputs if i[0] == "TEXCOORD"]
+                    chosen = next((i for i in tex_inputs if i[3] in (None, "0")), None)
+                    if material in textures and chosen is None:
+                        raise VisualAssetError("Textured source triangle missing UV0")
+                    texcoords = floats.get(chosen[1]) if chosen else None
+                    if chosen and texcoords is None:
+                        raise VisualAssetError("Original texture coordinate array missing")
+                    # Bounded duplication per primitive; preserves per-corner UV seams.
+                    used_v, used_t = {}, {}
+                    for f in range(count):
+                        vi_out, ti_out = [], []
+                        for corner in range(3):
+                            k = (3 * f + corner) * stride
+                            vi = idx[k + vertex_input[0][2]]
+                            if vi >= len(positions) or len(positions[vi]) < 3:
+                                raise VisualAssetError("Source POSITION index invalid")
+                            if vi not in used_v:
+                                if len(vertices) >= MAX_VERTICES:
+                                    raise VisualAssetError("Visual model exceeds vertex limit")
+                                used_v[vi] = len(vertices)
+                                vertices.append(apply_source_node_transform(
+                                    tuple(positions[vi][:3]), authored_transform))
+                            vi_out.append(used_v[vi])
+                            if chosen:
+                                ti = idx[k + chosen[2]]
+                                if ti >= len(texcoords) or len(texcoords[ti]) < 2:
+                                    raise VisualAssetError("Original TEXCOORD index invalid")
+                                if ti not in used_t:
+                                    if len(uvs) >= MAX_UVS:
+                                        raise VisualAssetError("Visual UVs exceed limit")
+                                    used_t[ti] = len(uvs)
+                                    uvs.append(tuple(texcoords[ti][:2]))
+                                ti_out.append(used_t[ti])
+                            else:
                                 if len(uvs) >= MAX_UVS:
                                     raise VisualAssetError("Visual UVs exceed limit")
-                                used_t[ti] = len(uvs)
-                                uvs.append(tuple(texcoords[ti][:2]))
-                            ti_out.append(used_t[ti])
-                        else:
-                            if len(uvs) >= MAX_UVS:
-                                raise VisualAssetError("Visual UVs exceed limit")
-                            ti_out.append(len(uvs))
-                            uvs.append((0., 0.))  # Only source-untextured faces.
-                    if len(set(vi_out)) != 3:
-                        raise VisualAssetError("Degenerate original source triangle")
-                    faces.append(VisualFace(tuple(vi_out), tuple(ti_out), material))
+                                ti_out.append(len(uvs))
+                                uvs.append((0., 0.))  # Only source-untextured faces.
+                        if len(set(vi_out)) != 3:
+                            raise VisualAssetError("Degenerate original source triangle")
+                        faces.append(VisualFace(tuple(vi_out), tuple(ti_out), material))
     if authored_scene is not None:
         if any(key not in visited_geometry_ids for key in authored_scene):
             raise VisualAssetError("Original scene references missing geometry")
