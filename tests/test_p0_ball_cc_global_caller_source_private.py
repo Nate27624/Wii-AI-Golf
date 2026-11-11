@@ -30,7 +30,7 @@ def bl(pc,target):
 
 def program():
     a={
-        m.BASE+m.lineage.MOVE:mr(27,3),
+        m.BASE+m.copy.MOVE:mr(27,3),
         m.BASE+m.GLOBAL_LOADS[0]:d(32,3,13,m.SOURCE_SLOT_DISP),
         m.BASE+m.GLOBAL_LOADS[1]:d(32,3,13,m.SOURCE_SLOT_DISP),
         m.BASE+m.DEREF:d(32,3,3,0x4C),
