@@ -95,7 +95,7 @@ class TreeContactRecoveryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             session=synthetic_session(temp)
             report,folder=recovery.recover(session)
-            self.assertEqual(folder,session)
+            self.assertTrue(folder.samefile(session))
             self.assertTrue(report["recovered_from_original_trial_manifests"])
             self.assertTrue(report["original_private_raw_sha_and_sample_counts_verified"])
             self.assertEqual(report["total_source_packets"],9)
