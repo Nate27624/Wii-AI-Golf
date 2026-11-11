@@ -1034,6 +1034,10 @@ class Inspector:
         if self.drag_button == getattr(event, "num", 1):
             self.drag_origin = None
             self.drag_button = None
+            # The movement renderer temporarily hides expensive crown faces
+            # and uses reduced KCL triangles; restore the COMPLETE source
+            # visual immediately when the pointer is released.
+            self.draw_path()
 
     def drag_move(self, event: tk.Event) -> None:
         if self.drag_origin is None:
