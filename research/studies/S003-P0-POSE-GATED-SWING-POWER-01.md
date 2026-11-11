@@ -103,6 +103,57 @@ if ((Read-Host 'Type RUN-B1 for ONE live, consented firstball03 trial') -eq 'RUN
 
 If user sees >100 but cannot read an exact number, enter >100 or 100+; if approximate 120, enter 120?; do NOT replace an over-100 reading with 100. If initial pose differs, cancel with q before A. An incomplete/unqualified B1 cannot advance to B2. No scripting of multiple automatic live shots is permitted. Off-green 100ft remains a censored penalty.
 
+## Firstball03 B1 result and explicit club selection control
+
+**Operator completed real B1:** `contact_human=yes`, visible power **101%** (`human_power_confidence=clear`), starting pose **partial-back**, `calibration_eligible_human_only=true`, `training_approved=false`. Operator describes it as "nearly perfectly 100." This is a **human-read gauge**, not native accepted shot power. New post-shot operator context: Hitting the Green initially offered **WEDGE**, which they **manually changed to IRON** before the B1 swing. B1's original private record has `expected_club=iron` but did **not** separately log the offered club or the manual selection; keep that row intact and preserve this as a **post-hoc operator addendum**, not a proven frame-synchronized club state.
+
+For **B2**, repeat the **same** initial wedge→manual iron selection, keep the final active club **iron** and same *partial-back* pre-A pose, aim, first-ball scenario, bridge SHA and wind=0. The runner now prompts **before A** for the currently selected club and, under `--club-change wedge-to-iron`, confirms the manual change. Mismatch/uncertainty refuses the experimental A and motion. The new row records `selected_club_human` and `club_change_human` as **human observations**, with `selected_club_game_verified=false`. B1 is grandfathered into B2's comparison **only as human/post-hoc evidence**; it is not proof the native club was source-authenticated. New rows must agree on club procedure and starting pose. This is a consistency control, not proof that initial club pose/club geometry is fixed frame-by-frame.
+
+**Corrected B2 local command (no game-path entry, one separately consented fresh boot):**
+
+~~~powershell
+$ErrorActionPreference = 'Stop'
+$repo = 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Pose-Pilot'
+$main = 'D:\Projects\Wii Golf AI\Wii-AI-Golf'
+$config = Join-Path $main 'research\launch.local.json'
+$catalog = Join-Path $main 'research\savestates.local.json'
+$atomic = 'D:\Projects\Wii Golf AI\tools\mcp_bridge_swing_atomic_a45.py'
+Set-Location -LiteralPath $repo
+if (git status --porcelain) { throw 'Local changes; refusing worktree replacement' }
+git fetch origin refs/pull/433/head
+if ($LASTEXITCODE -ne 0) { throw 'Fetch failed' }
+git switch --detach FETCH_HEAD
+if ($LASTEXITCODE -ne 0) { throw 'Switch failed' }
+py -3 -I -m unittest discover -s tests -p test_p0_pose_power_trial.py -v
+if ($LASTEXITCODE -ne 0) { throw 'Focused tests failed; no live shot' }
+foreach ($p in @($config, $catalog, $atomic)) {
+    if (-not (Test-Path -LiteralPath $p -PathType Leaf)) { throw "Missing file: $p" }
+}
+$settings = Get-Content -LiteralPath $config -Raw | ConvertFrom-Json
+if (-not (Test-Path -LiteralPath $settings.game -PathType Leaf)) {
+    throw 'Saved game file missing'
+}
+$trial = @(
+    '--config', $config, '--catalog', $catalog, '--bridge', $atomic,
+    '--script', 'p0_pose_power_trial.py', '--',
+    '--send-live-swing', '--arm', 'B2',
+    '--pose', 'back', '--pose-detail', 'partial-back',
+    '--club-change', 'wedge-to-iron',
+    '--scenario', 'firstball03', '--club', 'iron',
+    '--aim-id', 'straight', '--bridge-source', $atomic, '--atomic-a45'
+)
+py -3 -I scripts/run_golf_experiment.py @trial
+if ($LASTEXITCODE -ne 0) { throw 'Launcher dry-run failed' }
+if ((Read-Host 'Type RUN-B2 to perform ONE fresh Dolphin baseline shot') -eq 'RUN-B2') {
+    py -3 -I scripts/run_golf_experiment.py --send-live @trial
+    if ($LASTEXITCODE -ne 0) { throw 'B2 incomplete; stop' }
+} else {
+    Write-Host 'No live shot requested.'
+}
+~~~
+
+After B2: compare human gauge vs B1 101 (threshold ±5 points), contact and terminal observation. If comparable, propose ONE separate **XLOW** third trial, requested 0.20m backswing instead of 0.25m, with exactly the same wedge→iron procedure and starting pose. Do not automatically chain shots or interpret human power as native impulse. The game may position the club differently after manual switching; native pose and commit instrumentation remain open.
+
 ## Next scientific step
 
 To measure the effect of **initial club position itself**, first obtain a repeatable and source-qualified way to set or measure the game-owned club pose (or angle). Then run **separate pose strata** with identical requested waveform and independent repeated baselines. A `back` vs `center` difference here is not a controlled pose manipulation until its actual geometry and transition timing are established. To map desired powers like 25/50/75/100%, validate the game-accepted scalar against the native launch vector and collect repeated, uncensored observations.
