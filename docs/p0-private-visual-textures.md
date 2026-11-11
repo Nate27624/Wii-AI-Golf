@@ -117,3 +117,29 @@ substitute synthetic textures or made-up UVs for missing exports. The collision
 OBJ stays intact. As of the combined PR #429 head (`97a840b2`), Windows and
 Ubuntu offline inspector/texture/solid-terrain CI passed; original game-model
 export and game-world alignment remain unverified.
+
+## Verified complete BRRES extraction and next UI operation (2026-11-10)
+
+The operator's extraction inventory confirms one .mdl0 (353,608 bytes), 19 .tex0,
+36 .png (including mipmaps), two .scn0, two .bin, and three .txt.
+These are already present under D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1.
+No DAE/OBJ was present. wszst error #64 simply means the requested output
+directory already exists; DO NOT re-extract, delete, or overwrite it.
+
+Next export step (local BrawlCrate GUI): open the ORIGINAL BRRES
+D:\Projects\WiiGolfVisualPrivate\unpacked\glf_course_fc1\G3D\glf_course_fc1.brres.
+Expand 3DModels(NW4R), right-click model glf_course_fc1, choose Export,
+switch file type from MDL0 to Collada (.dae), and save in a new private
+folder under D:\Projects\WiiGolfVisualPrivate\visual_converted\.
+BrawlCrate supports MDL0 export as DAE, although this must be validated
+on the actual course asset for texture coordinates and materials.
+
+Use Blender 4.5 LTS (with native Collada import) to inspect UV maps and
+convert DAE to Wavefront OBJ + MTL. Blender 5.0 removed built-in Collada
+support (a separately installed compatible extension is needed for 5+).
+Use the existing base-level TEX0 PNGs (without .mmN mip suffix) for
+diffuse materials, and verify resulting MTL map_Kd references and OBJ vt/f
+UV indices before loading in the inspector. Keep all game data private.
+
+Visual model/world collision alignment, native shader effects, and correct
+hole identity are still pending verification. training_approved=false.
