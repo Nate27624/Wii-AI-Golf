@@ -145,6 +145,54 @@ field identifies an exact **validation category** without printing bone
 names, source coordinates, original matrices or proprietary assets. A
 successful geometry audit alone never authorizes collision-physics training.
 
+## Why the source material regions need further investigation
+
+The operator's first successful full private audit reported 2,498 original
+KCL triangles and 11,995 original DAE triangles, all 12 controlled skins
+accepted by the strict renderer, and source tree count 94. The four
+**display-only** material centroid RMS values were:
+
+| Operator display yaw | Source-region centroid RMS (visual units) |
+| --- | ---: |
+| 0° | 852.9798 |
+| 90° | 1021.3096 |
+| 180° | 1177.3696 |
+| 270° | 1018.4318 |
+
+Even at 0°, the green centroid discrepancy was 1461.7637 visual units,
+while fairway and bunker were about 152 and 151. This is **not evidence**
+for an additional 180° rotation; the 180° trial actually scored worst of
+the four. These are global region centroids, *not* matched source landmarks.
+
+The read-only `geometry.source_material_footprints` report now tests
+whether green/fairway/bunker are each a single spatial region or consist
+of multiple original-source surface patches. For each source mesh (KCL and
+DAE) and surface class it prints only:
+
+- Count of edge-connected material patches, including patches with at
+  least 1% of the source class's total triangle area.
+- Area shares of the three largest patches and their triangle counts.
+- Source-relative XZ patch-centroid spread and full material footprint
+  diagonal, each normalized by its **own** source mesh XZ extent.
+
+The component algorithm matches triangle edges by coordinates rounded to
+four decimal places **for this audit only**. It can count UV seams or
+nearly coincident source vertices differently from game-native topology;
+it is not a collision primitive or registration matrix. No source XYZ,
+triangles or controller IDs are printed. If source green polygons span
+multiple distinct patches or if the DAE covers a different region from
+the original KCL, their **global category centroids** may be inappropriate
+for visual alignment. We must compare source-verified hole-local landmarks,
+not turn the renderer based on those category centroids.
+
+Full audit JSON separately indicates
+`strict_source_visual.source_authored_scene_loaded=true` and records
+`strict_controller_instances_loaded` only after the real renderer
+successfully validates all referenced original source controller instances.
+The nested `dae_visual_scene.controllers.*static_skinning_evaluated=false`
+is intentionally an *inventory-only* field and does not describe the later
+full visual-model loader call. Neither flag verifies the KCL/world mapping.
+
 ## Interpreting `geometry.display_fit_surface_contrast`
 
 The report tests 0°, 90°, 180°, and 270° using exactly the same uniform
