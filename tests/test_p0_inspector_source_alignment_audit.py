@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import json
+from contextlib import redirect_stdout
+from io import StringIO
+from types import SimpleNamespace
 from dataclasses import replace
 import math
 from pathlib import Path
@@ -18,7 +21,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from wii_ai_golf.inspector.scene_alignment_audit import (
     RegistrationAuditError, audit_collada_scene, audit_surface_registration)
 from test_p0_inspector_unified_source_view import scene
-from p0_inspect_course_alignment_private import source_gated_live_anchors
+from p0_inspect_course_alignment_private import (
+    source_gated_live_anchors, main as alignment_audit_main)
 
 
 def _bits(value):
@@ -146,6 +150,56 @@ class PrivateSceneAlignmentTests(unittest.TestCase):
         self.assertEqual(contrast["matched_material_classes"], [])
         self.assertNotIn("trial_displays", contrast)
         self.assertFalse(contrast["native_collision_visual_alignment_verified"])
+
+
+    def test_cli_applies_sha_bound_private_kcl_labels_before_scoring(self):
+        visual, labeled = scene()
+        unlabeled = replace(labeled, face_materials=(None, None))
+        output = StringIO()
+        cli = ("--terrain-obj", "original-PRIVATE.obj", "--terrain-labels",
+               "original-labels-PRIVATE.json", "--visual-dae", "original-PRIVATE.dae",
+               "--offline")
+        with patch("p0_inspect_course_alignment_private.load_asset_selections",
+                   return_value=SimpleNamespace(terrain_obj=None, tree_json=None)), \
+             patch("p0_inspect_course_alignment_private.load_private_obj",
+                   return_value=unlabeled), \
+             patch("p0_inspect_course_alignment_private.apply_private_surface_labels",
+                   return_value=labeled) as strict_labels, \
+             patch("p0_inspect_course_alignment_private.load_private_dae_visual_model",
+                   return_value=visual), \
+             patch("p0_inspect_course_alignment_private.audit_collada_scene",
+                   return_value={"synthetic_only": True}), \
+             redirect_stdout(output):
+            code = alignment_audit_main(cli)
+        self.assertEqual(code, 0)
+        strict_labels.assert_called_once()
+        report = json.loads(output.getvalue())
+        contrast = report["geometry"]["display_fit_surface_contrast"]
+        self.assertEqual(contrast["matched_material_classes"], ["green", "fairway"])
+        self.assertEqual(len(contrast["trial_displays"]), 4)
+        self.assertFalse(report["source_visual_world_alignment_verified"])
+        self.assertFalse(report["training_approved"])
+        self.assertEqual(unlabeled.face_materials, (None, None))
+
+    def test_cli_abstains_without_valid_kcl_source_materials(self):
+        visual, labeled = scene()
+        unlabeled = replace(labeled, face_materials=(None, None))
+        output = StringIO()
+        with patch("p0_inspect_course_alignment_private.load_asset_selections",
+                   return_value=SimpleNamespace(terrain_obj=None, tree_json=None)), \
+             patch("p0_inspect_course_alignment_private.load_private_obj",
+                   return_value=unlabeled), \
+             patch("p0_inspect_course_alignment_private.load_private_dae_visual_model",
+                   return_value=visual), \
+             patch("p0_inspect_course_alignment_private.audit_collada_scene",
+                   return_value={}), \
+             redirect_stdout(output):
+            code = alignment_audit_main(("--terrain-obj", "source-PRIVATE.obj",
+                                         "--visual-dae", "source-PRIVATE.dae",
+                                         "--offline"))
+        self.assertEqual(code, 2)
+        self.assertIn("ABSTAIN_KCL_SOURCE_MATERIALS", output.getvalue())
+        self.assertNotIn("display_fit_surface_contrast", output.getvalue())
 
 
 class LiveReadOnlySourceTests(unittest.TestCase):
