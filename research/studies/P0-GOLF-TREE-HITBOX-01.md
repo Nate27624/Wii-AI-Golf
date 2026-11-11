@@ -3272,3 +3272,113 @@ video, perform live RAM reads, modify
 capture files, embed original PPC code
 words, export private addresses or
 fit game physics. `training_approved=false`.
+
+
+## Original exact CC-to-FC source-copy report — global input pointer is the next identity gate
+
+Operator executed `P0_ORIGINAL_BALL_CC_FC_NATIVE_COPY_AND_RECEIVER_AUDIT_V1`
+on original capture **7** of the SHA-gated source archive.
+The native source, scene, and 94-tree source gates passed
+(`original_seven_pair_SHA_source_qualified=true`).
+The new report confirms two **static exact** vector-copy
+sequences inside the native function at `0x80299C70`:
+
+1. Six contiguous native instructions at Ball source unit
+   `+0x2D00/04/08/0C/10/14` interleave
+   `lfs f0,0/4/8(r3)` with
+   `stfs f0,+0xCC/+0xD0/+0xD4(r27)`.
+   These exact register assignments and offsets
+   are source-verified, but `r3` is not
+   independently proven to point at the selected
+   live Ball's position. The cache receiver
+   `r27` is likewise not bound to that
+   selected live Ball at any observed impact.
+2. At Ball source unit `+0x2F98/+0x2F9C/+0x2FA0`,
+   three native `lfs` load `r27+0xCC/+0xD0/+0xD4`
+   into f2/f1/f0. At `+0x2FA8/+0x2FAC/+0x2FB0`,
+   corresponding `stfs` instructions
+   write those unchanged registers into
+   `r27+0xFC/+0x100/+0x104`.
+   The intervening native original source
+   instruction at `Ball+0x2FA4`
+   is **`lwz r0,+0x108(r27)`**.
+   It changes an integer GPR only, and
+   does not clobber the input floating-point
+   values, r27, memory source or control
+   in the sequential instruction window.
+   Thus the **static CC→FC copy is established**;
+   its dynamic execution, source object
+   and physics semantics remain unverified.
+
+**The critical remaining source difference**
+is that `r3` is modified **after**
+`mr r27,r3` at `Ball+0x2CB8`.
+The native source contains
+`lwz r3,-23304(r13)` at
+`Ball+0x2CD4` and again at
+`Ball+0x2CF8`, plus
+`lwz r3,+0x4C(r3)` at
+`Ball+0x2CFC`. That second
+r13-relative global load, member pointer
+dereference and `lfs f0,0(r3)`
+at `Ball+0x2D00` are consecutive.
+The immediate input to the CC cache
+copy therefore comes through **a
+global object pointer's +0x4C field**,
+rather than necessarily the original
+receiver r3. The global object may
+or may not be the selected live Ball.
+The original live 110-packet memory
+capture separately established that
+the **selected Ball** itself has
+`Ball+0x4C -> Ball+0x30`; source
+code alone has not shown that
+the r13-global object is the selected
+Ball. Avoid collapsing these two
+different evidence claims.
+
+The two static callers of the cache
+entry each have a bounded previous
+`r31 <- r3` assignment: native
+Ball source `+0x2B08` for the
+`+0x2B8C` direct call and
+`+0x2C5C` for the `+0x2C80`
+call. The source caller r31
+would therefore plausibly preserve
+an original receiver pointer, but
+its dynamic identity as the Ball
+selected in November is still
+unproven.
+
+Created `scripts/p0_ball_cc_global_caller_source_private.py`,
+`tests/test_p0_ball_cc_global_caller_source_private.py`
+and Windows/Ubuntu offline CI. This
+next source-only study checks the
+exact original r13-global source
+loads and +0x4C pointer dereference,
+small bounded PPC control-flow
+branches around them, exact caller
+r31-save/r3-restore and possible
+intervening GPR clobbers. The script
+requires the original seven-capture
+SHA-qualified private archive and
+preserves all private data. Output
+includes only public Ball source-relative
+code sites, register numbers, signed
+displacements and bounded counts;
+no PPC instruction words, native heap
+addresses/XYZ, player recordings,
+ROM data or files are exported.
+
+Neither `+0xCC` nor `+0xFC`
+is established as a physics position,
+collision velocity, wood material code
+or canopy damping. No tree contact
+instruction, exact guest impact frame
+or native branch has been identified.
+The user explicitly wants memory-only
+investigation and does **not** wish
+to upload video. No additional
+gameplay is required for this
+source qualification step.
+`training_approved=false`.
