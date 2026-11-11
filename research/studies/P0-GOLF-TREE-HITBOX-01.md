@@ -3946,3 +3946,88 @@ private capture paths,
 screenshots or videos. No
 Dolphin or new recording.
 `training_approved=false`.
+
+
+## Original Ball+0x2CB0 callee: stw-only save-thunk disconfirmed, register effect still unknown
+
+Operator ran the original private seven-pair SHA-qualified
+USA Rev1 source audit
+`P0_ORIGINAL_BALL_ENTRY_SAVE_THUNK_R4_PRESERVATION_V1`
+at source head `95847057d540dd874592ce26a52223b6e72d1453`,
+capture **7**. Original native scene/source gates
+passed. At native Ball+0x2CB0, the direct linked
+BL's target lies inside the original MEM1 source-bank
+candidate executable range. The immediately examined
+first instruction **did not match** the previous
+tool's strict `stw r27..31,(r1/r11)`-only helper
+grammar: `callee_verified_plain_stw_count=0`,
+`callee_is_store_only_GPR_save_thunk_verified=false`,
+`r4_is_preserved_by_exact_callee_source_verified=false`,
+with `instruction_not_plain_nonvolatile_GPR_store`.
+
+**Interpretation: a negative pattern match is NOT
+a proven r4 clobber.** The original first instruction
+could be a PPC `stmw` (store multiple), an update-form
+store, a common function prelude, an arithmetic or
+control instruction, or some other source. None is
+identified until further decoding. In particular,
+the previous strict helper checker omitted
+`stmw` entirely.
+
+Original caller facts remain source-qualified:
+Ball+0x2B84 `addi r4,r4,+1`
+for BL at Ball+0x2B8C, and
+Ball+0x2C78 `li r4,-1`
+for BL at Ball+0x2C80, with no
+identified intervening assignment at those
+caller sites. At callee Ball+0x2CBC
+`mr r28,r4` follows the linked
+call at +0x2CB0. Until the callee's
+source effects are verified,
+**r28 == incoming r4 remains unproven**.
+The source-byte branch still requires
+nonzero `lbz r0,+0x5C(r3)`
+at Ball+0x2FBC from an r13-global
+object of unproven selected-Ball identity.
+
+**Follow-up authored:** source-only
+`scripts/p0_ball_prelude_callee_census_private.py`
+and twelve synthetic-only regression tests
+`tests/test_p0_ball_prelude_callee_census_private.py`,
+with Linux/Windows CI.
+It reruns all existing original SHA,
+scene/94-tree and native source qualification,
+then reads a bounded 24-instruction
+source snippet **only in the original
+private MEM1 archive** at the
+actual native +2CB0 BL target. It emits
+only categories/operand register indices
+and instruction-index-relative sites
+rather than native PPC instruction words,
+ROM bytes, function target absolute
+addresses, RAM pointers or XYZ.
+The *only* automatic r4-preservation
+promotion is a complete, bounded,
+straight-line local **`stw` or
+`stmw` of r27..r31 (and ordinary
+PPC NOP)** followed by
+unconditional **`blr`**.
+Unknown instructions, control
+transfers, update forms, or
+out-of-bound targets abstain.
+An unrecognized instruction
+does **not** imply an r4 write.
+
+This remains **native source/receiver
+investigation, not collision physics**.
+No proof yet of original guest
+execution of that call during the
+human-observed foliage or wood contact,
+of the r13-global object belonging to
+the selected active Ball, of a
+wood-versus-leaf branch, or of
+native collision impulse/restitution.
+No Dolphin, video (operator explicitly
+declines uploads), live RAM interaction,
+new swings, or training.
+`training_approved=false`.
