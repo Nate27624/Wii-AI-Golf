@@ -78,7 +78,7 @@ def recover_r13_base(read):
     if len(set(seen))!=1:
         return None
     base=seen[0]
-    return base if broad.MEM1<=base<broad.MEM1+broad.native.seven.roster.MEM1_SIZE else None
+    return base if MEM1<=base<MEM1+seven.roster.MEM1_SIZE else None
 
 
 def valid_bank_slice(banks,address,size):
