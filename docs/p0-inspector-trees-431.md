@@ -9,9 +9,27 @@ private position artifact, **not** arbitrary JSON or inferred tree locations:
 
 Launch the normal inspector from this branch (for example
 `py -I scripts/p0_memory_inspector.py`), open a source-qualified offline
-replay or connect read-only to an already running supported scene, and load
-your local 2,498-face source-coordinate terrain OBJ as before. In the middle
-3D pane select **Load PRIVATE 94 trees** and choose the JSON on D:.
+replay or connect read-only to an already running supported scene. **Tree
+positions and the previously selected terrain OBJ now load automatically
+on every launch** when their local files remain valid. There is no need to
+browse for the same files each time.
+
+On first use the inspector tries the expected exact PRIVATE tree JSON in
+known local `Wii-AI-Golf-Data/derived` locations (including the sibling
+`D:\Projects\Wii-AI-Golf-Data\derived` folder). If none passes all original
+safety/source checks, click **Load PRIVATE 94 trees** once, selecting your
+validated local file. Select the terrain OBJ once with **Load PRIVATE
+terrain OBJ**. Subsequent runs restore the two last successful selections,
+validated from disk afresh. **Clear terrain** forgets its saved path; **Clear
+trees** forgets the JSON and disables automatic rediscovery until another
+manual selection. Invalid/missing files are reported without silently
+substituting unrelated geometry.
+
+The settings record is **paths only**, never coordinates, textures, or art:
+on Windows `%LOCALAPPDATA%\WiiAIGolf\inspector-assets-v1.json`;
+on Linux `~/.config/wii-ai-golf/inspector-assets-v1.json` (or the XDG
+config directory). It is stored outside the Git repository and uses an
+atomic write. Saved paths do not bypass any private asset loader validation.
 The strict loader carried forward from PR #420 enforces its exact original
 RSPE01 Rev1 source schema, exactly 94 finite distinct locations, 84-byte
 source element stride, +0x30 translation, stable captures 1/5/7, the
