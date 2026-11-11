@@ -5,6 +5,7 @@ on:
     paths:
       - 'scripts/p0_private_visual_asset_discovery.py'
       - 'scripts/p0_prepare_private_dae_textures.py'
+      - 'scripts/p0_blender_private_dae_to_obj.py'
       - 'tests/test_p0_prepare_private_dae_textures.py'
       - 'tests/test_p0_private_visual_asset_discovery.py'
       - 'docs/p0-private-visual-asset-extraction-checklist.md'
@@ -37,5 +38,7 @@ jobs:
         run: |
           python -m pip install Pillow numpy
           python -m unittest discover -s tests -p test_p0_memory_inspector_visual_textures.py -v
+      - name: Validate Blender conversion script syntax (Blender runtime not in CI)
+        run: python -m py_compile scripts/p0_blender_private_dae_to_obj.py
       - name: Full repository offline suite
         run: python -m unittest discover -s tests -v
