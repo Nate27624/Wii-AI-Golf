@@ -238,6 +238,85 @@ def tree_timeline(rows,indices=TREE_INDICES):
     }
 
 
+
+def tree_candidate_spatial_rank(rows,ball_xyz,run):
+    """Rank candidate Ball points against source Tree +0x30 locations.
+
+    A rank is just a geometric coincidence under ASSUMED shared native
+    axes, NOT an established coordinate transform, collider, or contact.
+    Source tree +0x30 components must remain bitwise static across all
+    original full tree snapshots, otherwise abstain from comparisons.
+    """
+    no={
+        "available":False,
+        "source_ball_tree_world_coordinate_frame_aligned_proven":False,
+        "contacted_wood_or_foliage_tree_identified":False,
+    }
+    bounds=run["longest_contiguous_change_run_after_sample_indices"]
+    if ball_xyz is None or bounds is None:
+        return dict(no,reason="no_finite_sustained_candidate_triplet")
+    snapshots=[]
+    for row in rows:
+        value=row.get("all_94_tree_records_be_hex_PRIVATE")
+        if value is not None:
+            if not isinstance(value,str) or len(value)!=2*base.TREE_BYTES:
+                raise ValueError("Original tree sample malformed")
+            snapshots.append(bytes.fromhex(value))
+    if not snapshots:
+        return dict(no,reason="no_original_source_tree_snapshot")
+    first=snapshots[0]
+    centres=[]
+    for tree in range(base.TREE_COUNT):
+        pos=tree*base.TREE_STRIDE+0x30
+        triple=first[pos:pos+12]
+        if any(s[pos:pos+12]!=triple for s in snapshots[1:]):
+            return dict(no,reason="source_tree_centres_changed")
+        xyz=struct.unpack(">fff",triple)
+        if any(not math.isfinite(x) or abs(x)>MAX_FLOAT_MAGNITUDE for x in xyz):
+            return dict(no,reason="source_tree_centres_not_finite")
+        centres.append(xyz)
+    lo,hi=bounds
+    if hi-lo<2 or hi>=len(ball_xyz):
+        return dict(no,reason="insufficient_contiguous_candidate_motion")
+    by_axes={}
+    for name,axes in (("XZ_plane_UNVERIFIED_shared_axes",(0,2)),
+                      ("XYZ_space_UNVERIFIED_shared_axes",(0,1,2))):
+        nearest=Counter()
+        candidate_ranks={tree:[] for tree in TREE_INDICES}
+        for sample in range(lo,hi+1):
+            pt=ball_xyz[sample]
+            rank=sorted(
+                ((sum((pt[axis]-c[axis])**2 for axis in axes),tree)
+                 for tree,c in enumerate(centres)))
+            nearest[rank[0][1]]+=1
+            by_tree={tree:i+1 for i,(_,tree) in enumerate(rank)}
+            for tree in TREE_INDICES:
+                candidate_ranks[tree].append(by_tree[tree])
+        by_axes[name]={
+            "candidate_moving_sample_count":hi-lo+1,
+            "most_frequent_nearest_source_tree_array_indices":[
+                {"source_tree_array_index":idx,
+                 "moving_samples_with_smallest_assumed_axis_distance":count}
+                for idx,count in sorted(nearest.items(),
+                                        key=lambda x:(-x[1],x[0]))[:8]],
+            "source_tree_11_38_40_assumed_axis_rank_counts":[
+                {"source_tree_array_index":tree,
+                 "best_rank_in_94":min(ranks),
+                 "median_rank_in_94":statistics.median(ranks),
+                 "sample_count_within_closest_three":sum(n<=3 for n in ranks),
+                 "rank_is_native_hitbox_distance_proven":False}
+                for tree,ranks in candidate_ranks.items()],
+        }
+    return {
+        "available":True,
+        "candidate_sustained_run_samples_after_indices":[lo,hi],
+        "tentative_source_coordinate_proximity_ranks":by_axes,
+        "source_ball_tree_world_coordinate_frame_aligned_proven":False,
+        "contacted_wood_or_foliage_tree_identified":False,
+        "native_tree_hitbox_distance_verified":False,
+    }
+
+
 def first_snapshot_mismatches(trials):
     firsts={}
     for kind,t in trials.items():
@@ -313,6 +392,8 @@ def inspect(recovered,trials):
             "nested_candidate_finite_f32_possible":nested_points is not None,
             "ball_to_nested_raw_triplet_identity":ball_nested_alias(ball,nested),
             "source_tree_11_38_40_timelines":tree_timeline(rows),
+            "tentative_source_tree_nearest_rank_NOT_collision":
+                tree_candidate_spatial_rank(rows,points,phases),
             "motion_aligned_to_visual_contact_frame":False,
             "wood_or_foliage_material_response_verified":False,
         }
