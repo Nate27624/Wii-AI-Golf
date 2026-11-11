@@ -255,3 +255,60 @@ versus KCL geometry first; confirm the original visual file is
 the **same** native hole as the KCL. Only then may a source-qualified
 native world matrix or separately measured correspondence with residual
 and independent holdout be applied to collision/tree graphics.
+
+
+## 2026-11-11 regression: gray-only 94-tree view and slow arrow movement
+
+Operator screenshot showed **blue-gray solid KCL triangles, 94 illustrative
+green tree crowns, and AIM?/BALL/TEE/PIN text**. This is conclusive evidence
+that the *legacy Tk source-coordinate fallback*, not the original UV/PNG
+texture viewport, was on screen. Mipmap tweaks cannot change it.
+
+Root causes addressed in PR #432:
+1. The DAE was only auto-discovered when an explicit/saved KCL OBJ path
+   was available. The original source visual filename was not saved
+   (whereas KCL/tree paths were). A missing/rejected DAE silently left the
+   source inspector on the gray fallback, and the error text existed only
+   inside the never-packed visual tab. The original known local FC1 path
+   is now examined independent of the OBJ, a successfully validated DAE/OBJ
+   path is remembered in OS-local settings with legacy format migration,
+   and an import rejection is shown prominently **inside the visible
+   fallback** with concrete loader exception text.
+2. The full hidden Tk fallback was unnecessarily redrawn on every
+   read-only LIVE packet even while a real original visual renderer was
+   active, adding thousands of terrain/tree painter operations to the UI
+   thread. Hidden redraw now returns early. Original KCL/JSON are untouched.
+3. Fallback canvas had no held-arrow input bindings. It now supports
+   time-based continuous arrow-key pan independent of OS keyboard repeat,
+   debounces fake autorepeat key releases, stops on focus loss/visual
+   activation and caps expensive Tk redrawing to ~10 Hz. During movement
+   it uses a clearly labeled lower-detail preview with tree bases and
+   restores all surfaces and illustrative crowns on stop.
+4. The original UV 3D renderer previously used full resolution even
+   while navigating if Numba was unavailable. Both rendering engines
+   now reduce only display *pixel resolution* during drag/held keys,
+   defer expensive mip filtering until the camera stops, and always
+   preserve all original model triangles/UVs. This improves interactivity
+   without changing native game geometry.
+
+A read-only original source asset diagnostic is now available:
+```powershell
+cd 'D:\Projects\Wii-Golf-Tree-PR432'
+py -3 -I scripts/diagnose_inspector_visual_loading.py
+```
+It reports the exact selected local source filename, importer
+validation/error category, source model face count, source-bound PNG
+count, omitted unknown original effects and whether optional Numba
+acceleration is available. NO original model/texture bytes or source
+coordinates are printed. To examine a specific local export, provide
+`--visual-dae 'D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1\glf_course_fc1.dae'`.
+A missing native source DAE, unsupported Collada node hierarchy,
+missing PNG, invalid path outside-Git requirement or absent Pillow
+is reported instead of pretending that the KCL fallback is textured.
+If the diagnostic succeeds but the viewer still remains gray,
+investigate Tk startup exceptions/UI widget state separately.
+
+Open verification: run against the actual private DAE on the operator's
+Windows machine, confirm source texture viewport appears and movement
+is smooth, then compare filtered art with Dolphin native Wii rendering.
+Offline tests cannot prove original visual-model source fidelity.
