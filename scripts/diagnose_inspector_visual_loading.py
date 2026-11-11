@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from wii_ai_golf.inspector.asset_preferences import load_asset_selections
 from wii_ai_golf.inspector.dae_visual import load_private_dae_visual_model
+from wii_ai_golf.inspector.collada_scene_graph import UnsupportedSceneFeature
 from wii_ai_golf.inspector.gui import _known_private_visual_candidate
 from wii_ai_golf.inspector.texture_render import prepare_textures
 from wii_ai_golf.inspector.visual_model import load_private_visual_model
@@ -50,15 +51,23 @@ def diagnose(filename: str | None = None) -> dict:
         return dict(result, status="VISUAL_FILE_MISSING",
                     reason="Saved or explicitly selected visual DAE/OBJ does not exist")
     try:
-        model = (load_private_dae_visual_model(path)
-                 if path.suffix.lower()==".dae"
-                 else load_private_visual_model(path))
+        if path.suffix.lower()==".dae":
+            try:
+                model=load_private_dae_visual_model(path)
+            except UnsupportedSceneFeature:
+                model=load_private_dae_visual_model(
+                    path, allow_geometry_only_for_unsupported_scene=True)
+        else:
+            model=load_private_visual_model(path)
         rgba = prepare_textures(model)
     except (OSError, ValueError, ImportError, RuntimeError) as exc:
         return dict(result, status="VISUAL_IMPORT_FAILED",
                     reason=f"{type(exc).__name__}: {exc}")
     result.update(
-        status="VISUAL_DAE_PNG_VERIFIED",
+        status=("VISUAL_DAE_GEOMETRY_ONLY_PREVIEW" if
+                getattr(model, "source_scene_warning", None)
+                else "VISUAL_DAE_PNG_VERIFIED"),
+        original_scene_warning=getattr(model, "source_scene_warning", None),
         original_visual_source_name=model.source_name,
         renderable_triangles=len(model.faces),
         original_texture_slots=len(model.textures),
@@ -75,7 +84,9 @@ def main(argv=None):
     args=parser.parse_args(argv)
     report=diagnose(args.visual_dae)
     print(json.dumps(report, indent=2, sort_keys=True))
-    return 0 if report["status"]=="VISUAL_DAE_PNG_VERIFIED" else 2
+    return (0 if report["status"] in (
+        "VISUAL_DAE_PNG_VERIFIED",
+        "VISUAL_DAE_GEOMETRY_ONLY_PREVIEW") else 2)
 
 
 if __name__=="__main__":
