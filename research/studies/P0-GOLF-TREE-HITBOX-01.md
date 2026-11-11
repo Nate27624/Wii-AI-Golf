@@ -3716,3 +3716,106 @@ heap addresses, ball XYZ,
 game assets, user video
 or original RAM. No
 training; `training_approved=false`.
+
+
+## Original backedge condition provenance: byte flag from r3+0x5C and r28 from post-call r4
+
+The operator ran the native source-only
+`P0_ORIGINAL_BALL_CC_BACKEDGE_SIGNED_OPERAND_LINEAGE_V1`
+audit against the previously SHA-gated seven-pair
+Rev1 capture **7** at research source head
+`87014b10a8aa7680af64637a8f90e04099e8aadf`.
+The original archive and native source gates passed;
+guest runtime CR/register values, selected Ball ownership,
+actual tree impact, wood/leaf response and velocity
+semantics all remain **unproven**.
+
+**Source-qualified exact native predicate inputs:**
+
+| Source unit site | PPC instruction | Qualified meaning |
+| --- | --- | --- |
+| Ball+0x2FBC | `lbz r0,+0x5C(r3)` | Reads a single unsigned byte; nonzero permits fallthrough past the subsequent `beq` |
+| Ball+0x2FC0 | `cmpwi r0,0` | Signed zero compare in CR0 |
+| Ball+0x2FC4 | `beq Ball+0x2FDC` | To stay on candidate backedge, **r0 != 0** |
+| Ball+0x2FC8 | `cmpwi r28,0` | Signed r28 zero compare in CR0 |
+| Ball+0x2FCC | `blt Ball+0x2CD0` | To take backedge, **signed r28 < 0** |
+
+The original source report finds **no recognized
+writes to r28** between Ball+0x2FB8
+and its comparison. Its nearest recognized
+writer on the bounded static witness is
+**`mr r28,r4` at Ball+0x2CBC**.
+The native **byte flag field source is
+not proven to be the active Ball**:
+the code at +0x2FBC reads from
+the object currently in r3,
+whose correct receiver provenance
+must be established separately.
+Do not equate its `+0x5C`
+with Ball+0x5C solely by
+instruction displacement.
+
+**Critical CALLING-CONVENTION caveat
+not captured by earlier analyses:**
+there is an original **linked `bl` at
+Ball+0x2CB0**, *before* the
+`mr r28,r4` at +0x2CBC.
+PowerPC EABI r4 is caller-volatile;
+therefore **r28 is copied from the
+POST-CALL value of r4**, and it
+is *not yet proven to equal
+the native cache function's
+original incoming r4*.
+Even if a caller had `li r4,-1`
+or a nonnegative constant
+before calling `0x80299C70`,
+that value cannot be directly
+used to decide whether the
+backedge is feasible without
+analyzing the intervening BL
+callee or source register
+restoration. Earlier casual
+phrase "incoming r4" for
+the +0x2CBC assignment
+should be read as "r4 at
+that instruction, after
+the +0x2CB0 call."
+
+**Further original memory-only source audit added:**
+`scripts/p0_ball_backedge_postcall_arg_private.py`
+and `tests/test_p0_ball_backedge_postcall_arg_private.py`.
+This verifies the original
+`lbz r0,+0x5C(r3)`,
+`bl` at Ball+0x2CB0,
+`mr r28,r4` at +0x2CBC,
+the signed EQ/LT backedge
+gates, and the original
+two direct cache callers.
+It reports only:
+- the *public Ball unit-relative* linked BL target classification,
+  and whether any recognized r4 writes occur
+  before the r28 <- r4 binding;
+- caller r4 writer *syntax* from the two
+  known direct callers, explicitly
+  flagging that the intervening
+  callee may clobber r4;
+- recognized r3 writer sites on the
+  bounded branch witness before
+  the byte-flag load, without
+  asserting the selected Ball
+  is the byte field's owner.
+
+This audit does NOT prove
+the function call's actual
+runtime r4 effect, original
+r3 object identity, exact
+CFG predicate feasibility,
+or the wood-versus-foliage
+collision handler. No new
+Dolphin session, gameplay
+recording, video upload,
+RAM write, native PPC instruction
+word, original ROM byte, heap
+pointer or world XYZ is needed
+or exported.
+`training_approved=false`.
