@@ -123,7 +123,9 @@ def inspect(dae: str | Path | None = None,
     report["surface_fit"]=fit
     report["status"]=(
         "SOURCE_GEOMETRY_FIT_DIAGNOSED" if
-        fit["status"]=="ORIGINAL_SURFACE_DISPLAY_FIT_CANDIDATE"
+        fit["status"] in (
+            "ORIGINAL_SURFACE_DISPLAY_FIT_CANDIDATE",
+            "ORIGINAL_SURFACE_FIT_FAILED_HOLDOUT_GATE")
         else "SOURCE_GEOMETRY_FIT_BLOCKED")
     return report
 
