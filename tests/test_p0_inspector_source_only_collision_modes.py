@@ -149,6 +149,28 @@ class KCLModeTests(unittest.TestCase):
         self.assertEqual(view._queued[4],"Textures")
         self.assertIsNone(view._queued[5])
 
+    def test_actual_worker_collision_frame_skips_texture_model_raster(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow optional dependency unavailable")
+        view,terrain=window()
+        view.set_collision_terrain(terrain)
+        view.fast_scene=None
+        # If the source-only Collision path wrongly invokes UV rendering,
+        # deliberately unusable source texture fields will cause failure.
+        view.textures=None
+        view.mode.set("Collision")
+        view._mode_changed()
+        image, drawn, elapsed=view._render_frame(
+            320, 240, view.camera, lambda: False,
+            mode="Collision", collision=view.source_collision_kcl)
+        self.assertEqual(image.size,(320,240))
+        self.assertEqual(drawn,0)
+        self.assertGreaterEqual(elapsed,0.)
+        self.assertNotEqual(
+            image.getpixel((160,120)), (19,32,46))
+
     def test_source_only_kcl_is_drawn_without_any_texture_model(self):
         try:
             from PIL import Image
