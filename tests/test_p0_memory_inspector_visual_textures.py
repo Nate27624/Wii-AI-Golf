@@ -1,6 +1,7 @@
 """Synthetic UV/texture preview falsification tests; NEVER use original game assets."""
 from __future__ import annotations
 import base64
+from dataclasses import replace
 import hashlib
 from pathlib import Path
 import sys
@@ -10,7 +11,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src'))
 from wii_ai_golf.inspector.visual_model import (VisualAssetError, load_private_visual_model)
-from wii_ai_golf.inspector.texture_render import render_preview, prepare_textures
+from wii_ai_golf.inspector.texture_render import (
+    MAX_PREVIEW_FACES, PreviewCancelled, render_preview, prepare_textures)
 
 # Tiny public-domain test PNG bytes (not Wii content), generated from a 1x1
 # synthetic pixel. For rendering tests generate a 4x4 checker with Pillow.
@@ -131,6 +133,61 @@ class VisualAssetTests(unittest.TestCase):
         with self.assertRaises(VisualAssetError):
             render_preview(model,10000,10000,textures=textures)
 
+
+    def test_source_face_cap_never_stride_drops_original_triangles(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest('Optional Pillow/NumPy unavailable')
+        self.assertGreaterEqual(MAX_PREVIEW_FACES, 100_000)
+        Image.new('RGBA', (4, 4), (15, 160, 80, 255)).save(self.png)
+        model = load_private_visual_model(self.obj)
+        multi = replace(model, faces=model.faces * 7)
+        with self.assertRaisesRegex(VisualAssetError, 'full-face preview budget'):
+            render_preview(multi, 128, 128, max_faces=4)
+        with self.assertRaises(PreviewCancelled):
+            render_preview(multi, 128, 128, cancelled=lambda: True)
+
+    def test_renders_complete_quad_with_no_stride_dither(self):
+        try:
+            from PIL import Image
+            import numpy as np
+        except ImportError:
+            self.skipTest('Optional Pillow/NumPy unavailable')
+        Image.new('RGBA', (4, 4), (20, 210, 90, 255)).save(self.png)
+        self.obj.write_text(
+            OBJ.replace('v 0 10 0', 'v 0 10 0\\nv 10 10 0')
+               .replace('vt 0 1', 'vt 0 1\\nvt 1 1')
+               .replace('f 1/1 2/2 3/3', 'f 1/1 2/2 4/4 3/3'),
+            encoding='utf-8')
+        model = load_private_visual_model(self.obj)
+        image, count = render_preview(model, 180, 180, yaw=0., pitch=0.)
+        self.assertEqual(count, 2)
+        arr = np.asarray(image)
+        covered = ((arr[:, :, 0] == 20) &
+                   (arr[:, :, 1] == 210) &
+                   (arr[:, :, 2] == 90))
+        self.assertGreater(int(covered.sum()), 13_000)
+
+    def test_large_model_processes_every_source_face_even_after_4000(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest('Optional Pillow/NumPy unavailable')
+        Image.new('RGBA', (4, 4), (0, 200, 0, 255)).save(self.png)
+        model = load_private_visual_model(self.obj)
+        # Unused far-away vertex makes repeated triangle subpixel, keeping
+        # the 4501-face full coverage gate inexpensive in CI.
+        multi = replace(model,
+                        vertices=model.vertices + ((10000., 10000., 0.),),
+                        faces=model.faces * 4501)
+        checks = [0]
+        def not_cancelled():
+            checks[0] += 1
+            return False
+        render_preview(multi, 48, 48, yaw=0., pitch=0.,
+                       cancelled=not_cancelled)
+        self.assertGreaterEqual(checks[0], 141)
 
     def test_untextured_dae_material_uses_only_explicit_original_kd(self):
         # A real DAE has 12 materials, but only 11 texture slots. Never
