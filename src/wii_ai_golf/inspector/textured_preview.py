@@ -243,7 +243,8 @@ class TexturedPreviewWindow:
             try:
                 image, drawn, render_ms = future.result()
                 if (version == self._request_version
-                        or bool(getattr(self, "_held_keys", ()))):
+                        or bool(getattr(self, "_held_keys", ()))
+                        or getattr(self, "drag_button", None) is not None):
                     # During continuous navigation, show completed poses even
                     # if a newer one is queued. Otherwise slow rendering could
                     # starve the visible canvas until the key is released.
@@ -300,7 +301,9 @@ class TexturedPreviewWindow:
         else:
             return
         self.drag_origin = (event.x, event.y)
-        self.schedule()
+        # Mouse look/orbit must not discard every in-flight native frame.
+        # Display progressive completed poses while continuously dragging.
+        self.schedule(navigation=True)
 
     def drag_end(self, event):
         if self.drag_button == getattr(event, "num", None):
