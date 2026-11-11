@@ -45,7 +45,9 @@ def marker_snapshot(sample: Sample | None,
             type(selected_player_index) is not int or not 0 <= selected_player_index <= 7):
         selected_player_index = None
     if sample is None or not sample.source_qualified or not sample.source_digest:
-        return SourceMarkerSnapshot(selected_player_index=selected_player_index)
+        # Player index is a live scene-context field. It must NEVER survive
+        # a failed/missing packet as if the actor belonged to that source epoch.
+        return SourceMarkerSnapshot()
     return SourceMarkerSnapshot(
         ball=sample.vec(BALL), cache=sample.vec(CACHE),
         tee=sample.vec(TEE), pin=sample.vec(PIN),
