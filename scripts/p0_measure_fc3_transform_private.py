@@ -24,9 +24,8 @@ sys.path.insert(0,str(PROJECT/"src"))
 from wii_ai_golf.inspector.asset_preferences import load_asset_selections
 from wii_ai_golf.inspector.dae_visual import load_private_dae_visual_model
 from wii_ai_golf.inspector.collada_scene_graph import UnsupportedSceneFeature
-from wii_ai_golf.inspector.material_alignment import source_class_counts
 from wii_ai_golf.inspector.source_geometry_fit import (
-    private_fit_report, SurfaceFitError)
+    private_fit_report, source_class_counts)
 from wii_ai_golf.inspector.terrain import load_private_obj
 from wii_ai_golf.inspector.terrain_labels import apply_private_surface_labels
 
