@@ -2363,3 +2363,171 @@ A near rank by itself is a **spatial-coincidence
 hypothesis**, not proof of a trunk/canopy hitbox
 or native Ball→Tree collision. If any tree origin
 changes, the spatial rank **abstains**.
+
+
+## Original 110-packet source-phase SAFE report — tree updates align with launch
+
+The operator uploaded and we inspected the original
+`tree-contact-source-phase-triage-SAFE.json`, generated from
+the private SHA-verified 110 Ball candidate packets / 15
+94-tree snapshots. This result is **from this original
+three-trial dataset**, not a new execution of Dolphin.
+The recorded intent labels are **not** the actual human
+observations: `wood` intent was observed *leaves*;
+`leaves` intent was observed *wood*; `near_miss`
+was observed *none*.
+
+### Ball candidate direction changes after manual launch
+
+- Human observed **leaves** (`wood` intent):
+  original sustained `Ball+0x30` triplet change
+  after samples **25..33**, 9 transitions;
+  largest adjacent-sampled displacement turn
+  **66.06 degrees at sample 27**, two
+  transitions after run start, displacement
+  size ratio **1.128**. Other notable candidate
+  changes **34.30 degrees at 29**,
+  **29.43 degrees at 26**. The reported
+  652.473× length ratio at sample 33
+  accompanies only a ~1-degree turn and
+  must not be interpreted as a physical
+  impulse/restitution.
+- Human observed **wood** (`leaves` intent):
+  sustained run **25..30**, 6 transitions;
+  largest turn **59.79 degrees at sample 28**,
+  three transitions after onset, length
+  ratio **3.986**; next turns **12.74 at 29**
+  and **12.03 at 27**.
+- Human observed **none** (`near_miss`):
+  sustained run **10..17**, 8 transitions;
+  largest turn **14.74 degrees at sample 11**,
+  one transition after onset, length ratio
+  **1.112**. Next turn **8.97 at 12**.
+
+These angles are solely based on candidate
+BE-f32 triples and *coarsely timed* sequential
+sampling; original world-space/rendered-ball
+identity, contact time, native collision cause,
+and physics-frame alignment all remain
+unverified. They support prioritizing the
+two observed contact shots for video review,
+but **do not support fitting wood/canopy
+coefficients**.
+
+### Tree array fields: apparent contact-selective subset is likely confounded by launch phase
+
+All-94-tree periodic snapshots were at
+original packet indices 0,8,16,..., so
+each native tree update is only bounded
+to an **8-packet interval**. More
+precisely than the first 6-word enrichment:
+
+| Operator observation | Candidate Ball starts changing | Full-array tree `+0x24/+0x2C` co-updates | Source indices 11,38,40 `+0x24/+0x2C` |
+| --- | --- | --- | --- |
+| Leaves | 25 | 23 trees in [24,32], 21 in [32,40] | changed in both [24,32] and [32,40] |
+| Wood | 25 | 14 trees in [24,32] | changed in [24,32] |
+| Near miss | 10 | 11 trees in [8,16], 9 in [16,24] | did NOT change |
+
+**Key interpretation:** the **first** broad
+`+0x24/+0x2C` change interval occurs
+at the initial Ball candidate movement in
+**all three** trials, including the
+near-miss. Thus **grouped tree record updates
+are not specific to tree impact**; they
+are plausibly actor movement, camera/model
+visibility or object lifecycle. Tree indices
+11,38,40 happened to change only in the
+two contact trials, but their transitions
+are part of larger simultaneously updating
+tree groups rather than isolated impact
+events. A prior original PPC source gate
+in `p0_tree_flag_receiver_disambiguation_private.py`
+shows the **Tree compilation unit**
+function has an integer **`lwz +0x24(r3)`**
+at public `Tree+0x04A0`, plus
+`stfs +0x4C/+0x50` in related code.
+**Receiver identity as the 94 native tree
+records is still unproven**, so do not
+promote this alone to field type
+documentation. No original PPC source
+proof for `+0x2C` as a collider/handle.
+
+The near-miss showed widespread 94-tree
+`+0x4C/+0x50` co-updates in [8,16] and
+[16,24]. Contact trials showed the same
+broad co-updates at multiple intervals,
+including at Ball movement. The
+tree `+0x48` flag remained unchanged
+in all three. No verified native
+tree impact latch.
+
+### Tentative nearest-tree index — strongly disfavors tree 11/38/40 as localized impact evidence
+
+Assuming (NOT proving) that source-selected
+`Ball+0x30` candidate values and each
+tree `+0x30` are in the same native
+coordinate frame, original finite source
+triplet ranks yielded:
+- Leaves contact intent source `wood`:
+  nearest source tree #3 for 5/9 moving
+  packets, #21 for 2/9, #63 for 2/9.
+- Wood contact intent source `leaves`:
+  #63 nearest for all 6/6 moving packets.
+- Near-miss: #63 nearest for all 8/8
+  moving packets.
+
+These rankings agree between assumed
+XZ and XYZ comparisons, but they are
+not verified world-aligned coordinates.
+The trio #11/#38/#40 are **never**
+among the closest three on the
+sampled moving Ball candidate in
+**any** trial. Even a closest tree
+can be *missed* (#63 in near-miss),
+so ranking is not a contact classifier.
+
+### Position/cache copy evidence and non-atomic read caveat
+
+The nested 12-byte triplet matched
+the captured `Ball+0x30` exact bytes in
+**37/45** foliage, **34/39** wood and
+**18/26** near-miss samples. It also
+matched `Ball+0xCC` in the **same**
+sample counts, indicating source candidate
+copies at `+0x30`/`+0xCC`
+merit original PPC writer tracing. Note
+that **no 12-byte Ball span was an exact
+match across *all* packets**, and the
+nested triplet matched `Ball+0xAC` in
+**0** packets. Given the non-atomic
+RPC sequence and observed read spans,
+this is consistent with potential
+update-between-reads or cached state,
+not proof of a rendered-ball XYZ
+or physics velocity mapping.
+
+Both other trials had identical **entire
+first Ball candidate/nested window** to
+the initial foliage trial, but selected
+player records differed at 20 initial
+word offsets and all 94 initial tree
+records differed only in `+0x4C/+0x50`.
+The initial native savestate, exact
+swing power/pose, visual collision time
+and source receiver dispatch still are
+not established.
+
+**Research decision:** deprioritize
+`Tree[11/38/40]+0x24/+0x2C` as tree-hit
+latches and *do not train*. Prioritize
+review of the three already-recorded
+Dolphin-window MP4s, especially around
+the source candidate trajectory bends,
+then inspect original PPC source writer
+dataflow and focused tree-nearest
+collision candidates only with
+visual timing corroboration. An
+additional broad native RAM scan or
+uncontrolled swing series would not
+currently be evidence efficient.
+`training_approved=false`.
