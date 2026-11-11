@@ -37,8 +37,8 @@ $atomic = 'D:\Projects\Wii Golf AI\tools\mcp_bridge_swing_atomic_a45.py'
 Set-Location -LiteralPath $repo
 if (git status --porcelain) { throw 'Local changes; refusing replacement' }
 
-# Replace this with the new child PR number after it opens.
-git fetch origin refs/pull/CHILD_PR_NUMBER/head
+# The isolated draft #435 is based on parent #433.
+git fetch origin refs/pull/435/head
 if ($LASTEXITCODE -ne 0) { throw 'Fetch failed' }
 git switch --detach FETCH_HEAD
 if ($LASTEXITCODE -ne 0) { throw 'Checkout failed' }
