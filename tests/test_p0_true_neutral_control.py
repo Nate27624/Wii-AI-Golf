@@ -190,5 +190,77 @@ class Tests(unittest.TestCase):
                                  read_text().splitlines()),2)
             self.assertTrue(all(r["training_approved"] is False for r in rows))
 
+
+    def test_no_contact_control_is_saved_and_stops_before_zero(self):
+        from p0_input_discovery_sweep import run_discovery, RefuseTrial
+        events = []
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            bridge = root / "neutral.py"
+            bridge.write_text(patch_atomic_v1_to_neutral(FAKE_SOURCE), encoding="utf-8")
+            sha = hashlib.sha256(bridge.read_bytes()).hexdigest()
+            profile = type("Profile", (), {"name":"green-pre-start", "slot":2})()
+
+            class FakeRPC:
+                def __init__(self, **kwargs): pass
+                def __enter__(self): return self
+                def __exit__(self, *args): pass
+                def call(self, method, args):
+                    if method != "trace.a45_neutral_capabilities":
+                        raise AssertionError("unexpected RPC: " + method)
+                    return {"neutral_protocol":1, "atomic_a45_protocol":1,
+                            "no_swing_calls_for_zero_samples":True,
+                            "nonzero_swing_calls_preserved":True}
+            class FakeAtomic:
+                @staticmethod
+                def require_capability(_): pass
+                def __init__(self, *args, **kwargs): pass
+                def run(self, samples):
+                    events.append("swing")
+                    return {"kind":"atomic_a45_swing", "applied_frames":89}
+
+            def answer(prompt):
+                if "RUN-TWO" in prompt: return "RUN-TWO"
+                if "initial club position" in prompt: return "back"
+                if "precise visual club position" in prompt: return "partial-back"
+                if "currently selected club" in prompt: return "iron"
+                if "manually change WEDGE" in prompt: return "yes"
+                if "Observed gauge" in prompt: return ""
+                if "result G/M" in prompt: return "no"
+                if "marked RED" in prompt: return "no"
+                if "curve or rotation" in prompt: return "unknown"
+                raise AssertionError("unhandled prompt: " + prompt)
+
+            def fake_session(rpc, **kwargs):
+                kwargs["input_fn"](
+                    "BEFORE pressing A, initial club position [back/center/forward/unknown]: ")
+                kwargs["swing_fn"](rpc)
+                return {"human_observation":{
+                    "initial_club_pose_human":"back",
+                    "contact_human":"no",
+                    "visible_result_class_human":"uncertain",
+                    "terminal_screen_seen_before_transition_human":None}}
+
+            with patch("p0_input_discovery_sweep.FelkRPC", FakeRPC), \\
+                 patch("p0_input_discovery_sweep.AtomicA45SwingTraceClient", FakeAtomic), \\
+                 patch("p0_input_discovery_sweep.run_session", side_effect=fake_session), \\
+                 patch("p0_input_discovery_sweep.release_buttons", lambda *_a, **_k: None), \\
+                 patch("p0_input_discovery_sweep.preflight_catalog", return_value=profile), \\
+                 patch("p0_input_discovery_sweep.preflight_source", return_value=sha), \\
+                 patch("p0_input_discovery_sweep.load_and_replay_intro",
+                       side_effect=AssertionError("reload must not happen")):
+                with self.assertRaisesRegex(RefuseTrial, "saved control but STOPPED before ZERO"):
+                    run_discovery(scenario="nohitctrl", catalog=root/"catalog",
+                                  bridge_source=bridge, reader=answer,
+                                  data_dir=root, genuine_neutral=True)
+            self.assertEqual(events, ["swing"])
+            lines = (root/"neutral-button-only-nohitctrl.jsonl").read_text().splitlines()
+            self.assertEqual(len(lines), 1)
+            row = json.loads(lines[0])
+            self.assertEqual(row["arm"], "CTRL")
+            self.assertEqual(row["contact_human"], "no")
+            self.assertIsNone(row["human_power_pct"])
+            self.assertFalse(row["training_approved"])
+
 if __name__=="__main__":
     unittest.main()
