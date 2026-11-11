@@ -24,6 +24,7 @@ from wii_ai_golf.inspector.visual_model import load_private_visual_model
 from wii_ai_golf.inspector.fast_texture_render import accelerated_available
 from wii_ai_golf.inspector.terrain import load_private_obj
 from wii_ai_golf.inspector.material_alignment import alignment_diagnostic
+from wii_ai_golf.inspector.collada_controller_scale import controller_scale_audit
 
 
 def diagnose(filename: str | None = None) -> dict:
@@ -65,6 +66,14 @@ def diagnose(filename: str | None = None) -> dict:
     except (OSError, ValueError, ImportError, RuntimeError) as exc:
         return dict(result, status="VISUAL_IMPORT_FAILED",
                     reason=f"{type(exc).__name__}: {exc}")
+    if path.suffix.lower()==".dae":
+        try:
+            result["original_controller_scale_audit"] = controller_scale_audit(path)
+        except (OSError, ValueError) as exc:
+            result["original_controller_scale_audit"] = {
+                "status":"CONTROLLER_SCALE_AUDIT_DECLINED",
+                "reason":type(exc).__name__ + ": " + str(exc),
+                "native_game_world_transform_proven":False}
     if saved.terrain_obj:
         try:
             collision=load_private_obj(saved.terrain_obj)
