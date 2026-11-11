@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 import time
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog, messagebox
 
 from .navigation import wheel_steps
 from .scene_camera import (
@@ -138,6 +138,9 @@ class TexturedPreviewWindow:
             ttk.Checkbutton(overlay_controls, text=label, variable=var,
                             command=self.toggle_source_markers).pack(
                                 side="left", padx=(0, 5))
+        ttk.Button(overlay_controls, text="Load PRIVATE 94 trees",
+                   command=self.choose_private_trees).pack(
+                       side="left", padx=(8, 0))
         ttk.Label(self.top, textvariable=self.marker_status,
                   wraplength=820, padding=(8, 1)).pack(fill="x")
 
@@ -218,6 +221,25 @@ class TexturedPreviewWindow:
             getattr(self, "comparison_kcl", None),
             show_player=self.show_player.get()))
 
+    def choose_private_trees(self):
+        """Operator-selected STRICT original source JSON; only local reads."""
+        from .tree_positions import load_private_tree_positions, TreePositionsError
+        filename = filedialog.askopenfilename(
+            parent=self.top,
+            title="Choose source-verified PRIVATE 94-tree JSON",
+            filetypes=[("Original 94-tree source JSON", "*.json")])
+        if not filename:
+            return
+        try:
+            trees = load_private_tree_positions(filename)
+        except (TreePositionsError, ValueError, OSError) as exc:
+            messagebox.showerror("Private trees declined", str(exc),
+                                 parent=self.top)
+            return
+        self.set_source_trees(trees)
+        self.show_trees.set(True)
+        self.toggle_source_markers()
+
     def set_source_trees(self, trees):
         """Trees already validated by strict private source 94 JSON loader."""
         self.tree_source = trees
@@ -261,14 +283,18 @@ class TexturedPreviewWindow:
         cancel = Event()
         self._cancel_render = cancel
         # Extract Tk variables on the main thread, never from rendering thread.
+        def enabled(name):
+            flag = getattr(self, name, None)
+            return bool(flag.get()) if flag is not None else False
         flags = (
-            self.show_trees.get(), self.show_tree_crowns.get(),
-            self.show_ball.get(), self.show_tee_pin.get(),
-            self.show_cache.get(),
+            enabled("show_trees"), enabled("show_tree_crowns"),
+            enabled("show_ball"), enabled("show_tee_pin"),
+            enabled("show_cache"),
         )
         future = self._executor.submit(
             self._render_frame, width, height, camera, cancel.is_set,
-            mode, kcl, self.tree_source, self.actor_snapshot, flags)
+            mode, kcl, getattr(self, "tree_source", None),
+            getattr(self, "actor_snapshot", None), flags)
         self._render_future = (version, camera, future)
 
     def _render_frame(self, width, height, camera, cancelled,
