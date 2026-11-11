@@ -268,3 +268,59 @@ Windows and Ubuntu synthetic CI verifies fixed-position right look,
 scene-camera math, distinct orbit/pan/dolly, source-perspective render,
 new DAE integrated panel, original KCL source labels, and full offline
 regression. Real Windows layout/navigation still needs operator screenshot.
+
+
+## Full original UV rendering acceleration (Numba, no Blender)
+
+The original texture tab displayed all 11,995 source DAE triangles
+correctly, but Python-per-triangle/NumPy-array raster loops made every
+camera change too slow. Moving the existing slow raster to a background
+thread did NOT solve actual per-frame latency.
+
+A new OPTIONAL native-code CPU software rasterizer,
+src/wii_ai_golf/inspector/fast_texture_render.py, uses Numba 0.68.1
+compiled nopython code (prebuilt wheels on Windows, Linux).
+One-time packing of existing HASH-VERIFIED source texture arrays,
+source visual triangle/UV index arrays, and source-only untextured
+diffuse RGB allows repeated no-Python-per-face draw calls. Triangles,
+reciprocal-depth source UV interpolation, nearest-neighbor source TEX0
+PNG pixels, alpha > 16, and depth-buffer ordering are preserved.
+Original source DAE, PNGs and 2,498-face KCL OBJ are NOT rewritten.
+The 780 source original faces with unknown material appearance remain
+explicitly omitted, as before. The independent source-local Unity RMB
+camera, inline tab, KCL surfaces and no-training policy are preserved.
+
+Numba is an optional accelerated visual dependency only, never
+required for memory inspector/core KCL. The rest of the inspector starts
+without NumPy or Numba installed. Slow fallback remains and is clearly
+labeled in the visual tab if Numba is missing.
+
+The first accelerated frame may require roughly 1-3 seconds of
+one-time native JIT compilation, in a background worker, not blocking
+Tk; compiled output is cached and later frames use it. A LOCAL synthetic
+81x81 grid (12,800 triangles, 1024x720 full visible texture) measured
+~0.015 seconds/frame warm after JIT in this assistant's separate Linux
+container. This is NOT a Windows or authentic original model timing.
+Windows/Ubuntu CI validates source-pixel output equivalence vs
+previous NumPy raster, real source face counts >4000, and skips
+unknown/unverified source textures. No speed/60fps guarantee until
+operator runs actual private DAE benchmark.
+
+Install optional prebuilt dependencies in the SAME Python selected
+by py -3 -I (avoid --user, which -I may hide):
+
+    py -3 -m pip install "numba>=0.68.1,<0.69"
+
+Then the inspector auto-selects compiled CPU mode in integrated visual
+tab and displays the real per-frame rendering time in milliseconds.
+A read-only local measured warm-frame benchmark is available at:
+
+    py -3 -I scripts/p0_benchmark_private_uv_acceleration.py --dae "D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1\glf_course_fc1.dae"
+
+This reports first compilation cost and warm median/max over different
+source-local view directions at 900x550 without writing/uploading the
+game files. User should share result to diagnose residual Tk presentation
+or GPU-vs-CPU constraints.
+
+Native Wii GX shaders, original visual-to-KCL transform, exact active
+hole identity, gameplay physics collision and training remain unverified.
