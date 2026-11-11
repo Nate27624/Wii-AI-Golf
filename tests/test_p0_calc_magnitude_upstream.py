@@ -112,7 +112,7 @@ def fixture():
     words[0x802B48A0] = ppc_rlwinm(0, 0, 2, 0, 29)
     words[0x802B48D0] = ppc_rlwinm(0, 0, 2, 0, 29)
     # Synthetic FP63 example at non-gated site for generic symbolizer test.
-    words[0x802B47F0] = (
+    words[0x802B47A8] = (
         (63 << 26) | (30 << 21) | (28 << 16) |
         (29 << 11) | (27 << 6) | (29 << 1)
     )
@@ -183,7 +183,7 @@ class Tests(unittest.TestCase):
 
     def test_symbolic_fp_producer_and_source_owner(self):
         words = fixture()
-        line = m.symbolize(0x802B47F0, words[0x802B47F0])
+        line = m.symbolize(0x802B47A8, words[0x802B47A8])
         self.assertEqual(line["class"], "fp_opcode63")
         self.assertEqual((line["fd"], line["fa"], line["fb"], line["fc"]),
                          (30, 28, 29, 27))
