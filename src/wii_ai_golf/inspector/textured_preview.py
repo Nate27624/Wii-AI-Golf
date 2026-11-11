@@ -220,12 +220,18 @@ class TexturedPreviewWindow:
         height = min(800, self.canvas.winfo_height())
         if width < 16 or height < 16:
             return
-        # Low-resolution interactions keep the full source mesh but reduce
-        # pixel shading; pointer-up always requests full-quality rendering.
-        if (getattr(self, "drag_button", None) is not None
-                or bool(getattr(self, "_held_keys", ()))) and self.fast_active:
-            width = max(16, int(width * .68))
-            height = max(16, int(height * .68))
+        # Interactive navigation moves the eye at 60Hz, independent of
+        # render throughput. Avoid full-resolution UV + mip filtering during
+        # motion (especially without Numba). Restore full resolution and
+        # smooth filtering immediately after release. Never stride-drop
+        # original model faces or alter native UVs/vertices.
+        interactive = (
+            getattr(self, "drag_button", None) is not None or
+            bool(getattr(self, "_held_keys", ())))
+        if interactive:
+            ratio = .68 if self.fast_active else .40
+            width = max(16, int(width * ratio))
+            height = max(16, int(height * ratio))
         mode = self.mode.get() if hasattr(self, "mode") else "Textures"
         kcl = getattr(self, "comparison_kcl", None)
         self._queued = (self._request_version, width, height,
@@ -236,8 +242,9 @@ class TexturedPreviewWindow:
             getattr(self, "tree_illustrations", True),
             getattr(self, "tree_labels", False))
         filter_var = getattr(self, "filtered_texture", None)
-        self._queued_texture_filter = bool(
-            filter_var.get()) if filter_var is not None else False
+        self._queued_texture_filter = (
+            bool(filter_var.get()) if filter_var is not None else False
+        ) and not interactive
         self.status.set(
             f"Rendering all {len(self.model.faces):,} native UV triangles "
             "(" + ("compiled CPU" if self.fast_active else "slow NumPy fallback") + ")")
