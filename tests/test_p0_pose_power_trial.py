@@ -440,13 +440,15 @@ class TestPosePilot(unittest.TestCase):
         notes = p.postshot_notes(lambda _: next(answers), fake)
         self.assertEqual(notes["result_entered_while_visible_human"], "unknown")
 
-    def test_malformed_late_result_annotation_rejected(self):
+    def test_malformed_postshot_answers_preserve_record_as_unknown(self):
         fake = {"human_observation": {
             "visible_result_class_human": "offgreen"
         }}
         for answer in ("maybe", "100ft", ""):
-            with self.assertRaisesRegex(p.RefuseTrial, "Invalid human observation"):
-                p.postshot_notes(lambda _: answer, fake)
+            notes = p.postshot_notes(lambda _: answer, fake)
+            self.assertEqual(notes["result_entered_while_visible_human"], "unknown")
+            self.assertEqual(notes["red_shot_human"], "unknown")
+            self.assertEqual(notes["visible_curve_or_rotation_human"], "unknown")
 
     def test_summary_keeps_red_shot_as_human_not_native(self):
         human = {"initial_club_pose_human": "back", "contact_human": "yes",
