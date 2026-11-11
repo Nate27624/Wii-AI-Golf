@@ -13,7 +13,12 @@ from dataclasses import dataclass
 import math
 from typing import Any
 
-import numpy as np
+# This module is imported by the core GUI, where NumPy is OPTIONAL.
+# Keep ordinary KCL/replay startup working on a minimal Python install.
+try:
+    import numpy as np
+except ImportError:
+    np = None
 
 from .scene_camera import VisualCamera, camera_axes
 from .visual_model import PrivateVisualModel, VisualAssetError
@@ -46,7 +51,7 @@ class FastVisualScene:
 
 
 def accelerated_available() -> bool:
-    return njit is not None
+    return njit is not None and np is not None
 
 
 def prepare_fast_scene(model: PrivateVisualModel,
