@@ -167,6 +167,12 @@ def build_parser() -> argparse.ArgumentParser:
     shared_tests.add_argument("--pattern", default="test_*.py")
     shared_tests.add_argument("--local-only", action="store_true",
                               help="Run tests but do not publish to GitHub")
+    replay = r_sub.add_parser(
+        "publish-saved-scene-root",
+        help="Publish a previously saved source-gated scene-root summary; no Dolphin"
+    )
+    replay.add_argument("--id", required=True, help="Complete sanitized report ID")
+    replay.add_argument("--local-only", action="store_true", help="Validate only; no upload")
     r_sub.add_parser("study", help="Show the preregistered swing-power study (read-only)")
 
     tests = sub.add_parser("test", help="Run project unittest suite against THIS checkout")
@@ -522,6 +528,15 @@ def execute(args: argparse.Namespace) -> int:
                    "publishes a sanitized status via configured Git authentication."),
                   flush=True)
             return _run(_script_command("research_cli.py", *flags))
+        if args.research_action == "publish-saved-scene-root":
+            command = ["publish-saved-scene-root", "--id", args.id]
+            if args.local_only:
+                command.append("--local-only")
+            print("SAVED SCENE-ROOT REPORT: no Dolphin or RAM capture will run. "
+                  + ("LOCAL VALIDATION ONLY." if args.local_only else
+                     "Strictly validated Git publication via existing credentials."),
+                  flush=True)
+            return _run(_script_command("research_cli.py", *command))
         if args.research_action == "study":
             return _run(_script_command("research_cli.py", "study"))
         if args.research_action == "validation":
