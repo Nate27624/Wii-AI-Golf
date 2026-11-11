@@ -64,3 +64,56 @@ The preview remains a separate window rather than automatically overlaying the l
 - Add tree visual model assets and source-qualified placements separately from their 94 original location markers (which do not include graphics or hitboxes).
 - Compare source model and textures side by side with an actual gameplay screenshot. Clarify which native TEV layers/vertex colors are missing; don't claim pixel-perfect equivalence.
 - Before training, validate physics collision mapping and timing separately. `training_approved=false` throughout this visual work.
+
+
+## Operator-local extraction checkpoint (2026-11-10)
+
+The operator successfully extracted original \`glf_course_fc1.carc\` into
+\`D:\Projects\WiiGolfVisualPrivate\unpacked\glf_course_fc1\`. Their local
+inventory of \`G3D\glf_course_fc1.brres\` reports one MDL0 course model
+(\`glf_course_fc1\`) and **19 TEX0 texture records**, including grass/fairway,
+rough, green, bunker and out-of-bounds candidates. This is evidence that the
+visual course assets **exist**, not yet evidence that a UV-bearing OBJ, correct
+hole ID, world transform, or playable render has been obtained.
+
+The next **local-only, read-only-source** operation is to expand the existing
+BRRES archive into a *new, empty* private directory. One-paste PowerShell:
+
+~~~powershell
+$ErrorActionPreference = 'Stop'
+$source = 'D:\Projects\WiiGolfVisualPrivate\unpacked\glf_course_fc1\G3D\glf_course_fc1.brres'
+$dest = 'D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1'
+if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Missing BRRES: $source" }
+if (Test-Path -LiteralPath $dest) {
+    if (@(Get-ChildItem -LiteralPath $dest -Force).Count) {
+        throw "Destination is nonempty; refusing overwrite: $dest"
+    }
+} else {
+    New-Item -ItemType Directory -Force -Path $dest | Out-Null
+}
+& wszst XALL --no-wildcards --ext --ext --DEST $dest $source
+if ($LASTEXITCODE -ne 0) { throw "wszst failed ($LASTEXITCODE)" }
+Get-ChildItem -LiteralPath $dest -File -Recurse |
+    Group-Object Extension | Sort-Object Name |
+    Format-Table Name, Count -AutoSize
+Get-ChildItem -LiteralPath $dest -File -Recurse |
+    Where-Object { $_.Extension -in '.mdl0','.tex0','.png','.dae','.obj' } |
+    Select-Object FullName, Length
+~~~
+
+\`XALL\` is the documented abbreviation for \`EXTRACT --all\`; twice using
+\`--ext\` gives precise BRRES extensions such as \`.mdl0\`. It **does not
+guarantee** an OBJ/DAE with UVs or PNGs ready for this inspector. If the
+results contain MDL0/TEX0 but no UV-bearing DAE/OBJ and no PNG, use the
+original \`.brres\` in a local BrawlCrate/compatible visual-model exporter:
+export \`3DModels(NW4R)/glf_course_fc1\` as DAE (preserve UVs/material
+associations), and export the TEX0 images as PNG; keep both under
+\`D:\Projects\WiiGolfVisualPrivate\`. A UV-preserving DAE-to-OBJ conversion
+with a local Blender/compatible exporter is then needed; verify \`v/vt/f\`,
+one local MTL and real \`map_Kd\` PNG bindings before opening the preview.
+
+Do not upload any private model, texture, disc image, or KCL object, and do not
+substitute synthetic textures or made-up UVs for missing exports. The collision
+OBJ stays intact. As of the combined PR #429 head (\`97a840b2\`), Windows and
+Ubuntu offline inspector/texture/solid-terrain CI passed; original game-model
+export and game-world alignment remain unverified.
