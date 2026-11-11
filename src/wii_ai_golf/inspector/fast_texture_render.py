@@ -277,7 +277,12 @@ def _raster_loop(screen, front, faces, face_uvs, uv, materials, texels,
                         a01=float(texels[t01,3])*wc
                         a11=float(texels[t11,3])*wd
                         a=a00+a10+a01+a11
-                        if a<=16.:
+                        # Match NumPy fallback's uint8 quantization BEFORE
+                        # alpha cutout: 16.8 -> 16 (transparent), not 16.8.
+                        # Otherwise silhouette pixels show engine-dependent
+                        # dark/red halos on original grass and foliage.
+                        alpha=int(max(0.,min(255.,a)))
+                        if alpha<=16:
                             continue
                         for channel in range(3):
                             component = (
@@ -285,9 +290,10 @@ def _raster_loop(screen, front, faces, face_uvs, uv, materials, texels,
                                 a10*float(texels[t10,channel])+
                                 a01*float(texels[t01,channel])+
                                 a11*float(texels[t11,channel]))/a
-                            # Alpha over the existing visible texture/color.
-                            composed=(component*a+
-                                      float(image[y,x,channel])*(255.-a))/255.
+                            src_color=int(max(0.,min(255.,component)))
+                            # Same 8-bit alpha-over as source NumPy reference.
+                            composed=(src_color*alpha+
+                                      int(image[y,x,channel])*(255-alpha))/255.
                             image[y,x,channel]=np.uint8(max(0.,min(255.,composed)))
                     else:
                         tx = int(math.floor((u-math.floor(u))*tw)) % tw
