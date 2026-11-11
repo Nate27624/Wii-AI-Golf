@@ -17,7 +17,9 @@ from .a_reference import discover_reference
 from .a_live import LiveAIndicator
 from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE, MAX_DRAW_FACES
 from .terrain_solid import back_to_front, shaded_hex
-from .terrain_labels import apply_private_surface_labels
+from .terrain_labels import (
+    apply_private_surface_labels, paired_private_source_labels,
+)
 from .navigation import pan_by, wheel_steps, zoom_at_cursor
 from .visual_model import VisualAssetError, load_private_visual_model
 from .dae_visual import load_private_dae_visual_model
@@ -512,14 +514,12 @@ class Inspector:
         # hole01-collision-candidate-PRIVATE.obj
         # hole01-collision-candidate-labels-PRIVATE.json
         # No directory scans, no guesses about other hole/course files.
-        if path.name.endswith("-PRIVATE.obj"):
-            candidate = path.with_name(
-                path.name.removesuffix("-PRIVATE.obj") +
-                "-labels-PRIVATE.json")
-            if candidate.is_file() and not candidate.is_symlink():
-                self.load_terrain_labels_path(
-                    str(candidate), show_dialog=False)
-                return
+        candidate = paired_private_source_labels(path)
+        if (candidate is not None and candidate.is_file()
+                and not candidate.is_symlink()):
+            self.load_terrain_labels_path(
+                str(candidate), show_dialog=False)
+            return
         # If OGWS groups embedded in OBJ, face labels already exist.
         from .terrain import SURFACE_STYLE
         if any(a in SURFACE_STYLE
