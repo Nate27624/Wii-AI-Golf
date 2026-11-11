@@ -196,12 +196,18 @@ def _materials(root: ET.Element, dae: Path):
             else:
                 diffuse = [n for n in effect.iter() if _tag(n) == "diffuse"]
                 colors = [c for d in diffuse for c in _children(d, "color") if c.text]
-                if len(colors) != 1:
-                    raise VisualAssetError("Untextured original material has no diffuse color")
-                rgba = _numbers(colors[0].text, limit=4)
-                if len(rgba) not in (3, 4) or any(not 0 <= x <= 1 for x in rgba):
-                    raise VisualAssetError("Invalid original source diffuse color")
-                effects[eid] = (None, tuple(round(c * 255) for c in rgba[:3]))
+                if not colors:
+                    # BrawlCrate may export an untextured native effect without
+                    # a diffuse value. Do NOT guess a black/white material.
+                    # Such faces are omitted from this source-texture preview.
+                    effects[eid] = (None, None)
+                else:
+                    if len(colors) != 1:
+                        raise VisualAssetError("Ambiguous original diffuse color")
+                    rgba = _numbers(colors[0].text, limit=4)
+                    if len(rgba) not in (3, 4) or any(not 0 <= x <= 1 for x in rgba):
+                        raise VisualAssetError("Invalid original source diffuse color")
+                    effects[eid] = (None, tuple(round(c * 255) for c in rgba[:3]))
 
     materials = {}
     for lib in (n for n in root.iter() if _tag(n) == "library_materials"):
@@ -227,7 +233,9 @@ def _materials(root: ET.Element, dae: Path):
     total = 0
     for material, (image, color) in materials.items():
         if image is None:
-            solid[material] = color
+            if color is not None:
+                solid[material] = color
+            # No original source diffuse Kd: do not draw this material.
             continue
         # The exact local Wiimms output already exists for this user.
         candidates = (
@@ -266,6 +274,8 @@ def load_private_dae_visual_model(filename: str | Path) -> PrivateVisualModel:
     aliases, textures, solid = _materials(root, path)
 
     vertices, uvs, faces = [], [], []
+    skipped_source_faces = 0
+    source_triangle_count = 0
     for lib in (n for n in root.iter() if _tag(n) == "library_geometries"):
         for geometry in _children(lib, "geometry"):
             mesh = _one(geometry, "mesh")
@@ -280,12 +290,18 @@ def load_private_dae_visual_model(filename: str | Path) -> PrivateVisualModel:
                     count = int(triangles.get("count", "-1"))
                 except ValueError as exc:
                     raise VisualAssetError("Invalid original triangle count") from exc
-                if not 0 < count <= MAX_TRIANGLES - len(faces):
+                if not 0 < count <= MAX_TRIANGLES - source_triangle_count:
                     raise VisualAssetError("Collada triangle count exceeds limit")
+                source_triangle_count += count
                 symbol = triangles.get("material")
                 if symbol not in aliases:
                     raise VisualAssetError("Unknown source triangle material: " + str(symbol))
                 material = aliases[symbol]
+                if material not in textures and material not in solid:
+                    # Unknown native effect: omit just these faces, preserving
+                    # 11 authentic texture slots, and report exact loss.
+                    skipped_source_faces += count
+                    continue
                 inputs = []
                 for item in _children(triangles, "input"):
                     try:
@@ -350,11 +366,12 @@ def load_private_dae_visual_model(filename: str | Path) -> PrivateVisualModel:
                     if len(set(vi_out)) != 3:
                         raise VisualAssetError("Degenerate original source triangle")
                     faces.append(VisualFace(tuple(vi_out), tuple(ti_out), material))
-    if not faces:
-        raise VisualAssetError("No supported original Collada source triangles")
+    if not faces or not any(f.material in textures for f in faces):
+        raise VisualAssetError("No source-textured Collada triangles are renderable")
     used = {face.material for face in faces}
     return PrivateVisualModel(
         tuple(vertices), tuple(uvs), tuple(faces),
         {k: v for k, v in textures.items() if k in used},
         hashlib.sha256(blob).hexdigest(), "COLLADA_DIRECT", path.name,
-        {k: v for k, v in solid.items() if k in used})
+        {k: v for k, v in solid.items() if k in used},
+        skipped_source_faces=skipped_source_faces)
