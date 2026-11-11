@@ -204,7 +204,10 @@ def source_scene_instances(
         for element in transforms:
             local = _mul(local, _node_transform(element))
         world = _mul(parent, local)
-        if node in source_node_worlds and source_node_worlds[node] != world:
+        if (controller_ids and node in source_node_worlds
+                and source_node_worlds[node] != world):
+            # Reused geometry nodes may legally have multiple transforms.
+            # Strict static skinning needs unique source JOINT world matrices.
             raise VisualAssetError(
                 "Original rigid skin node instanced with ambiguous world transforms")
         source_node_worlds[node] = world
