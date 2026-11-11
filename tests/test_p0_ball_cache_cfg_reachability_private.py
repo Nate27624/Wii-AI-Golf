@@ -116,6 +116,19 @@ class BallSourceBoundedCFGTests(unittest.TestCase):
         self.assertFalse(result["original_key_native_source_site_reachability"][
             "Ball+0x2D00"]["bounded_no_path_proves_true_unreachability"])
 
+    def test_conditional_bclr_keeps_possible_fallthrough_but_unknown_target(self):
+        code=original_shape()
+        code[m.BRANCH_TARGET]=(19<<26)|(12<<21)|(16<<1)
+        within,external,decoded=m.edges(m.BRANCH_TARGET,read(code))
+        self.assertEqual(decoded["kind"],"indirect_bclr_or_bcctr")
+        self.assertEqual(within,[m.BRANCH_TARGET+4])
+        self.assertTrue(decoded["conditional_fallthrough_possible"])
+        self.assertFalse(decoded["has_link"])
+        self.assertEqual(external,[])
+        r=m.inspect(read(code))
+        self.assertGreater(r["bounded_static_graph_unknown_indirect_transfer_count"],0)
+        self.assertFalse(r["indirect_calls_or_dynamic_branch_paths_exhausted"])
+
     def test_changed_unconditional_skip_opcode_abstains(self):
         code=original_shape()
         code[m.BRANCH_SKIP]=bc(m.BRANCH_SKIP,m.BRANCH_TARGET)
