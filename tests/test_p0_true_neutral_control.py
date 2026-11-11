@@ -241,12 +241,12 @@ class Tests(unittest.TestCase):
                     "visible_result_class_human":"uncertain",
                     "terminal_screen_seen_before_transition_human":None}}
 
-            with patch("p0_input_discovery_sweep.FelkRPC", FakeRPC), \\
-                 patch("p0_input_discovery_sweep.AtomicA45SwingTraceClient", FakeAtomic), \\
-                 patch("p0_input_discovery_sweep.run_session", side_effect=fake_session), \\
-                 patch("p0_input_discovery_sweep.release_buttons", lambda *_a, **_k: None), \\
-                 patch("p0_input_discovery_sweep.preflight_catalog", return_value=profile), \\
-                 patch("p0_input_discovery_sweep.preflight_source", return_value=sha), \\
+            with patch("p0_input_discovery_sweep.FelkRPC", FakeRPC), \
+                 patch("p0_input_discovery_sweep.AtomicA45SwingTraceClient", FakeAtomic), \
+                 patch("p0_input_discovery_sweep.run_session", side_effect=fake_session), \
+                 patch("p0_input_discovery_sweep.release_buttons", lambda *_a, **_k: None), \
+                 patch("p0_input_discovery_sweep.preflight_catalog", return_value=profile), \
+                 patch("p0_input_discovery_sweep.preflight_source", return_value=sha), \
                  patch("p0_input_discovery_sweep.load_and_replay_intro",
                        side_effect=AssertionError("reload must not happen")):
                 with self.assertRaisesRegex(RefuseTrial, "saved control but STOPPED before ZERO"):
