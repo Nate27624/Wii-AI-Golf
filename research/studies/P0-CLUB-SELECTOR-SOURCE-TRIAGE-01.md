@@ -254,3 +254,19 @@ Example local calls after Dolphin ready, using pinned PR #412 source worktree:
 
 **Scientific status:** original **source code** four-state writer corroborated; `PlayerManager+0x1c` contradicted as selected club; distinct `0x804BF900` global pointer UNVERIFIED until live `--probe` and multi-phase; `game_club_id_verified=false`, `training_approved=false`.
 
+
+
+## Ninth stage — first full validation partial result and SHA-gated continuation
+
+Operator full Rev1 Hitting-the-Green observation using separate selector source root `0x804BF900 -> [pointer]+0x1C` yielded **12 valid ordered phases**:
+
+- Control B0 Wedge=2; IDLE Wedge=2; one Up Iron=1; one Down Wedge=2; aim-only Wedge=2. No drift in source-gated scene/hole/ball/selector pointer.
+- Training T0 Driver=0, Iron=1, Wedge=2, Putter=3.
+- Reverse T1 Putter=3, Wedge=2, Iron=1.
+- At **T1_DRIVER**, user typed READY but honestly confirmed that **Iron** was visible instead of Driver, so source-gated script correctly stopped **before reading or recording** a misleading Driver sample. It returned `ABSTAIN_OPERATOR_VISIBLE_CLUB_MISMATCH`. There is NO T1_DRIVER observation and NO four heldout observations yet; `LIVE_FOUR_STATE_CANDIDATE_VALIDATED` was not reached. The memory mapping did NOT contradict itself; the operator intended club was not selected.
+- Original local PRIVATE folder: `Wii-AI-Golf-Data/captures/p0-club-four-state-live-20261111-000624-f397b846-PRIVATE` (do not commit raw payload). Source is original local Felk, no A/swing/memory writes.
+
+Added `scripts/p0_resume_club_selector_validation_private.py` with synthetic tests to **safely reuse only this exact aborted 12-phase prefix**: verify the old manifest and JSONL SHA256, exact source root `0x804bf900`, 12 stage labels/ordering, static selector owner persistence and monotonically increasing bracket frames, original `ABSTAIN_OPERATOR_VISIBLE_CLUB_MISMATCH`, all prior five controls, complete 0..3 T0 map, and matching three T1 repeats. Requires **the same uninterrupted Dolphin session and hole** via explicit operator `SAME` confirmation, current source-gated pointer unchanged, current visible Iron=1, and frame count later than the last record. If any condition fails, **abstain**; restarting Dolphin or loading savestate requires a fresh full run instead of cross-session stitching. It then collects only **T1_DRIVER + V0..V3**. For each heldout, it samples the index and prints a prediction **before** asking for the club the operator wrote down in advance. All new events and the prior file's SHA are written to a NEW private directory; no original file/manifest mutation. Native unique Dolphin session identity and r13 register still not independently read; `training_approved=false`.
+
+Original 12 valid observations plus five new validated observations can be assembled into `LIVE_FOUR_STATE_CANDIDATE_VALIDATED` by the same strict full-scoring logic; otherwise rejected with explicit reason.
+
