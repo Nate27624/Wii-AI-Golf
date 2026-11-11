@@ -105,9 +105,13 @@ def _source_arrays(mesh: ET.Element):
 
 def _materials(root: ET.Element, dae: Path):
     images = {}
+    image_aliases = {}
     for lib in (n for n in root.iter() if _tag(n) == "library_images"):
         for image in _children(lib, "image"):
             iid = _id(image.get("id"))
+            original_name = image.get("name")
+            if original_name is not None:
+                _id(original_name)
             init = _one(image, "init_from")
             # Collada 1.4 allows direct text; Collada 1.5 may wrap in <ref>.
             refs = _children(init, "ref")
@@ -117,6 +121,19 @@ def _materials(root: ET.Element, dae: Path):
             if iid in images or not path.endswith(".png") or not _NAME.fullmatch(path):
                 raise VisualAssetError("Unsafe or duplicate Collada image reference")
             images[iid] = path
+            # Some BrawlCrate 1.5 exports use image NAME rather than ID in
+            # surface/init_from. Both are actual recorded source fields.
+            # An alias must never point at two different source PNGs.
+            aliases = {iid, path, path[:-4]}
+            if original_name:
+                aliases.add(original_name)
+            if iid.endswith("-image"):
+                aliases.add(iid[:-len("-image")])
+            for alias in aliases:
+                prior = image_aliases.get(alias)
+                if prior is not None and prior != iid:
+                    raise VisualAssetError("Ambiguous Collada source image alias")
+                image_aliases[alias] = iid
 
     effects = {}
     for lib in (n for n in root.iter() if _tag(n) == "library_effects"):
@@ -142,9 +159,23 @@ def _materials(root: ET.Element, dae: Path):
                     if not sampler.endswith("-sampler"):
                         raise VisualAssetError("Unsupported original source sampler")
                     image_id = sampler[:-len("-sampler")] + "-image"
-                if image_id not in images:
-                    raise VisualAssetError("Original DAE sampler does not match image")
-                effects[eid] = (images[image_id], None)
+                # An effect's surface init_from can reference an <image>
+                # by its XML id or its name. Source-authentic BrawlCrate
+                # exporters also use a '-surface' SID derived from the
+                # texture name. Resolve only unambiguous local source aliases.
+                refs = [image_id]
+                if image_id.endswith("-surface"):
+                    refs.append(image_id[:-len("-surface")])
+                elif image_id.endswith("-image"):
+                    refs.append(image_id[:-len("-image")])
+                resolved = {image_aliases[ref] for ref in refs
+                            if ref in image_aliases}
+                if len(resolved) != 1:
+                    raise VisualAssetError(
+                        "Original DAE sampler does not match image "
+                        "(effect " + eid + ", surface image ref " + image_id + ")")
+                matched_id = next(iter(resolved))
+                effects[eid] = (images[matched_id], None)
             else:
                 diffuse = [n for n in effect.iter() if _tag(n) == "diffuse"]
                 colors = [c for d in diffuse for c in _children(d, "color") if c.text]
