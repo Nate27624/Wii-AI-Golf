@@ -143,10 +143,16 @@ class SelectionTests(unittest.TestCase):
             save_asset_selections(AssetSelections(), self.settings)
 
     def test_settings_path_is_outside_checkout(self):
-        with patch("wii_ai_golf.inspector.asset_preferences.os.name", "posix"), patch.dict(
-                "os.environ", {"XDG_CONFIG_HOME": str(self.base / "xdg")}, clear=False):
+        import os
+        with patch.dict("os.environ", {
+            "XDG_CONFIG_HOME": str(self.base / "xdg"),
+            "LOCALAPPDATA": str(self.base / "local"),
+        }, clear=False):
             path = local_settings_path()
-        self.assertEqual(path, self.base / "xdg" / "wii-ai-golf" / "inspector-assets-v1.json")
+        if os.name == "nt":
+            self.assertEqual(path, self.base / "local" / "WiiAIGolf" / "inspector-assets-v1.json")
+        else:
+            self.assertEqual(path, self.base / "xdg" / "wii-ai-golf" / "inspector-assets-v1.json")
         self.assertNotIn("Wii-Golf-Tree-PR432", str(path))
 
 
