@@ -34,6 +34,8 @@ on:
       - scripts/p0_tree_ball_source_store_inventory_private.py
       - scripts/p0_tree_ball_writer_register_context_private.py
       - scripts/p0_ball_cache_r27_lineage_private.py
+      - scripts/p0_ball_cc_fc_copy_receiver_private.py
+      - tests/test_p0_ball_cc_fc_copy_receiver_private.py
       - tests/test_p0_ball_cache_r27_lineage_private.py
       - tests/test_p0_tree_ball_writer_register_context_private.py
       - tests/test_p0_tree_ball_source_store_inventory_private.py
@@ -158,5 +160,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_tree_ball_writer_register_context_private.py -v
       - name: Native Ball cache r27 store receiver and BL r3 caller syntax
         run: python -m unittest discover -s tests -p test_p0_ball_cache_r27_lineage_private.py -v
+      - name: Original PPC Ball source-CC and destination-FC copy with strict r27 receiver gate
+        run: python -m unittest discover -s tests -p test_p0_ball_cc_fc_copy_receiver_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
