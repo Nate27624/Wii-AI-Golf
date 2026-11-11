@@ -430,3 +430,65 @@ original private collision OBJ, surface-ID labels, DAE, source TEX0
 textures, source live sample channels and actual Wii remote movements
 remain completely untouched. It does NOT resolve native collision
 coordinate transforms, tree hitboxes or game physics/training.
+
+
+## RMB up/down correction; optional actual source tree/actor markers at top
+
+Operator reported vertical right-mouse drag look inverted, and requested a
+top-of-inspector switch for the original trees, player, ball and associated
+source information. RMB pitch now subtracts rather than adds pointer dy:
+drag UP looks UP, drag DOWN looks DOWN. The camera eye XYZ and focus
+remain exactly fixed on RMB look; no game actor/physics state changes.
+
+The integrated SINGLE texture/KCL camera now has TWO short rows of
+optional source overlay controls above the canvas (no clipped far-right
+options when the inspector pane is narrow):
+
+- Trees (94 bases): EXACT original Rev1 tree source coordinates loaded
+  only from the existing verified PRIVATE 94-tree JSON extracted by
+  research #411 and strict loader from #432. The auto-discovery uses
+  only the previously documented exact known paths under PRIVATE
+  Wii-AI-Golf-Data/derived, from the selected KCL parent directory.
+  The user can choose the PRIVATE file manually via the visible top
+  Load PRIVATE 94 trees button. Files are read-only, never uploaded.
+  The 94 source bases are projected from an explicitly UNVERIFIED
+  KCL-to-DAE display-only fit; not all 94 must be on screen from a
+  given viewing camera. No claim these are the native scene trees.
+- Illustrative crowns: OPTIONAL 2D tree icon stand-ins atop the exact
+  base markers, labeled "NOT game art". Original 3D tree mesh,
+  model ownership, species, dimensions, appearance and hitboxes are
+  NOT independently verified, so the renderer does not fabricate
+  actual Wii trees. Source bases never become collision volumes.
+- Ball candidate: read the P0 source-qualified selected_ball_plus_0x30
+  component triplet from ONE capture or live packet (no temporal join),
+  draw a white candidate marker only while valid.
+- Tee/flag candidates: use the original same-packet tee_start_candidate
+  and pin_candidate source-gated XYZ, with distinct green/cyan icons.
+- Cache candidate: draw optional amber +0xCC source cache marker, but
+  never interpret it as ball velocity or a second real ball.
+- Player ID only: Show the source-selected player index if a live
+  original-scene sampler provides one. No verified 3D golfer/body
+  transform, original player MDL0 or screen-to-world calibration is
+  available, so a player character is NOT drawn at a made-up location.
+  Offline replay does not inherit a potentially unrelated live index.
+
+The source art itself remains immutable; the prior 11 source material
+TEX0 PNGs, 11,995 source UV triangles, SHA-bound 2,498-face KCL and
+source IDs stay separate game evidence. All actor markers are gated on
+a source-qualified single packet and need the KCL display fit to be
+drawn in the native-texture camera; without valid source evidence they
+are hidden rather than supplied approximate positions.
+
+IMPORTANT: The bounding-fit of KCL original vertices into the
+unrelated local DAE space is a VIEW-ONLY hypothesis, not validated
+native transform. Original 94 tree bases and live ball/tee/pin
+coordinates may not even be in the same native scene epoch. Overlay
+proximity is NOT verified gameplay collision, tree hitbox, training
+annotation, or native Wii visual rendering. Do not use it for
+autonomous play, swing trajectory inference, or training.
+
+No Blender or archive extraction required to show source markers.
+Only the exact strict source-94 private JSON is needed for trees, and
+source-qualified live/capture samples are needed for actor markers.
+The rest of the optional inspector continues to work if either is
+missing, with explicit unavailable status.
