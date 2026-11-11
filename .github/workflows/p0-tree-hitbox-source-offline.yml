@@ -40,6 +40,8 @@ on:
       - scripts/p0_ball_cache_backedge_condition_private.py
       - scripts/p0_ball_cc_backedge_signed_operands_private.py
       - scripts/p0_ball_backedge_postcall_arg_private.py
+      - scripts/p0_ball_prelude_save_thunk_private.py
+      - tests/test_p0_ball_prelude_save_thunk_private.py
       - tests/test_p0_ball_backedge_postcall_arg_private.py
       - tests/test_p0_ball_cc_backedge_signed_operands_private.py
       - tests/test_p0_ball_cache_backedge_condition_private.py
@@ -182,5 +184,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_ball_cc_backedge_signed_operands_private.py -v
       - name: Native Ball CC backedge postcall volatile r4 and byte-flag receiver trace
         run: python -m unittest discover -s tests -p test_p0_ball_backedge_postcall_arg_private.py -v
+      - name: Native Ball function prelude actual callee save-GPR helper and r4 preservation
+        run: python -m unittest discover -s tests -p test_p0_ball_prelude_save_thunk_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
