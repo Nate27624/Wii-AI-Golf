@@ -72,6 +72,25 @@ handled correctly, scoring visual-vs-KCL geometry would be misleading.
 Do **not** disable the source graph check or infer a 180° native transform
 from the result. Share only the printed JSON.
 
+The next revision of the source inventory additionally reports
+`dae_visual_scene.controllers.active_controller_kind_counts` and one
+privacy-safe structural summary per active controller instance. It records
+whether each controller is a `skin` or `morph`, whether its source mesh
+actually exists, the original bind-shape matrix's identity/nonidentity
+status, available joint/inverse-bind matrix counts, weighted vertex counts,
+and maximum influences per vertex. It **does not** print controller names,
+skeleton IDs, bones, positions, image data, or native matrices.
+
+For the reported 12 `instance_controller` entries, this is the necessary
+source-only gate before implementing static bind-pose reconstruction: even a
+single-joint skin can position geometry incorrectly if its actual bind
+matrix, source joint pose, and blend weights are skipped. No controller
+geometry is currently rendered, and alignment scoring remains blocked.
+Once the new inventory identifies the actual controller types and
+structural completeness, implement the supported controller semantics
+using those source fields and regression-test them against independent
+native Wii screenshots. Do not relabel these instances as raw geometry.
+
 The Python `SyntaxWarning` about `D:\\Projects` in an old module
 docstring is not related to this scene-graph rejection and does not
 indicate corruption of the private OBJ.
