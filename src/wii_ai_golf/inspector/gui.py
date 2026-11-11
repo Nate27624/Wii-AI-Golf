@@ -443,6 +443,7 @@ class Inspector:
         worker.start()
 
     def disconnect_live(self, silent: bool = False) -> None:
+        self.club_status.set("CLUB UNKNOWN")
         if self.live_worker is not None:
             self.live_worker.stop()
             if not silent:
@@ -464,7 +465,9 @@ class Inspector:
                     self.slider.configure(to=max(1, len(self.live_buffer) - 1))
                     self.show(len(self.live_buffer) - 1)
                     self.process_a_sample(event)
-                    self.club_status.set("CLUB " + event.club_label)
+                    self.club_status.set(
+                        f"CLUB {event.club_label}  ·  index {event.club_index}"
+                        if event.club_index is not None else "CLUB UNKNOWN")
                     self.status.set(f"LIVE READ-ONLY · {self.live_location} · {self.live_rate:.2f} samples/s "
                                     f"· read {event.read_duration_ms:.0f} ms / {event.rpc_calls} RPCs "
                                     "· source checked · training_approved=false")
