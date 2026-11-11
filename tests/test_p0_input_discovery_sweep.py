@@ -147,7 +147,7 @@ class Tests(unittest.TestCase):
                     return "unknown"
                 if "curve or rotation" in prompt:
                     return "unknown"
-                if "virtual club visibly MOVE" in prompt:
+                if "CLUB SWING across the ball" in prompt:
                     return "unknown"
                 raise AssertionError("unhandled prompt: "+prompt)
 
@@ -243,7 +243,7 @@ class Tests(unittest.TestCase):
                     return "yes"
                 if "curve or rotation" in prompt:
                     return "unknown"
-                if "virtual club visibly MOVE" in prompt:
+                if "CLUB SWING across the ball" in prompt:
                     return "unknown"
                 raise AssertionError(prompt)
 
