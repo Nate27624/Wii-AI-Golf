@@ -1299,3 +1299,109 @@ mapping to the narrowphase r9 recipient;
 test class-13 presence against any independently
 verified active collision resources. Do not infer
 a tree hitbox from label/class alone.
+
+
+## Original phase7 wrapper classification and r13 global owner provenance
+
+**Operator result**: `p0_ball_kcol_prism_type_origin_private.py
+--capture 7 --detail` was run on original RSPE01 Rev1
+seven-pair capture7 at exact source/worktree commit
+`fcc48ebfd073295d9321d6157768655d3d12c54b`.
+All original capture SHA/scene gates, source-proven
+94×0x54 tree loop and earlier five Ball→KCol plus
+seven inverse call anchors pass. Source-only private
+PPC words were inspected locally and were not
+committed as a native dump.
+
+**Classification producer/return provenance:**
+- `Ball+0x0A80: lwz r27,-23160(r13)` establishes
+  the **global-source load** of the Ball collision
+  query object candidate. The true runtime
+  **r13 SDA base** and source global's actual
+  captured pointer are not yet independently
+  read in this pass. Do **not** equate the
+  global to any guessed field/mesh pointer.
+- `Ball+0x0B4C` moves r27 into r3. For the
+  `Ball+0x0B60` call, `Ball+0x0B58`
+  passes r6 = **stack+0x0A** and r7 = 1.
+  This call is a **direct** `bl` to
+  `GolfKCol+0x1AC4`.
+- The wrapper forwards `mr r9,r6` at
+  `GolfKCol+0x1ACC`, sets other
+  call arguments at +0x1AD4..+0x1AE0
+  (notably r5=0 and r6=-1), and **tail-branches**
+  `GolfKCol+0x1AE4 -> GolfKCol+0x2090`.
+- Narrowphase `GolfKCol+0x2114`
+  retains r9 in r22; KCol loads halfword
+  at **prism+0x0E** into r3 at +0x22EC,
+  stores that halfword to local stack+0x08
+  at +0x22F4, then on the qualifying
+  successful result path reloads at +0x2684
+  and stores it at `0(r22)` at +0x2688.
+  `Ball+0x0B6C` then reads
+  **exactly stack+0x0A**.
+  This completes the previously open
+  **KCL primitive +0x0E → wrapper r9 →
+  narrowphase output r22 → Ball stack+0x0A
+  material/status halfword** path.
+  The native result path is conditional on
+  success and output flags: this evidence
+  does not prove every call returns a prism,
+  nor which specific primitive underlies any
+  particular gameplay event.
+- `Ball+0x0B84` compares that returned halfword
+  to **13**, which selects a separate
+  handler `Ball+0x01B8` via
+  `Ball+0x0BF4..+0x0C14`.
+  Thus, if native class 13 is returned
+  through that success path, it is sourced
+  from the 16-bit KCol prism field, **not
+  necessarily a tree hitbox**.
+  The recovered 2,498-prism *candidate
+  terrain KCL* contains no 13. Whether
+  some other KCL resource, a copied/alternate
+  primitive set or other source is active
+  remains **unresolved**.
+- `Ball+0x3568..+0x3594` is a further
+  bulk copy of the +0xAC/+0xB0/+0xB4
+  float triplet from object pointer r30
+  to r29. Adjacent state fields, counters
+  and flags are copied as well. No native
+  integration/velocity consumer was
+  established. The Ball+0x14D0 KCL success
+  path still writes those floats; their
+  **semantic field name stays UNKNOWN**.
+
+### Next falsifiable source+memory comparison
+
+A new isolated, **read-only** script
+`scripts/p0_ball_kcol_active_resource_private.py`
+and `tests/test_p0_ball_kcol_active_resource_private.py`
+follow the qualified `Ball+0x0A80` SDA
+source-global pointer only when the original
+Rev1 startup symbol `__init_registers`
+at `0x80006290` contains a uniquely
+decodable **r13 lis + ori/addi initializer**.
+No guessed hardcoded r13 base is permitted.
+On a qualified original capture, the script
+dereferences that global into a candidate
+KCol instance and checks pointers at
++0x04, +0x08, +0x0C against the known
+**unique** 2498-prism terrain KCL's vertex,
+normal and 16-byte prism arrays. Both exact
+pointer equality and complete byte equality
+are reported as booleans only. No source
+addresses, contents, capture values, type
+13 guessed scans, private asset/geometry or
+training labels are emitted. Failure to
+recover original r13 or a valid object
+**abstains rather than fabricating a mesh**.
+Even all-three-array byte equality would
+prove *this captured resource identity*,
+not tree collision geometry or velocity.
+
+Research isolation remains intact: only
+#422 source-only scripts/tests/study/workflow
+are changed; #431/#432 tree visualization
+is independently owned. No trainable tree
+collision label or geometry is approved.
