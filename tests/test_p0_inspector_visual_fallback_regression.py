@@ -94,6 +94,58 @@ class VisualFallbackTests(unittest.TestCase):
         app.visual_tab.pack.assert_called_once()
         app.visual_preview.schedule.assert_called_once()
 
+    def test_fallback_mouse_release_restores_full_source_scene(self):
+        app=fallback_stub()
+        app.drag_button=3
+        app.drag_origin=(12,30)
+        Inspector.drag_end(app,Mock(num=3))
+        self.assertIsNone(app.drag_button)
+        self.assertIsNone(app.drag_origin)
+        app.draw_path.assert_called_once()
+
+    def test_slow_unified_camera_navigation_uses_low_res_and_defers_mips(self):
+        from wii_ai_golf.inspector.textured_preview import TexturedPreviewWindow
+        view=TexturedPreviewWindow.__new__(TexturedPreviewWindow)
+        view._closed=False
+        view.canvas=Mock()
+        view.canvas.winfo_width.return_value=1000
+        view.canvas.winfo_height.return_value=700
+        view._request_version=12
+        view.camera=object()
+        view.fast_active=False
+        view.drag_button=None
+        view._held_keys={"up"}
+        view.mode=Mock()
+        view.mode.get.return_value="Textures"
+        view.model=Mock()
+        view.model.faces=[None]*10
+        view.status=Mock()
+        view.filtered_texture=Mock()
+        view.filtered_texture.get.return_value=True
+        view._start_latest=Mock()
+        view._request_full_render()
+        self.assertEqual(view._queued[1:3],(400,280))
+        self.assertFalse(view._queued_texture_filter)
+        self.assertEqual(len(view._queued),6)
+        view._held_keys.clear()
+        view._request_full_render()
+        self.assertEqual(view._queued[1:3],(1000,700))
+        self.assertTrue(view._queued_texture_filter)
+
+    def test_collada_failure_is_reported_in_visible_fallback_status(self):
+        from wii_ai_golf.inspector.visual_model import VisualAssetError
+        app=Inspector.__new__(Inspector)
+        app.visual_status=Mock()
+        app.root=Mock()
+        with patch("wii_ai_golf.inspector.gui.load_private_dae_visual_model",
+                   side_effect=VisualAssetError("Unsupported original scene graph")):
+            loaded=Inspector.load_visual_path(app,"C:/private/original.dae")
+        self.assertFalse(loaded)
+        msg=app.visual_status.set.call_args.args[0]
+        self.assertIn("TEXTURED MODEL FAILED",msg)
+        self.assertIn("Unsupported original scene graph",msg)
+        self.assertIn("fallback",msg)
+
     def test_visual_diagnostic_explains_missing_saved_selection(self):
         with patch("diagnose_inspector_visual_loading.load_asset_selections",
                    return_value=AssetSelections(visual_dae="/abs/missing.dae")),patch(
