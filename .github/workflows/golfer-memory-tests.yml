@@ -1,0 +1,29 @@
+name: Golfer RAM read-only pointer and capture tests
+on:
+  push:
+    branches: [agent/evaluation/live-golfer-ram-discovery]
+  pull_request:
+    paths:
+      - scripts/capture_golfer_memory.py
+      - scripts/analyze_golfer_private.py
+      - tests/test_capture_golfer_memory.py
+      - tests/test_analyze_golfer_private.py
+      - .github/workflows/golfer-memory-tests.yml
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile
+        run: python -m py_compile scripts/capture_golfer_memory.py scripts/analyze_golfer_private.py tests/test_capture_golfer_memory.py tests/test_analyze_golfer_private.py
+      - name: Test scene and golfer RAM
+        run: python -m unittest discover -s tests -p 'test_capture_golfer_memory.py' -v
+      - name: Offline private pattern analysis tests
+        run: python -m unittest discover -s tests -p 'test_analyze_golfer_private.py' -v
+      - name: Full regression
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
