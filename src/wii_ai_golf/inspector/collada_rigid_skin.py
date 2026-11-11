@@ -168,6 +168,11 @@ def rigid_skin_instance(root: ET.Element, controller_instance: ET.Element,
     descendants = [n for n in root_node.iter() if _tag(n)=="node"
                    and n in scene_nodes]
     matched = [n for n in descendants if n.get(key)==joint_id]
+    if not matched and key == "sid":
+        # Some original-game exporters store an XML ID in Name_array rather
+        # than a SID. This is an exact, unique, same-skeleton source reference
+        # fallback, never an inferred bone position/translation.
+        matched = [n for n in descendants if n.get("id")==joint_id]
     if len(matched)!=1:
         raise VisualAssetError("Source rigid skin joint unresolved or ambiguous")
     joint_world = scene_nodes[matched[0]]
