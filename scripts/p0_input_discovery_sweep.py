@@ -35,6 +35,7 @@ from wii_ai_golf.integration.atomic_a45_client import AtomicA45SwingTraceClient
 from wii_ai_golf.integration.button_prime import release_buttons
 from wii_ai_golf.integration.rpc import FelkRPC
 from wii_ai_golf.integration.swing_client import SwingTraceClient
+from wii_ai_golf.integration.a45_neutral_probe_patch import ATOMIC_NEUTRAL_MARKER
 
 # Broad *mechanistic* differences, not arbitrary percentages:
 # CTRL/CTRL_R identical; ZERO no request motion; BACK0 removes the backwards
@@ -44,7 +45,7 @@ from wii_ai_golf.integration.swing_client import SwingTraceClient
 # and the same 77-held/12-released 89-sample trace. No bridge modification.
 VARIANTS = (
     ("CTRL", "original reference"),
-    ("ZERO", "no motion RPC in any of the 35 swing samples"),
+    ("ZERO", "all 35 moving samples zero-valued (V1 still sends swing RPC)"),
     ("BACK0", "no 15-sample backswing"),
     ("FWD0", "no 20-sample forward stroke"),
     ("PULSE2", "only first 2 of 20 forward movement samples"),
@@ -131,11 +132,26 @@ def make_variants() -> list[dict[str, Any]]:
     return out
 
 
+def require_genuine_neutral_capability(rpc) -> None:
+    """Runtime check BEFORE A on the actually loaded neutral-suppressed bridge."""
+    try:
+        report = rpc.call("trace.a45_neutral_capabilities", [])
+    except Exception as exc:
+        raise RefuseTrial("Loaded bridge lacks true button-only neutral support") from exc
+    if (type(report) is not dict
+            or report.get("neutral_protocol") != 1
+            or report.get("atomic_a45_protocol") != 1
+            or report.get("no_swing_calls_for_zero_samples") is not True
+            or report.get("nonzero_swing_calls_preserved") is not True):
+        raise RefuseTrial("Loaded bridge neutral A45 capability mismatch")
+
+
 def ask_motion(reader: Callable[[str], str]) -> str:
     for _ in range(3):
         answer = reader(
-            "Did the virtual club visibly MOVE during the requested swing? "
-            "[yes/no/unknown]: ").strip().lower()
+            "Could you clearly distinguish a CLUB SWING across the ball "
+            "from idle/settling animation? [yes/no/unknown; unknown if unsure]: "
+        ).strip().lower()
         if answer in ("yes", "no", "unknown"):
             return answer
         print("Please answer yes, no, or unknown.", flush=True)
@@ -193,20 +209,29 @@ def record_row(arm: dict, result: dict, observed: dict, annotations: dict,
 def run_discovery(*, scenario: str, catalog: Path, bridge_source: Path,
                   port: int = 55355,
                   reader: Callable[[str], str] = input,
-                  data_dir: Path = DATA) -> list[dict]:
+                  data_dir: Path = DATA,
+                  genuine_neutral: bool = False) -> list[dict]:
     if not re.fullmatch(r"[a-z][a-z0-9_-]{3,31}", scenario):
         raise RefuseTrial("Scenario must be a fresh local slug")
     if not 1 <= port <= 65535:
         raise RefuseTrial("Invalid bridge port")
-    variants = make_variants()
+    variants = make_variants()[:2] if genuine_neutral else make_variants()
     profile = preflight_catalog(catalog)
     bridge_sha = preflight_source(bridge_source)
-    ledger = data_dir / ("input-discovery-" + scenario + ".jsonl")
+    if genuine_neutral and ATOMIC_NEUTRAL_MARKER not in bridge_source.read_text(
+            encoding="utf-8"):
+        raise RefuseTrial("True-neutral study requires separate neutral source")
+    ledger = data_dir / (
+        ("neutral-button-only-" if genuine_neutral else "input-discovery-")
+        + scenario + ".jsonl")
     if ledger.is_symlink() or ledger.exists():
         raise RefuseTrial("Discovery ledger already exists; choose a NEW scenario")
-    if reader("ONE Dolphin, EIGHT distinct requested swings with seven reset prompts; "
-              "type RUN-EIGHT or q: ").strip() != "RUN-EIGHT":
-        raise RefuseTrial("Operator declined the eight-shot design")
+    token = "RUN-TWO" if genuine_neutral else "RUN-EIGHT"
+    desc = ("ONE Dolphin, TWO shots, one reload, TRUE button-only ZERO. "
+            if genuine_neutral else
+            "ONE Dolphin, EIGHT requested swings, seven reloads. ")
+    if reader(desc + "Type " + token + " or q: ").strip() != token:
+        raise RefuseTrial("Operator declined the study")
 
     rows = []
     for index, arm in enumerate(variants):
@@ -223,6 +248,8 @@ def run_discovery(*, scenario: str, catalog: Path, bridge_source: Path,
               "before answering the existing pre-A prompts.", flush=True)
         with FelkRPC(port=port, timeout_s=15) as rpc:
             AtomicA45SwingTraceClient.require_capability(rpc)
+            if genuine_neutral:
+                require_genuine_neutral_capability(rpc)
             try:
                 result = run_session(
                     rpc,
@@ -241,7 +268,11 @@ def run_discovery(*, scenario: str, catalog: Path, bridge_source: Path,
             raise RefuseTrial("Operator canceled the shot; sweep stopped")
         from p0_forward_speed_sweep import observe_after_shot
         annotations = observe_after_shot(result, reader=reader)
-        annotations["club_motion_human"] = ask_motion(reader)
+        # Prior user correction: ambiguous movement prompt had been answered
+        # yes then explicitly corrected to unknown. For this two-arm causal
+        # test do not use an ambiguous animation label at all.
+        annotations["club_motion_human"] = (
+            "unknown" if genuine_neutral else ask_motion(reader))
         if hashlib.sha256(bridge_source.read_bytes()).hexdigest() != bridge_sha:
             raise RefuseTrial("Bridge source changed during sweep")
         row = record_row(arm, result, observed, annotations,
@@ -262,7 +293,9 @@ def run_discovery(*, scenario: str, catalog: Path, bridge_source: Path,
         # But apparent contact with ZERO commanded motion means requested
         # movement is not yet a reliable proxy for the in-game swing event.
         # Stop rather than interpret any later interventions as causal.
-        if arm["arm"] == "ZERO" and row["contact_human"] == "yes":
+        if (not genuine_neutral
+                and arm["arm"] == "ZERO"
+                and row["contact_human"] == "yes"):
             raise RefuseTrial(
                 "ZERO negative control appeared to strike the ball. "
                 "Its observation is saved; abort further tests until A/club "
@@ -279,6 +312,9 @@ def main(argv=None) -> int:
     parser.add_argument("--port", type=int, default=55355)
     parser.add_argument("--send-live-sweep", action="store_true",
                         help="ONLY inside canonical launcher on an already running Dolphin")
+    parser.add_argument("--true-neutral-control", action="store_true",
+                        help="live: ONLY two-shot CTRL/ZERO with runtime-verified "
+                             "distinct neutral bridge; original eight-arm mode is disabled")
     args = parser.parse_args(argv)
     try:
         plan = make_variants()
@@ -294,9 +330,15 @@ def main(argv=None) -> int:
             return 0
         if args.catalog is None or args.bridge_source is None:
             raise RefuseTrial("Live requires saved catalog and exact isolated atomic bridge")
+        if not args.true_neutral_control:
+            raise RefuseTrial(
+                "Legacy V1 ZERO calls set_wiimote_swing(0...) and is NOT "
+                "a no-motion-call control. Do not run the old eight-arm "
+                "sweep live; use --true-neutral-control with a NEW isolated "
+                "neutral A45 bridge, plus a new scenario.")
         rows = run_discovery(scenario=args.scenario,
                              catalog=args.catalog, bridge_source=args.bridge_source,
-                             port=args.port)
+                             port=args.port, genuine_neutral=True)
         print("DISCOVERY COMPLETE:", len(rows), "human-observed trials. "
               "Native motion, accepted power, and training remain unverified.")
         return 0
