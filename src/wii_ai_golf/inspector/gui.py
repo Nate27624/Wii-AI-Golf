@@ -407,11 +407,11 @@ class Inspector:
             preview = TexturedPreviewWindow(self.visual_tab, model, embedded=True)
             if getattr(self, "terrain_mesh", None) is not None:
                 try:
+                    # set_collision_terrain makes the source-verified
+                    # decision: independently material-calibrated KCL+trees
+                    # or Textures-only on incomplete scene graph. Do NOT
+                    # override a successfully validated material fit here.
                     preview.set_collision_terrain(self.terrain_mesh)
-                    if getattr(model, "source_scene_warning", None):
-                        # Geometry-library fallback lacks the original scene
-                        # orientation. Never auto-overlay KCL as "Both".
-                        preview.mode.set("Textures")
                 except ValueError as align_error:
                     preview.comparison_status.set(
                         "KCL source comparison unavailable: " + str(align_error))
