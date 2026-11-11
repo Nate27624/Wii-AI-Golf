@@ -16,7 +16,7 @@ for p in (ROOT / "src", ROOT / "scripts"):
 from wii_ai_golf.integration.a45_neutral_probe_patch import (
     patch_atomic_v1_to_neutral, ATOMIC_NEUTRAL_MARKER
 )
-from scripts.prepare_a45_neutral_bridge import prepare
+from prepare_a45_neutral_bridge import prepare
 from p0_input_discovery_sweep import (
     require_genuine_neutral_capability, run_discovery, RefuseTrial
 )
