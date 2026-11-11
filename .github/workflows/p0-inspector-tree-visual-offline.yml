@@ -8,8 +8,10 @@ on:
     paths:
       - 'src/wii_ai_golf/inspector/tree_positions.py'
       - 'src/wii_ai_golf/inspector/tree_render.py'
+      - 'src/wii_ai_golf/inspector/asset_preferences.py'
       - 'src/wii_ai_golf/inspector/gui.py'
       - 'tests/test_p0_memory_inspector_tree_*.py'
+      - 'tests/test_p0_memory_inspector_asset_preferences.py'
       - '.github/workflows/p0-inspector-tree-visual-offline.yml'
 permissions:
   contents: read
@@ -29,5 +31,7 @@ jobs:
         run: python -m pip install -e ".[visual]"
       - name: Focused private tree source loader and 3D illustrations
         run: python -m unittest discover -s tests -p "test_p0_memory_inspector_tree_*.py" -v
+      - name: Focused private asset preference restoration and safety
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_asset_preferences.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
