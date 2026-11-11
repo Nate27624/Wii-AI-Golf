@@ -142,7 +142,15 @@ class DirectDAETests(unittest.TestCase):
         # Common Collada 1.5 source DAG reuse; no unproven flattening or
         # invented 180-degree world rotation. Parent @ referenced child.
         import re
-        data=DAE.replace(
+        # First change the visual-scene direct instance, THEN create a
+        # separate library_nodes definition. Doing it in reverse could
+        # accidentally replace the library node's own geometry instance.
+        data,n=re.subn(
+            r'<instance_geometry url="#grass">.*?</instance_geometry>',
+            '<instance_node url="#shared-ground"/>',
+            DAE, count=1, flags=re.S)
+        self.assertEqual(n,1)
+        data=data.replace(
             '<library_visual_scenes>',
             '<library_nodes><node id="shared-ground">'
             '<translate>10 0 20</translate>'
@@ -151,11 +159,6 @@ class DirectDAETests(unittest.TestCase):
             '</technique_common></bind_material></instance_geometry>'
             '</node></library_nodes><library_visual_scenes>'
         )
-        data,n=re.subn(
-            r'<instance_geometry url="#grass">.*?</instance_geometry>',
-            '<instance_node url="#shared-ground"/>',
-            data, count=1, flags=re.S)
-        self.assertEqual(n,1)
         self.dae.write_text(data,encoding="utf-8")
         model=load_private_dae_visual_model(self.dae)
         self.assertEqual(model.vertices[:3],
