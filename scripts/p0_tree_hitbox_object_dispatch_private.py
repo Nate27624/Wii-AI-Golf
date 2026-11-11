@@ -11,6 +11,7 @@ import argparse
 from collections import Counter
 from contextlib import ExitStack
 import json
+import math
 import mmap
 from pathlib import Path
 import struct
@@ -91,9 +92,9 @@ def inspect_objects(u32,bank,base,count):
         patterns.append({"object_count":n,"firstword_class":klass,
                          "public_method_candidates":targets,
                          "firstword_is_vtable_verified":False})
-    scales_finite=sum(int(all(__import__("math").isfinite(x) and abs(x)<10000 for x in row)) for row in source_scale)
+    scales_finite=sum(int(all(math.isfinite(x) and abs(x)<10000 for x in row)) for row in source_scale)
     scale_axes=[
-        [x[j] for x in source_scale if __import__("math").isfinite(x[j])]
+        [x[j] for x in source_scale if math.isfinite(x[j])]
         for j in range(3)
     ]
     return {"tree_count":count,"distinct_object_firstwords":len(first),
