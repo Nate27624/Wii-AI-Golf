@@ -84,6 +84,50 @@ class DirectDAETests(unittest.TestCase):
         self.assertEqual(visual.solid_colors["M_Kiwa_Black"], (26, 76, 128))
         self.assertEqual(visual.obj_sha256, hashlib.sha256(self.dae.read_bytes()).hexdigest())
 
+    def test_source_dae_scene_matrix_180yaw_and_translation_now_applied(self):
+        original = self.dae.read_bytes()
+        scene_matrix = '<matrix>-1 0 0 0 0 1 0 0 0 0 -1 0 10 0 20 1</matrix>'
+        self.dae.write_text(DAE.replace(
+            '<node id="grass-node">',
+            '<node id="grass-node">' + scene_matrix), encoding="utf-8")
+        model = load_private_dae_visual_model(self.dae)
+        self.assertEqual(model.vertices[:3],
+                         ((10., 0., 20.), (2., 0., 20.), (10., 8., 20.)))
+        self.assertEqual(model.faces[0].material, "M_Fairway")
+        self.assertEqual(model.uvs[:3], ((0.,0.), (1.,0.), (0.,1.)))
+        self.assertNotEqual(original, self.dae.read_bytes())
+        self.assertEqual(model.obj_sha256,
+                         hashlib.sha256(self.dae.read_bytes()).hexdigest())
+
+    def test_nested_source_translate_rotate_are_combined(self):
+        transformed = DAE.replace(
+            '<node id="grass-node">',
+            '<node id="root"><translate>10 0 20</translate>'
+            '<node id="grass-node"><rotate>0 1 0 180</rotate>').replace(
+            '</node></visual_scene>', '</node></node></visual_scene>')
+        self.dae.write_text(transformed, encoding="utf-8")
+        result = load_private_dae_visual_model(self.dae)
+        self.assertAlmostEqual(result.vertices[0][0], 10.)
+        self.assertAlmostEqual(result.vertices[0][2], 20.)
+        self.assertAlmostEqual(result.vertices[1][0], 2.)
+        self.assertAlmostEqual(result.vertices[1][2], 20.)
+
+    def test_duplicate_instances_never_silently_share_one_transform(self):
+        self.dae.write_text(DAE.replace(
+            '</node></visual_scene>',
+            '<instance_geometry url="#grass"/></node></visual_scene>'),
+            encoding="utf-8")
+        with self.assertRaisesRegex(VisualAssetError, "instanced multiple times"):
+            load_private_dae_visual_model(self.dae)
+
+    def test_unsupported_source_scene_controller_fails_closed(self):
+        self.dae.write_text(DAE.replace(
+            '<node id="grass-node">',
+            '<node id="grass-node"><instance_controller url="#unknown"/>'),
+            encoding="utf-8")
+        with self.assertRaisesRegex(VisualAssetError, "Unsupported original scene"):
+            load_private_dae_visual_model(self.dae)
+
     def test_brawlcrate_sampler_surface_ref_to_image_name(self):
         # The real FC1 DAE has image ID glf_fairway1-image and image NAME
         # glf_fairway1. Collada newparams can refer to either.
