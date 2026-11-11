@@ -49,9 +49,9 @@ class TexturedPreviewWindow:
         self.camera = self.home_camera
         self.comparison_kcl = None
         self._source_terrain = None
-        # User screenshot suggests a 180° mismatch in display orientation.
-        # This is an operator-visible hypothesis, not a proven Wii transform.
-        self.display_rotation = tk.IntVar(value=180)
+        # Source-authored Collada scene node matrices are now applied. No extra
+        # guessed yaw is authoritative; rotations remain visual trials.
+        self.display_rotation = tk.IntVar(value=0)
         self.tree_overlay = ()
         self.tree_overlay_visible = True
         self.tree_illustrations = True
@@ -90,8 +90,8 @@ class TexturedPreviewWindow:
         ).pack(anchor="w")
         ttk.Label(
             head,
-            text="STATIC visual-model LOCAL coordinates · not aligned with "
-                 "the separate KCL/ball/tee/flag view · native Wii shaders unverified",
+            text="Collada-authored scene node matrices are applied where present; "
+                 "KCL/tee/pin native alignment remains UNVERIFIED · shaders approximate",
             wraplength=820,
         ).pack(anchor="w")
         if model.skipped_source_faces:
@@ -124,7 +124,7 @@ class TexturedPreviewWindow:
                 variable=self.display_rotation, command=self.set_display_rotation,
             ).pack(side="left", padx=(4, 1))
         ttk.Label(
-            orientation_controls, text="original textures/XYZ unchanged · 180° initial guess",
+            orientation_controls, text="DAE authored matrices applied · yaw remains a visual trial",
         ).pack(side="left", padx=8)
         ttk.Label(
             controls,
