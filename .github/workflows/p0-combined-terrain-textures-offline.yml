@@ -1,0 +1,43 @@
+name: P0 combined solid terrain and original UV textures offline
+
+on:
+  pull_request:
+    paths:
+      - 'src/wii_ai_golf/inspector/gui.py'
+      - 'src/wii_ai_golf/inspector/visual_model.py'
+      - 'src/wii_ai_golf/inspector/texture_render.py'
+      - 'src/wii_ai_golf/inspector/textured_preview.py'
+      - 'src/wii_ai_golf/inspector/navigation.py'
+      - 'tests/test_p0_memory_inspector_visual_textures.py'
+      - 'pyproject.toml'
+      - '.github/workflows/p0-combined-terrain-textures-offline.yml'
+  push:
+    branches:
+      - agent/terrain-original-textures-inspector-20261110
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install optional local texture preview dependencies
+        run: python -m pip install Pillow numpy
+      - name: UV preview PNG and strict asset source tests
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_visual_textures.py -v
+      - name: Full solid terrain and GUI regression tests
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_terrain_solid.py -v
+      - name: SHA-bound source material overlays
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_terrain_labels.py -v
+      - name: Full repository offline regression
+        run: python -m unittest discover -s tests -v
