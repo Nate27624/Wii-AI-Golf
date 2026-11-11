@@ -143,3 +143,39 @@ UV indices before loading in the inspector. Keep all game data private.
 
 Visual model/world collision alignment, native shader effects, and correct
 hole identity are still pending verification. training_approved=false.
+
+
+## Original FC1 source DAE: direct textured preview, no Blender
+
+The operator already exported original glf_course_fc1.dae via BrawlCrate
+and real PNGs via Wiimms XALL. Collada XML contains 12 source geometries,
+13 TEXCOORD references, 12 materials, 11 original diffuse texture slots.
+Direct import from a fresh PRIVATE folder uses:
+
+    D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1\glf_course_fc1.dae
+    D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1\Textures(NW4R)\*.tex0.png
+
+**NO BLENDER required.** Optional inspector direct Collada importer
+follows original DAE mesh POSITION and TEXCOORD input indexes, material
+effect and image references, then reads the existing matching TEX0 PNG
+bytes in place. M_Kiwa_Black receives only its original DAE diffuse Kd
+when untextured. It does not synthesize UVs/PNGs or edit the files.
+
+glf_tokosenFix.tex0.png has a documented palette conversion failure,
+but none of the actual 11 DAE diffuse texture slots references it, so
+that image is NOT necessary for a first course material preview.
+
+Preview PRIVATE game textures file picker now accepts .dae and .obj.
+Or open both the current KCL terrain and separate visual DAE via:
+
+    py -3 -I "D:\Projects\Wii Golf AI\Wii-AI-Golf-Texture-UI-P0\scripts\p0_memory_inspector.py" --terrain-obj "D:\Projects\hole01-collision-candidate-PRIVATE.obj" --terrain-labels "D:\Projects\hole01-collision-candidate-labels-PRIVATE.json" --visual-dae "D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1\glf_course_fc1.dae"
+
+Pillow+NumPy (small optional renderer libraries) are the only image
+dependencies, not a full Blender installation. The original collision
+OBJ and material labels stay SHA-bound and unchanged.
+
+Limitations: source Collada mesh-local positions are not independently
+verified aligned to native scene transforms/KCL/ball/tee/flag. Skinning,
+multi-TEV GPU shader passes, shadows, model and hole ownership and
+training/physics remain unverified. This is a separate static source art
+preview, not an in-game native graphics replacement.
