@@ -21,6 +21,10 @@ from .startup import StartupError, occupied_bridge, powershell_command, runtime_
 from .visual_model import VisualAssetError, load_private_visual_model
 from .tree_positions import TreePositions, TreePositionsError, load_private_tree_positions
 from .tree_render import draw_tree_layer, fit_points
+from .asset_preferences import (
+    AssetSelections, SavedAssetError, discover_private_tree,
+    load_asset_selections, remember_asset, save_asset_selections,
+)
 
 # Source-qualified candidate channels already captured by the existing read-only
 # P0 packet reader.  These are hypotheses, not calibrated screen positions.
@@ -110,6 +114,8 @@ class Inspector:
         self.tree_illustrations = tk.BooleanVar(value=True)
         self.tree_labels = tk.BooleanVar(value=False)
         self.tree_status = tk.StringVar(value="Trees: load exact PRIVATE source-94 JSON; original meshes unavailable.")
+        self.asset_settings_status = tk.StringVar(value="Local asset selections are remembered per user (not in Git).")
+        self.saved_assets = AssetSelections()
         self.a_reason = tk.StringVar(value="Connect LIVE with A released; 2 stable samples initialize candidate")
         self.baseline: float | None = None
         self.replay: Replay | None = None
@@ -127,6 +133,7 @@ class Inspector:
         self.live_port = tk.StringVar(value="55355")
         self.startup_process: subprocess.Popen | None = None
         self._draw_controls()
+        self.restore_private_assets()
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(200, self.poll_live)
         if initial_capture and initial_manifest:
@@ -212,6 +219,7 @@ class Inspector:
         ttk.Checkbutton(tree_options, text="Tree IDs", variable=self.tree_labels, command=self.draw_path).pack(side="left")
         ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
         ttk.Label(center, textvariable=self.tree_status, wraplength=650, foreground="#a6cfae").pack(anchor="w")
+        ttk.Label(center, textvariable=self.asset_settings_status, wraplength=650, foreground="#9bbbd0").pack(anchor="w")
         source_legend = ttk.Frame(center)
         source_legend.pack(fill="x")
         for label, color in (SURFACE_STYLE[v] for v in (0x0001,0x0002,0x0003,0x0006,0x0007,0x0009)):
@@ -263,32 +271,61 @@ class Inspector:
         except (VisualAssetError, OSError, RuntimeError, tk.TclError) as exc:
             messagebox.showerror("Private visual texture preview declined", str(exc), parent=self.root)
 
+    def _remember_private_asset(self, kind: str, filename: str | None) -> None:
+        """Persist only the approved local path; never source positions/art."""
+        try:
+            updated = remember_asset(self.saved_assets, kind, filename)
+            save_asset_selections(updated)
+            self.saved_assets = updated
+            self.asset_settings_status.set(
+                "Private terrain/tree selections saved locally; reloaded at next launch.")
+        except (SavedAssetError, OSError, ValueError) as exc:
+            self.asset_settings_status.set(
+                f"Could not remember local asset path: {exc}. Current view remains loaded.")
+
+    def _load_terrain_file(self, filename: str, *, remember: bool = False) -> None:
+        mesh = load_private_obj(filename)
+        self.terrain_mesh = mesh
+        self.terrain_visible.set(True)
+        self.terrain_status.set(
+            f"PRIVATE terrain OBJ: {len(mesh.faces)} candidate triangles, SHA {mesh.sha256[:12]}… "
+            "· visual alignment/active collision UNVERIFIED")
+        if remember:
+            self._remember_private_asset("terrain_obj", filename)
+        self.draw_path()
+
     def load_terrain(self) -> None:
-        """User opt-in: load only local private OBJ, never read live RAM for terrain."""
+        """Select a local source-coordinate OBJ once; reload it next launch."""
         filename = filedialog.askopenfilename(
+            parent=self.root,
             title="Select local source-coordinate private KCL collision OBJ",
             filetypes=[("Wavefront OBJ", "*.obj")])
         if not filename:
             return
         try:
-            mesh = load_private_obj(filename)
+            self._load_terrain_file(filename, remember=True)
         except (TerrainError, OSError) as exc:
-            messagebox.showerror("Private terrain declined", str(exc))
-            return
-        self.terrain_mesh = mesh
-        self.terrain_visible.set(True)
-        self.terrain_status.set(
-            f"PRIVATE collision OBJ: {len(mesh.faces)} candidate triangles, SHA {mesh.sha256[:12]}… "
-            "· visual alignment/active collision UNVERIFIED")
-        self.draw_path()
+            messagebox.showerror("Private terrain declined", str(exc), parent=self.root)
 
     def clear_terrain(self) -> None:
         self.terrain_mesh = None
         self.terrain_status.set("Terrain: no private OBJ loaded.")
+        self._remember_private_asset("terrain_obj", None)
+        self.draw_path()
+
+    def _load_tree_file(self, filename: str, *, remember: bool = False) -> None:
+        tree_positions = load_private_tree_positions(filename)
+        self.tree_positions = tree_positions
+        self.tree_visible.set(True)
+        self.tree_status.set(
+            "94 exact PRIVATE source tree bases loaded; native model and visual "
+            "alignment/scale/hitboxes UNVERIFIED.")
+        if remember:
+            self._remember_private_asset("tree_json", filename)
         self.draw_path()
 
     def load_tree_positions(self) -> None:
-        """Opt-in private local JSON; never reads network, game input or RAM."""
+        """Select one verified local private tree file; remember selection."""
         filename = filedialog.askopenfilename(
             parent=self.root,
             title="Select source-gated PRIVATE 94-tree positions from Wii-AI-Golf-Data/derived",
@@ -296,21 +333,53 @@ class Inspector:
         if not filename:
             return
         try:
-            tree_positions = load_private_tree_positions(filename)
+            self._load_tree_file(filename, remember=True)
         except (TreePositionsError, OSError) as exc:
             messagebox.showerror("Private tree source rejected", str(exc), parent=self.root)
-            return
-        self.tree_positions = tree_positions
-        self.tree_visible.set(True)
-        self.tree_status.set(
-            "94 source positions loaded; select qualified replay for overlay. "
-            "Original geometry, illustration scale, alignment and hitboxes UNVERIFIED.")
-        self.draw_path()
 
     def clear_tree_positions(self) -> None:
         self.tree_positions = None
-        self.tree_status.set("Trees: cleared private source-94 positions from the view.")
+        self.tree_status.set("Trees: cleared; automatic discovery disabled until next manual selection.")
+        self._remember_private_asset("tree_json", None)
         self.draw_path()
+
+    def restore_private_assets(self) -> None:
+        """On launch restore saved local asset paths; fail closed without dialogs.
+
+        First launch tries only the original expected PRIVATE filename in known
+        local folders, then persists that path if the strict loader accepts it.
+        A saved invalid path reports an error rather than loading a different
+        tree file or silently applying guessed geometry.
+        """
+        try:
+            self.saved_assets = load_asset_selections()
+        except (SavedAssetError, OSError) as exc:
+            self.saved_assets = AssetSelections()
+            self.asset_settings_status.set(f"Saved selections invalid/unavailable: {exc}")
+        saved = self.saved_assets
+        if saved.terrain_obj is not None:
+            try:
+                self._load_terrain_file(saved.terrain_obj)
+            except (TerrainError, OSError) as exc:
+                self.terrain_status.set(f"Saved PRIVATE terrain not loaded: {exc}")
+        if saved.tree_json is not None:
+            try:
+                self._load_tree_file(saved.tree_json)
+            except (TreePositionsError, OSError) as exc:
+                self.tree_status.set(f"Saved PRIVATE trees not loaded: {exc}")
+        elif saved.auto_find_trees:
+            # The earlier #411 exporter writes a fixed private filename;
+            # discovery never searches other arbitrary JSON or the network.
+            checkout = Path(__file__).resolve().parents[3]
+            candidate = discover_private_tree(checkout)
+            if candidate is not None:
+                try:
+                    self._load_tree_file(str(candidate), remember=True)
+                except (TreePositionsError, OSError) as exc:
+                    self.tree_status.set(f"Auto-discovered PRIVATE tree source rejected: {exc}")
+        if saved.terrain_obj or saved.tree_json:
+            self.asset_settings_status.set(
+                "Saved private asset path(s) checked on launch. Use Load/Clear to change.")
 
     def pick(self, var: tk.StringVar) -> None:
         name = filedialog.askopenfilename(title="Choose local file (not uploaded)")
