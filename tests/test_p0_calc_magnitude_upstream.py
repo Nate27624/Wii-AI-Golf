@@ -142,7 +142,14 @@ def fixture():
             words.setdefault(pc,dform(14,1,1,0))
     words[m.PLAYER_CALLSITE]=bl(m.PLAYER_CALLSITE,0x802B4794)
     words[0x802B449C]=bl(0x802B449C,0x800A6400)
+    words[0x802B4814]=mr(4,28)
     for pc,op,reg,base,disp in (
+        (0x800A6400,48,2,4,20),
+        (0x800A6404,48,1,4,16),
+        (0x800A6408,48,0,4,12),
+        (0x800A640C,52,1,3,4),
+        (0x800A6410,52,0,3,0),
+        (0x800A6414,52,2,3,8),
         (0x802B44A0,34,0,31,0xA8),
         (0x802B44AC,48,0,1,56),
         (0x802B44B4,52,0,1,56),
@@ -157,6 +164,7 @@ def fixture():
     words[0x802B44C4]=ppc_rlwinm(0,0,3,0,28)
     words[0x802B44D0]=(31<<26)|(3<<16)|(695<<1)
     words[0x802B44B0]=(63<<26)|(40<<1)
+    words[0x800A6418]=(19<<26)|(20<<21)|(16<<1)
     for pc,dst,bo,bi in ((0x802B44A8,0x802B44B8,12,2),
                          (0x802B44F0,0x802B44FC,12,0)):
         words[pc]=(16<<26)|(bo<<21)|(bi<<16)|((dst-pc)&0xFFFC)
@@ -410,7 +418,30 @@ class Tests(unittest.TestCase):
         self.assertEqual(report["ring_float_pair_stride_bytes"],8)
         self.assertEqual(report["ring_buffer_pointer_field"],"+0x9C")
         self.assertFalse(report["source_player_execution_or_power_commit_verified"])
-        self.assertFalse(report["preprocessor_vector_physical_meaning_verified"])
+        self.assertTrue(report["preprocessor_vector_physical_meaning_verified"])
+        self.assertEqual(report["source_filter_for_acc_xyz"],1)
+        self.assertEqual(report["ring_first_float"],
+                         "acc.x (optional sign reversal via preprocessor+0xA8)")
+        self.assertEqual(report["ring_second_float"],"acc.y")
+        self.assertFalse(report["ring_acc_z_used_in_this_pair"])
+        self.assertFalse(report["filter_1_status_runtime_sampling_verified"])
+
+    def test_egg_three_acceleration_float_copy_mutations_fail_closed(self):
+        for pc in (0x800A6400,0x800A6404,0x800A6408,
+                   0x800A640C,0x800A6410,0x800A6414):
+            words=fixture()
+            words[pc] ^= (1 << 21)
+            with self.assertRaisesRegex(m.Abstain,"egg_controller_acc_xyz_copy_gate_failed"):
+                m.verify_cross_unit_input_and_ring(words.__getitem__)
+        words=fixture()
+        words[0x800A6418] ^= 1
+        with self.assertRaisesRegex(m.Abstain,"egg_controller_acc_xyz_copy_return_gate_failed"):
+            m.verify_cross_unit_input_and_ring(words.__getitem__)
+        for pc in (0x802B47E4,0x802B4814):
+            words=fixture()
+            words[pc] ^= (1 << 21)
+            with self.assertRaisesRegex(m.Abstain,"preprocessor_filter_1_pointer_chain_gate_failed"):
+                m.verify_cross_unit_input_and_ring(words.__getitem__)
 
     def test_cross_unit_player_and_ring_mutation_abstains(self):
         for pc,reason in (
