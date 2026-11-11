@@ -33,5 +33,15 @@ jobs:
         run: python -m unittest discover -s tests -p "test_p0_memory_inspector_tree_*.py" -v
       - name: Focused private asset preference restoration and safety
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_asset_preferences.py -v
+      - name: Validate private source bootstrap PowerShell parses (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path (Get-Location) 'scripts/bootstrap_inspector_private_trees.ps1'),
+            [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -ne 0) { throw "Tree bootstrap PowerShell has parse errors: $errors" }
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
