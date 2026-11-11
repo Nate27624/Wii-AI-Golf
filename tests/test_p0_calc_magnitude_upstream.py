@@ -55,6 +55,15 @@ def ppc_rlwinm(rs, ra, sh, mb, me, rc=0):
             (mb << 6) | (me << 1) | rc)
 
 
+def ppc_add(rd,ra,rb):
+    return ((31 << 26) | (rd << 21) | (ra << 16) |
+            (rb << 11) | (266 << 1))
+
+
+def ppc_mtctr(rs):
+    return ((31 << 26) | (rs << 21) | (9 << 16) | (467 << 1))
+
+
 def fixture():
     words = {}
     for pc in range(*m.EXCERPT, 4):
@@ -91,10 +100,30 @@ def fixture():
     words[0x802B48A0] = ppc_rlwinm(0, 0, 2, 0, 29)
     words[0x802B48D0] = ppc_rlwinm(0, 0, 2, 0, 29)
     # Synthetic FP63 example at non-gated site for generic symbolizer test.
-    words[0x802B486C] = (
+    words[0x802B47F0] = (
         (63 << 26) | (30 << 21) | (28 << 16) |
         (29 << 11) | (27 << 6) | (29 << 1)
     )
+    for pc,spec in m.HISTORY_LOADS.items():
+        words[pc]=dform(48,*spec)
+    for pc,spec in m.HISTORY_STORES.items():
+        words[pc]=dform(52,*spec)
+    for pc,spec in m.HISTORY_FP_GATES.items():
+        words[pc]=ppc_fp(*spec)
+    for pc,spec in m.HISTORY_COMPARE_GATES.items():
+        words[pc]=ppc_fcmpo(*spec)
+    for pc,target in m.HISTORY_SKIP_BRANCHES.items():
+        words[pc]=ppc_bc_le(pc,target)
+    for table in (m.SELECTOR_GLOBAL_LOADS,m.SELECTOR_INDEX_LOADS,
+                  m.SELECTOR_ELEMENT_LOADS,m.SELECTOR_VPTR_LOADS):
+        for pc,spec in table.items():
+            words[pc]=dform(32,*spec)
+    for pc in m.SELECTOR_RLWINM:
+        words[pc]=ppc_rlwinm(0,0,2,0,29)
+    for pc in m.SELECTOR_ADDS:
+        words[pc]=ppc_add(3,3,0)
+    for pc in m.SELECTOR_MTCTR:
+        words[pc]=ppc_mtctr(12)
     return words
 
 
@@ -142,7 +171,7 @@ class Tests(unittest.TestCase):
 
     def test_symbolic_fp_producer_and_source_owner(self):
         words = fixture()
-        line = m.symbolize(0x802B486C, words[0x802B486C])
+        line = m.symbolize(0x802B47F0, words[0x802B47F0])
         self.assertEqual(line["class"], "fp_opcode63")
         self.assertEqual((line["fd"], line["fa"], line["fb"], line["fc"]),
                          (30, 28, 29, 27))
@@ -220,6 +249,53 @@ class Tests(unittest.TestCase):
         self.assertEqual(len([x for x in selections if x["class"]=="rlwinm"]),2)
         self.assertFalse(
             report["native_magnitude_arithmetic"]["two_callbacks_same_object_verified"])
+
+    def test_history_two_accumulators_and_maximum_sites(self):
+        report=m.source_slice(fixture().__getitem__)
+        h=report["upstream_two_accumulators_and_four_peak_sites"]
+        self.assertEqual(h["status"],
+            "REV1_TWO_ACCUMULATORS_FOUR_RUNNING_MAX_SITES_SOURCE_PASS")
+        self.assertIn("f31",h["calc_0x20_rule"])
+        self.assertIn("source_r31[+0x1C]",h["calc_0x24_rule"])
+        self.assertFalse(h["source_r31_struct_identity_verified"])
+        self.assertEqual(len(report["input_function_entry_source_excerpt"]),35)
+
+    def test_repeated_virtual_getter_selection_is_structural_only(self):
+        report=m.source_slice(fixture().__getitem__)
+        sel=report["repeated_global_virtual_getter_selector"]
+        self.assertEqual(sel["status"],
+            "REV1_TWIN_GLOBAL_INDEXED_VTABLE_SLOT56_SOURCE_PASS")
+        self.assertEqual(sel["same_source_global_r13_offset"],-23168)
+        self.assertEqual(sel["both_index_field_offset"],28)
+        self.assertEqual(sel["index_scale_bytes"],4)
+        self.assertEqual(sel["both_element_pointer_offsets"],12)
+        self.assertEqual(sel["both_vtable_slot_offsets"],56)
+        self.assertTrue(sel["same_static_selection_expression"])
+        self.assertFalse(sel["actual_runtime_getter_return_equality_verified"])
+
+    def test_history_and_selector_mutations_fail_closed(self):
+        for group,reason in [
+            (m.HISTORY_LOADS,"history_float_load"),
+            (m.HISTORY_STORES,"history_float_store"),
+            (m.HISTORY_FP_GATES,"history_float_operation"),
+            (m.HISTORY_COMPARE_GATES,"history_greater_compare"),
+            (m.HISTORY_SKIP_BRANCHES,"history_greater_branch"),
+            (m.SELECTOR_GLOBAL_LOADS,"selector_global"),
+            (m.SELECTOR_INDEX_LOADS,"selector_index"),
+            (m.SELECTOR_ELEMENT_LOADS,"selector_element"),
+            (m.SELECTOR_VPTR_LOADS,"selector_vptr"),
+            ({pc:None for pc in m.SELECTOR_RLWINM},
+             "selector_times_four_index"),
+            ({pc:None for pc in m.SELECTOR_ADDS},"selector_pointer_add"),
+            ({pc:None for pc in m.SELECTOR_MTCTR},"selector_mtctr"),
+        ]:
+            for pc in group:
+                words=fixture()
+                words[pc] ^= (1 << 21)
+                fn=(m.verify_history_pipeline if reason.startswith("history_")
+                    else m.verify_virtual_selector_reuse)
+                with self.assertRaisesRegex(m.Abstain,reason):
+                    fn(words.__getitem__)
 
     def test_wrong_bank_or_unaligned_source_address_abstains(self):
         fake = bytes(64)
