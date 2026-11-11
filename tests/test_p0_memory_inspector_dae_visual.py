@@ -146,7 +146,9 @@ class DirectDAETests(unittest.TestCase):
             '<library_visual_scenes>',
             '<library_nodes><node id="shared-ground">'
             '<translate>10 0 20</translate>'
-            '<instance_geometry url="#grass"/>'
+            '<instance_geometry url="#grass"><bind_material><technique_common>'
+            '<instance_material symbol="fairway_symbol" target="#M_Fairway"/>'
+            '</technique_common></bind_material></instance_geometry>'
             '</node></library_nodes><library_visual_scenes>'
         )
         data,n=re.subn(
