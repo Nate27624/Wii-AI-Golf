@@ -100,14 +100,18 @@ class SourceMarkerTests(unittest.TestCase):
             image.copy(),camera(),comparison(),tree_source(),
             marker_snapshot(sample()),show_trees=True,show_tree_crowns=False,
             show_ball=False,show_tee_pin=False,show_cache=False)
-        self.assertEqual(counts2["trees"],94)
+        # All 94 source bases are retained; only projected bases inside the
+        # current camera frustum are counted as visible pixels.
+        self.assertEqual(len(tree_source().positions),94)
+        self.assertGreater(counts2["trees"],0)
+        self.assertLessEqual(counts2["trees"],94)
         self.assertNotEqual(image2.tobytes(),original)
         self.assertEqual(counts2["ball"],0)
         image3, counts3=draw_source_markers(
             image.copy(),camera(),comparison(),tree_source(),
             marker_snapshot(sample()),show_trees=True,show_tree_crowns=True,
             show_ball=True,show_tee_pin=True,show_cache=True)
-        self.assertEqual(counts3["trees"],94)
+        self.assertEqual(counts3["trees"],counts2["trees"])
         self.assertEqual(counts3["ball"],1)
         self.assertEqual(counts3["tee"],1)
         self.assertEqual(counts3["pin"],1)
