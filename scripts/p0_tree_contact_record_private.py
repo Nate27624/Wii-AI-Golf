@@ -441,6 +441,61 @@ def capture_trial(root,kind,args):
     return payload
 
 
+
+def summarize_trials(summaries):
+    """Sanitize existing trial manifests without deriving a physics hit label.
+
+    A recorded trial uses trial_intent; an operator-skipped trial uses kind.
+    Preserve each human annotation separately from the intended trial.
+    """
+    if not isinstance(summaries,list) or not 1<=len(summaries)<=MAX_RUNS:
+        raise ValueError("Expected one to three original trial summaries")
+    result=[]
+    seen=set()
+    for record in summaries:
+        if not isinstance(record,dict):
+            raise ValueError("Malformed trial manifest")
+        name=record.get("trial_intent",record.get("kind"))
+        if name not in TYPES or name in seen:
+            raise ValueError("Trial intent absent, repeated, or unsupported")
+        seen.add(name)
+        status=record.get("status")
+        if status not in ("recorded","partial_or_abstained","skipped"):
+            raise ValueError("Unknown trial recording status")
+        contact=record.get("operator_observed_contact_region","unknown")
+        trajectory=record.get("operator_observed_trajectory_changed","unknown")
+        if contact not in (*OBSERVED,"unknown") or trajectory not in ("yes","no","unknown"):
+            raise ValueError("Unsupported human observation category")
+        samples=record.get("sample_count",0)
+        trees=record.get("tree_snapshot_count",0)
+        if type(samples) is not int or type(trees) is not int or samples<0 or trees<0 or trees>samples:
+            raise ValueError("Invalid source sample counts")
+        result.append({
+            "kind":name,"status":status,
+            "sample_count":samples,
+            "tree_snapshot_count":trees,
+            "observed_contact_region":contact,
+            "observed_trajectory_changed":trajectory,
+            "video_created":record.get("video_created",False) is True,
+            "screenshot_count":record.get("screenshot_count",0),
+            "visual_capture_note":record.get("visual_capture_mode_note","unknown"),
+        })
+    return {
+        "kind":"P0_OPERATOR_TREE_CONTACT_CANDIDATES_V1",
+        "recording_session_status": (
+            "complete" if all(x["status"] in ("recorded","skipped") for x in result)
+            else "partial_or_abstained"),
+        "trial_intents":[x["kind"] for x in result],
+        "trials":result,
+        "total_source_packets":sum(x["sample_count"] for x in result),
+        "total_94_tree_snapshots":sum(x["tree_snapshot_count"] for x in result),
+        "observations_are_human_reported":True,
+        "contact_verified_by_native_code":False,
+        "ball_velocity_verified":False,
+        "training_approved":False,
+    }
+
+
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--private-root",type=Path)
@@ -478,21 +533,7 @@ def main(argv=None):
         print("Any completed prior trials and partial raw stream stay in private folder.",file=sys.stderr)
         print("Private session: "+str(folder),file=sys.stderr)
         return 2
-    compact={
-        "kind":"P0_OPERATOR_TREE_CONTACT_CANDIDATES_V1",
-        "recording_session_status":"complete",
-        "trial_intents":[x["kind"] for x in summaries],
-        "trials":[{"kind":x["kind"],"status":x["status"],
-                   "sample_count":x.get("sample_count",0),
-                   "observed_contact_region":x.get("operator_observed_contact_region","unknown"),
-                   "observed_trajectory_changed":x.get("operator_observed_trajectory_changed","unknown"),
-                   "video_created":x.get("video_created",False),
-                   "screenshot_count":x.get("screenshot_count",0),
-                   "visual_capture_note":x.get("visual_capture_mode_note","unknown")}
-                  for x in summaries],
-        "contact_verified_by_native_code":False,
-        "ball_velocity_verified":False,"training_approved":False,
-    }
+    compact=summarize_trials(summaries)
     f=folder/"operator-summary-SAFE.json"
     with f.open("x",encoding="utf-8") as stream:
         json.dump(compact,stream,indent=2)
