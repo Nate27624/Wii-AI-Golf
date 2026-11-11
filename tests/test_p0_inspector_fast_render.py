@@ -88,15 +88,59 @@ class NativeSourceRasterTests(unittest.TestCase):
         self.assertEqual(native.size, (64, 48))
         self.assertGreater(drawn, 0)
 
+    def test_mipmapped_bilinear_fast_and_numpy_agree(self):
+        model, textures = synthetic_scene()
+        textures["grass"] = np.empty((16, 16, 4), dtype=np.uint8)
+        textures["grass"][:,:,:] = (12, 44, 66, 255)
+        textures["grass"][:8,:8,:3] = (210, 188, 90)
+        textures["grass"][8:,8:,:3] = (240, 34, 76)
+        # UV range creates deliberately minified stripes/texels in motion.
+        from dataclasses import replace
+        tiled = replace(model, uvs=tuple((u*24.,v*24.) for u,v in model.uvs))
+        fast_scene = prepare_fast_scene(tiled, textures)
+        cam = fit_camera(tiled.vertices)
+        native, nf = render_fast(fast_scene, 198, 166, cam, filtered=True)
+        cpu, sf = render_preview(
+            tiled, 198, 166, camera=cam, textures=textures, filtered=True)
+        self.assertEqual(nf, sf)
+        dif=np.abs(np.asarray(native).astype(np.int16) -
+                   np.asarray(cpu).astype(np.int16))
+        self.assertLessEqual(int(dif.max()), 2)
+
+    def test_mipmap_chain_reduces_checker_speckle_without_modifying_png(self):
+        from wii_ai_golf.inspector.texture_sampling import (
+            build_rgba_mips, screen_texture_lod, bilinear_wrapped_rgba)
+        checker = np.full((32, 32, 4), 255, dtype=np.uint8)
+        yy,xx=np.indices((32,32))
+        checker[:,:,:3] = (((xx+yy)%2)*255)[:,:,None]
+        snapshot=checker.copy()
+        chain=build_rgba_mips(checker)
+        self.assertTrue(np.array_equal(checker,snapshot))
+        self.assertGreaterEqual(len(chain),5)
+        self.assertEqual(chain[-1].shape,(1,1,4))
+        self.assertLess(abs(int(chain[-1][0,0,0])-128),3)
+        level=screen_texture_lod(((0.,0.),(5.,0.),(0.,5.)),
+                                 ((0.,0.),(16.,0.),(0.,16.)),
+                                 32,32,len(chain))
+        self.assertGreaterEqual(level,4)
+        u=np.array([0.25],dtype=np.float64)
+        v=np.array([0.25],dtype=np.float64)
+        sampled=bilinear_wrapped_rgba(chain[level],u,v)
+        self.assertLess(abs(int(sampled[0,0])-128),4)
+
     def test_source_texture_arrays_are_byte_identical(self):
         model, textures = synthetic_scene()
         textures["grass"][:, :4, :3] = (200, 32, 75)
         scene = prepare_fast_scene(model, textures)
         copy = scene.rgba_pixels.copy()
-        self.assertEqual(copy.shape, (64, 4))
+        self.assertEqual(copy.shape[1], 4)
+        self.assertGreater(copy.shape[0], 64)  # source level 0 + preview mip chain
         self.assertEqual(tuple(copy[0, :3]), (200, 32, 75))
+        self.assertTrue(np.array_equal(copy[:64], textures["grass"].reshape(-1,4)))
         self.assertEqual(int(scene.tex_offsets[0]), 0)
         self.assertEqual(int(scene.tex_widths[0]), 8)
+        self.assertGreater(int(scene.mip_counts[0]), 1)
+        self.assertEqual(int(scene.mip_widths[0,1]), 4)
 
 
 if __name__ == "__main__":
