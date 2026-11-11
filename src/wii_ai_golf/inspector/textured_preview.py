@@ -155,7 +155,7 @@ class TexturedPreviewWindow:
             return
         # Low-resolution interactions keep the full source mesh but reduce
         # pixel shading; pointer-up always requests full-quality rendering.
-        if self.drag_button is not None and self.fast_active:
+        if getattr(self, "drag_button", None) is not None and self.fast_active:
             width = max(16, int(width * .68))
             height = max(16, int(height * .68))
         mode = self.mode.get() if hasattr(self, "mode") else "Textures"
