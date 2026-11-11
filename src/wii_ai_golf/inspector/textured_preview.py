@@ -18,6 +18,8 @@ from .scene_camera import (
     move_continuous)
 from .unified_source_view import (
     prepare_comparison_kcl, draw_comparison, draw_tree_comparison, overlay_summary)
+from .material_alignment import (
+    derive_material_alignment, MaterialAlignmentError)
 from .texture_render import PreviewCancelled, prepare_textures, render_preview
 from .texture_sampling import build_rgba_mips
 from .fast_texture_render import (
@@ -511,12 +513,43 @@ class TexturedPreviewWindow:
         self.camera = self.full_camera
         self.schedule()
 
-    def set_display_rotation(self, degrees=None):
-        """Try a bounded source-to-texture yaw without modifying any source file.
+    def _source_comparison(self, terrain, yaw: int):
+        """Return a display-mapping and reason, never fake native alignment.
 
-        Both KCL triangle vertices and the strict 94-tree coordinates use
-        the same display-only transform. Never rotate the authentic DAE.
+        Most importantly, GEOMETRY-ONLY Collada imports can have a huge
+        background and missing controller transforms. Whole-model bounding
+        boxes DO NOT establish the KCL/tree scale. A source-material fit
+        must pass independent surface and holdout checks before auto-overlay.
         """
+        warning = getattr(self.model, "source_scene_warning", None)
+        incomplete = isinstance(warning, str) and bool(warning)
+        if yaw == 0:
+            try:
+                fitted = derive_material_alignment(terrain, self.model)
+            except MaterialAlignmentError as exc:
+                if incomplete:
+                    return None, (
+                        "KCL/TREES AUTO-OVERLAY HIDDEN: " + str(exc) +
+                        ". No guessed scale applied to geometry-only DAE. "
+                        "Original source collision remains available in fallback.")
+            else:
+                mapped = prepare_comparison_kcl(
+                    terrain, self.model, material_alignment=fitted)
+                return mapped, overlay_summary(mapped)
+        # Explicit nonzero dial remains an UNVERIFIED, user-selected
+        # experiment; never apply the old bounds-fit automatically when an
+        # original Collada controller/scene mapping is incomplete.
+        mapped = prepare_comparison_kcl(
+            terrain, self.model, rotation_degrees=yaw)
+        status = overlay_summary(mapped)
+        if incomplete:
+            status = (
+                "MANUAL BOUNDS-FIT TRIAL ONLY — SCALE NOT VERIFIED · " +
+                status)
+        return mapped, status
+
+    def set_display_rotation(self, degrees=None):
+        """Choose measured source display-fit or an explicitly guessed yaw."""
         angle = getattr(self, "display_rotation", None)
         value = degrees if degrees is not None else (
             angle.get() if angle is not None else 0)
@@ -526,13 +559,15 @@ class TexturedPreviewWindow:
             angle.set(value)
         terrain = getattr(self, "_source_terrain", None)
         if terrain is not None:
-            self.comparison_kcl = prepare_comparison_kcl(
-                terrain, self.model, rotation_degrees=value)
-            self.comparison_status.set(overlay_summary(self.comparison_kcl))
+            mapped, status = self._source_comparison(terrain, value)
+            self.comparison_kcl = mapped
+            if mapped is None:
+                self.mode.set("Textures")
+            self.comparison_status.set(status)
         self.schedule()
 
     def set_collision_terrain(self, terrain):
-        """Show actual KCL source faces in SAME camera, explicitly uncalibrated."""
+        """Source-labeled material fit; decline missing controller scale."""
         if terrain is None:
             self._source_terrain = None
             self.comparison_kcl = None
@@ -542,12 +577,11 @@ class TexturedPreviewWindow:
         else:
             angle = getattr(self, "display_rotation", None)
             value = angle.get() if angle is not None else 0
-            comp = prepare_comparison_kcl(
-                terrain, self.model, rotation_degrees=value)
+            mapped, status = self._source_comparison(terrain, value)
             self._source_terrain = terrain
-            self.comparison_kcl = comp
-            self.mode.set("Both")
-            self.comparison_status.set(overlay_summary(comp))
+            self.comparison_kcl = mapped
+            self.mode.set("Both" if mapped is not None else "Textures")
+            self.comparison_status.set(status)
         self.schedule()
 
     def set_tree_overlay(self, points, *, visible: bool, illustrations: bool,
