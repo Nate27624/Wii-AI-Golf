@@ -718,19 +718,24 @@ class Inspector:
         focusing = getattr(self, "terrain_focus", None)
         if (mesh is not None and (showing is None or showing.get())
                 and current.source_qualified and bool(current.source_digest)):
-            # Rendering bound; under live load use <= 600 faces to minimize
-            # UI work per sample. All 2498 triangles remain in the private OBJ.
+            # Operator's 2,498 KCL triangles were never missing in the OBJ:
+            # old inspector drew only 600 live / 1,200 replay. Default to
+            # complete faces (bounded 4,096). Fast preview is opt-in.
             live_mode = bool(self.live_worker is not None and self.live_last is not None)
-            limit = 600 if live_mode else 1200
+            detail = getattr(self, "terrain_full_detail", None)
+            full = detail is None or detail.get()
+            limit = min(len(mesh.faces), MAX_DRAW_FACES) if full else (
+                600 if live_mode else 1200)
             colored_faces = mesh.drawing_colored_faces(
                 tuple(landmarks.values()), focused=(focusing is None or focusing.get()), limit=limit)
             terrain_faces = tuple(face for face, _ in colored_faces)
             if hasattr(self, "terrain_status"):
                 labeled = sum(n for code,n in mesh.material_counts().items() if code is not None)
+                mode = "COMPLETE" if len(terrain_faces)==len(mesh.faces) else "PARTIAL PREVIEW / FOCUS"
                 self.terrain_status.set(
-                    f"PRIVATE collision wireframe: {len(terrain_faces)}/{len(mesh.faces)} "
+                    f"PRIVATE terrain: {len(terrain_faces)}/{len(mesh.faces)} "
                     f"triangles drawn · {labeled}/{len(mesh.faces)} source-ID labeled · "
-                    "alignment/active collision UNVERIFIED")
+                    f"{mode} · alignment/active collision UNVERIFIED")
         elif mesh is not None and hasattr(self, "terrain_status"):
             self.terrain_status.set("Terrain HIDDEN — Show disabled or source qualification unavailable")
         # Plot bounds include the selected collision candidate; do NOT transform
@@ -756,14 +761,28 @@ class Inspector:
             u, v = project(p, self.yaw, self.pitch)
             return width / 2 + pan_x + (u - cx) * scale * camera_zoom, height / 2 + pan_y - (v - cy) * scale * camera_zoom
         canvas.create_text(12, 12, text="Rotatable 3D source-coordinate projection · unknown units", anchor="nw", fill="#bacbe1")
-        # Behind source-qualified ball, tee, pin and screen-anchored A text.
-        for face, source_attr in colored_faces:
+        # Painter's-order filled triangles (not true Z buffer). No KCL UV
+        # texture hypothesis: visual UV OBJ/MTL/PNG remains a separate preview.
+        solid_opt = getattr(self, "terrain_solid", None)
+        edges_opt = getattr(self, "terrain_edges", None)
+        palette = getattr(self, "terrain_colors", None)
+        solid = solid_opt is not None and solid_opt.get()
+        edges = edges_opt is None or edges_opt.get()
+        use_colors = palette is None or palette.get()
+        for face, source_attr in back_to_front(colored_faces, self.yaw, self.pitch):
             xy_face = [xy(v) for v in face]
-            palette = getattr(self, "terrain_colors", None)
-            use_colors = palette is None or palette.get()
-            color = surface_style(source_attr)[1] if use_colors else "#3c7366"
-            canvas.create_line(*xy_face[0], *xy_face[1], *xy_face[2], *xy_face[0],
-                               fill=color, width=1, tags=("terrain_collision_candidate",))
+            flat = tuple(c for p in xy_face for c in p)
+            color = surface_style(source_attr)[1] if use_colors else "#536778"
+            if solid:
+                canvas.create_polygon(
+                    *flat, fill=shaded_hex(color, face),
+                    outline=color if edges else "",
+                    width=1 if edges else 0,
+                    tags=("terrain_collision_candidate", "terrain_solid_face"))
+            elif edges:
+                canvas.create_line(
+                    *flat, *xy_face[0], fill=color, width=1,
+                    tags=("terrain_collision_candidate", "terrain_wire_edge"))
         # Recenter per displayed prefix; do not imply screen-space projection or verified spatial units.
         for sequence, color in ((path, "#f1f6ff"), (caches, "#f5b942")):
             previous = None
