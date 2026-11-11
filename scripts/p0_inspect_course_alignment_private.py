@@ -28,6 +28,7 @@ from wii_ai_golf.inspector.replay import float_hypothesis
 from wii_ai_golf.inspector.scene_alignment_audit import (
     audit_collada_scene, audit_surface_registration)
 from wii_ai_golf.inspector.terrain import load_private_obj
+from wii_ai_golf.inspector.terrain_labels import apply_private_surface_labels
 from wii_ai_golf.inspector.tree_positions import load_private_tree_positions
 
 
@@ -68,6 +69,8 @@ def source_gated_live_anchors(port: int = 55355) -> dict:
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--terrain-obj", type=Path, help="STRICT PRIVATE source KCL OBJ")
+    p.add_argument("--terrain-labels", type=Path,
+                   help="STRICT PRIVATE SHA-bound KCL surface-label JSON sidecar")
     p.add_argument("--visual-dae", type=Path, help="STRICT PRIVATE original visual Collada DAE")
     p.add_argument("--trees", type=Path, help="STRICT PRIVATE original 94-tree JSON")
     p.add_argument("--port", type=int, default=55355)
@@ -107,6 +110,8 @@ def main(argv=None) -> int:
         return 2
     try:
         terrain = load_private_obj(terrain_path)
+        if args.terrain_labels is not None:
+            terrain = apply_private_surface_labels(terrain, args.terrain_labels)
         visual = load_private_dae_visual_model(visual_path)
         scene = audit_collada_scene(visual_path)
         if args.trees is not None or preferences.tree_json:
@@ -118,6 +123,15 @@ def main(argv=None) -> int:
     except (OSError, ValueError) as exc:
         # Do not echo exception paths, source vectors, or original scene nodes.
         print("ABSTAIN_SOURCE_ASSETS:", type(exc).__name__, str(exc).split(":")[0][:120])
+        return 2
+
+    # Without decoded original OGWS groups or a SHA-bound source label sidecar,
+    # no cross-material contrast is possible. Do not print a misleading
+    # almost-empty alignment report or silently infer surface types.
+    if not any(type(attr) is int and attr in (1, 3, 6)
+               for attr in terrain.face_materials):
+        print("ABSTAIN_KCL_SOURCE_MATERIALS: supply --terrain-labels "
+              "using the original SHA-bound PRIVATE source sidecar.")
         return 2
 
     live = None
