@@ -187,6 +187,23 @@ class DirectDAETests(unittest.TestCase):
         # Original source DAE is never rewritten by rendering.
         self.assertIn(shifted, self.dae.read_text(encoding="utf-8"))
 
+    def test_source_rigid_skin_uses_authored_joint_world_matrix(self):
+        xml = rigid_source_fixture()
+        xml = xml.replace(
+            '<node id="joint-root" sid="j" type="JOINT"/>',
+            '<node id="joint-root" sid="j" type="JOINT">'
+            '<translate>20 0 30</translate></node>')
+        self.dae.write_text(xml, encoding="utf-8")
+        visual = load_private_dae_visual_model(self.dae)
+        self.assertEqual(visual.vertices[:3],
+                         ((20., 0., 30.), (28., 0., 30.), (20., 8., 30.)))
+
+    def test_source_rigid_skin_name_array_exact_id_fallback(self):
+        xml = rigid_source_fixture(joints="joint-root")
+        self.dae.write_text(xml, encoding="utf-8")
+        visual = load_private_dae_visual_model(self.dae)
+        self.assertEqual(visual.vertices[0], (0., 0., 0.))
+
     def test_source_rigid_skin_requires_positive_single_influence(self):
         cases = (
             rigid_source_fixture(weight="0"),
