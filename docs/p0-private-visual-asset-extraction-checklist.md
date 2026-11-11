@@ -67,3 +67,38 @@ References:
 https://szs.wiimm.de/wszst/cmd-extract.html
 https://github.com/soopercool101/BrawlCrate/issues/115
 https://developer.blender.org/docs/release_notes/5.0/pipeline_io/
+
+
+## Real operator result: FC1 main course visuals (2026-11-10)
+
+The original main course BRRES was read-only extracted at
+D:\Projects\WiiGolfVisualPrivate\unpacked\glf_course_fc1\G3D\glf_course_fc1.brres.
+
+wszst XALL --ext --ext into a NEW private visual_exports/glf_course_fc1
+directory produced:
+- glf_course_fc1.mdl0 (UV-bearing source model candidate);
+- 19 raw TEX0 resources;
+- 36 PNG files including mipmaps, representing 18 base-level texture images.
+
+CRITICAL: extraction emitted ERROR #38 INVALID IMAGE FORMAT for
+glf_tokosenFix.tex0.png, because that paletted texture has unsupported
+palette format 0xffffffff; no valid base-level PNG was produced for it.
+Do not claim full success. Preserve original BRRES and all 36 successfully
+exported images. Grass/fairway, green, rough, out-of-bounds, sand/bunker,
+and multiple edge textures are already available. Do not fabricate missing
+paletted texture; assess source material usage first and BrawlCrate can be
+tried for its original PLT0/TEX0 pair if required.
+
+Next: export ORIGINAL BRRES 3DModels(NW4R)/glf_course_fc1 MDL0 to .dae
+in BrawlCrate (official Windows winget ID soopercool101.BrawlCrate).
+Choose .dae export format explicitly, not default .mdl0. Preserve
+material UV mappings. Open that DAE in Blender 4.5 LTS and export a new
+UV OBJ/MTL paired with authentic base PNGs only after independently
+matching material/TEX0 names. Never rewrite the KCL collision OBJ.
+
+Audit the existing output read-only:
+  py -3 -I scripts\p0_private_visual_asset_discovery.py --scan "D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1"
+
+Expected stage MDL0_WITH_EXTRACTED_PNG_NEEDS_UV_DAE_EXPORT and one
+unresolved glf_tokosenFix.tex0 base PNG. No claim about active Hole1
+visual source identity, native GPU TEV fidelity, KCL alignment or training.
