@@ -261,8 +261,20 @@ def _materials(root: ET.Element, dae: Path):
     return aliases, textures, solid
 
 
-def load_private_dae_visual_model(filename: str | Path) -> PrivateVisualModel:
-    """Read original BrawlCrate DAE directly; preserve source UV and material IDs."""
+def load_private_dae_visual_model(
+    filename: str | Path, *,
+    allow_geometry_only_for_unsupported_scene: bool = False,
+) -> PrivateVisualModel:
+    """Read original DAE. Optional explicitly labeled source-library preview.
+
+    A source graph with controllers/skew/lookat cannot be flattened to native
+    world geometry without actual game transformations. If opted in, preserve
+    verified source UV/PNG bindings and draw STATIC library geometry exactly
+    as authored, with a prominent warning that scene transforms were skipped.
+    Never use this mode to infer collision or tree alignment.
+    """
+    if type(allow_geometry_only_for_unsupported_scene) is not bool:
+        raise VisualAssetError("Invalid original Collada geometry-only option")
     path = _within_private_dir(Path(filename))
     if path.suffix.lower() != ".dae":
         raise VisualAssetError("Choose a Collada .dae visual model")
@@ -279,7 +291,19 @@ def load_private_dae_visual_model(filename: str | Path) -> PrivateVisualModel:
     # Original Collada 1.5 visual scene is part of the SOURCE model. Ignoring
     # its matrices (previous behavior) can rotate/offset all textured art
     # relative to source collision and source RAM. Never invent a transform.
-    authored_scene = source_scene_instances(root)
+    try:
+        authored_scene = source_scene_instances(root)
+        scene_warning = None
+    except UnsupportedSceneFeature as exc:
+        if not allow_geometry_only_for_unsupported_scene:
+            raise
+        # Source-authored vertex arrays + original material/UV/PNG binding
+        # are still valid, just not the (unsupported) visual-scene mapping.
+        # Do NOT silently apply guessed root yaw or KCL correspondence.
+        authored_scene = None
+        scene_warning = (
+            "GEOMETRY-ONLY ORIGINAL-TEXTURE PREVIEW: " + str(exc) +
+            ". Visual-scene/world alignment NOT APPLIED or verified.")
 
     vertices, uvs, faces = [], [], []
     visited_geometry_ids = set()
@@ -403,4 +427,5 @@ def load_private_dae_visual_model(filename: str | Path) -> PrivateVisualModel:
         {k: v for k, v in textures.items() if k in used},
         hashlib.sha256(blob).hexdigest(), "COLLADA_DIRECT", path.name,
         {k: v for k, v in solid.items() if k in used},
-        skipped_source_faces=skipped_source_faces)
+        skipped_source_faces=skipped_source_faces,
+        source_scene_warning=scene_warning)
