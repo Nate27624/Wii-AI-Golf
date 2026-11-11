@@ -15,7 +15,9 @@ from .replay import AIM, BALL, CACHE, Replay, Sample, float_hypothesis, load_rep
 from .live import LiveSampler
 from .a_reference import discover_reference
 from .a_live import LiveAIndicator
-from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE
+from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE, MAX_DRAW_FACES
+from .terrain_solid import back_to_front, shaded_hex
+from .terrain_labels import apply_private_surface_labels
 from .navigation import pan_by, wheel_steps, zoom_at_cursor
 from .startup import StartupError, occupied_bridge, powershell_command, runtime_checkout
 from .visual_model import VisualAssetError, load_private_visual_model
@@ -101,8 +103,13 @@ class Inspector:
         self.club_status = tk.StringVar(value="CLUB UNKNOWN")
         self.terrain_mesh: TerrainMesh | None = None
         self.terrain_visible = tk.BooleanVar(value=True)
-        self.terrain_focus = tk.BooleanVar(value=True)
+        self.terrain_focus = tk.BooleanVar(value=False)
+        self.terrain_full_detail = tk.BooleanVar(value=True)
+        self.terrain_solid = tk.BooleanVar(value=True)
+        self.terrain_edges = tk.BooleanVar(value=False)
+        self.terrain_point_labels = tk.BooleanVar(value=False)
         self.terrain_colors = tk.BooleanVar(value=True)
+        self.surface_label_status = tk.StringVar(value="Surface colors: load original PRIVATE KCL labels to classify faces.")
         self.terrain_status = tk.StringVar(value="Terrain: select a locally exported PRIVATE collision OBJ to display.")
         self.a_reason = tk.StringVar(value="Connect LIVE with A released; 2 stable samples initialize candidate")
         self.baseline: float | None = None
@@ -197,11 +204,21 @@ class Inspector:
         mesh_actions = ttk.Frame(center)
         mesh_actions.pack(fill="x", pady=3)
         ttk.Button(mesh_actions, text="Load PRIVATE terrain OBJ", command=self.load_terrain).pack(side="left")
+        ttk.Button(mesh_actions, text="Load source colors", command=self.load_terrain_labels).pack(side="left", padx=4)
         ttk.Button(mesh_actions, text="Clear terrain", command=self.clear_terrain).pack(side="left", padx=4)
-        ttk.Checkbutton(mesh_actions, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
-        ttk.Checkbutton(mesh_actions, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
-        ttk.Checkbutton(mesh_actions, text="Color source surface IDs", variable=self.terrain_colors, command=self.draw_path).pack(side="left")
+        quality = ttk.Frame(center)
+        quality.pack(fill="x", pady=2)
+        ttk.Checkbutton(quality, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(quality, text="Solid terrain", variable=self.terrain_solid, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(quality, text="All triangles", variable=self.terrain_full_detail, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(quality, text="Triangle edges", variable=self.terrain_edges, command=self.draw_path).pack(side="left")
+        overlays = ttk.Frame(center)
+        overlays.pack(fill="x", pady=2)
+        ttk.Checkbutton(overlays, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(overlays, text="Color source surface IDs", variable=self.terrain_colors, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(overlays, text="Point labels", variable=self.terrain_point_labels, command=self.draw_path).pack(side="left")
         ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
+        ttk.Label(center, textvariable=self.surface_label_status, wraplength=650).pack(anchor="w")
         source_legend = ttk.Frame(center)
         source_legend.pack(fill="x")
         for label, color in (SURFACE_STYLE[v] for v in (0x0001,0x0002,0x0003,0x0006,0x0007,0x0009)):
