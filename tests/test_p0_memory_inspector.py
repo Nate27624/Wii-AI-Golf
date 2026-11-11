@@ -452,8 +452,10 @@ class ReplayTests(unittest.TestCase):
         viewer.draw_path = lambda: redraws.append((viewer.yaw, viewer.pitch))
         viewer.drag_start(SimpleNamespace(x=100, y=100, num=3))
         viewer.drag_move(SimpleNamespace(x=140, y=80))
-        self.assertAlmostEqual(viewer.yaw, 0.9)
-        self.assertAlmostEqual(viewer.pitch, 0.1)
+        # Fallback RMB now follows original visual camera direction:
+        # pointer right turns view right; pointer up looks up.
+        self.assertAlmostEqual(viewer.yaw, 0.1)
+        self.assertAlmostEqual(viewer.pitch, 0.5)
         self.assertEqual(len(redraws), 1)
         viewer.drag_end(SimpleNamespace(x=140, y=80, num=1))
         self.assertEqual(viewer.drag_button, 3)
