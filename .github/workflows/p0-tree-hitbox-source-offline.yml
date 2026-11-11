@@ -32,6 +32,8 @@ on:
       - scripts/p0_tree_contact_memory_response_private.py
       - scripts/p0_tree_live_ball_selfref_private.py
       - scripts/p0_tree_ball_source_store_inventory_private.py
+      - scripts/p0_tree_ball_writer_register_context_private.py
+      - tests/test_p0_tree_ball_writer_register_context_private.py
       - tests/test_p0_tree_ball_source_store_inventory_private.py
       - tests/test_p0_tree_live_ball_selfref_private.py
       - tests/test_p0_tree_contact_memory_response_private.py
@@ -150,5 +152,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_tree_live_ball_selfref_private.py -v
       - name: Original PPC Ball candidate position cache direct and pointer-based store syntax
         run: python -m unittest discover -s tests -p test_p0_tree_ball_source_store_inventory_private.py -v
+      - name: Original PPC grouped Ball cache writer base registers and pointer receiver syntax
+        run: python -m unittest discover -s tests -p test_p0_tree_ball_writer_register_context_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
