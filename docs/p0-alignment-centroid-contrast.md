@@ -10,7 +10,9 @@ This file does **not** assert the actual game-world transform.
 Prerequisites, all already source-gated and stored **outside Git**:
 
 - The verified private original RSPE01 Rev1 KCL course OBJ
-  (2498 collision triangles) with its original source material labels.
+  (2498 collision triangles) **and its SHA-bound PRIVATE face-label JSON**.
+  The OBJ may carry source OGWS groups itself, but the operator's exported
+  candidate uses a separate labels sidecar: it must be loaded explicitly.
 - The exported original `glf_course_fc1.dae` plus its private TEX0 PNGs.
   The DAE reader already applies supported authored Collada scene node matrices.
 - Optional 94-source-tree JSON and optional running source-gated Felk bridge.
@@ -23,6 +25,7 @@ machine; the script reads source assets without writing or uploading them:
 $repo = 'D:\Projects\Wii-Golf-Tree-PR432'
 py -3 -I "$repo\scripts\p0_inspect_course_alignment_private.py" `
   --terrain-obj 'D:\Projects\hole01-collision-candidate-PRIVATE.obj' `
+  --terrain-labels 'D:\Projects\hole01-collision-candidate-labels-PRIVATE.json' `
   --visual-dae 'D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1\glf_course_fc1.dae' `
   --offline
 ```
@@ -47,6 +50,10 @@ display-only source mapping as the shared KCL/DAE viewer. Each trial gives:
 - `surface_centroid_rms_over_visual_diagonal`: dimensionless mismatch
   normalized by the original DAE playable-area XZ diagonal.
 - `uniform_display_scale`: the viewer's own bounding-box display fit.
+
+Without recognized source face materials, the audit returns
+`ABSTAIN_KCL_SOURCE_MATERIALS` rather than inventing a surface comparison.
+The SHA-bound label loader also rejects a label file from the wrong OBJ.
 
 A low score for 180° is *consistent with* a 180° **display** hypothesis. It is
 not a verified native rotation or a reason to change game coordinates. These
