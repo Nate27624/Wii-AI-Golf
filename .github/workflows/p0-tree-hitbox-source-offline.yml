@@ -25,6 +25,8 @@ on:
       - scripts/p0_tree_contact_record_private.py
       - scripts/run_p0_tree_contact_record.ps1
       - tests/test_p0_tree_contact_record_private.py
+      - scripts/recover_p0_tree_contact_record_private.py
+      - tests/test_recover_p0_tree_contact_record_private.py
       - tests/test_p0_tree_full_public_table_targets_private.py
       - tests/test_p0_tree_ball_runtime_table_alias_private.py
       - tests/test_p0_tree_ball_indirect_dispatch_private.py
@@ -126,5 +128,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_tree_full_public_table_targets_private.py -v
       - name: Synthetic operator wood foliage and near-miss read-only recorder
         run: python -m unittest discover -s tests -p test_p0_tree_contact_record_private.py -v
+      - name: Offline SHA-checked recovery of completed wood foliage and near-miss recordings
+        run: python -m unittest discover -s tests -p test_recover_p0_tree_contact_record_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
