@@ -2057,3 +2057,94 @@ candidate and tree-proximity changes against
 screen imagery, then trace any uniquely
 discriminating game code. Mark
 `training_approved=false` throughout.
+
+
+## First live operator tree approaches — all three recordings saved, final summary crash
+
+Operator executed the pinned original research recorder at
+`ccfa53c45048bb2baa1298ffe3fd98ebb5ae0947`
+on a running **RSPE01 USA Rev1 Golf, raw mode 4,
+hole raw index 1**, with the source-selected Ball
+and the 94 source-owned 84-byte tree records
+qualifying before each trial. It produced unique
+private trial folders below the session
+`tree-contact-20261111T042646Z-64fb3def-PRIVATE`.
+
+**The operator observed**, in capture order:
+- Trial intent `wood`: **45** Ball candidate packets,
+  **6** 94-tree-record snapshots; human reported
+  **foliage/leaves contacted** and visible
+  trajectory change. Actual observation differs
+  from intended target. No club/power/wind note.
+- Trial intent `leaves`: **39** packets,
+  **5** 94-tree snapshots; human reported
+  **wood/trunk contacted** and visible trajectory
+  change. Club note: `driver`. Again, the
+  observed target differs from intended target.
+- Trial intent `near_miss`: **26** packets,
+  **4** 94-tree snapshots; human reported
+  **no tree contact**, **no trajectory change**.
+  Club note: `driver`.
+
+**Total 110 source-candidate packets, 15 periodic
+94-tree snapshots.** The logger printed each
+`trial-summary-PRIVATE.json` path and saved
+the raw sample stream before failing with
+`KeyError: 'kind'` while generating the
+**combined** `operator-summary-SAFE.json`.
+The per-trial payload includes `trial_intent`,
+not `kind`. This is a summary-construction
+bug; it is **not** evidence the recorded native
+data were absent. The transcript does not
+independently prove their integrity: recover
+only after checking each saved raw file's
+original SHA, size and packet count. No
+repeat gameplay shots are warranted solely
+because the aggregate summary failed.
+
+**Repair**: the original recorder now calls
+`summarize_trials`, which accepts the
+original `trial_intent` field (and `kind`
+for deliberately skipped trials), preserves
+human-reported leaf/wood swap, and computes
+counts while never labeling native contact.
+A dedicated **offline-only**
+`scripts/recover_p0_tree_contact_record_private.py`
+recovers the safe summary from the original
+`trial-summary-PRIVATE.json` files, verifying
+raw candidate SHA-256s, sequential sample
+indices, recorded source-identity digests,
+counts and non-atomic bridge-frame brackets.
+It does **not** connect to Dolphin or perform
+any memory reads, controller inputs,
+savestate resets, code/asset exports or
+training label assignments. It creates
+`operator-summary-SAFE.json` exclusively
+(no overwrite) in the existing private
+session; the original trials remain untouched.
+A new synthetic-only test module
+`tests/test_recover_p0_tree_contact_record_private.py`
+includes a regression for the exact
+`45/39/26`, `6/5/4`, and
+wood-intent/leaves-observed vs
+leaves-intent/wood-observed labels, plus
+tampered hashes, altered counts, wrong
+scene identity and refusal of rewrites.
+
+**Evidence remains human-reported only.**
+The operator has supplied neither the
+actual raw data files nor an independently
+reviewed impact video in this chat. The
+non-atomic memory sampling may skip
+momentary collision effects. No game
+contact instruction, physical tree
+geometry, ball velocity or leaf drag has
+been established or approved for training.
+The next step is to recover and inspect
+the sanitized per-trial summary, then
+perform a bounded, source-qualified
+offline difference of the original
+candidate windows against the negative
+control, with optional visual review
+if a video was actually recorded.
+`training_approved=false`.
