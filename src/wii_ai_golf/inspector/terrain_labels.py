@@ -1,4 +1,4 @@
-"""Private KCL source-attribute overlay for an UNCHANGED source-coordinate OBJ.
+r"""Private KCL source-attribute overlay for an UNCHANGED source-coordinate OBJ.
 
 Only the inspector applies palette/shading. This small JSON is not geometry,
 not texture, not training evidence, and never mutates the original OBJ file.
