@@ -450,7 +450,9 @@ def main(argv=None):
         print(json.dumps({"status":"SELFTEST_PASS","kinds":TYPES,
                           "bridge_contacted":False,"training_approved":False}))
         return 0
-    if args.private_root is None:\n        p.error("--private-root is required outside --selftest")\n    if not 1<=args.port<=65535 or not 5<=args.seconds<=MAX_TRIAL_SECONDS:
+    if args.private_root is None:
+        p.error("--private-root is required outside --selftest")
+    if not 1<=args.port<=65535 or not 5<=args.seconds<=MAX_TRIAL_SECONDS:
         p.error("port/seconds out of allowed bounds")
     if not 1<=args.hz<=10 or not 1<=args.tree_every<=50:
         p.error("hz/tree sampling out of allowed bounds")
