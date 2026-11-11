@@ -176,6 +176,70 @@ class TestPosePilot(unittest.TestCase):
             with self.assertRaises(p.RefuseTrial):
                 p.read_rows(path)
 
+    def test_live_rejects_host_polled_a45_before_any_bridge_action(self):
+        # On the failed Windows live attempt, a short A pulse was dispatched
+        # and the host observed a >1-frame gap. Do not allow a retry of
+        # that timing mode, regardless of launch/bridge availability.
+        with patch.object(p, "assert_payload_contrast",
+                          side_effect=AssertionError("never run")):
+            with self.assertRaisesRegex(p.RefuseTrial, "requires the isolated atomic A45"):
+                p.run_live(p.setup("B1", "back", "firstball02"),
+                           port=55355, bridge_source=Path("not-loaded.py"),
+                           atomic=False)
+
+    def test_atomic_runtime_capability_precedes_shot_session(self):
+        # All bridge/game objects are FAKE. Verify source-file qualification
+        # cannot substitute for an in-process capability response, and no
+        # human prompt/shot can run before the runtime check.
+        events = []
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            bridge = home / "fake-atomic.py"
+            bridge.write_text("fake source, never executed", encoding="utf-8")
+            bridge_sha = hashlib.sha256(bridge.read_bytes()).hexdigest()
+
+            class FakeRPC:
+                def __init__(self, *, port, timeout_s):
+                    self.port = port
+                def __enter__(self):
+                    return self
+                def __exit__(self, *_):
+                    return False
+
+            class FakeAtomicClient:
+                @staticmethod
+                def require_capability(rpc):
+                    events.append("capability")
+                    raise RuntimeError("RUNTIME_CAPABILITY_ABSENT")
+
+            rpc_mod = types.ModuleType("wii_ai_golf.integration.rpc")
+            rpc_mod.FelkRPC = FakeRPC
+            atomic_mod = types.ModuleType("wii_ai_golf.integration.atomic_a45_client")
+            atomic_mod.AtomicA45SwingTraceClient = FakeAtomicClient
+            collector = types.ModuleType("collect_outcome_transition")
+
+            def forbidden_session(*_args, **_kwargs):
+                events.append("shot_session")
+                raise AssertionError("no shot without in-process atomic capability")
+
+            collector.run_session = forbidden_session
+            modules = {
+                "wii_ai_golf.integration.rpc": rpc_mod,
+                "wii_ai_golf.integration.atomic_a45_client": atomic_mod,
+                "collect_outcome_transition": collector,
+            }
+            with patch.dict(sys.modules, modules), \
+                 patch.object(p, "assert_payload_contrast", return_value={"test": "fake"}), \
+                 patch.object(p, "inspect_bridge", return_value=bridge_sha):
+                with self.assertRaisesRegex(RuntimeError, "RUNTIME_CAPABILITY_ABSENT"):
+                    p.run_live(p.setup("B1", "back", "firstball02"),
+                               port=55355, bridge_source=bridge,
+                               atomic=True, data_dir=home,
+                               reader=lambda _: (_ for _ in ()).throw(
+                                   AssertionError("no prompt before capability")))
+            self.assertEqual(events, ["capability"])
+            self.assertFalse((home / "pose-power-firstball02.jsonl").exists())
+
     def test_symlink_rejected(self):
         """Use a real link where permitted; simulate Windows WinError 1314 otherwise.
 
