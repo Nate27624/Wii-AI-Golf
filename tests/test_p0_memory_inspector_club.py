@@ -107,6 +107,24 @@ class ClubIndexTests(unittest.TestCase):
         r=fast_packet(x,"LIVE",0,include_club_state=True)
         self.assertIsNone(r["club_index"])
 
+    def test_injected_packet_reader_cannot_claim_verified_club(self):
+        from test_p0_memory_inspector_live import FakeRPC, pkt
+        bridge=FakeRPC()
+        def injected(rpc,phase,index):
+            data=pkt(rpc,phase,index)
+            data["club_index"]=3  # untrusted custom packet
+            return data
+        sampler=LiveSampler(connector=lambda:bridge,packet_reader=injected,
+                            poll_pause_s=0.004)
+        sampler.start()
+        sampler.thread.join(timeout=0.07)
+        sampler.stop()
+        sampler.thread.join(timeout=1)
+        samples=[e for e in sampler.drain() if e.kind=="sample"]
+        self.assertTrue(samples)
+        self.assertTrue(all(e.club_index is None
+                            and e.club_label=="UNKNOWN" for e in samples))
+
     def test_missing_event_club_defaults_unknown(self):
         e=LiveEvent("sample")
         self.assertEqual(e.club_label,"UNKNOWN")
