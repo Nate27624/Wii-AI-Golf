@@ -63,7 +63,7 @@ def vec3(rd,addr):
     return tuple(f32(rd,addr+4*j) for j in range(3))
 
 
-def parse_candidate(bank,offset):
+def parse_candidate(bank,offset,*,required_prisms=KCL_PRISMS):
     """Strict KCL prism parser, returns (tri bounds/normals/attr, histogram).
 
     KCL "height" is part of triangle reconstruction, not tree vertical size.
@@ -84,7 +84,7 @@ def parse_candidate(bank,offset):
         nnormals=(ps-no)//12
         nprisms=(octo-ps)//16
         if not (3<=nverts<=65535 and 4<=nnormals<=65535
-                and nprisms==KCL_PRISMS):
+                and nprisms==required_prisms):
             return None
         thickness=struct.unpack_from(">f",bank,offset+0x10)[0]
         kcl_origin=struct.unpack_from(">fff",bank,offset+0x14)
