@@ -13,6 +13,8 @@ on:
       - tests/test_p0_ball_kcol_twelve_calls_private.py
       - scripts/p0_ball_kcol_postcall_context_private.py
       - tests/test_p0_ball_kcol_postcall_context_private.py
+      - scripts/p0_ball_kcol_material_branch_private.py
+      - tests/test_p0_ball_kcol_material_branch_private.py
       - scripts/p0_golf_kcol_collision_windows_private.py
       - tests/test_p0_golf_kcol_collision_windows_private.py
       - scripts/p0_tree_hitbox_object_dispatch_private.py
@@ -85,5 +87,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_tree_kcl_surface_group_join_private.py -v
       - name: P0 source five Ball-KCol return branch and velocity-store triage
         run: python -m unittest discover -s tests -p test_p0_ball_kcol_postcall_context_private.py -v
+      - name: Native Ball KCL material 7 12 13 return and ball member float triad source
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_material_branch_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
