@@ -84,3 +84,61 @@ not private `*-PRIVATE` captures or original MEM1/MEM2 banks.
 Synthetic Windows and Ubuntu tests, complete offline suite, exact-head
 review, source-owner review and the actual operator live test. No remote
 Dolphin access available to the agent. No training promotion.
+
+## Operator-supplied live result — 2026-11-10
+
+The operator ran this protocol against a live Rev1 Hitting-the-Green session with the existing bridge (experiment exit code **0**). Reported stages and sampled selector indices:
+
+| Stage | Operator visible club | Selector candidate index |
+| --- | --- | --- |
+| B0 | Wedge | 2 |
+| IDLE | Wedge | 2 |
+| IRON1 | Iron | 1 |
+| WEDGE1 | Wedge | 2 |
+| AIM | Wedge | 2 |
+| IRON2 | Iron | 1 |
+| WEDGE2 | Wedge | 2 |
+| BLIND1 | Wedge, revealed after prediction | 2 (prediction: Wedge) |
+| BLIND2 | Iron, revealed after prediction | 1 (prediction: Iron) |
+
+The operator's **sanitized final console JSON** reported all nine checks true
+(`aim_candidate_changed`, `aim_only_index_stable`,
+`blind_predictions_match`, `both_blind_truths_present`,
+`idle_index_stable`, `iron_repeated_index`,
+`operator_labeled_phases`, `two_distinct_indices`,
+`wedge_repeated_index`).
+Status: `P0_TWO_LABEL_CLUB_SELECTOR_CANDIDATE_SUPPORTED`.
+This is **real operator-reported live evidence**, not synthetic output,
+but no private event file/SHA was independently examined by the agent.
+
+**Supported only for this session and pair:** Wedge = 2, Iron = 1;
+2/2 blind predictions match. The code source suggests four-state bounds 0..3,
+but **Driver and Putter remain unlabeled/unvalidated**, and native SDA r13,
+callee receiver identity, cross-session reproducibility, and training safety
+remain unverified. `game_club_id_verified=false` and
+`training_approved=false` remain mandatory.
+
+## Next experiment: full four-club heldout validation
+
+The existing upstream #412 `scripts/p0_live_club_selector_global_private.py`
+already implements a source-rooted four-club test with idle, Up, Down, aim-only
+and independent labeled/heldout windows. It is available in this stacked PR
+worktree without new code or a Dolphin restart.
+
+```powershell
+$work = 'D:\Projects\Wii Golf AI\Wii-AI-Golf-P0ClubPair-20261110'
+$data = 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Data\captures'
+$next = Join-Path $work 'scripts\p0_live_club_selector_global_private.py'
+& py -3 -I $next --selftest
+if ($LASTEXITCODE -ne 0) { throw 'Selector-global selftest failed' }
+& py -3 -I $next --private-root $data --port 55355
+Write-Host "Four-club exit code: $LASTEXITCODE"
+```
+
+No A, swing, automated inputs, savestate, memory writes or session change.
+Only execute if all four visible clubs can actually be selected. If a label
+cannot be reached, type STOP and preserve an abstention; do not guess.
+The run is still not a direct native r13 register read or physics proof.
+
+Cross-boot independent replay and source-receiver ownership review remain
+required before any production inspector club label or training promotion.
