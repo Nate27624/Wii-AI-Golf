@@ -500,3 +500,54 @@ are emitted, no live Dolphin or game writes. If the record fields do
 not resemble the consumer's expected pointer/float layout, the
 hypothesis is disfavored. All native tree collider radii, height,
 canopy response and contact physics remain unverified. Training false.
+
+## Native capture7 +0x48 flag receiver disambiguation: negative evidence
+
+Operator executed `p0_tree_flag_receiver_disambiguation_private.py`
+original SHA/scene/94x84-source-qualified at `f55f83db3e8c5a0a2015ecc9627d63ff38cdef08`:
+
+- Native direct calls to the 94-tree distance writer `Tree+0x000C`:
+  **FieldManager+0x2BB4** (the verified 94-tree source array loop).
+- A separate native direct call to the candidate reader
+  `Tree+0x047C`: **FieldManager+0x230C**. It is NOT the same
+  callsite or loop as the source 94-tree writer. Common compiled
+  source-unit name does not prove same receiver.
+- No direct caller of `FieldManager+0x0768` within the scanned
+  relevant units; this is NOT evidence the function cannot execute
+  via indirect or out-of-unit dispatch.
+- 94 native tree records at `+0x1C,+0x20,+0x24,+0x28` each
+  qualify as both **94/94 aligned bounded MEM2 pointer words**
+  and **94/94 loosely plausible float32 words**. These categories
+  overlap numerically; a pointer can decode as a tiny finite
+  floating-point value, so classification is **ambiguous** and
+  should not be interpreted as verified rotation matrix values
+  or actual pointers without native dereference provenance.
+- The same records at `+0x4C` and `+0x50` each have **only
+  1/94 loosely plausible finite float32**, and neither holds
+  qualified aligned MEM1/MEM2 pointers. Yet the reader routine
+  `Tree+0x047C` explicitly **writes float32 to these two fields**.
+  This is strong evidence the receiver belongs to a **different
+  object type** (or a different lifecycle layout). It makes the
+  earlier proposed 94-tree producer -> same-object reader
+  relationship unsupported and unlikely for these captures.
+- The reader function calls `MapObjBase+0x0B84` and
+  `Camera+0x028C`; the other source `FieldManager+0x0788`
+  reads byte `+0x48` from the **return of CameraManager+0x02B0**,
+  not from an identified tree pointer.
+- No tree hitbox, trunk/foliage geometry or bounce/velocity contact
+  coefficients have been recovered. The source tree proximity flag
+  is not shown to participate in collision. Keep rendering markers
+  without any physical shape inference; training not approved.
+
+Follow-up source-gated, read-only
+`scripts/p0_fieldmanager_tree_caller_receivers_private.py` resolves
+and disassembles both exact **FieldManager+0x230C -> Tree+0x047C**
+and **FieldManager+0x2BB4 -> Tree+0x000C** code paths. It prints
+four bounded caller/callee windows totaling 169 PPC instructions,
+only to the operator's own terminal. Validates original seven-pair
+SHA, scene, 94 source trees, original 84-byte PPC tree loop, exact
+native flag writer/camera-helper fingerprints and both native call
+targets. A positive result should identify where the receiver r3
+comes from in the two different FieldManager contexts and establish
+whether the two call receivers could be the same object type. No
+native RAM, positions or model art is emitted to Git; no game writes.
