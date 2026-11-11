@@ -2531,3 +2531,113 @@ additional broad native RAM scan or
 uncontrolled swing series would not
 currently be evidence efficient.
 `training_approved=false`.
+
+
+## Memory-only follow-up: directed response and moving-only aliases
+
+The user explicitly requested that **no gameplay video be
+uploaded** and that research instead continue using the
+existing three original private read-only source-captured
+RAM logs. Respect this: do NOT ask the operator to
+upload the videos again. No additional Dolphin run,
+savestate change, user swing or new recording is
+needed for the present investigation.
+
+One outstanding analytical weakness of the prior
+`source-phase-triage-SAFE.json` report was that
+`adjacent_displacement_length_ratio` equals
+`max(previous_length,next_length) /
+min(previous_length,next_length)`. Its **unsigned**
+ratios of 1.128 (leaves observed at turn 66.06°)
+and 3.986 (wood observed at 59.79°) do **NOT**
+indicate whether the sampled Ball candidate's
+displacement got larger or smaller after the
+turn. Inferring that the wood contact slowed
+the ball more from the 3.986 ratio alone
+would be unsound. Likewise, 37/45, 34/39,
+and 18/26 exact nested-to-`Ball+0x30`
+packet matches occur over trials that
+contain many stationary pre-shot and
+post-shot samples; **whole-recording percentages
+are not motion-specific agreement**.
+The original source `+0x24/+0x2C`
+tree-field updates were not independently
+typed as integer, pointer, float or
+collision state.
+
+Created the **offline-memory-only**
+`scripts/p0_tree_contact_memory_response_private.py`
+and synthetic regression tests
+`tests/test_p0_tree_contact_memory_response_private.py`.
+It reuses the original 110-packet/15-tree-array
+SHA/checksum/schema validator, does not
+load Dolphin, fetch footage, call Felk,
+read/write game process memory or
+modify existing source captures, and
+does not output native pointer/value/XYZ.
+It creates only a new exclusive
+`tree-contact-memory-response-SAFE.json`
+under the same original private session.
+The new fields describe:
+
+- **Signed after/before ratios**, both
+  raw displacement size and per-host-second
+  normalized, at every sustained
+  source `Ball+0x30` triplet direction
+  turn. This allows candidate
+  decreasing vs increasing displacement
+  to be distinguished, but is **not a
+  guest physics velocity, restitution
+  coefficient or impact timestamp**:
+  4 Hz non-atomic host samples cannot
+  verify same interval in guest frames,
+  and the coordinate frame is unproven.
+- **Moving-only byte aliases**:
+  classify each source packet by whether
+  Ball `+0x30` changed vs preceding packet,
+  then count exact same-packet and one-packet
+  lead/lag matches of nested triplet with
+  Ball `+0x30,+0xCC,+0xF0,+0xFC,+0xAC`.
+  Separately count exact `+0x30`
+  versus `+0xCC` copying while actually
+  dynamic, so idle equality cannot create
+  a false confidence of active-frame
+  source equivalence.
+- **Native tree-word category audit**
+  of all 94 records at `+0x24,+0x2C,
+  +0x48,+0x4C,+0x50`, for every original
+  full-array snapshot. Labels distinguish
+  zero, aligned MEM1-range/MEM2-range
+  pointer-like bit patterns, small integer
+  bits, plausible BE-f32 bits and
+  remaining. These are categories,
+  **not proven native C++ field types**.
+  Also tests exact `+0x24` vs
+  `+0x2C` equality.
+- **Launch-aligned tree-update overlap**:
+  for each trial, find the first 8-packet
+  tree-snapshot interval bracketing the
+  beginning of its longest Ball candidate
+  motion run. Count `+0x24/+0x2C`
+  changes and overlaps across **both
+  reported contact trials AND the near-miss**,
+  separately from widespread
+  `+0x4C/+0x50` updates. This tests
+  a more precise background-update
+  explanation of the previously suspected
+  six tree-contact-only member sites.
+
+The test and report deliberately avoid
+assigning a collision time, impacted tree
+identity, wood/foliage handler, physically
+meaningful ball velocity or impulse.
+The previously observed high turns
+(66.06° leaves; 59.79° wood; 14.74°
+no-contact) remain **candidate-level**
+until original native source/receiver
+provenance can establish physics
+semantics. No public code, ROM words,
+tree coordinates, private raw RAM,
+game assets or personal data are
+included in Git. Draft PR stays
+`training_approved=false`.
