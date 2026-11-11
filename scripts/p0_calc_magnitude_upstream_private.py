@@ -153,6 +153,13 @@ SOURCE_CALL_WINDOWS = ((0x802B3BC0, 0x802B3D08),)
 COHORT_PPC_WINDOWS = (PEAK_WINDOW, STATED_LATCH_WINDOW,
                       CONTROLLER_ACCESSOR_WINDOW, *SOURCE_CALL_WINDOWS)
 EXCERPT = (0x802B4820, 0x802B4938)
+PREPROCESSOR_WINDOW = (0x802B4474, 0x802B4504)
+DIRECT_CALL_TARGETS = {
+    0x802B4794: "calc_history_update",
+    0x802B4474: "calc_preprocessor",
+    0x802B3BA0: "calc_state_next_step",
+    0x802B2F90: "calc_latch_step",
+}
 
 class Abstain(ValueError):
     """Sanitized failure. Never embed private file path or native values."""
@@ -497,6 +504,43 @@ def symbolize(pc: int, word: int) -> dict:
     return line
 
 
+def scan_direct_golf_call_sites(read, *, start=OWNER_START, end=OWNER_END) -> dict:
+    """Direct BL coverage of this ONE source-owned text unit only.
+
+    Never infer that absent BL means no dynamic function-pointer/virtual call.
+    Operates on decoded relative instructions, prints only public source PCs.
+    """
+    if (type(start) is not int or type(end) is not int
+            or start % 4 or end % 4
+            or start < OWNER_START or end > OWNER_END or start >= end):
+        raise Abstain("direct_call_scan_window_outside_source_text")
+    hits={name: [] for name in DIRECT_CALL_TARGETS.values()}
+    totals={name: 0 for name in DIRECT_CALL_TARGETS.values()}
+    for pc in range(start,end,4):
+        word=read(pc)
+        if (word>>26) != 18 or (word&3)!=1:
+            continue
+        target=_branch(pc,word)["dest"]
+        name=DIRECT_CALL_TARGETS.get(target)
+        if name is None:
+            continue
+        totals[name] += 1
+        if len(hits[name]) < 40:
+            hits[name].append(f"0x{pc:08X}")
+    return {
+        "status":"REV1_BOUNDED_GOLF_DIRECT_BL_INVENTORY",
+        "text_unit":PUBLIC_OWNER,
+        "scan_start":f"0x{start:08X}",
+        "scan_end_exclusive":f"0x{end:08X}",
+        "direct_call_sites":hits,
+        "direct_call_totals":totals,
+        "call_site_list_capped_at":40,
+        "indirect_or_external_callers_exhaustive":False,
+        "absence_of_direct_call_proves_not_invoked":False,
+        "guest_invocation_verified":False,
+    }
+
+
 def source_slice(read) -> dict:
     gates = verify_static_gates(read)
     math_report = verify_magnitude_arithmetic(read)
@@ -600,7 +644,10 @@ def run(archive: Path, *, detailed: bool = False) -> dict:
             fh = stack.enter_context(path.open("rb"))
             mm = stack.enter_context(mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ))
             readers.append(mm)
-        for lo,hi in COHORT_PPC_WINDOWS:
+        # This entire decomp-qualified Golf text unit is immutable native
+        # CODE across the original source phases before scanning BL sites.
+        for lo,hi in (*COHORT_PPC_WINDOWS,
+                      (OWNER_START,OWNER_END),PREPROCESSOR_WINDOW):
             phase_windows.append([
                 bytes(mm[lo-MEM1_BASE:hi-MEM1_BASE])
                 for mm in readers
@@ -608,7 +655,12 @@ def run(archive: Path, *, detailed: bool = False) -> dict:
         if any(windows[0] != windows[1] or windows[0] != windows[2]
                for windows in phase_windows):
             raise Abstain("native_code_differs_between_original_1_5_7")
-        result = source_slice(lambda pc:_word(readers[0], pc))
+        read=lambda pc:_word(readers[0],pc)
+        result = source_slice(read)
+        result["golf_text_direct_call_inventory"]=scan_direct_golf_call_sites(read)
+        result["calc_preprocessor_source_excerpt"]=[
+            symbolize(pc,read(pc)) for pc in range(*PREPROCESSOR_WINDOW,4)]
+        result["complete_golf_text_phases_1_5_7_identical"]=True
     # Verify originals again after reading, fail closed on races/altered hashes.
     try:
         private._check_archive(archive)
