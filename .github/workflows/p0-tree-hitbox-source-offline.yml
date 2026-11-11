@@ -15,6 +15,8 @@ on:
       - tests/test_p0_ball_kcol_postcall_context_private.py
       - scripts/p0_ball_kcol_material_branch_private.py
       - scripts/p0_ball_kcol_result_provenance_private.py
+      - scripts/p0_ball_kcol_prism_type_origin_private.py
+      - tests/test_p0_ball_kcol_prism_type_origin_private.py
       - tests/test_p0_ball_kcol_result_provenance_private.py
       - tests/test_p0_ball_kcol_material_branch_private.py
       - scripts/p0_golf_kcol_collision_windows_private.py
@@ -93,5 +95,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_ball_kcol_material_branch_private.py -v
       - name: Native KCL classification-producer and Ball field consumer strict evidence audit
         run: python -m unittest discover -s tests -p test_p0_ball_kcol_result_provenance_private.py -v
+      - name: Native KCL prism type-to-result and Ball state-copy provenance audit
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_prism_type_origin_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
