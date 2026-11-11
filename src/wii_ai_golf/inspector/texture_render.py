@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .visual_model import PrivateVisualModel, VisualAssetError, _read_local, MAX_PNG_BYTES
+from .scene_camera import VisualCamera, camera_axes
 
 MAX_VIEW_WIDTH = 1280
 MAX_VIEW_HEIGHT = 800
@@ -67,7 +68,8 @@ def render_preview(model: PrivateVisualModel, width: int, height: int, *,
                    pan: tuple[float, float] = (0., 0.),
                    textures: dict[str, Any] | None = None,
                    max_faces: int = MAX_PREVIEW_FACES,
-                   cancelled: Callable[[], bool] | None = None):
+                   cancelled: Callable[[], bool] | None = None,
+                   camera: VisualCamera | None = None):
     """Depth-tested UV raster preview with repeated nearest-neighbor PNG texels.
 
     Explicit limits prevent a single malformed triangle from allocating an
@@ -91,22 +93,48 @@ def render_preview(model: PrivateVisualModel, width: int, height: int, *,
     src = np.asarray(model.vertices, dtype=np.float64)
     if src.ndim != 2 or src.shape[1] != 3 or not len(src):
         raise VisualAssetError('No valid preview geometry')
-    cy, sy = math.cos(yaw), math.sin(yaw)
-    cp, sp = math.cos(pitch), math.sin(pitch)
-    forward = src[:, 2]*cy - src[:, 0]*sy
-    xyz = np.column_stack((src[:, 0]*cy + src[:, 2]*sy,
-                           src[:, 1]*cp + forward*sp,
-                           forward*cp - src[:, 1]*sp))
-    if not np.isfinite(xyz).all():
-        raise VisualAssetError('Model projection not finite')
-    x_min, y_min = xyz[:,:2].min(axis=0)
-    x_max, y_max = xyz[:,:2].max(axis=0)
-    fit = min((width-60)/max(1e-8,x_max-x_min), (height-60)/max(1e-8,y_max-y_min))
-    midx, midy = (x_min+x_max)*.5, (y_min+y_max)*.5
-    screen = np.empty_like(xyz)
-    screen[:,0] = width/2 + pan[0] + (xyz[:,0]-midx)*fit*zoom
-    screen[:,1] = height/2 + pan[1] - (xyz[:,1]-midy)*fit*zoom
-    screen[:,2] = xyz[:,2]  # viewer-depth coordinate, more-positive nearer
+    if camera is not None:
+        # True scene-editor camera: changing yaw/pitch never translates the
+        # camera or recenters the model on its changing projected bounds.
+        # Depth > 0 points into the view from the fixed camera position.
+        if not all(math.isfinite(c) for c in (*camera.position,
+                *camera.focus, camera.yaw, camera.pitch, camera.scale)):
+            raise VisualAssetError('Invalid scene-editor camera position')
+        right, up, toward_viewer = camera_axes(camera.yaw, camera.pitch)
+        displacement = src - np.asarray(camera.position, dtype=np.float64)
+        depth = -displacement @ np.asarray(toward_viewer, dtype=np.float64)
+        near = max(1e-6, camera.scale * 0.001)
+        in_front = np.isfinite(depth) & (depth > near)
+        # Avoid dividing behind-camera vertices by near-zero depths.
+        good_depth = np.maximum(depth, near)
+        focal = height / (2. * math.tan(math.radians(55.)*.5))
+        screen = np.empty_like(src)
+        screen[:,0] = width*.5 + focal * (
+            displacement @ np.asarray(right, dtype=np.float64)) / good_depth
+        screen[:,1] = height*.5 - focal * (
+            displacement @ np.asarray(up, dtype=np.float64)) / good_depth
+        screen[:,2] = 1. / good_depth   # near surfaces win in the z-buffer
+        if not np.isfinite(screen).all():
+            raise VisualAssetError('Scene-editor perspective projection invalid')
+    else:
+        # Original orthographic API preserved for OBJ previews and regression
+        # tests, but never automatically recenters a fixed-position camera.
+        cy, sy = math.cos(yaw), math.sin(yaw)
+        cp, sp = math.cos(pitch), math.sin(pitch)
+        forward = src[:, 2]*cy - src[:, 0]*sy
+        xyz = np.column_stack((src[:, 0]*cy + src[:, 2]*sy,
+                               src[:, 1]*cp + forward*sp,
+                               forward*cp - src[:, 1]*sp))
+        if not np.isfinite(xyz).all():
+            raise VisualAssetError('Model projection not finite')
+        x_min, y_min = xyz[:,:2].min(axis=0)
+        x_max, y_max = xyz[:,:2].max(axis=0)
+        fit = min((width-60)/max(1e-8,x_max-x_min), (height-60)/max(1e-8,y_max-y_min))
+        midx, midy = (x_min+x_max)*.5, (y_min+y_max)*.5
+        screen = np.empty_like(xyz)
+        screen[:,0] = width/2 + pan[0] + (xyz[:,0]-midx)*fit*zoom
+        screen[:,1] = height/2 + pan[1] - (xyz[:,1]-midy)*fit*zoom
+        screen[:,2] = xyz[:,2]
     result = np.empty((height,width,3),dtype=np.uint8)
     result[:,:,:] = (19,32,46)
     zbuf = np.full((height,width), -np.inf, dtype=np.float32)
@@ -114,6 +142,10 @@ def render_preview(model: PrivateVisualModel, width: int, height: int, *,
     for face_index, face in enumerate(model.faces):
         if cancelled is not None and face_index % 32 == 0 and cancelled():
             raise PreviewCancelled()
+        if camera is not None and not all(in_front[v] for v in face.vertices):
+            # Fail closed on unimplemented near-plane triangle clipping.
+            # Front-facing triangles are rendered with depth-correct UVs.
+            continue
         # Preserve source-exported MTL Kd as a solid face where original
         # Collada material has no texture slot; no fabricated texture image.
         is_textured = face.material in textures
@@ -150,8 +182,18 @@ def render_preview(model: PrivateVisualModel, width: int, height: int, *,
         iy,ix=np.nonzero(visible)
         if is_textured:
             uv=np.asarray([model.uvs[i] for i in face.uvs],dtype=np.float64)
-            u=b0[iy,ix]*uv[0,0]+b1[iy,ix]*uv[1,0]+b2[iy,ix]*uv[2,0]
-            v=b0[iy,ix]*uv[0,1]+b1[iy,ix]*uv[1,1]+b2[iy,ix]*uv[2,1]
+            if camera is not None:
+                # Screen barycentric weights need reciprocal-depth correction
+                # for an actual perspective camera to avoid swimming textures.
+                w0=b0[iy,ix]*p0[2]
+                w1=b1[iy,ix]*p1[2]
+                w2=b2[iy,ix]*p2[2]
+                scale=1. / (w0+w1+w2)
+                w0,w1,w2=w0*scale,w1*scale,w2*scale
+            else:
+                w0,w1,w2=b0[iy,ix],b1[iy,ix],b2[iy,ix]
+            u=w0*uv[0,0]+w1*uv[1,0]+w2*uv[2,0]
+            v=w0*uv[0,1]+w1*uv[1,1]+w2*uv[2,1]
             texture=textures[face.material]
             th,tw=texture.shape[:2]
             tx=np.floor(np.mod(u,1.)*tw).astype(np.intp)%tw
