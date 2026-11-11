@@ -227,6 +227,14 @@ def dolphin_window():
     user32=ctypes.windll.user32
     matches=[]
     callback_type=ctypes.WINFUNCTYPE(wintypes.BOOL,wintypes.HWND,wintypes.LPARAM)
+    user32.IsWindowVisible.argtypes=[wintypes.HWND]
+    user32.IsWindowVisible.restype=wintypes.BOOL
+    user32.GetWindowTextLengthW.argtypes=[wintypes.HWND]
+    user32.GetWindowTextLengthW.restype=ctypes.c_int
+    user32.GetWindowTextW.argtypes=[wintypes.HWND,wintypes.LPWSTR,ctypes.c_int]
+    user32.GetWindowTextW.restype=ctypes.c_int
+    user32.EnumWindows.argtypes=[callback_type,wintypes.LPARAM]
+    user32.EnumWindows.restype=wintypes.BOOL
     def cb(hwnd,lparam):
         if not user32.IsWindowVisible(hwnd):
             return True
@@ -297,9 +305,12 @@ def screen_worker(capture,folder,stop,counts):
     import ctypes
     from ctypes import wintypes
     user=ctypes.windll.user32
+    user.GetForegroundWindow.restype=wintypes.HWND
     class RECT(ctypes.Structure):
         _fields_=[("left",wintypes.LONG),("top",wintypes.LONG),
                   ("right",wintypes.LONG),("bottom",wintypes.LONG)]
+    user.GetWindowRect.argtypes=[wintypes.HWND,ctypes.POINTER(RECT)]
+    user.GetWindowRect.restype=wintypes.BOOL
     pictures=folder/"screens-PRIVATE"
     pictures.mkdir()
     while not stop.is_set():
@@ -427,7 +438,7 @@ def capture_trial(root,kind,args):
 
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--private-root",required=True,type=Path)
+    p.add_argument("--private-root",type=Path)
     p.add_argument("--port",type=int,default=55355)
     p.add_argument("--seconds",type=int,default=50)
     p.add_argument("--hz",type=float,default=4.0)
@@ -439,7 +450,7 @@ def main(argv=None):
         print(json.dumps({"status":"SELFTEST_PASS","kinds":TYPES,
                           "bridge_contacted":False,"training_approved":False}))
         return 0
-    if not 1<=args.port<=65535 or not 5<=args.seconds<=MAX_TRIAL_SECONDS:
+    if args.private_root is None:\n        p.error("--private-root is required outside --selftest")\n    if not 1<=args.port<=65535 or not 5<=args.seconds<=MAX_TRIAL_SECONDS:
         p.error("port/seconds out of allowed bounds")
     if not 1<=args.hz<=10 or not 1<=args.tree_every<=50:
         p.error("hz/tree sampling out of allowed bounds")
