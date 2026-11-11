@@ -49,7 +49,9 @@ def comparison():
 
 def camera():
     return VisualCamera(
-        position=(0.,40.,120.),focus=(0.,0.,0.),
+        # Set eye on the camera's own +toward basis so the synthetic
+        # actor XYZ=0 is inside the current viewport, not below its edge.
+        position=(0.,-24.,118.),focus=(0.,0.,0.),
         yaw=0.,pitch=.2,scale=80.)
 
 
