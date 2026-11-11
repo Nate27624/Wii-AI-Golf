@@ -1962,3 +1962,98 @@ dataset is assumed. A source-only result
 may remain `UNKNOWN` indefinitely without
 physical observations. PR remains research-only
 and `training_approved=false`.
+
+
+## Enter-to-record live wood, leaves and near-miss protocol
+
+Per operator request, prepared
+`scripts/p0_tree_contact_record_private.py` and a Windows
+PowerShell wrapper `scripts/run_p0_tree_contact_record.ps1`.
+These are **new live, read-only** operator-controlled
+trial collectors and must NOT be conflated with
+the archived seven-pair original SHA-verified capture.
+They do not load a savestate, press A, swing, alter
+game memory, set aim, score a shot or identify a
+collision themselves. Use only an already running
+Wii Sports USA Rev1 Golf scene with the existing
+localhost Felk bridge on port 55355, plus the
+source-owned selected Ball candidate / record / 94
+trees. The tool performs exact scene/owner, game
+revision, source player manager, selected record,
+nested ball pointer and 94 identical tree-firstword
+checks before every recording.
+
+The wrapper runs three separate human-operated
+trials in this order:
+- `wood`: human aims at visible **trunk/wood**
+  and swings manually;
+- `leaves`: human aims at **foliage/canopy**
+  at appropriate observed height;
+- `near_miss`: human aims **adjacent to the
+  same tree** as a negative control.
+
+For each trial, the operator prepares Dolphin,
+presses ENTER to authorize START, gets a 3-second
+focus countdown, swings manually, and can
+return to the terminal to press ENTER to STOP.
+Each trial also auto-stops at 50 seconds by
+default (5..180 seconds supported). The tool
+captures approximately 4 non-atomic bridge
+read packets per second:
+source-correlated selected Ball `+0..+0x1BF`,
+selected player record `+0..+0xCB`,
+nested Ball translation candidate `+0..+0x0B`;
+every 8th packet also captures the complete
+94×84 tree-record array (including candidate
+proximity byte `+0x48`). Every packet carries
+host UTC, monotonic timestamps, and a bridge
+frame-count start/end bracket. These bridge
+ticks are **NOT established guest physics frames**
+and the multi-RPC snapshots are **NOT atomic**;
+a transient frame-exact impact can be missed.
+Pointer, hole and tree array root controls
+are checked periodically, and the stream
+abstains on root changes.
+
+When FFmpeg is available on the Windows PATH
+and exactly one visible Dolphin window is
+identified, a **Dolphin-window-only** MP4
+is attempted automatically. Otherwise
+Pillow, if installed, may save sampled
+screenshots **only while Dolphin is the
+foreground window**. If neither is
+available, the recorder saves memory only,
+and the operator must independently take
+screen video (e.g. OBS). Never silently
+record the entire desktop. Raw event JSONL,
+screenshots and video all stay under a
+unique ignored sibling `Wii-AI-Golf-Data/captures/
+tree-contact-*-PRIVATE` directory; never
+commit any native RAM / private visuals.
+
+After each trial, the operator separately
+reports the **visually observed** region
+`wood/leaves/none/uncertain`, whether
+the trajectory visibly changed and optional
+conditions. The intended trial `wood`
+or `leaves` does not certify a collision.
+Human observations remain unverified by
+native contact code; special cases include
+foliage occlusion, ground contact and
+ball traveling behind the tree. A safe
+`operator-summary-SAFE.json` holds counts
+and user annotations without native words.
+No tree shape, canopy drag, impulse or
+ball velocity field may be trained solely
+from these samples; native source contact
+event and independent timestamp/visual
+corroboration remain prerequisites.
+
+**Next step:** collect paired wood and
+foliage attempts plus near-miss using a
+single restored pre-shot state as closely
+as possible. Analyze source-selected Ball
+candidate and tree-proximity changes against
+screen imagery, then trace any uniquely
+discriminating game code. Mark
+`training_approved=false` throughout.
