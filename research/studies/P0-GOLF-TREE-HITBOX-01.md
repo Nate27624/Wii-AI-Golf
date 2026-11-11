@@ -2955,3 +2955,116 @@ live JSONL packets cannot themselves
 recover native .text. Research
 branch PR remains draft,
 `training_approved=false`.
+
+
+## Source-store output reviewed: original PPC cache windows and seven self-pointer chains
+
+The user pasted original successful source-only
+`P0_ORIGINAL_TREE_BALL_SOURCE_STORES_V1`
+at pinned source head `cda839e914687518418a8d1764c81cb114f91a6e`.
+The script passed SHA qualification of private original
+seven-capture Rev1 source capture **7**,
+Golf scene and 94 source-owned Tree slots,
+and exact **5 Ball→GolfKCol and 7 reverse**
+source-call gates. These are original archive
+STATIC instruction-site findings; they do not
+prove the candidate instructions actually
+executed during the November wood/leaf shots.
+
+### Specific source sites, not object receiver proof
+
+Original Ball source unit contains **57**
+D-form `stfs/stw` *displacement matches*,
+Player contains **39**,
+PlayerManager contains **10**,
+and scanned Simulation contains **zero**.
+Each unit includes code operating on many
+different object types, and same numeric D-form
+displacement on one register does **not**
+establish active selected Ball receiver identity.
+
+Within the public Ball compiled code unit
+(`RPGolMapObjBall`), the known
+`fn_80299C70` potential goal/cache-update
+window contains exactly these relevant
+three-component floating-point store sites:
+
+| Candidate source member displacements | Original Ball-unit instruction offsets |
+| --- | --- |
+| `+0xCC/+0xD0/+0xD4` | `+0x2D04/+0x2D0C/+0x2D14` |
+| `+0xF0/+0xF4/+0xF8` | `+0x2F6C/+0x2F70/+0x2F74` |
+| `+0xFC/+0x100/+0x104` | `+0x2FA8/+0x2FAC/+0x2FB0` |
+
+Other original Ball-unit source candidates
+storing float triples at `+0x30/+0x34/+0x38`
+are `+0x3E48/+0x3E4C/+0x3E50` and
+`+0x3EAC/+0x3EB0/+0x3EB4` (both outside
+the known `fn_80299C70` window);
+those might operate on other objects.
+
+Seven additional bounded syntactic
+`lwz rP,+0x4C(rReceiver)` followed by
+`stfs fX,+0,+4,+8(rP)` chains emerged:
+- Ball `+0x1788`, `+0x1AAC`,
+  `+0x38DC` (pointer load offsets;
+  first/last store sites at
+  `+0x179C..+0x17BC`,
+  `+0x1ABC..+0x1ADC`,
+  `+0x38F4..+0x3918`);
+- Player `+0x1D88`, `+0x2200`;
+- PlayerManager `+0x0BE0`, `+0x0C70`.
+
+In the live SHA-verified 110 packets, the
+*selected active Ball* `+0x4C` pointer
+always equaled *selected Ball +0x30*.
+The source chains may thus be plausible
+translation writers **if**, and only if,
+their receiver is source-proven to be
+that selected Ball object. This receiver
+binding and dynamic execution are unresolved;
+some native PPC `lwz +0x4C` instructions
+can load an unrelated object's member.
+
+Added a narrower second-pass
+`scripts/p0_tree_ball_writer_register_context_private.py`
+plus synthetic-only
+`tests/test_p0_tree_ball_writer_register_context_private.py`.
+This reads only the same original SHA-gated
+7-pair Rev1 native source, verifies the
+original 94×84 Tree scene and Ball↔KCol
+source call gates, then checks **exact**
+original instruction sites instead of
+broad displacements:
+- Whether each of the three stfs
+  components uses the same **base GPR**,
+  and each register's original **FPR
+  source index** (bounded, control-transfer-
+  aware nearest linear load/FP operation
+  syntax, NOT runtime or full CFG provenance).
+- Whether each of the seven pointer
+  triples has the same source GPR
+  loaded by `lwz +0x4C` and no
+  **known** intervening control transfer
+  or simple GPR clobber; no claim
+  of exhaustive register alias analysis.
+- How many direct static PPC `bl`
+  sites call the **exact published function
+  entry** for `Ball fn_80299C70`
+  or `Player fn_802A0320`, including
+  source-unit-relative caller sites.
+  No inference of native execution
+  in a tree impact.
+
+This second pass **never prints original
+instruction words, code bytes, private
+source RAM addresses, game assets, XYZ
+or original hashes**, and does not
+connect to Dolphin, run any swing or
+ask for video. Results indicate
+syntactic source likelihood only;
+`selected_ball_receiver_binding_proven=false`
+and `training_approved=false`.
+Next operator input should be the
+sanitized new PPC register-context
+report from original private archive,
+not new gameplay.
