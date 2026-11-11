@@ -174,7 +174,7 @@ class Inspector:
         self.phase_list.pack(fill="both", expand=True)
         self.phase_list.bind("<<ListboxSelect>>", self.select_phase)
         ttk.Label(left, textvariable=self.phase, wraplength=190).pack(fill="x", pady=6)
-        ttk.Button(left, text="Mark flag aim (diagnostic only)", command=self.set_baseline).pack(fill="x")
+        ttk.Label(left, text="Aim line reads +0x3C directly; no initial heading baseline.", wraplength=190).pack(fill="x")
         ttk.Button(left, text="Frame view (F)", command=self.frame_view).pack(fill="x", pady=(6, 0))
         ttk.Button(left, text="Preview PRIVATE game textures", command=self.open_textured_model).pack(fill="x", pady=(6, 0))
         ttk.Label(left, textvariable=self.aim, wraplength=200).pack(fill="x", pady=7)
@@ -322,15 +322,8 @@ class Inspector:
         self.index.set(i)
         self.slider.set(i)
         sample = self.replay.samples[i]
-        # The initial sample is a *provisional* flag-pointing baseline, NOT a
-        # native heading. User can explicitly reset at visually known pin aim.
-        if self.baseline is None and i == 0 and sample.source_qualified and sample.source_digest:
-            raw = sample.words.get(AIM)
-            value = float_hypothesis(raw[0]) if raw and len(raw) == 1 else None
-            if value is not None and -math.tau <= value <= math.tau:
-                self.baseline = value
-                self.aim_baseline_source = sample.source_digest
-                self.aim_baseline_mode = "ASSUMED first packet points to flag"
+        # No first-packet flag assumption. Each source-selected +0x3C angle
+        # independently determines the direct heading candidate.
         self.phase.set(f"{sample.phase} / sample {sample.phase_index if sample.phase_index is not None else '?'}  ·  {sample.state.upper()}")
         self.position.config(text=f"{i + 1} / {len(self.replay.samples)}")
         active = max(j for j, (_, start) in enumerate(self.phases) if start <= i)
