@@ -42,5 +42,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_terrain.py -v
       - name: Focused explicit PowerShell startup button checks
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_startup.py -v
+      - name: Focused private original visual texture checks
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_visual_textures.py -v
       - name: Full offline regression suite
         run: python -m unittest discover -s tests -v

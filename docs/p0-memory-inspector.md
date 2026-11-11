@@ -272,3 +272,19 @@ This is an **explicit operator-authorized game-changing action**, entirely
 separate from the inspector's read-only sample path. It does not overwrite
 existing savestates, automatically hit the ball, approve training, or install
 new controller/bridge code. The button is disabled on non-Windows platforms.
+
+
+## Optional private original-game textured visual model preview
+
+A **Preview PRIVATE game textures** button opens an independent, bounded
+orthographic 3D window for an existing user-exported original Wii Golf course
+**visual** model with UV-mapped OBJ, MTL and local PNG diffuse textures. This
+must NOT be confused with the source-gated 2498-face collision KCL candidate,
+which does not contain native render-model texture coordinates. The visual
+renderer never changes game state or slows the Felk sampling worker, and
+requires the optional local `.[visual]` package dependencies (Pillow/NumPy).
+Original Wii GX shader/TEV effects, coordinate mapping to KCL, tree meshes,
+hole-source association and native rendered-frame equivalence are NOT yet
+verified; no raw game textures or meshes are committed. Complete requirements,
+private path rules and extraction handoff: [P0 private original game visual
+textures](p0-private-visual-textures.md). Training remains false.
