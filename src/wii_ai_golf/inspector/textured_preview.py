@@ -48,6 +48,10 @@ class TexturedPreviewWindow:
         self.home_camera = frame_playable_camera(model)
         self.camera = self.home_camera
         self.comparison_kcl = None
+        self._source_terrain = None
+        # User screenshot suggests a 180° mismatch in display orientation.
+        # This is an operator-visible hypothesis, not a proven Wii transform.
+        self.display_rotation = tk.IntVar(value=180)
         self.tree_overlay = ()
         self.tree_overlay_visible = True
         self.tree_illustrations = True
@@ -108,6 +112,20 @@ class TexturedPreviewWindow:
             ttk.Radiobutton(
                 controls, text=label, value=label, variable=self.mode,
                 command=self.schedule).pack(side="left", padx=(1, 3))
+        orientation_controls = ttk.Frame(self.top, padding=(6, 2))
+        orientation_controls.pack(fill="x")
+        ttk.Label(
+            orientation_controls,
+            text="KCL + tree display yaw (UNVERIFIED):",
+        ).pack(side="left")
+        for angle in (0, 90, 180, 270):
+            ttk.Radiobutton(
+                orientation_controls, text=f"{angle}°", value=angle,
+                variable=self.display_rotation, command=self.set_display_rotation,
+            ).pack(side="left", padx=(4, 1))
+        ttk.Label(
+            orientation_controls, text="original textures/XYZ unchanged · 180° initial guess",
+        ).pack(side="left", padx=8)
         ttk.Label(
             controls,
             text="RMB look · LMB orbit · MMB pan · arrows move forward/back/left/right · "
@@ -454,15 +472,40 @@ class TexturedPreviewWindow:
         self.camera = self.full_camera
         self.schedule()
 
+    def set_display_rotation(self, degrees=None):
+        """Try a bounded source-to-texture yaw without modifying any source file.
+
+        Both KCL triangle vertices and the strict 94-tree coordinates use
+        the same display-only transform. Never rotate the authentic DAE.
+        """
+        angle = getattr(self, "display_rotation", None)
+        value = degrees if degrees is not None else (
+            angle.get() if angle is not None else 0)
+        if type(value) is not int or value not in (0, 90, 180, 270):
+            raise ValueError("KCL comparison yaw must be 0, 90, 180, or 270")
+        if degrees is not None and angle is not None:
+            angle.set(value)
+        terrain = getattr(self, "_source_terrain", None)
+        if terrain is not None:
+            self.comparison_kcl = prepare_comparison_kcl(
+                terrain, self.model, rotation_degrees=value)
+            self.comparison_status.set(overlay_summary(self.comparison_kcl))
+        self.schedule()
+
     def set_collision_terrain(self, terrain):
         """Show actual KCL source faces in SAME camera, explicitly uncalibrated."""
         if terrain is None:
+            self._source_terrain = None
             self.comparison_kcl = None
             self.mode.set("Textures")
             self.comparison_status.set(
                 "KCL not loaded · no original collision/visual alignment claim.")
         else:
-            comp = prepare_comparison_kcl(terrain, self.model)
+            angle = getattr(self, "display_rotation", None)
+            value = angle.get() if angle is not None else 0
+            comp = prepare_comparison_kcl(
+                terrain, self.model, rotation_degrees=value)
+            self._source_terrain = terrain
             self.comparison_kcl = comp
             self.mode.set("Both")
             self.comparison_status.set(overlay_summary(comp))
