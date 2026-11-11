@@ -205,6 +205,20 @@ class DirectDAETests(unittest.TestCase):
                 load_private_dae_visual_model(
                     self.dae,allow_geometry_only_for_unsupported_scene=True)
 
+    def test_external_controller_and_malformed_lookat_never_use_fallback(self):
+        for record in (
+            '<instance_controller url="https://invalid.example/evil.dae#skin"/>',
+            '<lookat>0 0 0</lookat>',
+            '<skew>nan 1 0 0 0 1 0</skew>',
+        ):
+            self.dae.write_text(
+                DAE.replace('<node id="grass-node">',
+                            '<node id="grass-node">'+record),
+                encoding="utf-8")
+            with self.subTest(record=record),self.assertRaises(VisualAssetError):
+                load_private_dae_visual_model(
+                    self.dae,allow_geometry_only_for_unsupported_scene=True)
+
     def test_gui_auto_compatibility_marks_geometry_only_unverified(self):
         from wii_ai_golf.inspector.gui import Inspector
         import types
