@@ -187,7 +187,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(report["game_input_consumption_verified"])
         self.assertEqual(
             {row["field"] for row in report["r24_candidate_calculation_stores"]},
-            {"+0x18", "+0x1C", "+0x28", "+0x2C", "+0x8", "+0xC"})
+            {"+0x18", "+0x1C", "+0x20", "+0x24", "+0x28", "+0x2C", "+0x8", "+0xC"})
         self.assertEqual(report["public_unit"], m.PUBLIC_OWNER)
         self.assertGreater(len(report["fp_reaching_definitions_source_excerpt"]), 20)
         serialized = json.dumps(report)
