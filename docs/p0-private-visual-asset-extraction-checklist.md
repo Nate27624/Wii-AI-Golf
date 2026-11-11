@@ -102,3 +102,63 @@ Audit the existing output read-only:
 Expected stage MDL0_WITH_EXTRACTED_PNG_NEEDS_UV_DAE_EXPORT and one
 unresolved glf_tokosenFix.tex0 base PNG. No claim about active Hole1
 visual source identity, native GPU TEV fidelity, KCL alignment or training.
+
+
+## BrawlCrate DAE material reference gate passed
+
+Operator's exact original glf_course_fc1.dae (1,181,053 bytes) reports:
+12 Collada geometries, 12 triangle groups, 13 TEXCOORD inputs,
+19 library images, 12 library materials, and 11 actual sampled
+diffuse texture effect slots. Their exact original DAE source bindings are:
+
+    M_Bunker       glf_sand01.png
+    M_Color        glf_color1.png
+    M_Enkei        glfM_hayasi3.png
+    M_Fairway      glf_fairway1.png
+    M_Green        glf_green1.png
+    M_Kiwa_Bunker  glf_Kiwa_Bunker.png
+    M_Kiwa_F       glf_Kiwa_F.png
+    M_Kiwa_OB      glf_Kiwa_OB.png
+    M_Kiwa_R       glf_Kiwa_R.png
+    M_OB           glf_ob1.png
+    M_Rough        glf_rough1.png
+
+M_Kiwa_Black has no DAE texture effect; it must remain an
+untextured original-color Kd material, not receive any invented PNG.
+glf_tokosenFix image is referenced in the DAE library, but it is
+NOT assigned by one of these 11 texture slots; its failed palette
+conversion does not block this first source-model preview.
+No game native TEV, active hole or KCL/world transform is claimed.
+
+New script p0_prepare_private_dae_textures.py stages EXACTLY the
+source-linked base PNG files, renaming existing .tex0.png to DAE
+expected names as byte-identical copies into a brand-new private
+directory. DAE itself is copied byte-identically; originals untouched.
+It fails closed on missing images/ambiguous links/non-UV models,
+wrong XML, Git, symlinks or pre-existing destination:
+
+    py -3 -I scripts\p0_prepare_private_dae_textures.py --dae "D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1\glf_course_fc1.dae" --texture-dir "D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1\Textures(NW4R)" --output "D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1\uv_stage"
+
+Then use Blender **4.5 LTS**, which still has its native
+Collada importer (Blender 5.x removed bundled Collada import).
+Source-only script p0_blender_private_dae_to_obj.py runs in
+Blender 4.5, reads stage manifest, imports DAE source UVs, connects
+only those 11 original PNGs and requires authentic diffuse source
+color for untextured M_Kiwa_Black, then exports adjacent UV
+glf_course_fc1_visual.obj plus MTL. It does NOT add nonexistent
+materials or replace the collision KCL OBJ:
+
+    blender --background --factory-startup --python-exit-code 7 --python scripts\p0_blender_private_dae_to_obj.py -- --stage "D:\Projects\WiiGolfVisualPrivate\visual_exports\glf_course_fc1\uv_stage"
+
+A Blender native application run is only verifiable on operator's
+machine, NOT proven by synthetic CI. Win+Ubuntu CI verifies offline
+source DAE/PNG staging and Python Blender-script syntax; do not
+claim Blender runtime success until original operator test.
+
+The combined original-source inspector branch #429 (based on
+solid KCL #419) now supports a source-MTL Kd-only material without
+faking a PNG (e.g. M_Kiwa_Black); use it to select the resulting
+UV OBJ in the left-pane Preview PRIVATE game textures button.
+Standalone #428's main-based older strict visual checker may
+still reject Kd-only source materials. Keep the KCL 2498-face OBJ
+unmodified and separate.
