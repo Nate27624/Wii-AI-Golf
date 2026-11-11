@@ -23,6 +23,9 @@ from wii_ai_golf.inspector.texture_render import prepare_textures
 from wii_ai_golf.inspector.visual_model import load_private_visual_model
 from wii_ai_golf.inspector.fast_texture_render import accelerated_available
 from wii_ai_golf.inspector.terrain import load_private_obj
+from wii_ai_golf.inspector.terrain_labels import (
+    apply_private_surface_labels, paired_private_source_labels,
+)
 from wii_ai_golf.inspector.material_alignment import alignment_diagnostic
 from wii_ai_golf.inspector.collada_controller_scale import controller_scale_audit
 
@@ -39,6 +42,8 @@ def diagnose(filename: str | None = None) -> dict:
         return dict(result, status="PREFERENCES_REJECTED",
                     reason=f"{type(exc).__name__}: {exc}")
     result["saved_terrain_path_present"] = bool(saved.terrain_obj)
+    result["saved_kcl_surface_label_path_present"] = bool(
+        getattr(saved,"terrain_labels",None))
     result["saved_tree_path_present"] = bool(saved.tree_json)
     result["saved_visual_path_present"] = bool(getattr(saved, "visual_dae", None))
     known = _known_private_visual_candidate(saved.terrain_obj or "")
@@ -77,8 +82,30 @@ def diagnose(filename: str | None = None) -> dict:
     if saved.terrain_obj:
         try:
             collision=load_private_obj(saved.terrain_obj)
-            # Does not publish game triangle XYZ, inferred physics or
-            # proprietary art; only independent labeled surface residuals.
+            preferred=getattr(saved,"terrain_labels",None)
+            sidecar=(Path(preferred) if preferred else
+                     paired_private_source_labels(saved.terrain_obj))
+            if sidecar is not None and (preferred or sidecar.is_file()):
+                try:
+                    collision=apply_private_surface_labels(collision, sidecar)
+                    result["kcl_surface_labels_status"]=(
+                        "SAVED_SHA_BOUND_IDS_ACCEPTED" if preferred
+                        else "PAIRED_SHA_BOUND_IDS_ACCEPTED")
+                except (OSError, ValueError) as exc:
+                    # Match the GUI: never silently use another label file
+                    # after operator-saved source attribution was refused.
+                    result["kcl_surface_labels_status"]="SOURCE_IDS_DECLINED"
+                    result["kcl_surface_labels_reason"]=(
+                        type(exc).__name__ + ": " + str(exc))
+            else:
+                from wii_ai_golf.inspector.terrain import SURFACE_STYLE
+                result["kcl_surface_labels_status"]=(
+                    "SOURCE_OGWS_GROUPS_IN_OBJ" if any(
+                        attr in SURFACE_STYLE
+                        for attr in collision.face_materials)
+                    else "NO_SHA_BOUND_SOURCE_IDS_FOUND")
+            # Does not publish source XYZ/UV, inferred physics or art;
+            # only category face counts and independent residuals.
             result["kcl_to_visual_display_fit"] = alignment_diagnostic(
                 collision,model)
         except (OSError, ValueError) as exc:
