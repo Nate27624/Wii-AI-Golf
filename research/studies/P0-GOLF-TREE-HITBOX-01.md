@@ -1768,3 +1768,80 @@ Native tree collision/leaf damping/trunk
 dimensions and ball response unverified.
 No visualization modifications and
 `training_approved=false`.
+
+
+## Capture7 Ball child dispatch alias falsifier: 0/12
+
+Operator ran `p0_tree_ball_runtime_table_alias_private.py
+--capture 7` from pinned SHA
+`72ec42f3c10d5104a6062509d260665ef50d50b4`;
+all original 7-pair archive SHA/scene, 94 tree source loop,
+five Ball→KCol and seven inverse native source gates,
+and exact Ball indirect-call register instructions
+passed. The four source-correlated but still
+**not gameplay-identity-verified** Ball candidates
+each had three bounded child table pointers, so
+this is a complete **12/12** identity comparison
+for the selected child paths, not an incomplete
+pointer test.
+
+**Observed result:** none of the four Ball
+candidates' `+0x13C` child-firstword
+tables, `+0x140` child-firstword tables,
+or `+0x144` child's `+0x78`
+dispatch-table fields equals the shared
+firstword address of the original 94 trees.
+Exact alias counts for the three child
+members: `0,0,0`. This **disfavors** the
+limited hypothesis that the previously
+inspected `Ball+0x03D0/+0x0498/+0x04AC/
++0x04C0` indirect sites dispatch through
+the **same memory table as the 94 trees**.
+It does NOT prove these are the active Ball
+instance receivers at contact, nor exclude
+other callbacks, colliders, or alternative
+native dispatch paths. Physical tree
+geometry, ball collision response, impulse
+and training semantics remain unverified.
+
+### Final bounded static check before contact experiment
+
+The initial 64-slot shared tree-firstword
+inventory only mapped **8 manually selected
+source units**. It left 42 table entries
+"outside selected source units"; these
+have NOT been proven outside game code.
+Rather than repeating broad indirect-call
+enumerations, added
+`scripts/p0_tree_full_public_table_targets_private.py`
+and synthetic-only
+`tests/test_p0_tree_full_public_table_targets_private.py`.
+This focused read-only audit qualifies
+original archive, scene, 94×0x54 trees,
+verified KCol primitive producer, and
+the **complete retained public
+`RSPE01_01_public_text_units.json`**
+against its original public source blob
+SHA. It classifies exactly 64 values from
+the existing 94-tree shared-firstword
+table by **all** public Rev1 compilation
+units, returning a source-relative
+target label or a distinctly marked
+`not_in_retained_public_text` value;
+neither means a callable tree method
+until actual receiver and method dataflow
+are established.
+
+This is a **terminal static triage**:
+if no credible shape/physics source
+method appears, prioritize designed
+tree-strike vs matched near-miss
+Dolphin observations, with operator
+visual verification, controlled initial
+ball/aim/club/wind state, and source-gated
+before/after MEM1/MEM2 capture snapshots.
+No automatic swing, Dolphin actions
+or live memory writes are part of this
+read-only script. Separate #431/#432
+visualization work remains untouched.
+`training_approved=false`.
