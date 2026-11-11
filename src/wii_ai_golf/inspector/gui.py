@@ -1046,8 +1046,14 @@ class Inspector:
         if self.drag_button == 2:
             self.camera_pan = pan_by(getattr(self, "camera_pan", (0.0, 0.0)),
                                      event.x - x, event.y - y)
+        elif self.drag_button == 3:
+            # Match the updated original 3D viewport's RMB pointer
+            # directions. Legacy projection has no movable eye, so this
+            # remains a SCREEN view, not a physical scene camera.
+            self.yaw -= (event.x - x) * 0.01
+            self.pitch = min(1.4, max(-1.4, self.pitch - (event.y - y) * 0.01))
         else:
-            # Left/right orbit existing source-coordinate orthographic camera.
+            # Left drag preserves the historical source-coordinate orbit.
             self.yaw += (event.x - x) * 0.01
             self.pitch = min(1.4, max(-1.4, self.pitch + (event.y - y) * 0.01))
         self.drag_origin = (event.x, event.y)
