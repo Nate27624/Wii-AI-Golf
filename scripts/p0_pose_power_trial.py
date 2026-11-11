@@ -14,6 +14,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import sys
@@ -25,6 +26,8 @@ for folder in (str(ROOT / "scripts"), str(ROOT / "src")):
 
 ARMS = {"B1": 1.0, "B2": 1.0, "X1": 1.2}
 POSES = ("back", "center", "forward")
+POSE_DETAILS = {"back": ("partial-back", "full-back"),
+                "center": ("center",), "forward": ("forward",)}
 DATA = ROOT.parent / "Wii-AI-Golf-Data" / "captures"
 
 
@@ -32,16 +35,20 @@ class RefuseTrial(ValueError):
     """Fail closed without a controller submission."""
 
 
-def setup(arm: str, pose: str, scenario: str, *, club: str = "unknown", aim_id: str = "unknown") -> dict:
+def setup(arm: str, pose: str, scenario: str, *, club: str = "unknown", aim_id: str = "unknown",
+          pose_detail: str = "unspecified") -> dict:
     if arm not in ARMS or pose not in POSES:
         raise RefuseTrial("unknown arm/pose")
+    if pose_detail != "unspecified" and pose_detail not in POSE_DETAILS[pose]:
+        raise RefuseTrial("pose detail incompatible with coarse pose")
     if club not in ("unknown", "driver", "iron", "wedge", "putter"):
         raise RefuseTrial("unknown club")
     if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{2,31}", aim_id):
         raise RefuseTrial("aim_id must be a local 3..32 character label")
     if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{3,31}", scenario):
         raise RefuseTrial("scenario must be a local 4..32 character slug")
-    return {"arm": arm, "expected_pose": pose, "scenario": scenario,
+    return {"arm": arm, "expected_pose": pose,
+            "expected_pose_detail": pose_detail, "scenario": scenario,
             "backswing_scale": ARMS[arm], "wind": 0, "a_lead": 45,
             "expected_club": club, "aim_marker": aim_id}
 
@@ -100,6 +107,50 @@ def pose_gate(expected: str, prompt: str, reader=input) -> str:
     return entered
 
 
+def parse_power_observation(raw: str) -> tuple[float | None, str]:
+    """Unverified human gauge impression, including >100 and uncertainty.
+
+    This deliberately has NO claim about the game's actual maximum. The
+    high numerical input bound (500) only rejects implausible entry typos.
+    """
+    if not isinstance(raw, str):
+        raise RefuseTrial("power observation must be text")
+    text = raw.strip().lower().replace(" ", "")
+    if not text or text == "unknown":
+        return None, "unknown"
+    category = "clear"
+    if text.startswith(">"):
+        category, text = "lower_bound", text[1:]
+    elif text.endswith("+"):
+        category, text = "lower_bound", text[:-1]
+    elif text.endswith("?"):
+        category, text = "uncertain", text[:-1]
+    if text.endswith("%"):
+        text = text[:-1]
+    try:
+        number = float(text)
+    except ValueError as exc:
+        raise RefuseTrial("Enter e.g. 120, 120?, >100, 100+, or blank") from exc
+    if not math.isfinite(number) or not 0 <= number <= 500:
+        raise RefuseTrial("human power impression must be finite within 0..500")
+    return number, category
+
+
+def gated_pose_reader(plan: dict, prompt: str, *, reader=input, observed: dict) -> str:
+    answer = pose_gate(plan["expected_pose"], prompt, reader)
+    if prompt.startswith("BEFORE pressing A, initial club position"):
+        allowed = "/".join(POSE_DETAILS[plan["expected_pose"]])
+        detail = reader(
+            "BEFORE A, precise visual club position [" + allowed +
+            "/unknown]: ").strip().lower()
+        if detail != plan["expected_pose_detail"]:
+            raise RefuseTrial(
+                "Detailed starting club pose changed/unknown; no experimental A or swing. "
+                "Reset the game and use a new first-ball scene.")
+        observed["pose_detail_human"] = detail
+    return answer
+
+
 def read_rows(path: Path) -> list[dict]:
     if path.is_symlink() or (path.exists() and not path.is_file()):
         raise RefuseTrial("unsafe ledger target")
@@ -121,8 +172,12 @@ def eligible(row: dict) -> bool:
     power = row.get("human_power_pct")
     return (row.get("contact_human") == "yes"
             and row.get("terminal_seen_human") is True
-            and type(power) in (float, int) and 0 <= power <= 100
+            and row.get("human_power_confidence") == "clear"
+            and type(power) in (float, int) and math.isfinite(power)
+            and 0 <= power <= 500
             and row.get("wind") == 0
+            and row.get("expected_pose_detail") not in (None, "unspecified", "unknown")
+            and row.get("initial_pose_detail_human") == row.get("expected_pose_detail")
             and row.get("initial_pose_human") == row.get("expected_pose"))
 
 
@@ -135,6 +190,7 @@ def precheck(rows: list[dict], plan: dict, bridge_sha: str) -> None:
         if (row.get("arm") != order[i]
                 or row.get("scenario") != plan["scenario"]
                 or row.get("expected_pose") != plan["expected_pose"]
+                or row.get("expected_pose_detail") != plan["expected_pose_detail"]
                 or row.get("expected_club") != plan["expected_club"]
                 or row.get("aim_marker") != plan["aim_marker"]
                 or row.get("bridge_sha256") != bridge_sha
@@ -157,11 +213,15 @@ def inspect_bridge(path: Path, *, atomic: bool) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def summarize(result: dict, plan: dict, *, bridge_sha: str, payload: dict) -> dict:
+def summarize(result: dict, plan: dict, *, bridge_sha: str, payload: dict,
+              observed_pose_detail: str | None = None,
+              power: tuple[float | None, str] = (None, "unknown")) -> dict:
     human = result["human_observation"]
     requested = result["known_good_swing_request"]
     expected_hash = (payload["contrast_trace_sha256"] if plan["arm"] == "X1"
                      else payload["baseline_trace_sha256"])
+    if (observed_pose_detail is not None and observed_pose_detail != plan["expected_pose_detail"]):
+        raise RefuseTrial("detailed pose mismatch at report creation")
     if (requested["trace_sha256"] != expected_hash or requested["generated_trace_frames"] != 89
             or requested["backswing_scale"] != plan["backswing_scale"]
             or requested["a_lead_requested_frames"] != 45
@@ -170,12 +230,14 @@ def summarize(result: dict, plan: dict, *, bridge_sha: str, payload: dict) -> di
     return {"schema_version": 1, "source": "human-only-zero-wind-pose-pilot",
             "utc": datetime.now(timezone.utc).isoformat(), **plan,
             "initial_pose_human": human["initial_club_pose_human"],
+            "initial_pose_detail_human": observed_pose_detail,
             "initial_pose_game_verified": False,
             "bridge_sha256": bridge_sha,
             "trace_sha256": requested["trace_sha256"],
             "contact_human": human.get("contact_human"),
             "terminal_seen_human": human.get("terminal_screen_seen_before_transition_human"),
-            "human_power_pct": human.get("displayed_power_percent_human"),
+            "human_power_pct": power[0],
+            "human_power_confidence": power[1],
             "power_game_verified": False,
             "green_human": human.get("finished_on_green_human"),
             "displayed_distance_source": human.get("displayed_distance_source"),
@@ -185,6 +247,8 @@ def summarize(result: dict, plan: dict, *, bridge_sha: str, payload: dict) -> di
 
 def run_live(plan: dict, *, port: int, bridge_source: Path, atomic: bool,
              data_dir: Path = DATA, reader=input) -> dict:
+    if plan["expected_pose_detail"] not in POSE_DETAILS[plan["expected_pose"]]:
+        raise RefuseTrial("live calibration requires a precise predeclared pose detail")
     if not atomic:
         raise RefuseTrial(
             "Host-polled A45 can skip emulated frames (observed Win trial). "
@@ -205,6 +269,7 @@ def run_live(plan: dict, *, port: int, bridge_source: Path, atomic: bool,
     print("Expected club:", plan["expected_club"], "| aim reference:", plan["aim_marker"])
 
     from collect_outcome_transition import run_session
+    observed: dict[str, str] = {}
     from wii_ai_golf.integration.rpc import FelkRPC
     from wii_ai_golf.integration.atomic_a45_client import AtomicA45SwingTraceClient
     with FelkRPC(port=port, timeout_s=15) as rpc:
@@ -214,16 +279,22 @@ def run_live(plan: dict, *, port: int, bridge_source: Path, atomic: bool,
         result = run_session(
             rpc, raw_path=data_dir / "UNUSED-POSE-PILOT-RAW-PRIVATE.jsonl",
             pre_samples=2, post_samples=2, settled_samples=2,
-            interval=0.0, input_fn=lambda prompt: pose_gate(plan["expected_pose"], prompt, reader),
+            interval=0.0, input_fn=lambda prompt: gated_pose_reader(
+                plan, prompt, reader=reader, observed=observed),
             a_prime_requests=0, a_lead_frames=45, atomic_a45=atomic,
             observe_start_pose=True, motion_scale=1.0,
             speed_scale=1.0, backswing_scale=plan["backswing_scale"],
-            ask_power=True, visual_first=True)
+            ask_power=False, visual_first=True)
     if result.get("cancelled"):
         raise RefuseTrial("operator cancelled; no usable trial recorded")
+    raw_power = reader(
+        "Observed power gauge (120, 120?, >100, 100+, blank=unknown): ")
+    reported_power = parse_power_observation(raw_power)
     if hashlib.sha256(bridge_source.read_bytes()).hexdigest() != bridge_sha:
         raise RefuseTrial("bridge changed during shot; quarantined")
-    record = summarize(result, plan, bridge_sha=bridge_sha, payload=hashes)
+    record = summarize(result, plan, bridge_sha=bridge_sha, payload=hashes,
+                       observed_pose_detail=observed.get("pose_detail_human"),
+                       power=reported_power)
     record["calibration_eligible_human_only"] = eligible(record)
     data_dir.mkdir(parents=True, exist_ok=True)
     if ledger.is_symlink():
@@ -237,6 +308,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--arm", choices=tuple(ARMS), required=True)
     parser.add_argument("--pose", choices=POSES, required=True)
+    parser.add_argument("--pose-detail", choices=("partial-back", "full-back", "center", "forward"),
+                        required=True, help="visually verified pre-A subposition; not a native angle")
     parser.add_argument("--scenario", required=True)
     parser.add_argument("--club", choices=("unknown", "driver", "iron", "wedge", "putter"), required=True)
     parser.add_argument("--aim-id", required=True, help="fixed human aim reference label; not source-verified")
@@ -246,7 +319,8 @@ def main(argv=None):
     parser.add_argument("--port", type=int, default=55355)
     args = parser.parse_args(argv)
     try:
-        plan = setup(args.arm, args.pose, args.scenario, club=args.club, aim_id=args.aim_id)
+        plan = setup(args.arm, args.pose, args.scenario, club=args.club,
+                     aim_id=args.aim_id, pose_detail=args.pose_detail)
         if not args.send_live_swing:
             print(json.dumps({"plan": plan, "payload_verification": assert_payload_contrast(),
                               "status": "DRY_RUN_NO_GAME_INPUT"}, indent=2))
@@ -257,6 +331,8 @@ def main(argv=None):
                           atomic=args.atomic_a45)
         print(json.dumps({"arm": result["arm"], "contact_human": result["contact_human"],
                           "human_power_pct": result["human_power_pct"],
+                          "human_power_confidence": result["human_power_confidence"],
+                          "initial_pose_detail_human": result["initial_pose_detail_human"],
                           "starting_pose": result["initial_pose_human"],
                           "source": result["source"],
                           "calibration_eligible_human_only": result["calibration_eligible_human_only"],
