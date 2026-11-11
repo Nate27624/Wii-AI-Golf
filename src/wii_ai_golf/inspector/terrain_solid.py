@@ -1,15 +1,17 @@
 """Bounded two-sided solid terrain rendering helpers (display-only).
 
-Source type/attribute comes exclusively from the source-labeled OBJ; face
-orientation is used for generic visual lighting, never material attribution.
+Source type/attribute comes exclusively from source-verified face metadata;
+face orientation is used for generic visual lighting, never attribution.
 """
 from __future__ import annotations
 
 import math
+from functools import lru_cache
 
 LIGHT = (0.38, 0.82, 0.42)
 
 
+@lru_cache(maxsize=8192)
 def shaded_hex(color: str, face: tuple[tuple[float, float, float], ...]) -> str:
     """Deterministic, winding-independent face lighting. No source semantics."""
     if len(color) != 7 or not color.startswith("#"):
