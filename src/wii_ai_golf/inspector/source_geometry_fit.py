@@ -75,7 +75,10 @@ def _source_points(terrain, visual):
     """Deterministic capped ORIGINAL triangle centroid samples per class."""
     import numpy as np
 
-    if not terrain.face_materials or len(terrain.face_materials) != len(terrain.faces):
+    if (not terrain.face_materials
+            or len(terrain.face_materials)!=len(terrain.faces)
+            or not any(code in (1,2,3,6)
+                       for code in terrain.face_materials)):
         raise SurfaceFitError(
             "KCL face IDs missing: attach original SHA-verified -labels-PRIVATE.json")
     if not visual.faces or not terrain.faces:
