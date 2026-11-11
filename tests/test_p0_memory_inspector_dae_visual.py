@@ -10,6 +10,7 @@ from unittest.mock import patch, Mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from wii_ai_golf.inspector.dae_visual import load_private_dae_visual_model
+from wii_ai_golf.inspector.collada_scene_graph import UnsupportedSceneFeature
 from wii_ai_golf.inspector.texture_render import prepare_textures, render_preview
 from wii_ai_golf.inspector.visual_model import VisualAssetError
 
@@ -136,6 +137,100 @@ class DirectDAETests(unittest.TestCase):
             encoding="utf-8")
         with self.assertRaisesRegex(VisualAssetError, "Unsupported original scene"):
             load_private_dae_visual_model(self.dae)
+
+    def test_original_scene_instance_node_resolves_source_matrix(self):
+        # Common Collada 1.5 source DAG reuse; no unproven flattening or
+        # invented 180-degree world rotation. Parent @ referenced child.
+        data=DAE.replace(
+            '<library_visual_scenes>',
+            '<library_nodes><node id="shared-ground">'
+            '<translate>10 0 20</translate>'
+            '<instance_geometry url="#grass"/>'
+            '</node></library_nodes><library_visual_scenes>'
+        ).replace(
+            '<instance_geometry url="#grass"><bind_material><technique_common>'
+            '<instance_material symbol="fairway_symbol" target="#M_Fairway"/>'
+            '</technique_common></bind_material></instance_geometry>',
+            '<instance_node url="#shared-ground"/>'
+        )
+        self.dae.write_text(data,encoding="utf-8")
+        model=load_private_dae_visual_model(self.dae)
+        self.assertEqual(model.vertices[:3],
+                         ((10.,0.,20.),(18.,0.,20.),(10.,8.,20.)))
+        self.assertIsNone(model.source_scene_warning)
+        self.assertIn("M_Fairway",model.textures)
+
+    def test_original_scene_controller_compatibility_loads_real_png_with_warning(self):
+        # Exact failure category seen in original course can be safely shown
+        # as UNALIGNED geometry-library preview, NOT native scene/collision.
+        modified=DAE.replace(
+            '<node id="grass-node">',
+            '<node id="grass-node"><instance_controller url="#golf-skin"/>')
+        self.dae.write_text(modified,encoding="utf-8")
+        with self.assertRaisesRegex(
+                UnsupportedSceneFeature, "instance_controller"):
+            load_private_dae_visual_model(self.dae)
+        result=load_private_dae_visual_model(
+            self.dae,allow_geometry_only_for_unsupported_scene=True)
+        self.assertEqual(len(result.faces),2)
+        self.assertEqual(result.textures["M_Fairway"].sha256,
+                         hashlib.sha256(self.png.read_bytes()).hexdigest())
+        self.assertEqual(result.obj_sha256,
+                         hashlib.sha256(self.dae.read_bytes()).hexdigest())
+        self.assertIn("GEOMETRY-ONLY",result.source_scene_warning)
+        self.assertIn("instance_controller",result.source_scene_warning)
+        self.assertIn("NOT APPLIED",result.source_scene_warning)
+
+    def test_unsupported_source_lookat_skew_report_specific_feature(self):
+        for element in (
+            '<lookat>0 0 0 0 0 -1 0 1 0</lookat>',
+            '<skew>45 1 0 0 0 1 0</skew>',
+        ):
+            self.dae.write_text(DAE.replace(
+                '<node id="grass-node">','<node id="grass-node">'+element),
+                encoding="utf-8")
+            with self.subTest(element=element),self.assertRaisesRegex(
+                    UnsupportedSceneFeature, element[1:].split(">")[0]):
+                load_private_dae_visual_model(self.dae)
+
+    def test_instance_node_cycle_and_external_ref_still_fail_closed(self):
+        template=DAE.replace(
+            '<node id="grass-node">',
+            '<node id="grass-node"><instance_node url="DEST"/>')
+        for target in ("#grass-node","https://evil.invalid/remote.dae#tree",
+                       "#unknown-source"):
+            self.dae.write_text(template.replace("DEST",target),encoding="utf-8")
+            with self.subTest(target=target),self.assertRaises(VisualAssetError):
+                load_private_dae_visual_model(
+                    self.dae,allow_geometry_only_for_unsupported_scene=True)
+
+    def test_gui_auto_compatibility_marks_geometry_only_unverified(self):
+        from wii_ai_golf.inspector.gui import Inspector
+        import types
+        inst=object.__new__(Inspector)
+        inst.root=Mock()
+        inst.visual_tab=Mock()
+        inst._legacy_terrain_tab=Mock()
+        inst.visual_preview=None
+        inst.visual_status=Mock()
+        inst.terrain_mesh=None
+        model=types.SimpleNamespace(
+            source_name=self.dae.name,faces=[object(),object()],
+            textures={"M_Fairway":object()},
+            source_scene_warning=(
+                "GEOMETRY-ONLY ORIGINAL-TEXTURE PREVIEW: unsupported controller"))
+        with patch("wii_ai_golf.inspector.gui.load_private_dae_visual_model",
+                   side_effect=[
+                       UnsupportedSceneFeature(
+                           "Unsupported original scene graph <instance_controller>"),
+                       model]) as loader,patch(
+                           "wii_ai_golf.inspector.textured_preview.TexturedPreviewWindow") as preview:
+            self.assertTrue(Inspector.load_visual_path(inst,str(self.dae)))
+        self.assertEqual(loader.call_count,2)
+        self.assertTrue(loader.call_args_list[1].kwargs.get(
+            "allow_geometry_only_for_unsupported_scene"))
+        self.assertIn("GEOMETRY-ONLY",inst.visual_status.set.call_args.args[0])
+        self.assertIs(inst.visual_preview,preview.return_value)
 
     def test_brawlcrate_sampler_surface_ref_to_image_name(self):
         # The real FC1 DAE has image ID glf_fairway1-image and image NAME
