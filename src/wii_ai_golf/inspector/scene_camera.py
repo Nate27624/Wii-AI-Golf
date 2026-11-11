@@ -95,7 +95,10 @@ def look_in_place(cam: VisualCamera, dx: float, dy: float) -> VisualCamera:
     """Unity-style RMB look: world-space camera position NEVER changes."""
     if not all(math.isfinite(x) for x in (dx, dy)):
         raise ValueError("Invalid camera drag delta")
-    return cam._replace(yaw=cam.yaw + dx * LOOK_SENSITIVITY,
+    # Tk's pointer x increases to the right. The prior positive yaw made
+    # the view respond opposite to the operator's intended RMB turn.
+    # Keep the CAMERA EYE (and its orbit focus) *bitwise unchanged*.
+    return cam._replace(yaw=cam.yaw - dx * LOOK_SENSITIVITY,
                         pitch=max(-MAX_PITCH, min(MAX_PITCH,
                                       cam.pitch + dy * LOOK_SENSITIVITY)))
 
@@ -117,6 +120,56 @@ def pan(cam: VisualCamera, dx: float, dy: float, viewport_height: int) -> Visual
     shift = _add(_mul(right, -dx*factor), _mul(up, dy*factor))
     return cam._replace(position=_add(cam.position, shift),
                         focus=_add(cam.focus, shift))
+
+
+def held_navigation_direction(keys: set[str] | frozenset[str],
+                              *, right_mouse: bool = False) -> Vec3:
+    """Keyboard *state* rather than discrete events, normalized diagonals.
+
+    Arrow keys are always active when the source 3D canvas has focus.
+    WASD and Q/E require right mouse, matching the inspector's fly mode.
+    The returned values are unitless local-camera velocity directions.
+    """
+    arrows = {
+        "up": (1, 0, 0), "down": (-1, 0, 0),
+        "left": (0, -1, 0), "right": (0, 1, 0),
+    }
+    flying = {
+        "w": (1, 0, 0), "s": (-1, 0, 0),
+        "a": (0, -1, 0), "d": (0, 1, 0),
+        "q": (0, 0, -1), "e": (0, 0, 1),
+    }
+    axes = [0., 0., 0.]
+    for key in keys:
+        direction = arrows.get(key)
+        if direction is None and right_mouse:
+            direction = flying.get(key)
+        if direction is not None:
+            for i in range(3):
+                axes[i] += direction[i]
+    mag = math.sqrt(sum(v*v for v in axes))
+    if mag > 1.:
+        return tuple(v/mag for v in axes)
+    return tuple(axes)
+
+
+def move_continuous(cam: VisualCamera, keys: set[str] | frozenset[str],
+                    dt_seconds: float, *, right_mouse: bool = False,
+                    fast: bool = False) -> VisualCamera:
+    """Frame-time-proportional eye translation while a movement key is held.
+
+    dt is bounded to avoid huge jumps when the OS/Tk stalls. A continuous
+    motion tick never changes yaw, pitch or source model coordinates.
+    """
+    if not math.isfinite(dt_seconds) or dt_seconds < 0:
+        raise ValueError("Invalid source camera frame duration")
+    fwd, side, up = held_navigation_direction(keys, right_mouse=right_mouse)
+    if fwd == side == up == 0 or dt_seconds == 0:
+        return cam
+    # move() advances .18*radius per argument unit. Target 1.2 radii/s.
+    multiplier = min(dt_seconds, .05)*(1.2/.18)
+    return move(cam, forward=fwd*multiplier,
+                right=side*multiplier, vertical=up*multiplier, fast=fast)
 
 
 def move(cam: VisualCamera, *, forward: float = 0., right: float = 0.,
