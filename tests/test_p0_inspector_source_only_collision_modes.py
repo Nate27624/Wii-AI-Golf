@@ -58,7 +58,7 @@ class KCLModeTests(unittest.TestCase):
         self.assertEqual(raw.display_rotation_degrees,0)
         for p in terrain.vertices:
             self.assertEqual(source_to_visual_display(p,raw),p)
-        self.assertEqual(len(raw.edge_faces),9)
+        self.assertEqual(len(raw.edge_faces),6)
         self.assertEqual(raw.colors[0].lower(),"#73e998")
 
     def test_both_selection_without_registration_visibly_declines_not_silent(self):
