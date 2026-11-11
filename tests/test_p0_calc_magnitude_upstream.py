@@ -31,6 +31,25 @@ def bl(pc, target):
     return 18 << 26 | (diff & 0x03FFFFFC) | 1
 
 
+def ppc_fp(op, fd, fa, fb, fc, xo5):
+    return ((op << 26) | (fd << 21) | (fa << 16) | (fb << 11) |
+            (fc << 6) | (xo5 << 1))
+
+
+def ppc_fcmpo(crfd, fa, fb):
+    return ((63 << 26) | (crfd << 23) | (fa << 16) | (fb << 11) |
+            (32 << 1))
+
+
+def ppc_bc_le(pc, target):
+    return ((16 << 26) | (4 << 21) | (1 << 16) |
+            ((target - pc) & 0xFFFC))
+
+
+def ppc_bcctrl():
+    return ((19 << 26) | (20 << 21) | (528 << 1) | 1)
+
+
 def fixture():
     words = {}
     for pc in range(*m.EXCERPT, 4):
@@ -50,7 +69,22 @@ def fixture():
     words[0x802B4840] = dform(52, 2, 24, 0x1C)
     words[0x802B4880] = dform(52, 3, 24, 0x28)
     words[0x802B4894] = dform(52, 4, 24, 0x2C)
-    words[0x802B4900] = (
+    for pc, (reg, base, disp) in m.MAG_LFS_GATES.items():
+        words[pc] = dform(48, reg, base, disp)
+    for pc, (reg, base, disp) in m.MAG_STFS_GATES.items():
+        words[pc] = dform(52, reg, base, disp)
+    for pc, params in m.MAG_ARITH_GATES.items():
+        words[pc] = ppc_fp(*params)
+    for pc, params in m.MAG_FCMP_GATES.items():
+        words[pc] = ppc_fcmpo(*params)
+    for pc, target in m.MAG_SKIP_BRANCHES.items():
+        words[pc] = ppc_bc_le(pc, target)
+    for pc, (reg, base, disp) in m.MAG_VTABLE_LOADS.items():
+        words[pc] = dform(32, reg, base, disp)
+    for pc in m.MAG_BCCTRL_SITES:
+        words[pc] = ppc_bcctrl()
+    # Synthetic FP63 example at non-gated site for generic symbolizer test.
+    words[0x802B486C] = (
         (63 << 26) | (30 << 21) | (28 << 16) |
         (29 << 11) | (27 << 6) | (29 << 1)
     )
@@ -101,7 +135,7 @@ class Tests(unittest.TestCase):
 
     def test_symbolic_fp_producer_and_source_owner(self):
         words = fixture()
-        line = m.symbolize(0x802B4900, words[0x802B4900])
+        line = m.symbolize(0x802B486C, words[0x802B486C])
         self.assertEqual(line["class"], "fp_opcode63")
         self.assertEqual((line["fd"], line["fa"], line["fb"], line["fc"]),
                          (30, 28, 29, 27))
@@ -126,6 +160,44 @@ class Tests(unittest.TestCase):
         self.assertNotIn("0xFC", serialized)
         self.assertNotIn('"word"', serialized)
         self.assertFalse(report["training_approved"])
+
+    def test_real_source_pattern_two_products_and_max_updates(self):
+        report = m.source_slice(fixture().__getitem__)
+        arith = report["native_magnitude_arithmetic"]
+        self.assertEqual(arith["status"], "REV1_TWO_PRODUCT_MAX_UPDATE_SOURCE_PASS")
+        self.assertIn("calc[+0x18]", arith["candidate_A_pseudocode"])
+        self.assertIn("calc[+0x1C]", arith["candidate_B_pseudocode"])
+        self.assertEqual(arith["both_virtual_load_offset_decimal"], 56)
+        self.assertFalse(arith["actual_virtual_callee_address_verified"])
+        self.assertFalse(arith["native_accepted_shot_power_verified"])
+        self.assertIn("candidate_A", arith["delta_0x98_pseudocode"])
+
+    def test_magnitude_math_exact_gates_reject_mutations(self):
+        for pc in m.MAG_LFS_GATES:
+            words = fixture()
+            words[pc] = words[pc] ^ (1 << 21)
+            with self.assertRaisesRegex(m.Abstain, "factor_reader"):
+                m.verify_magnitude_arithmetic(words.__getitem__)
+        for pc in m.MAG_ARITH_GATES:
+            words = fixture()
+            words[pc] ^= 2
+            with self.assertRaisesRegex(m.Abstain, "fp_arithmetic"):
+                m.verify_magnitude_arithmetic(words.__getitem__)
+        for pc in m.MAG_FCMP_GATES:
+            words = fixture()
+            words[pc] ^= (1 << 16)
+            with self.assertRaisesRegex(m.Abstain, "strict_peak_compare"):
+                m.verify_magnitude_arithmetic(words.__getitem__)
+        for pc in m.MAG_SKIP_BRANCHES:
+            words = fixture()
+            words[pc] = ppc_bc_le(pc, m.MAG_SKIP_BRANCHES[pc]+4)
+            with self.assertRaisesRegex(m.Abstain, "strict_peak_branch"):
+                m.verify_magnitude_arithmetic(words.__getitem__)
+        for pc in m.MAG_BCCTRL_SITES:
+            words = fixture()
+            words[pc] &= ~1
+            with self.assertRaisesRegex(m.Abstain, "virtual_getter_call"):
+                m.verify_magnitude_arithmetic(words.__getitem__)
 
     def test_wrong_bank_or_unaligned_source_address_abstains(self):
         fake = bytes(64)
