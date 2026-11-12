@@ -211,45 +211,79 @@ class Inspector:
             self.open_capture()
 
     def _draw_controls(self) -> None:
-        head = ttk.Frame(self.root, padding=12)
+        head = ttk.Frame(self.root, padding=(10, 6))
         head.pack(fill="x")
-        ttk.Label(head, text="P0 Memory Inspector  ·  offline replay", font=("Segoe UI", 18, "bold")).pack(anchor="w")
-        ttk.Label(head, text="All positions are candidate component0/1/2 in UNKNOWN units. No power, velocity, guest frame, rendered actor or training claim.").pack(anchor="w")
-        for text, variable in (("Capture JSONL", self.capture), ("SHA-256 manifest", self.manifest)):
-            row = ttk.Frame(head)
-            row.pack(fill="x", pady=3)
-            ttk.Label(row, text=text, width=20).pack(side="left")
-            ttk.Entry(row, textvariable=variable).pack(side="left", fill="x", expand=True)
-            ttk.Button(row, text="Browse", command=lambda var=variable: self.pick(var)).pack(side="left", padx=5)
+        ttk.Label(head, text="Wii Golf · Shot Inspector",
+                  font=("Segoe UI", 16, "bold")).pack(anchor="w")
         actions = ttk.Frame(head)
-        actions.pack(fill="x", pady=4)
-        ttk.Button(actions, text="Verify SHA-256 and Open Offline", command=self.open_capture).pack(side="left")
-        ttk.Label(actions, text="  Existing Dolphin bridge port: ").pack(side="left")
-        ttk.Entry(actions, textvariable=self.live_port, width=7).pack(side="left")
-        ttk.Button(actions, text="Connect LIVE (read-only)", command=self.connect_live).pack(side="left", padx=5)
-        ttk.Button(actions, text="Disconnect", command=self.disconnect_live).pack(side="left")
-        ttk.Button(actions, text="PowerShell: Launch ready for shot",
-                   command=self.open_game_startup,
-                   state="normal" if platform.system() == "Windows" else "disabled").pack(side="left", padx=(10, 0))
-        ttk.Label(head, textvariable=self.status, foreground="#9b271d", wraplength=1190).pack(anchor="w")
+        actions.pack(fill="x", pady=(3, 2))
+        self._advanced_button = ttk.Button(
+            actions, text="Advanced ▸", command=self.toggle_advanced)
+        self._advanced_button.pack(side="right", padx=(8, 0))
+        ttk.Button(actions, text="Connect LIVE (read-only)",
+                   command=self.connect_live).pack(side="left")
+        ttk.Button(actions, text="Disconnect",
+                   command=self.disconnect_live).pack(side="left", padx=5)
+        ttk.Button(actions, text="Verify SHA-256 and Open Offline",
+                   command=self.open_capture).pack(side="left", padx=8)
+
+        # Tools necessary for operator studies remain available but do not
+        # consume vertical space in the ordinary FC3 shot-inspection view.
+        setup = ttk.LabelFrame(head, text="Capture and source setup", padding=6)
+        setup.pack(fill="x")
+        ttk.Label(
+            setup,
+            text="Source positions and aiming remain candidates; no native "
+                 "power or training approval is implied.",
+            foreground="#566171").pack(anchor="w")
+        for text, variable in (("Capture JSONL", self.capture),
+                               ("SHA-256 manifest", self.manifest)):
+            row = ttk.Frame(setup)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=text, width=20).pack(side="left")
+            ttk.Entry(row, textvariable=variable).pack(
+                side="left", fill="x", expand=True)
+            ttk.Button(
+                row, text="Browse",
+                command=lambda var=variable: self.pick(var)
+            ).pack(side="left", padx=5)
+        setup_actions = ttk.Frame(setup)
+        setup_actions.pack(fill="x", pady=(2, 0))
+        ttk.Label(setup_actions, text="Dolphin bridge port:").pack(side="left")
+        ttk.Entry(setup_actions, textvariable=self.live_port, width=7).pack(
+            side="left", padx=(5, 12))
+        ttk.Button(
+            setup_actions, text="PowerShell: Launch ready for shot",
+            command=self.open_game_startup,
+            state="normal" if platform.system() == "Windows" else "disabled"
+        ).pack(side="left")
+        setup.pack_forget()
+        self._advanced_setup = setup
+
+        self._head_status_label = ttk.Label(
+            head, textvariable=self.status,
+            foreground="#9b271d", wraplength=1190)
+        self._head_status_label.pack(anchor="w")
         a_panel = ttk.Frame(head)
         a_panel.pack(fill="x", pady=3)
         ttk.Label(a_panel, textvariable=self.a_status,
                   font=("Segoe UI", 17, "bold")).pack(side="left")
         ttk.Label(a_panel, textvariable=self.club_status,
                   font=("Segoe UI", 17, "bold")).pack(side="left", padx=(24, 0))
-        ttk.Label(head,
-                  text="A: candidate (baseline assumes RELEASED) · Club: source-checked Rev1 LIVE index; offline UNKNOWN",
-                  foreground="#566171").pack(anchor="w")
+        # Details of the A heuristic and club source are available in
+        # Advanced; the current A and club states remain permanently visible.
 
         main = ttk.PanedWindow(self.root, orient="horizontal")
         main.pack(fill="both", expand=True, padx=10)
         left = ttk.LabelFrame(main, text="Phase / sample", padding=8)
-        center = ttk.LabelFrame(main, text="Unified 3D: original textures + candidate KCL (display fit UNVERIFIED)", padding=8)
-        right = ttk.LabelFrame(main, text="Raw source candidates", padding=8)
+        center = ttk.LabelFrame(main, text="Course · original textures, collision and 3D objects", padding=4)
+        right = ttk.LabelFrame(main, text="Raw source candidates · advanced", padding=8)
         main.add(left, weight=1)
         main.add(center, weight=3)
         main.add(right, weight=2)
+        self._main_panes = main
+        self._advanced_left = left
+        self._advanced_right = right
         self.phase_list = tk.Listbox(left, exportselection=False, width=19)
         self.phase_list.pack(fill="both", expand=True)
         self.phase_list.bind("<<ListboxSelect>>", self.select_phase)
@@ -306,6 +340,8 @@ class Inspector:
         ttk.Label(tree_info, textvariable=self.tree_status, wraplength=650).pack(anchor="w")
         ttk.Label(tree_info, textvariable=self.asset_settings_status,
                   wraplength=650).pack(anchor="w")
+        self._advanced_center_tools = (
+            shared_actions, tree_actions, tree_info)
         ttk.Label(self.visual_tab, textvariable=self.visual_status,
                   wraplength=630).pack(fill="x", pady=(1, 3))
 
@@ -388,7 +424,45 @@ class Inspector:
         self.rows.configure(yscrollcommand=scroll.set)
         lower = ttk.LabelFrame(self.root, text="Sampling / provenance / warnings", padding=8)
         lower.pack(fill="x", padx=10, pady=8)
-        ttk.Label(lower, textvariable=self.detail, wraplength=1250, justify="left").pack(anchor="w")
+        ttk.Label(lower, textvariable=self.detail, wraplength=1250,
+                  justify="left").pack(anchor="w")
+        self._advanced_lower = lower
+        # Keep all research widgets alive (phase slider, raw u32, KCL fallback,
+        # private assets), but make the original FC3 course full-width by
+        # default. No data/selection is discarded by this presentation.
+        self._advanced_visible = True
+        self.set_advanced_visible(False)
+
+    def set_advanced_visible(self, visible: bool) -> None:
+        """Show/hide diagnostics without destroying research widgets or data."""
+        if type(visible) is not bool:
+            raise ValueError("Advanced visibility must be Boolean")
+        if getattr(self, "_advanced_visible", None) == visible:
+            return
+        self._advanced_visible = visible
+        if visible:
+            self._advanced_setup.pack(
+                fill="x", before=self._head_status_label)
+            self._main_panes.insert(0, self._advanced_left, weight=1)
+            self._main_panes.add(self._advanced_right, weight=2)
+            for tool in self._advanced_center_tools:
+                tool.pack(side="bottom", fill="x", pady=1)
+            self._advanced_lower.pack(fill="x", padx=10, pady=5)
+        else:
+            self._advanced_setup.pack_forget()
+            self._main_panes.forget(self._advanced_left)
+            self._main_panes.forget(self._advanced_right)
+            for tool in self._advanced_center_tools:
+                tool.pack_forget()
+            self._advanced_lower.pack_forget()
+        self._advanced_button.configure(
+            text="Advanced ▾" if visible else "Advanced ▸")
+        preview = getattr(self, "visual_preview", None)
+        if preview is not None and hasattr(preview, "set_diagnostics_visible"):
+            preview.set_diagnostics_visible(visible)
+
+    def toggle_advanced(self) -> None:
+        self.set_advanced_visible(not self._advanced_visible)
 
     def show_visual_tab(self) -> None:
         """One visible 3D viewport with source texture/KCL visibility modes."""
