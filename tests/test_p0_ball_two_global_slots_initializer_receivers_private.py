@@ -61,7 +61,7 @@ class TwoGlobalSlotNativeSourceTests(unittest.TestCase):
         self.assertEqual(a["-23300"]["source_unit_accesses"]["Ball"][
             "total_counts"]["source_store"],1)
         self.assertEqual(a["-23304"]["source_unit_accesses"]["Ball"][
-            "total_counts"]["source_store"],2) if False else None
+            "total_counts"]["source_store"],1)
         self.assertFalse(a["-23300"]["other_slot_alias_proven"])
         self.assertFalse(a["-23304"]["complete_whole_game_writer_inventory_proven"])
 
