@@ -380,3 +380,39 @@ It does not reconnect the bridge or send game/controller commands:
 
 Original fast reader, A and club source mapping, private art, KCL,
 game physics, and training approval are untouched.
+
+## Observed source-ball 3D flight trail in the unified FC3 viewer
+
+The operator requested the visible curved trajectory of the golf ball. The
+main **Show in 3D** toolbar has a default-on **Observed ball trail** toggle.
+A thin, high-contrast 3D-projected polyline follows the **selected
+Ball+0x30** positions in existing SHA-qualified replay frames or the
+read-only LIVE sampler. This is an **observation history**, not a simulated
+parabola, future prediction, native interpolation, validated contact event,
+shot count, or velocity estimate; it joins actual sampled positions with
+straight segments in the exact FC3 source-to-visual display transform.
+
+The live/loaded view follows the current selected sample; when replay
+scrubs backward it NEVER draws future samples. Only the latest 180
+complete, source-qualified, same-owner-digest samples are considered.
+Repeated stationary samples produce no fake movement. Missing,
+quarantined, unqualified, time-discontinuous and frame-regressed records
+break the curve. Source-owner changes stop history at the new owner's
+suffix. An additional display-only **22% course-span maximum one-sample
+chord** guard refuses to draw apparent teleports between distant
+positions (not a physics speed limit). No spline extrapolation or
+post-shot arc is invented.
+
+During an in-game shot/owner transition, the LIVE sampler's verified
+`transition` event clears both the ball actor and the observed trail;
+only two full independent same-owner source-validated packets can
+resume a new trace. Any previously sampled trajectory from the old
+source epoch is not connected to the new ball location.
+
+The line and source ball sphere are independent checkboxes. The trail
+does not publish guest RAM coordinates or write to Dolphin; existing
+KCL, FC3 DAE/PNG, camera controls, A/club and physics remain unchanged.
+Because source packets are host-sequential and not atomic game frames,
+the line is a visualization approximation. The CPU renderer has no
+native terrain depth buffer; line visibility through other geometry
+remains possible.
