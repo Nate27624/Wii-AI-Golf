@@ -32,6 +32,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Install source fit dependency for complete offline regression
+        run: python -m pip install numpy
       - name: Source group and private project loader
         run: python -m unittest discover -s tests -p test_p0_memory_inspector_terrain.py -v
       - name: Solid render and startup regressions
