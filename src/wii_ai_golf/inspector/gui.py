@@ -131,6 +131,9 @@ class Inspector:
         self.a_indicator = LiveAIndicator(None)
         self.a_status = tk.StringVar(value="A UNKNOWN")
         self.club_status = tk.StringVar(value="CLUB UNKNOWN")
+        self.source_segment_status = tk.StringVar(
+            value="Shot number: unverified · source segment —")
+        self.live_segment = 0
         self.terrain_mesh: TerrainMesh | None = None
         self.terrain_visible = tk.BooleanVar(value=True)
         self.terrain_focus = tk.BooleanVar(value=False)
@@ -270,6 +273,8 @@ class Inspector:
                   font=("Segoe UI", 17, "bold")).pack(side="left")
         ttk.Label(a_panel, textvariable=self.club_status,
                   font=("Segoe UI", 17, "bold")).pack(side="left", padx=(24, 0))
+        ttk.Label(head, textvariable=self.source_segment_status,
+                  foreground="#566171").pack(anchor="w")
         # Details of the A heuristic and club source are available in
         # Advanced; the current A and club states remain permanently visible.
 
@@ -851,6 +856,9 @@ class Inspector:
         self.a_status.set("A UNKNOWN")
         # Offline JSONL does not contain source-checked selected-club labels.
         self.club_status.set("CLUB UNKNOWN")
+        self.live_segment = 0
+        self.source_segment_status.set(
+            "Shot number: unverified · offline replay")
         self.phase_list.delete(0, "end")
         self.phases: list[tuple[str, int]] = []
         for i, sample in enumerate(replay.samples):
@@ -981,6 +989,9 @@ class Inspector:
         self.aim_baseline_source = None
         self.a_status.set("A UNKNOWN")
         self.club_status.set("CLUB UNKNOWN")
+        self.live_segment = 0
+        self.source_segment_status.set(
+            "Shot number: unverified · acquiring source")
         self.a_reason.set("Connecting; first two samples assume A is RELEASED")
         self.replay = None
         self.phases = []
@@ -998,6 +1009,48 @@ class Inspector:
             self.live_worker.stop()
             if not silent:
                 self.status.set("DISCONNECT requested; RPC timeout may delay worker exit. No automatic reconnection.")
+
+    def _enter_source_transition(self, reason: str) -> None:
+        """Drop prior live-scene presentation, not the read-only connection.
+
+        Changing ball/record/scene pointers can occur between shots; never
+        join two unrelated source identities or leave old ball, club, aim
+        and A visible as if they belonged to the newly selected shot.
+        """
+        self.live_buffer.clear()
+        self.live_last = None
+        self.replay = None
+        self.phases = []
+        self.baseline = None
+        self.aim_baseline_source = None
+        self.live_segment = 0
+        self.a_indicator.clear()
+        self.a_status.set("A UNKNOWN")
+        self.club_status.set("CLUB UNKNOWN")
+        self.a_reason.set("New scene/shot source acquiring; A unqualified")
+        self.source_segment_status.set(
+            "Shot number: unverified · reacquiring verified ball/club owner")
+        self.landmark_status.set(
+            "Pin / flag: transitioning · Tee: transitioning")
+        self.aim_status.set(
+            "Aim: resetting reference for the next qualified source segment")
+        self.phase_list.delete(0, "end")
+        self.slider.configure(to=1)
+        self.rows.delete(*self.rows.get_children())
+        self.canvas.delete("all")
+        preview = getattr(self, "visual_preview", None)
+        setter = getattr(preview, "set_actor_overlay", None)
+        if callable(setter):
+            setter(SourceActorSnapshot())  # suppress stale coordinates
+        self.draw_a_overlay()
+        if reason == "SOURCE_TEMPORARILY_UNAVAILABLE":
+            self.status.set(
+                "LIVE TRANSITION: Golf source temporarily unavailable. "
+                "Waiting for two newly qualified packets; bridge remains read-only.")
+        else:
+            self.status.set(
+                "LIVE TRANSITION: source owner/shot changed. "
+                "Waiting for two matching, source-qualified packets.")
 
     def _show_live_club(self, event: object) -> None:
         """Show prior source-gated, typed live selection, not fabricated labels.
@@ -1018,7 +1071,25 @@ class Inspector:
         worker = self.live_worker
         if worker is not None:
             for event in worker.drain():
-                if event.kind == "sample" and event.sample is not None:
+                if event.kind == "transition":
+                    self._enter_source_transition(event.reason)
+                elif event.kind == "sample" and event.sample is not None:
+                    segment = getattr(event, "source_segment", 0)
+                    if (self.live_buffer and
+                            (event.sample.source_digest !=
+                             self.live_buffer[-1].source_digest or
+                             (segment and self.live_segment not in
+                              (0, segment)))):
+                        # Bounded event queues can discard transition
+                        # notices under heavy render load; a changed source
+                        # digest still *always* resets the current trace.
+                        self._enter_source_transition(
+                            "VERIFIED_SOURCE_IDENTITY_CHANGED")
+                    if segment:
+                        self.live_segment = segment
+                        self.source_segment_status.set(
+                            f"Source segment {segment} · actual shot number "
+                            "UNVERIFIED")
                     self.live_buffer.append(event.sample)
                     self.live_last = time.monotonic()
                     self.live_rate = event.rate_hz
@@ -1031,11 +1102,13 @@ class Inspector:
                     self.show(len(self.live_buffer) - 1)
                     self.process_a_sample(event)
                     self._show_live_club(event)
-                    self.status.set(f"LIVE READ-ONLY · {self.live_location} · {self.live_rate:.2f} samples/s "
+                    self.status.set(f"LIVE READ-ONLY · source segment {self.live_segment} · {self.live_location} · {self.live_rate:.2f} samples/s "
                                     f"· read {event.read_duration_ms:.0f} ms / {event.rpc_calls} RPCs "
                                     "· source checked · training_approved=false")
                 elif event.kind == "error":
-                    self.status.set("LIVE FAILED: " + event.reason + " Existing sample trace frozen. Check RSPE01 Rev1 and bridge.")
+                    self.status.set("LIVE FAILED: " + event.reason +
+                                    " Existing qualified sample trace frozen. "
+                                    "No automatic reconnect. Check revision and bridge.")
                     self.live_last = None
                     self.a_status.set("A UNKNOWN")
                     self.club_status.set("CLUB UNKNOWN")
