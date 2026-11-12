@@ -970,7 +970,8 @@ class Inspector:
         self.a_indicator = LiveAIndicator(discover_reference(Path(__file__).resolve().parents[3]))
         try:
             port = int(self.live_port.get())
-            worker = LiveSampler(port=port, include_a_state=True)
+            worker = LiveSampler(port=port, include_a_state=True,
+                                 allow_source_transitions=True)
         except ValueError as exc:
             messagebox.showerror("Invalid bridge port", str(exc))
             return
@@ -1034,6 +1035,40 @@ class Inspector:
                     self.status.set(f"LIVE READ-ONLY · {self.live_location} · {self.live_rate:.2f} samples/s "
                                     f"· read {event.read_duration_ms:.0f} ms / {event.rpc_calls} RPCs "
                                     "· source checked · training_approved=false")
+                elif event.kind == "transition":
+                    # Discard prior source visualization immediately; retain
+                    # previous replay samples ONLY as explicit historical trace.
+                    # No old golfer, pin, or ball can masquerade as shot N+1.
+                    self.live_last = None
+                    self.a_status.set("A UNKNOWN")
+                    self.club_status.set("CLUB UNKNOWN")
+                    self.a_reason.set("Golf shot/source transition; awaiting stable source")
+                    self.a_indicator.clear()
+                    if (getattr(self, "visual_preview", None) is not None
+                            and hasattr(self.visual_preview, "set_actor_overlay")):
+                        self.visual_preview.set_actor_overlay(SourceActorSnapshot())
+                    self.status.set(
+                        "LIVE TRANSITION · Golf selected owner/hole changing. "
+                        "A, club, ball and player hidden until two complete "
+                        "source-qualified packets agree. No bridge reconnect.")
+                    self.draw_a_overlay()
+                elif event.kind == "resumed":
+                    # Begin a *new* coherent source cohort. Never let sample
+                    # trajectories, baseline or selected golfer share epochs.
+                    self.live_buffer.clear()
+                    self.replay = None
+                    self.baseline = None
+                    self.aim_baseline_source = None
+                    self.a_indicator.clear()
+                    self.a_status.set("A UNKNOWN")
+                    self.club_status.set("CLUB UNKNOWN")
+                    self.phase_list.delete(0, "end")
+                    self.rows.delete(*self.rows.get_children())
+                    self.landmark_status.set(
+                        "Golf source reacquired · awaiting new selected sample")
+                    self.status.set(
+                        "LIVE REACQUIRED · two fully qualified packets agreed; "
+                        "new sample and source epoch will be shown next.")
                 elif event.kind == "error":
                     self.status.set("LIVE FAILED: " + event.reason + " Existing sample trace frozen. Check RSPE01 Rev1 and bridge.")
                     self.live_last = None
