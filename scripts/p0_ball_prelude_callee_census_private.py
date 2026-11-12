@@ -170,15 +170,27 @@ def original_r4_straightline_span(read,start,end):
         op=word>>26
         control=old.cfg.decode_transfer(pc,word)["kind"]!="linear_not_decoded_control"
         xo=(word>>1)&1023 if op==31 else None
-        recognized=(op in (14,15,24,25,26,27,28,29,32,34,36,48,52)
+        # PPC D-form floating-point/paired-single non-update stores
+        # (stfd=54, psq_st=60) have NO GPR destination. The update
+        # variants (55,61) write only rA, so exclude rA=r4.
+        # Do not infer any floating-point or game-physics semantics.
+        fpr_store_nonupdate=op in (52,54,60)
+        fpr_store_update=op in (53,55,61) and ((word>>16)&31)!=4
+        recognized=(op in (14,15,24,25,26,27,28,29,32,34,36,48,50)
+                    or fpr_store_nonupdate or fpr_store_update
                     or (op==37 and ((word>>16)&31)!=4)
                     or (op==31 and xo in (444,339))
                     or word==0x60000000)
         writes_r4=any(
             dst==4 for dst,*_ in old.lineage.gpr_writers(word))
+        if op in (53,55,61,37) and ((word>>16)&31)==4:
+            writes_r4=True
         ok=recognized and not control and not writes_r4
         records.append({
             "source_instruction_relative_index":(pc-start)//4,
+            "source_primary_opcode_number":op,
+            "source_GPR_base_index":((word>>16)&31)
+                if op in (37,48,50,52,53,54,55,60,61) else None,
             "source_noncontrol_opcode_qualified":recognized and not control,
             "recognized_destination_r4_write":writes_r4,
             "r4_preserved_by_this_instruction_source_gate":ok,
