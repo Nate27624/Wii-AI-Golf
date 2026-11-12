@@ -53,6 +53,37 @@ Before a NEW agent begins, check the newest manager `[S000-manager] ASSIGNMENT R
 - V2 agent work is **CLI-first**; the canonical public CLI is `scripts/golf.py` and research orchestration is `scripts/research_cli.py`. Historical Lab/GUI implementations may be retained for provenance but are not a new V2 development requirement. Avoid new parallel interfaces.
 - Source auditing may use existing private original captures locally only with approved, pinned, read-only scripts and original SHA/revision/identity gates. Do not ask for repeated bank captures when preserved evidence answers the question. No unstated local scripts, source rewrites or auto uploads.
 
+## Optional PRIVATE LocalOps v2 — agent-to-Windows commands
+
+For **manager-assigned, in-scope** local source checks, read
+[`docs/v2-localops-agent-guide.md`](docs/v2-localops-agent-guide.md)
+before creating any local command request. LocalOps v2 is an **optional
+transport**, not a new agent role, assignment, source reader, launcher,
+or permission boundary. The existing GitHub connector can create a
+strict `[LOCALOPS-v2]` issue **only** in the separate PRIVATE
+`Nate27624/Wii-AI-Golf-LocalOps` mailbox, then read the structured
+`LOCALOPS_RESULT_V2` receipt. Never use the public source repo as a
+command mailbox or request the operator's token.
+
+The Windows agent executes only fixed, **locally registered** project
+tasks: read-only `git_status` and `list_files`, named `run_task`
+(e.g. `python_version`, `inspector_tests`, `viewer_tests`), or
+an exact-SHA `checkout_reviewed`. A registered task marked
+`approval=confirm` and every checkout must be approved on the
+operator's Windows console; GitHub comments do NOT authorize execution.
+There is **no arbitrary PowerShell command**, arbitrary remote script,
+Dolphin input, live shot, or permission to publish private evidence.
+The existing V2 role/CLAIM, `merging.md`, offline provenance and
+separate live-game authorizations remain in force.
+
+The operator has confirmed one successful v2 `git_status` request
+(private issue #3); this is not proof the watcher is currently running.
+Agents must verify the status of each new request, distinguish
+`LOCALOPS_APPROVAL_REQUIRED_V2` from `LOCALOPS_RESULT_V2`,
+and cite the actual issue/commit in a sanitized handoff. If private
+mailbox access is unavailable, abstain from local execution rather than
+submitting to a public repository.
+
 ## Historical evidence and PR cleanup
 
 [Historical PR family/retention ledger](docs/v2-pr-triage.md) is a dated index, not proof an open PR is still active. Disposition an old PR only after inspecting its full diff, tests, original source blobs, current on-main files, GitHub comments and owner. Preserve unique reports and negative results with immutable links before closing, **without deleting the historical branch**. Never mass-close by title, age, or count. Current main has selectively integrated #331/#337/#329 and downstream result/privacy guards; source-only proof does not imply physical ball tracking or training readiness.
