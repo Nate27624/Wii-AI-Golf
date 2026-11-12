@@ -249,3 +249,34 @@ unqualified packets also hide it. Turning the arrow checkbox off
 removes only the arrow geometry; degrees remain visible as a
 read-only status when evidence permits. No controller commands,
 game writes, or data training result from this feature.
+
+## FC3 operator review: mirrored aim rotation and ball size correction
+
+On comparison with an in-game right/left rotation, the operator observed
+the 3D arrow turning in the **opposite** screen direction. The 3D arrow's
+*visual yaw offset* is now mirrored: a positive same-packet relative +0x3C
+angle offset is projected with negative display yaw, and vice versa.
+The original +0x3C word, decoded signed delta and UI degree readout are
+unchanged; the UI still labels this a calibration hypothesis, not a proven
+native physical swing angle or verified launch heading.
+
+The ball model had remained oversized despite correction of the flagpole
+and golfer. Only the illustrative ball sphere was reduced from 0.15× to
+0.035× the approved figure height (~4.3× smaller in diameter), while the
+operator-approved flagpole and golfer shapes, placements and dimensions
+were not modified. For no-sample illustrative placements, the ball center
+is raised by its new smaller radius; for selected sampled positions,
+the source ball position is left untouched.
+
+The original camera navigation functions and mouse sensitivity are
+**identical** to the original 2026-11-10 tree-inspector source; the extra
+3D geometry and additional toolbar rows can affect observed render
+responsiveness and visible canvas size. Restore prior F/Shift+F
+**Collision-mode framing** using the currently displayed mapped KCL
+bounds. All other visual modes use the existing playable and full
+textured-model frame presets. RMB continues fixed-eye look, LMB orbit,
+MMB pan, arrow keys continuous movement, RMB+WASD/QE fly, wheel dolly.
+Regression tests guard these behaviors.
+
+No change to original KCL, DAE, tree source positions, samples, game
+RAM, controller inputs, native physics or training approval.
