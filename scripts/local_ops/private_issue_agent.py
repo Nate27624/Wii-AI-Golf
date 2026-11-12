@@ -122,7 +122,8 @@ def decode_request(issue: dict, trusted_actor: str) -> tuple[str, dict]:
     if (not isinstance(body, dict)
             or set(body) != {"schema", "operation", "params"}
             or body.get("schema") != SCHEMA
-            or body.get("operation") not in ALLOWED
+            or type(body.get("operation")) is not str
+            or body["operation"] not in ALLOWED
             or not isinstance(body.get("params"), dict)):
         raise BridgeError("Unrecognized request schema/operation")
     op, params = body["operation"], body["params"]
@@ -140,7 +141,9 @@ def decode_request(issue: dict, trusted_actor: str) -> tuple[str, dict]:
         if (not isinstance(part, str) or len(part) > 120
                 or part.startswith(("/", "\\"))
                 or ":" in part or "\\" in part
-                or any(c in ("", ".", "..") for c in part.split("/"))
+                or any(c in ("", ".", "..", ".git", ".env", ".venv",
+                             "node_modules", "__pycache__")
+                       for c in part.split("/"))
                 or not re.fullmatch(r"[A-Za-z0-9_./-]+", part)):
             raise BridgeError("Invalid relative project directory")
     if op == "run_inspector_tests" and params["suite"] not in (
@@ -334,9 +337,12 @@ def process_one(client: APIClient, root: Path, trusted_actor: str,
         if dry_run:
             return True
         if not approved(operation, description):
-            # Not approved: do not post claim, user can try the same request
-            # again. This prevents silently running declined commands.
-            print("Declined; request left open and unexecuted.")
+            # Record a definitive local rejection, preventing repeat
+            # prompts every 12 seconds while watching a pending issue.
+            client.comment(number, result_comment(
+                number, operation, "declined", "Local operator did not approve"))
+            client.close(number)
+            print("Declined; request closed without execution.")
             return True
         client.comment(number, "WII_LOCALOPS_CLAIM_V1: locally approved for "
                               + operation)
