@@ -2,6 +2,8 @@
 from __future__ import annotations
 import importlib.util
 import json
+import io
+from unittest import mock
 from pathlib import Path
 import unittest
 
@@ -102,6 +104,31 @@ class GlobalByteWriterCensusTests(unittest.TestCase):
             "source_numeric_0x5C_D_form_access_counts"])
         self.assertNotIn("stb",out["per_source_unit"]["Ball"][
             "source_numeric_0x5C_D_form_access_counts"])
+
+    def test_original_byte_census_reports_last_synthetic_source_stage(self):
+        progress={"stage":"initial"}
+        r=m.inspect(reader(data()),progress)
+        self.assertEqual(progress["stage"],"native_unit_GolfKCol")
+        self.assertFalse(r["wood_vs_foliage_material_split_verified"])
+
+    def test_abstention_reports_safe_stage_without_private_exception_text(self):
+        captured=io.StringIO()
+        secret="PRIVATE-SHA-AND-GAME-DATA-MUST-NOT-BE-OUTPUT"
+        progress={}
+        def fail(*args):
+            progress["checked"]=True
+            raise ValueError(secret)
+        with mock.patch.object(m,"run",side_effect=fail):
+            with mock.patch("sys.stdout",captured):
+                result=m.main(["--archive","irrelevant-private-path","--capture","7"])
+        self.assertTrue(progress["checked"])
+        self.assertEqual(result,2)
+        report=json.loads(captured.getvalue())
+        self.assertEqual(report["status"],"ABSTAIN_ORIGINAL_SHA_SOURCE_OR_ARGUMENT_GATE")
+        self.assertEqual(report["failure_exception_class"],"ValueError")
+        self.assertEqual(report["failed_public_stage"],"initial")
+        self.assertNotIn(secret,captured.getvalue())
+        self.assertFalse(report["training_approved"])
 
     def test_output_remains_source_only_no_original_RAM_or_physics_promotion(self):
         r=m.inspect(reader(data()))
