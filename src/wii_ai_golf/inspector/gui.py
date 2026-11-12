@@ -292,13 +292,9 @@ class Inspector:
                    command=self.load_tree_positions).pack(side="left")
         ttk.Button(tree_actions, text="Clear trees",
                    command=self.clear_tree_positions).pack(side="left", padx=4)
-        ttk.Checkbutton(tree_actions, text="Show trees", variable=self.tree_visible,
-                        command=self._tree_options_changed).pack(side="left")
-        ttk.Checkbutton(tree_actions, text="Illustrative crowns (NOT game art)",
-                        variable=self.tree_illustrations,
-                        command=self._tree_options_changed).pack(side="left", padx=4)
-        ttk.Checkbutton(tree_actions, text="Tree IDs", variable=self.tree_labels,
-                        command=self._tree_options_changed).pack(side="left")
+        ttk.Label(tree_actions,
+                  text="3D visibility in the Show in 3D toolbar above."
+                  ).pack(side="left", padx=8)
         tree_info = ttk.Frame(center)
         tree_info.pack(side="bottom", fill="x", pady=1)
         ttk.Label(tree_info, textvariable=self.tree_status, wraplength=650).pack(anchor="w")
