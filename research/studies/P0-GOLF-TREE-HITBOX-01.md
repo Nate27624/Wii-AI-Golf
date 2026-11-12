@@ -5385,3 +5385,101 @@ private heap pointers/XYZ or
 physics training; `training_approved=false`.
 Draft PR #422 research branch only;
 renderer PRs remain untouched.
+
+
+## Ball-KCol result classification native branch and floating-point store triad: exact CR0/f0 source gate
+
+Operator reran the pre-existing original source-only
+`scripts/p0_ball_kcol_material_vector_edges_private.py`
+on the original SHA-qualified USA Rev1 seven-pair
+private archive **capture 7**, pinned to research head
+`85b27732f8c4a51f8b1c33014f8664561e64d6e0`.
+The operator report
+`P0_ORIGINAL_BALL_KCOL_MATERIAL_TO_VECTOR_EDGE_V1`
+passed original archive, 94-tree scene, KCol prism
+and native source checks:
+`status=ORIGINAL_BALL_KCOL_CLASSIFICATION_EDGE_SOURCE_CENSUS`,
+`original_SHA_native_scene_and_prism_source_verified=true`,
+`training_approved=false`.
+
+**Verified original source anchors:**
+- `GolfKCol+0x0118` reads a prism type/classification
+  halfword from offset `+0x0E`; `+0x011C`
+  stores that halfword to the query result.
+- `Ball+0x0B60` directly calls a KCol query wrapper;
+  `Ball+0x0B84` and `+0x0B90` compare
+  integer return code **13** and **7**.
+- `Ball+0x14D0` directly calls the main native
+  GolfKCol query; `Ball+0x14F0` reads the
+  returned stack classification halfword;
+  `Ball+0x14F4` and `+0x14FC` compare
+  **7** and **12**.
+- Original conditional PPC branch code appears
+  immediately after each comparison:
+  +0x0B88 → +0x0BF4, +0x0B94 → +0x0B9C,
+  +0x14F8 → +0x152C, +0x1500 → +0x152C.
+  The previous auditor reported branch BO=12/BI=2,
+  but conservatively left
+  `compare_CR_to_branch_CR_link_proven=false`.
+  This is the immediate next source proof gap.
+- `Ball+0x1508/+0x1510/+0x1518`
+  are exact `stfs f0` stores into three fields
+  `+0xAC,+0xB0,+0xB4(r23)`;
+  the original bounded CFG can **possibly** reach
+  each from +0x14D0 with static route lengths
+  13, 15 and 17 instructions.
+  The field meanings and receiver's runtime
+  selected-Ball identity are **not proven**.
+  Do not infer native velocity, impulse,
+  restitution, spin or tree hitboxes.
+
+**New source-only exact CR and FP audit** authored on
+draft PR #422:
+`scripts/p0_ball_kcol_cr0_float_sources_private.py`
+and **13 synthetic-only tests**
+`tests/test_p0_ball_kcol_cr0_float_sources_private.py`,
+registered in the Windows/Ubuntu offline workflow.
+It requalifies all original seven-pair archive SHA,
+94-tree scene, GolfKCol prism and Ball query source
+gates before reading the native MEM1 code.
+It verifies exact PPC comparison CR field and L bit,
+adjacent conditional branch BO/BI against
+**CR0 EQ** (the PPC `beq` condition),
+and the original direct skip targets.
+It also inspects the immediately preceding
+source instruction at
++0x1504/+0x150C/+0x1514 for each
+`stfs f0` store at +0x1508/+0x1510/+0x1518,
+reporting safe floating-load/store
+opcode/register/base/displacement categories.
+An adjacent `lfs f0` yields a
+**local source register-copy fact**,
+not a proof that the queried KCol
+prism caused that precise float value.
+
+If the original CR source gates pass,
+the source route has precise conditional meaning:
+for the main returned classification
+equal to code **7** or **12**,
+the adjacent `beq` can branch to
++0x152C **past the float-store triad**;
+for other values, and only if earlier
+query checks permit, the fallthrough
+can reach the three float writes.
+That is source code branching,
+**not observed guest execution**.
+The actual return-code meaning,
+which codes are wood/trunk/foliage,
+and whether +0xAC/+0xB0/+0xB4 are
+Ball collision normal, contact
+vector or velocity remain unverified.
+`training_approved=false`.
+
+The program is read-only and emits
+only native public Ball/KCol source-relative
+sites and sanitized syntax. No
+original native PPC words/ROM or
+raw RAM, private heap pointers/XYZ,
+asset data, archive paths, Dolphin,
+new user swings, video or writes
+are requested or committed.
