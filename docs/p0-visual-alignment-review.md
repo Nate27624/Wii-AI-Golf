@@ -305,3 +305,37 @@ The existing A heuristic is unchanged and independent. This UI feature
 only exposes an existing operator-confirmed source mapping: no added
 RAM scanning, no controller commands, no write RPCs, no training,
 no original art/geometry and no player physics reinterpretation.
+
+## Focused UI by default — advanced tools are opt-in
+
+After FC3 visual alignment and live Driver/Iron/Wedge/Putter recognition were
+operator-confirmed, the research-heavy inspector was visually cluttered.
+The default inspector now prioritizes the original **full-width 3D
+course** and the source-gated **A PRESSED/RELEASED** and **CLUB ...** labels.
+The header always retains **Connect LIVE (read-only)**, **Disconnect**
+and **Verify SHA-256 and Open Offline**. The 3D viewer keeps the
+texture/collision modes, trees/flag/ball/tee-proxy golfer/direction toggles
+and degree readout.
+
+A single **Advanced ▸ / ▾** control reveals or hides the earlier research
+features without unloading anything:
+
+- Replay capture/manifest paths, bridge port and PowerShell game launcher.
+- Sample/phase list, aim baseline and source visual asset selector.
+- Raw BE-u32 / f32 source table, SHA provenance, warnings, source KCL
+  and original 94-tree import/clear controls.
+- Renderer navigation explanation, filtering, source triangle counts,
+  camera values, display fit and render-time statistics.
+
+The actual legacy 2D collision fallback remains available when no
+source DAE is loaded, but it does not duplicate the visible 3D viewport
+after an original course model is accepted. Hiding Advanced does NOT
+destroy a replay or source mesh, close Felk read-only live sampling,
+reset club/A, alter source values, or change rendering/camera input.
+
+Critical unsupported Collada scene warnings and texture render
+**errors** remain visible even in compact mode; the underlying technical
+status variables continue updating. FC selection and settings are
+preserved if the model is reloaded with Advanced enabled. This is a
+layout-only change; club source gating and all physics/training safety
+restrictions remain unchanged.
