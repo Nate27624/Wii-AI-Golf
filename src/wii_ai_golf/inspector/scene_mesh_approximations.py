@@ -432,3 +432,72 @@ def draw_3d_approximations(image, comp: "ComparisonKCL | None",
                 draw.text((p[0]+7,p[1]+7), label, fill=tint,
                           stroke_width=2, stroke_fill="#152e3b")
     return image
+
+
+def draw_3d_ball_trace(image, comp: "ComparisonKCL | None",
+                       camera: "VisualCamera", trace, *,
+                       visible: bool = True):
+    """Project observed Ball+0x30 XYZ history into the SAME 3D camera.
+
+    This draws only the straight line between successive observed positions.
+    It is not a native physical spline, extrapolation or shot predictor.
+    Strokes stop at unqualified source gaps and big apparent teleports
+    (over 22% of the mapped course width in one sample). No true terrain
+    z-buffer is available in this CPU preview.
+    """
+    from .source_ball_trace import BallTrace, MAX_TRACE_SAMPLES
+    if type(visible) is not bool or not isinstance(trace, BallTrace):
+        raise ValueError("Invalid observed ball trace display input")
+    if not visible or comp is None or not trace.source_qualified:
+        return image
+    if (len(trace.segments) > MAX_TRACE_SAMPLES or
+            sum(len(s) for s in trace.segments) > MAX_TRACE_SAMPLES):
+        raise ValueError("Unbounded observed ball trace")
+    from PIL import ImageDraw
+    width, height = image.size
+    right, up, toward = camera_axes(camera.yaw, camera.pitch)
+    focal = height / (2.*math.tan(math.radians(55.)/2.))
+    near = max(1e-6, camera.scale*.001)
+    eye = camera.position
+    if not comp.vertices:
+        return image
+    # This is a presentation discontinuity guard, not a physical speed limit.
+    # comp.vertices are already mapped to the same visual frame.
+    span_x = max(v[0] for v in comp.vertices)-min(v[0] for v in comp.vertices)
+    span_z = max(v[2] for v in comp.vertices)-min(v[2] for v in comp.vertices)
+    jump_limit = max(1e-4, math.hypot(span_x, span_z)*.22)
+
+    def project(mapped):
+        delta = tuple(mapped[i]-eye[i] for i in range(3))
+        depth = -sum(delta[i]*toward[i] for i in range(3))
+        if not math.isfinite(depth) or depth <= near:
+            return None
+        px = width*.5+focal*sum(delta[i]*right[i] for i in range(3))/depth
+        py = height*.5-focal*sum(delta[i]*up[i] for i in range(3))/depth
+        if not math.isfinite(px) or not math.isfinite(py):
+            return None
+        if max(abs(px), abs(py)) > 1e6:
+            return None
+        return (px, py)
+
+    draw = ImageDraw.Draw(image)
+    for segment in trace.segments:
+        if len(segment) < 2:
+            continue
+        previous_source = None
+        previous_screen = None
+        for point in segment:
+            mapped = source_to_visual_display(point, comp)
+            screen = project(mapped)
+            if previous_source is not None:
+                distance = math.dist(mapped, previous_source)
+                if (distance <= jump_limit and screen is not None
+                        and previous_screen is not None):
+                    # Dark outline + high contrast turquoise flight trace.
+                    # Pixel width is just a visibility cue; XYZ projection
+                    # carries the actual perspective.
+                    stroke = (previous_screen, screen)
+                    draw.line(stroke, fill="#142a38", width=6)
+                    draw.line(stroke, fill="#74e9ff", width=3)
+            previous_source, previous_screen = mapped, screen
+    return image
