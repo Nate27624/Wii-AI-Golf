@@ -106,6 +106,18 @@ class SourceTransitionTests(unittest.TestCase):
         events,_=self.worker([1,ValueError("not Wii Sports USA Rev1")])
         self.assertEqual([e.kind for e in events],["sample","error"])
         self.assertIn("ValueError",events[-1].reason)
+        self.assertIn("REVISION_MISMATCH",events[-1].reason)
+
+    def test_error_categories_do_not_reveal_private_details(self):
+        from wii_ai_golf.inspector.live import _safe_failure_category
+        self.assertEqual(_safe_failure_category(
+            ValueError("source transition not qualified within limit")),
+            "SOURCE_TRANSITION_TIMEOUT")
+        self.assertEqual(_safe_failure_category(
+            ValueError("unknown private address 0xDEADBEEF")),
+            "VALUE_VALIDATION_FAILURE")
+        self.assertEqual(_safe_failure_category(TimeoutError(
+            "private bridge port 55355")), "BRIDGE_TIMEOUT")
 
     def test_custom_reader_identity_change_stays_fatal_even_if_opted_in(self):
         from wii_ai_golf.inspector.live import LiveSampler
