@@ -52,6 +52,8 @@ on:
       - tests/test_p0_ball_two_global_slots_initializer_receivers_private.py
       - scripts/p0_ball_kcol_material_vector_edges_private.py
       - scripts/p0_ball_kcol_cr0_float_sources_private.py
+      - scripts/p0_ball_kcol_stack_receiver_provenance_private.py
+      - tests/test_p0_ball_kcol_stack_receiver_provenance_private.py
       - tests/test_p0_ball_kcol_cr0_float_sources_private.py
       - tests/test_p0_ball_kcol_material_vector_edges_private.py
       - tests/test_p0_ball_global_5c_init_three_caller_r3_private.py
@@ -226,5 +228,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_ball_two_global_slots_initializer_receivers_private.py -v
       - name: Original Ball KCol classification CR0 EQ branch and three float source transfers
         run: python -m unittest discover -s tests -p test_p0_ball_kcol_cr0_float_sources_private.py -v
+      - name: Original Ball KCol stack result values and r23 receiver bounded source provenance
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_stack_receiver_provenance_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
