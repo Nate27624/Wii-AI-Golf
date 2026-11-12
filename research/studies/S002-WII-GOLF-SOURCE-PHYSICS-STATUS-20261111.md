@@ -383,3 +383,21 @@ The downstream selected Ball investigation [#415](https://github.com/Nate27624/W
 **No runtime-shot claim:** all prior named calls and constants are from original static text; `power_internal=EXTERNAL_UNVERIFIED` for external launch model; `training_approved=false`. Do not conflate `calc+0x1B0/+0x1B4/+0x1B8` with selected Ball spin/velocity/heading until source receiver-consumer and same-shot handoff are proven.
 
 **Next source-only priority:** bounded original PPC disassembly of `fn_802A3CF4` and `fn_8002F898`, resolve their exact FP contract and public function-symbol identity before inferring physical meaning; then source-qualify direct consumers of the three calculated fields. Coordinate first-contact and selected Ball transfer with [#415](https://github.com/Nate27624/Wii-AI-Golf/issues/415); do not duplicate per-club launch curves, controller filters or seven-capture flag audit.
+
+
+## 2026-11-11 operator original PASS — first selected/incoming Ball +0x8C scalar values closed
+
+Operator returned `REV1_SELECTED_BALL_SCALAR_WRAPPER_PREFIX_PASS`, **14/14 original numbered banks SHA pre/post**, PPC original phases1/5/7 identical, launch caller `0x80299B94 r4=r31+0x8C`, virtual +0x10 dispatch `0x80299BB4`, four vtables and each `stfs f0,0(r4)` original-source verified. The preceding `lfs f0` constants and intervening op59 instructions are now recovered numerically:
+
+| Native case | Initial f32 constant | FP operation before store | Original store PC | Conditional scalar written to incoming Ball+0x8C |
+|---|---:|---|---|---|
+| 0 | 0.5 | `0x802B5FC0 fmuls f0,f0,f1` | `0x802B5FC4` | `f32(0.5f * s)` |
+| 1 | 0.6000000238418579 | `0x802B5ACC fmuls f0,f0,f1` | `0x802B5AD0` | `f32(0.6f * s)` |
+| 2 | 0.6000000238418579 | `0x802AFC50 fmuls f0,f0,f1` | `0x802AFC54` | `f32(0.6f * s)` |
+| 3 | 0.0 | no intervening FP operation | `0x802B009C` | `0.0f` |
+
+**Precise input domain and event:** `s` is **not automatically the accepted strength**. In the source-identified state3 branch of `fn_80299ACC`, `s=state[+0x1A8]` if `state[+0x1BC]==1`; otherwise `s=f32(state[+0x1A8]*Kstate)`, with `Kstate` the *still unverified* numeric SDA2 load at `r2-14636` (do not guess its value or identify `s` with the earlier internal UI/redline EMA). The caller only supplies incoming Ball as r31 on a **conditional** Main→Sim→Ball dispatch; actual guest shot execution remains unobserved. Store concerns **scalar +0x8C**, **not velocity triple +0x78/+0x7C/+0x80**, and is not a proved physical spin quantity.
+
+This result is distinct from the four power-input magnitude getters `[0.037,0.041,0.045,0.15]` and launch-shaping curve families `p=[0.7,0.656,0.64,0.63]`; none of these three constant families should be conflated.
+
+**Next research gate:** in original function-scoped PPC for `fn_80298E70` (`0x80298E70..0x80299528`) and `fn_80297A00` (`0x80297A00..0x8029855C`), find **candidate** D-form or indexed stores to offsets +0x78/+0x7C/+0x80, preserving receiver register and local control-flow context. Use `fn_8029A0E0` (`0x8029A0E0..0x8029A1D0`) as positive contextual reference for third/prep Ball vector stores. Do not assert selected velocity provenance from raw immediate-offset matches; confirm receiver lineage and call conditions separately. Training stays disabled.
