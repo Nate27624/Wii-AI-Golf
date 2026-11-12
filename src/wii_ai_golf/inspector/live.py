@@ -272,6 +272,11 @@ class LiveSampler:
                     if identity is None and not transitioning:
                         identity = qualified_identity
                     elif not transitioning and qualified_identity != identity:
+                        if self.packet_reader is not None:
+                            # Synthetic/custom readers lack the built-in
+                            # original Rev1 source/epoch validation needed
+                            # to establish a new owner identity.
+                            raise ValueError("source identity changed")
                         transitioning = True
                         transition_start = time.monotonic()
                         tentative_identity = qualified_identity
