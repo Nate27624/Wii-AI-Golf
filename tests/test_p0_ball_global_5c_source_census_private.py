@@ -135,7 +135,7 @@ class GlobalByteWriterCensusTests(unittest.TestCase):
         # Synthetic-only bank fixture: no original source archive/ROM.
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/"synthetic.mem1"
-            path.write_bytes(b"\\x60\\x00\\x00\\x00"*4)
+            path.write_bytes(bytes.fromhex("60000000")*4)
             def fake_inspect(read,progress=None):
                 if progress is not None:
                     progress["stage"]="synthetic_native_bank_check"
