@@ -50,6 +50,28 @@ class LiveEvent:
     rpc_calls: int = 0
     club_index: int | None = None
     club_label: str = "UNKNOWN"
+    source_segment: int = 0
+
+
+# Source-transition errors are expected while Golf replaces the active
+# shot/scene. They may interrupt a verified packet, but must NOT be treated
+# as game corruption, and must NEVER be promoted into a sample.
+# Other ValueErrors (malformed bytes, wrong Rev1 image, schema changes)
+# remain fatal. The no-source interval is explicitly bounded.
+_TRANSIENT_READ_REASONS = frozenset({
+    "source identity changed across packet",
+    "not Golf scene",
+    "scene source/owner mismatch",
+    "not active Hitting-the-Green hole",
+    "invalid scene static",
+    "invalid player manager type",
+    "ambiguous selected player",
+    "selected ball class mismatch",
+    "invalid source actor pointer",
+    "invalid source-scoped block",
+})
+_TRANSITION_MAX_SECONDS = 20.0
+_TRANSITION_PAUSE_SECONDS = 0.12
 
 
 class LiveSampler:
@@ -121,6 +143,11 @@ class LiveSampler:
             else:
                 connector = self.connector
             identity = None
+            source_segment = 1
+            transitioning = False
+            transition_start: float | None = None
+            tentative_identity = None
+            tentative_count = 0
             clock = deque(maxlen=12)
             with connector() as raw_rpc:
                 rpc = ReadOnlyRPC(raw_rpc)
@@ -128,14 +155,42 @@ class LiveSampler:
                 while not self.stop_event.is_set():
                     cycle_start = time.monotonic_ns()
                     rpc_before = rpc.calls
-                    data = packet(rpc, "LIVE", index)
+                    try:
+                        data = packet(rpc, "LIVE", index)
+                    except ValueError as exc:
+                        # While Dolphin changes the current shot/scene, the
+                        # previous verified source roots can disappear. Keep
+                        # this SAME read-only connection open briefly, but
+                        # never show the previous ball/club as still live.
+                        if (self.packet_reader is not None
+                                or str(exc) not in _TRANSIENT_READ_REASONS):
+                            raise
+                        if not transitioning:
+                            transitioning = True
+                            transition_start = time.monotonic()
+                            tentative_identity = None
+                            tentative_count = 0
+                            self._emit(LiveEvent(
+                                "transition", reason="SOURCE_TEMPORARILY_UNAVAILABLE",
+                                source_segment=source_segment))
+                        # A failed packet interrupts the consecutive
+                        # requalification run. Do not count two stable
+                        # identities separated by an unqualified frame.
+                        tentative_identity = None
+                        tentative_count = 0
+                        if (transition_start is not None
+                                and time.monotonic() - transition_start
+                                > _TRANSITION_MAX_SECONDS):
+                            raise ValueError("source transition timed out") from None
+                        self.stop_event.wait(max(self.pause,
+                                                 _TRANSITION_PAUSE_SECONDS))
+                        continue
                     actor = data["identity"]
                     if not isinstance(actor, (tuple, list)) or len(actor) != 14:
                         raise ValueError("source identity schema changed")
-                    if identity is None:
-                        identity = tuple(actor)
-                    elif tuple(actor) != identity:
-                        raise ValueError("source identity changed")
+                    # Strictly verify the entire new packet first. Only
+                    # AFTER complete source+time+type gating may its
+                    # identity become a candidate for a new shot segment.
                     raw_words = data["words"]
                     if not isinstance(raw_words, dict) or not raw_words:
                         raise ValueError("invalid source-qualified packet")
@@ -153,7 +208,8 @@ class LiveSampler:
                     if (not isinstance(frames, (tuple, list)) or len(frames) != 2
                             or any(type(f) is not int or f < 0 for f in frames) or frames[1] < frames[0]):
                         raise ValueError("invalid bridge frame bracket")
-                    owner_digest = hashlib.sha256(repr(identity).encode("ascii")).hexdigest()
+                    # The final source-segment digest is assigned BELOW,
+                    # after any identity transition has been confirmed.
                     a_words, probe_start = None, None
                     if self.include_a_state and self.use_batched_reads and self.packet_reader is None:
                         a_words = data.get('a_record')
@@ -217,18 +273,83 @@ class LiveSampler:
                     if raw_club is not None and (type(raw_club) is not int or not 0 <= raw_club <= 3):
                         raise ValueError('unqualified selected-club index')
                     selected_club_label = club_label(raw_club)
-                    sample = Sample(index, "LIVE", index, start, end, words, owner_digest,
-                                    True, "Read-only non-atomic source-qualified host sample", "complete", tuple(frames))
+                    qualified_identity = tuple(actor)
+                    if identity is None and not transitioning:
+                        identity = qualified_identity
+                    elif not transitioning and qualified_identity != identity:
+                        if self.packet_reader is not None:
+                            # Synthetic/custom readers lack the built-in
+                            # original Rev1 source/epoch validation needed
+                            # to establish a new owner identity.
+                            raise ValueError("source identity changed")
+                        transitioning = True
+                        transition_start = time.monotonic()
+                        tentative_identity = qualified_identity
+                        tentative_count = 1
+                        self._emit(LiveEvent(
+                            "transition", reason="VERIFIED_SOURCE_IDENTITY_CHANGED",
+                            source_segment=source_segment))
+                        continue
+                    if transitioning:
+                        if (transition_start is not None
+                                and time.monotonic() - transition_start
+                                > _TRANSITION_MAX_SECONDS):
+                            raise ValueError("source transition timed out")
+                        if qualified_identity == tentative_identity:
+                            tentative_count += 1
+                        else:
+                            tentative_identity = qualified_identity
+                            tentative_count = 1
+                        # Two independently source-qualified packets must
+                        # agree before the UI accepts the new segment.
+                        if tentative_count < 2:
+                            self.stop_event.wait(max(self.pause, 0.01))
+                            continue
+                        identity = qualified_identity
+                        source_segment += 1
+                        transitioning = False
+                        transition_start = None
+                        tentative_identity = None
+                        tentative_count = 0
+                        clock.clear()
+                    owner_digest = hashlib.sha256(
+                        repr((source_segment, identity)).encode("ascii")
+                    ).hexdigest()
+                    sample = Sample(index, "LIVE", index, start, end, words,
+                                    owner_digest, True,
+                                    "Read-only non-atomic source-qualified host sample "
+                                    f"· source segment {source_segment}; shot number NOT verified",
+                                    "complete", tuple(frames))
                     clock.append(time.monotonic())
                     rate = (len(clock) - 1) / (clock[-1] - clock[0]) if len(clock) >= 2 and clock[-1] > clock[0] else 0.0
                     self._emit(LiveEvent("sample", sample, int(actor[13]), int(actor[5]), rate,
                                          a_record=a_words, a_read_start_ns=probe_start,
                                          read_duration_ms=(time.monotonic_ns()-cycle_start)/1e6,
                                          rpc_calls=rpc.calls-rpc_before,
-                                         club_index=raw_club, club_label=selected_club_label))
+                                         club_index=raw_club, club_label=selected_club_label,
+                                         source_segment=source_segment))
                     index += 1
                     self.stop_event.wait(self.pause)
             self._emit(LiveEvent("disconnected", reason="Operator stopped or bridge closed"))
         except (OSError, ValueError, RuntimeError, TypeError, KeyError, ImportError, TimeoutError, PermissionError, IndexError) as exc:
             # Avoid leaking dynamic guest pointers or local private file paths into UI.
-            self._emit(LiveEvent("error", reason=f"Read-only source/bridge failure ({type(exc).__name__}). No automatic retry."))
+            # Report a bounded reason class, not guest pointers or paths.
+            safe_codes = {
+                "source transition timed out": "TRANSITION_TIMEOUT",
+                "not Wii Sports USA Rev1": "WRONG_GAME_REVISION",
+                "invalid revision header": "INVALID_REVISION_HEADER",
+                "malformed bounded read": "MALFORMED_BRIDGE_READ",
+                "invalid BE bytes": "MALFORMED_BRIDGE_READ",
+                "short bounded read": "SHORT_BRIDGE_READ",
+                "invalid bridge frame bracket": "INVALID_BRIDGE_FRAME",
+                "invalid frame bracket": "INVALID_BRIDGE_FRAME",
+                "invalid bridge ordering": "INVALID_BRIDGE_FRAME",
+                "source identity changed": "CUSTOM_READER_SOURCE_SWAP",
+                "source identity schema changed": "SOURCE_IDENTITY_SCHEMA",
+                "invalid source-qualified packet": "SOURCE_PACKET_SCHEMA",
+            }
+            category = safe_codes.get(
+                str(exc), "UNEXPECTED_SOURCE_OR_BRIDGE_FAILURE")
+            self._emit(LiveEvent(
+                "error", reason=f"Read-only source/bridge failure: {category} "
+                f"({type(exc).__name__}). No automatic reconnect."))
