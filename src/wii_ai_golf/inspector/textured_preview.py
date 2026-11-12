@@ -161,7 +161,7 @@ class TexturedPreviewWindow:
         ttk.Button(review, text="Top-down view",
                    command=self.start_visual_review).pack(side="left")
         ttk.Label(review,
-                  text="FC3 visual alignment operator-confirmed; physics coordinates unverified"
+                  text="Visual comparison operator-confirmed for selected course; native physics mapping unverified"
                   ).pack(side="left", padx=8)
         markers = ttk.Frame(self.top, padding=(6, 2))
         markers.pack(fill="x")
