@@ -10,10 +10,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from wii_ai_golf.inspector.scene_mesh_approximations import (
     actor_mesh_faces, actor_mesh_size, tree_mesh_faces,
+    direction_arrow_faces,
     draw_3d_approximations, MAX_SCENE_FACES)
 from wii_ai_golf.inspector.scene_camera import VisualCamera
 from wii_ai_golf.inspector.source_actor_overlay import (
-    SourceActorSnapshot, draw_source_actors)
+    SourceActorSnapshot, draw_source_actors, from_sample)
+from wii_ai_golf.inspector.replay import Sample, AIM
 from wii_ai_golf.inspector.unified_source_view import (
     ComparisonKCL, source_to_visual_display)
 
@@ -152,6 +154,125 @@ class Approximate3DSceneTests(unittest.TestCase):
         actor_mesh_faces(comp(),snap)
         tree_mesh_faces(source_trees())
         self.assertEqual(snap.ball,source)
+
+    def test_operator_screenshot_scale_reduced_at_both_green_and_tee(self):
+        # At 100 source units wide the figure must be under 1 source unit
+        # instead of the old 3.5 source-unit silhouette. No source geometry
+        # or physical scale is modified.
+        h = actor_mesh_size(comp())
+        self.assertAlmostEqual(h, .8)
+        actors = SourceActorSnapshot(
+            ball=(20., 0., 20.), flag=(52., 0., 52.),
+            tee_proxy=(20., 0., 20.), source_qualified=True)
+        faces = actor_mesh_faces(comp(), actors)
+        for kind in ("player", "flag"):
+            positions = [p for face in faces if face.kind == kind
+                         for p in face.vertices]
+            height = max(p[1] for p in positions) - min(p[1] for p in positions)
+            self.assertLess(height, 1.2)
+            self.assertGreater(height, .3)
+        self.assertLess(h, 100*.01)
+
+    def test_degree_delta_requires_qualified_matching_source_baseline(self):
+        import struct
+        angle = lambda v: struct.unpack(">I", struct.pack(">f", v))[0]
+        packet = Sample(
+            0, "aim", 0, 0, 1,
+            {AIM: (angle(math.radians(35.)),),
+             "pin_candidate": tuple(angle(v) for v in (80., 1., 20.)),
+             "tee_start_candidate": tuple(angle(v) for v in (20., 1., 20.))},
+            "qualified-hash", True, "", "complete", None)
+        measured = from_sample(
+            packet, baseline=math.radians(10.),
+            baseline_source="qualified-hash",
+            baseline_mode="OPERATOR set pointed-at-flag reference")
+        self.assertAlmostEqual(measured.aim_raw_degrees, 35., places=4)
+        self.assertAlmostEqual(measured.aim_delta_degrees, 25., places=4)
+        self.assertEqual(measured.aim_reference, "operator")
+        wrong_epoch = from_sample(
+            packet, baseline=math.radians(10.),
+            baseline_source="different-source-epoch")
+        self.assertIsNone(wrong_epoch.aim_delta_degrees)
+        self.assertIsNotNone(wrong_epoch.aim_raw_degrees)
+        self.assertEqual(direction_arrow_faces(comp(), wrong_epoch), ())
+        absent = Sample(1, "aim", 1, 0, 1, packet.words,
+                        None, False, "", "complete", None)
+        self.assertEqual(from_sample(absent), SourceActorSnapshot())
+        self.assertEqual(direction_arrow_faces(comp(),from_sample(absent)), ())
+
+    def test_direction_arrow_is_3d_and_rotates_with_relative_degrees(self):
+        source=SourceActorSnapshot(
+            tee_proxy=(20., 1., 20.), flag=(70., 1., 20.),
+            aim_delta_degrees=0., source_qualified=True,
+            aim_reference="assumed")
+        arrow = direction_arrow_faces(comp(), source)
+        self.assertEqual({v.kind for v in arrow}, {"direction"})
+        self.assertGreaterEqual(len(arrow), 9)
+        self.assertLess(len(arrow), 20)
+        vertices={v for face in arrow for v in face.vertices}
+        self.assertGreater(max(v[0] for v in vertices)-min(v[0] for v in vertices), 6.)
+        self.assertGreater(max(v[1] for v in vertices)-min(v[1] for v in vertices), 0.)
+        rotated=SourceActorSnapshot(
+            tee_proxy=source.tee_proxy, flag=source.flag,
+            aim_delta_degrees=90., source_qualified=True,
+            aim_reference="assumed")
+        sideways={v for face in direction_arrow_faces(comp(),rotated)
+                  for v in face.vertices}
+        # +90 degrees rotates from tee -> +X to tee -> +Z.
+        self.assertGreater(max(v[2] for v in sideways) -
+                           min(v[2] for v in sideways), 6.)
+        self.assertLess(max(v[0] for v in sideways) -
+                        min(v[0] for v in sideways), 4.)
+        self.assertEqual(source.tee_proxy, (20.,1.,20.))
+        self.assertEqual(source.flag, (70.,1.,20.))
+
+    def test_arrow_toggle_changes_pixels_without_game_writes(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow optional")
+        original=Image.new("RGB",(900,580),(19,33,48))
+        state=SourceActorSnapshot(
+            tee_proxy=(20.,0.,20.), flag=(80.,0.,20.),
+            aim_delta_degrees=18., source_qualified=True,
+            aim_reference="operator")
+        no_arrow=draw_3d_approximations(
+            original.copy(),comp(),cam(),snapshot=state,
+            show_trees=False,show_flag=False,show_ball=False,
+            show_player=False,show_direction=False,labels=False)
+        yes_arrow=draw_3d_approximations(
+            original.copy(),comp(),cam(),snapshot=state,
+            show_trees=False,show_flag=False,show_ball=False,
+            show_player=False,show_direction=True,labels=False)
+        self.assertEqual(no_arrow.tobytes(),original.tobytes())
+        self.assertNotEqual(yes_arrow.tobytes(),original.tobytes())
+        self.assertEqual(original.getpixel((0,0)),(19,33,48))
+
+    def test_ui_degrees_provenance_and_direction_toggle(self):
+        import inspect
+        from wii_ai_golf.inspector.textured_preview import TexturedPreviewWindow
+        visual=inspect.getsource(TexturedPreviewWindow.__init__)
+        self.assertIn('self.show_direction = tk.BooleanVar(value=True)',visual)
+        self.assertIn('("Swing direction arrow (aim hypothesis)", self.show_direction)',visual)
+        self.assertIn("textvariable=self.direction_status",visual)
+        sample=SourceActorSnapshot(
+            tee_proxy=(20.,0.,20.), flag=(80.,0.,20.),
+            aim_delta_degrees=12.5, aim_reference="operator",
+            source_qualified=True)
+        info=TexturedPreviewWindow.direction_readout(sample)
+        self.assertIn("+12.5°",info)
+        self.assertIn("operator-set",info)
+        self.assertIn("HYPOTHESIS",info)
+        illustration=SourceActorSnapshot(
+            tee_proxy=(20.,0.,20.), flag=(80.,0.,20.),
+            aim_delta_degrees=0., illustrative_only=True,
+            aim_reference="illustrative")
+        self.assertIn("ILLUSTRATIVE",
+                      TexturedPreviewWindow.direction_readout(illustration))
+        raw=SourceActorSnapshot(
+            tee_proxy=(20.,0.,20.), flag=(80.,0.,20.),
+            aim_raw_degrees=143.,source_qualified=True)
+        self.assertIn("arrow hidden",TexturedPreviewWindow.direction_readout(raw))
 
     def test_controls_place_trees_in_same_3d_toolbar_not_legacy_section(self):
         import inspect
