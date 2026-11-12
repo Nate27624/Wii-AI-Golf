@@ -155,41 +155,67 @@ def classify_original_target(read,bank_limit):
     }
 
 
-def postcall_r4_register_gate(read):
-    """Check exact 2-instruction local interval after BL and before r28<-r4.
+def original_r4_straightline_span(read,start,end):
+    """Partial PPC source-gated straightline GPR4 non-write certification.
 
-    The previous audit found *no recognized* r4 assignments there, but
-    that is insufficient if an unrecognized PPC instruction changes r4.
-    Allow only known non-control, non-update opcodes and recognized X-form
-    register operations with a GPR destination other than r4.
+    Source belongs to original native code. Unsupported operations MUST
+    abstain. Neither register alias SSA nor dynamic guest execution proven.
     """
+    if start>=end or (start|end)&3 or (end-start)//4>16:
+        raise ValueError("Invalid original bounded GPR4 source span")
     records=[]
     safe=True
-    for pc in range(old.PRELUDE+4,old.BASE+old.prior.R28_BIND,4):
+    for pc in range(start,end,4):
         word=read(pc)
         op=word>>26
         control=old.cfg.decode_transfer(pc,word)["kind"]!="linear_not_decoded_control"
         xo=(word>>1)&1023 if op==31 else None
         recognized=(op in (14,15,24,25,26,27,28,29,32,34,36,48,52)
+                    or (op==37 and ((word>>16)&31)!=4)
                     or (op==31 and xo in (444,339))
                     or word==0x60000000)
         writes_r4=any(
             dst==4 for dst,*_ in old.lineage.gpr_writers(word))
         ok=recognized and not control and not writes_r4
         records.append({
-            "callee_return_relative_instruction_index":
-                (pc-(old.PRELUDE+4))//4,
+            "source_instruction_relative_index":(pc-start)//4,
             "source_noncontrol_opcode_qualified":recognized and not control,
-            "known_destination_r4_write":writes_r4,
+            "recognized_destination_r4_write":writes_r4,
             "r4_preserved_by_this_instruction_source_gate":ok,
         })
         safe &= ok
-    if len(records)!=2:
+    return {
+        "bounded_source_instruction_syntax":records,
+        "all_source_instructions_qualified_to_preserve_r4":bool(safe),
+        "whole_game_runtime_path_or_external_entry_proven":False,
+    }
+
+
+def postcall_r4_register_gate(read):
+    """Only the two instructions between helper return and r28<-r4."""
+    span=original_r4_straightline_span(
+        read,old.PRELUDE+4,old.BASE+old.prior.R28_BIND)
+    if len(span["bounded_source_instruction_syntax"])!=2:
         raise ValueError("Unexpected native return-to-r28-bind gap")
     return {
-        "bounded_intervening_register_gate_sites":records,
-        "r4_preserved_between_return_and_r28_binding_source_verified":bool(safe),
+        "bounded_intervening_register_gate_sites":
+            span["bounded_source_instruction_syntax"],
+        "r4_preserved_between_return_and_r28_binding_source_verified":
+            span["all_source_instructions_qualified_to_preserve_r4"],
         "whole_game_runtime_path_or_external_entry_proven":False,
+    }
+
+
+def entry_r4_register_gate(read):
+    """Check all instructions from published cache entry up to helper BL."""
+    span=original_r4_straightline_span(
+        read,old.cfg.ENTRY,old.PRELUDE)
+    return {
+        "bounded_entry_prologue_register_gate_sites":
+            span["bounded_source_instruction_syntax"],
+        "r4_preserved_between_entry_and_helper_call_source_verified":
+            span["all_source_instructions_qualified_to_preserve_r4"],
+        "source_static_prelude_is_executed_at_tree_contact_proven":False,
     }
 
 
@@ -200,6 +226,7 @@ def inspect(read,bank_limit):
     # NOT proof that the original callee writes r4.
     result=bool(callee["exact_register_r4_preservation_proven"])
     postcall=postcall_r4_register_gate(read)
+    entrygate=entry_r4_register_gate(read)
     args=earlier["original_two_cache_caller_r4_exact_input_syntax"]
     return {
         "kind":"P0_ORIGINAL_BALL_PRELUDE_CALLEE_INSTRUCTION_CENSUS_V2",
@@ -208,13 +235,21 @@ def inspect(read,bank_limit):
         "callee_first_24_source_instruction_syntax":callee,
         "exact_callee_preserves_r4_if_stw_stmw_only_plus_blr":result,
         "source_postcall_to_r28_r4_register_preservation":postcall,
+        "source_entry_to_save_thunk_r4_register_preservation":entrygate,
         "original_callee_and_following_instructions_preserve_r4_verified":
             result and postcall[
+                "r4_preserved_between_return_and_r28_binding_source_verified"],
+        "original_entry_r4_to_r28_straightline_source_verified":
+            result and entrygate[
+                "r4_preserved_between_entry_and_helper_call_source_verified"]
+            and postcall[
                 "r4_preserved_between_return_and_r28_binding_source_verified"],
         "native_original_r26_r31_save_thunk_source_verified":
             callee.get("exact_original_r26_through_r31_six_store_then_blr_shape_verified",False),
         "second_caller_minus_one_can_feed_r28_if_executed_and_path_reached":
-            result and postcall[
+            result and entrygate[
+                "r4_preserved_between_entry_and_helper_call_source_verified"]
+            and postcall[
                 "r4_preserved_between_return_and_r28_binding_source_verified"]
             and args[1]["caller_entry_r4_statically_fixed_proven"],
         "original_r13_global_flag_object_identity_proven":False,
