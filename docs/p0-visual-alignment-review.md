@@ -27,12 +27,11 @@ Change mode with **Textures**, **Collision**, **Both** (cyan KCL edges),
 **Overlay** (transparent KCL polygons), or **Split** (textures left,
 collision right). Every mode uses precisely the same camera.
 
-Choose **0/90/180/270°** display yaw or nudge **Scale +/-** and
-**X/Z +/-**. Scale changes 5% per click and translations 1% of the
-playable DAE XZ diagonal per click; original source XYZ is not edited.
-**Reset display fit** discards manual adjustments and restores the
-prior source-derived display candidate. No transformation is saved to
-game physics, collision or a private asset.
+The operator confirmed FC3 visual/KCL alignment. Rotation, scale,
+translation nudges and reset **are no longer shown as UI controls**.
+Use the remaining **Top-down view** camera action and the same original
+texture/KCL display mode buttons. Native physics/world registration is
+still separately unverified.
 
 Compare recognizably distinct green/bunker shapes, fairway edges and
 tree bases, then tell the assistant **aligned YES or NO** with an
@@ -180,3 +179,32 @@ abstain/report error instead of claiming a physical transform. Native
 alignment still requires further source scene transform/memory ownership
 checks. Always preserve the user's manual review state until an
 independently checked replacement has actually been accepted by them.
+
+## Unified scene markers after FC3 operator visual confirmation
+
+The viewer's top row now has independent **Flag**, **Ball**,
+**Player (tee proxy)**, and **Labels** toggles. No manual transform
+controls are exposed. Each marker is drawn in the SAME source-to-visual
+camera/transform as the collision and tree bases. The graphical pole,
+ball and golfer are illustrated overlay symbols, not the game's native
+player/flag/ball 3D meshes; the original GUI preview stays read-only.
+
+- On SHA-qualified replay or read-only LIVE: **Ball** is the selected
+  ball `+0x30`, **Flag** uses `pin_candidate`, and the **Player**
+  symbol is anchored only at `tee_start_candidate`, *not a verified
+  actual avatar position*. No field is carried from a prior packet.
+- Before loading any source-qualified replay/live sample: the source
+  OGWS green surface's area centroid and a far-end fairway triangle
+  provide visibly labeled **illustrative-only** markers, so users can
+  evaluate placement and scene scale immediately. **These are NOT**
+  game-observed flag, ball or player world positions. The UI marks
+  this state as `ILLUSTRATIVE`.
+- Source-unqualified replay/live samples explicitly hide all positions
+  rather than silently falling back to stale real or approximate data.
+- All markers need the source KCL-to-visual display map to render. No
+  display hypothesis is used in ball physics or training.
+
+The user can load a SHA-verified JSONL capture + manifest in the existing
+inspector UI or connect the existing read-only LIVE sampler; individual
+sample selections update only same-packet markers. No new memory reads,
+controller writes, geometry exports or original art publication.

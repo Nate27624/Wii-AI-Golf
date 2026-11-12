@@ -22,6 +22,10 @@ from wii_ai_golf.inspector.unified_source_view import (
     source_to_visual_display)
 from wii_ai_golf.inspector.visual_model import PrivateVisualModel, VisualFace
 from wii_ai_golf.inspector.terrain import TerrainMesh
+from wii_ai_golf.inspector.source_actor_overlay import (
+    SourceActorSnapshot, from_sample, illustrative_from_terrain,
+    draw_source_actors)
+from wii_ai_golf.inspector.replay import Sample, BALL
 
 
 def scene():
@@ -275,6 +279,105 @@ class UnifiedSourceTests(unittest.TestCase):
         self.assertNotEqual(split.tobytes(), source_bytes)
         self.assertEqual(split.getpixel((0, 0)), source.getpixel((0, 0)))
         self.assertEqual(split.getpixel((150, 0)), (247, 232, 138))
+
+    def test_source_actor_snapshot_requires_same_qualified_sample(self):
+        import struct
+
+        def f32(v):
+            return struct.unpack(">I", struct.pack(">f", v))[0]
+
+        def sample(qualified, digest, words):
+            return Sample(
+                0, "phase", 0, 1, 2, words, digest, qualified,
+                "", "complete", None)
+
+        original = sample(True, "sha-qualified-private-source",
+                          {BALL: tuple(f32(x) for x in (8., 2., 4.)),
+                           "pin_candidate": tuple(f32(x) for x in (90., 1., 80.)),
+                           "tee_start_candidate": tuple(f32(x) for x in (8., 1., 4.))})
+        actor = from_sample(original)
+        self.assertTrue(actor.source_qualified)
+        self.assertEqual(actor.ball, (8., 2., 4.))
+        self.assertEqual(actor.flag, (90., 1., 80.))
+        self.assertEqual(actor.tee_proxy, (8., 1., 4.))
+        # Unqualified packets NEVER reuse the prior pin or selected ball.
+        self.assertEqual(from_sample(sample(False, "digest", original.words)),
+                         SourceActorSnapshot())
+        self.assertEqual(from_sample(sample(True, None, original.words)),
+                         SourceActorSnapshot())
+        # Valid sample with missing pin hides pin; no carry-forward.
+        next_sample = sample(True, "source-other",
+                             {BALL: tuple(f32(x) for x in (7., 2., 4.))})
+        self.assertIsNone(from_sample(next_sample).flag)
+        self.assertIsNone(from_sample(next_sample).tee_proxy)
+        self.assertEqual(from_sample(next_sample).ball, (7., 2., 4.))
+
+    def test_illustrative_markers_are_explicitly_not_actual_actor_positions(self):
+        model, kcl = scene()
+        illustration = illustrative_from_terrain(kcl)
+        self.assertTrue(illustration.illustrative_only)
+        self.assertFalse(illustration.source_qualified)
+        self.assertIsNotNone(illustration.flag)
+        self.assertIsNotNone(illustration.ball)
+        self.assertEqual(illustration.ball, illustration.tee_proxy)
+        self.assertEqual(illustrative_from_terrain(
+            TerrainMesh(kcl.vertices,kcl.faces,kcl.sha256,kcl.source_name)),
+            SourceActorSnapshot())
+        self.assertEqual(kcl.vertices, scene()[1].vertices)
+
+    def test_marker_draw_and_toggles_use_same_source_camera(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow not installed")
+        model, kcl = scene()
+        comp = prepare_comparison_kcl(kcl, model)
+        camera = frame_playable_camera(model)
+        original = Image.new("RGB", (520, 440), (35, 50, 65))
+        source = original.tobytes()
+        actors = SourceActorSnapshot(
+            ball=(5., 1., 5.), flag=(7., 1., 7.),
+            tee_proxy=(5., 1., 5.), source_qualified=True)
+        disabled = draw_source_actors(
+            original.copy(), comp, camera, actors,
+            show_flag=False, show_ball=False, show_player=False)
+        self.assertEqual(disabled.tobytes(), source)
+        shown = draw_source_actors(original.copy(), comp, camera, actors)
+        self.assertNotEqual(shown.tobytes(), source)
+        self.assertEqual(original.tobytes(), source)
+        # With no KCL display mapping no overlay is invented.
+        self.assertEqual(draw_source_actors(
+            original.copy(), None, camera, actors).tobytes(), source)
+
+    def test_unified_view_gui_forwards_actor_sample_to_source_overlay(self):
+        from wii_ai_golf.inspector.gui import Inspector
+        import struct
+        asbits = lambda f: struct.unpack(">I", struct.pack(">f", f))[0]
+        sample = Sample(0, "source", 0, 0, 1, {
+            BALL: (asbits(2.), asbits(1.), asbits(0.)),
+            "pin_candidate": (asbits(8.), asbits(1.), asbits(3.)),
+            "tee_start_candidate": (asbits(2.), asbits(1.), asbits(0.))},
+            "private-sha", True, "", "complete", None)
+        inspector = object.__new__(Inspector)
+        inspector.visual_preview = Mock()
+        inspector.index = SimpleNamespace(get=lambda: 0)
+        inspector.replay = SimpleNamespace(samples=(sample,))
+        Inspector._sync_visual_actors(inspector)
+        shown = inspector.visual_preview.set_actor_overlay.call_args.args[0]
+        self.assertEqual(shown.ball, (2., 1., 0.))
+        self.assertEqual(shown.flag, (8., 1., 3.))
+        inspector.replay = None
+        Inspector._sync_visual_actors(inspector)
+        inspector.visual_preview.set_actor_overlay.assert_called_with(None)
+
+    def test_controls_show_source_markers_without_rotation_or_scale_buttons(self):
+        import inspect
+        code = inspect.getsource(TexturedPreviewWindow.__init__)
+        for marker in ("Flag", "Ball", "Player (tee proxy)", "Labels"):
+            self.assertIn('("' + marker + '", self.show_', code)
+        self.assertNotIn("KCL + tree display yaw", code)
+        self.assertNotIn('("Scale +",', code)
+        self.assertNotIn("Reset display fit", code)
 
     def test_arrow_keys_hold_continuously_without_rmb_while_wasd_requires_it(self):
         model, _=scene()

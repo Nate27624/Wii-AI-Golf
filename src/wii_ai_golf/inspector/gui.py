@@ -22,6 +22,7 @@ from .navigation import pan_by, wheel_steps, zoom_at_cursor
 from .visual_model import VisualAssetError, load_private_visual_model
 from .dae_visual import load_private_dae_visual_model
 from .collada_scene_graph import UnsupportedSceneFeature
+from .source_actor_overlay import SourceActorSnapshot, from_sample
 from .private_course_catalog import (
     inspect_private_course, DEFAULT_PRIVATE_ROOT)
 from .startup import StartupError, occupied_bridge, powershell_command, runtime_checkout
@@ -438,6 +439,7 @@ class Inspector:
         prior = self.visual_preview
         self.visual_preview = preview
         self._sync_visual_trees()
+        self._sync_visual_actors()
         if prior is not None:
             prior.close()
         scene_warning = getattr(model, "source_scene_warning", None)
@@ -720,6 +722,23 @@ class Inspector:
             illustrations=crowns is None or crowns.get(),
             labels=ids is not None and ids.get())
 
+    def _sync_visual_actors(self) -> None:
+        """Forward current SHA-qualified same-packet source actor positions."""
+        preview = getattr(self, "visual_preview", None)
+        setter = getattr(preview, "set_actor_overlay", None)
+        if not callable(setter):
+            return  # Legacy visual-only synthetic GUI stubs
+        replay = getattr(self, "replay", None)
+        if replay is None or not replay.samples:
+            setter(None)  # explicitly illustrative mode when no sample
+            return
+        index = getattr(self, "index", None)
+        i = index.get() if index is not None else 0
+        if not 0 <= i < len(replay.samples):
+            setter(SourceActorSnapshot())
+            return
+        setter(from_sample(replay.samples[i]))
+
     def pick(self, var: tk.StringVar) -> None:
         name = filedialog.askopenfilename(title="Choose local file (not uploaded)")
         if name:
@@ -796,6 +815,7 @@ class Inspector:
             details += (f"Operator annotation: {sample.annotation}",)
         self.detail.set(f"{timestamp} | " + "  •  ".join(details))
         self.draw_path()
+        self._sync_visual_actors()
 
     def open_game_startup(self) -> None:
         """Explicit operator-controlled game boot/menu sequence in a visible PS.
