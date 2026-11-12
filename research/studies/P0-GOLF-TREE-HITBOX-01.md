@@ -4234,3 +4234,90 @@ raw PPC words, original game
 assets, private RAM pointers
 or coordinates are requested
 or committed.
+
+
+## Source verified negative second-caller backedge operand; global byte owner remains unresolved
+
+Operator reran the original source audit
+`P0_ORIGINAL_BALL_PRELUDE_CALLEE_INSTRUCTION_CENSUS_V2`
+at pinned SHA `93ba75fdd24d4c60f1ba66a3b25e06c5927e660f`,
+original USA Rev1 seven-pair private archive capture **7**.
+`original_seven_pair_SHA_and_source_verified=true`.
+The previous two unresolved native entry-prologue instructions
+at public Ball source `+0x2CA4` and `+0x2CA8`
+were confirmed to be PPC primary opcodes **54** and **60**
+respectively, both non-updating **floating-point stores**
+(`stfd` and Gekko `psq_st`),
+each with base GPR `r1`, not r4.
+
+**All original straight-line r4-preservation gates now pass:**
+- `Ball+0x2C78`: the second exact direct caller uses
+  `li r4,-1` before `Ball+0x2C80` `bl`.
+- `original_entry_r4_to_r28_straightline_source_verified=true`:
+  the six original instructions at published
+  cache-entry `Ball+0x2C98` through
+  the BL at +0x2CB0 preserve r4.
+  (PPC D-form instructions include stwu
+  based on r1, X-form prologue opcode,
+  stw, stfd, psq_st and addi.)
+- Original helper called at `Ball+0x2CB0`
+  is the six `stw` r26..r31 through r11
+  then unconditional `blr`;
+  `exact_register_r4_preservation_proven=true`.
+- The two original instructions after the helper
+  and before `Ball+0x2CBC: mr r28,r4`
+  preserve r4.
+- `second_caller_minus_one_can_feed_r28_if_executed_and_path_reached=true`:
+  for that source route r28 receives
+  the literal signed **-1**.
+  Since the source branch is
+  `Ball+0x2FC8: cmpwi r28,0` followed by
+  `Ball+0x2FCC: blt Ball+0x2CD0`,
+  **the signed r28<0 predicate is satisfied**
+  for the second call path if executed.
+
+This is a **static source-level and conditional-path proof**,
+not a native guest execution trace.
+The other required gate for backedge is still the
+**nonzero byte in an unidentified object**:
+`Ball+0x2FB8: lwz r3,-23304(r13)`
+followed by
+`Ball+0x2FBC: lbz r0,+0x5C(r3)`;
+then `cmpwi r0,0` / `beq`.
+No original runtime capture has established
+the meaning or live value of that global object's
+byte, and it has not been identified as the selected Ball,
+a tree, leaf/trunk material, collision response or
+guest physics state.
+
+**Memory/source-only next stage:**
+added `scripts/p0_ball_global_5c_source_census_private.py`
+plus ten synthetic-only tests
+`tests/test_p0_ball_global_5c_source_census_private.py`,
+with Windows and Ubuntu CI. It strictly re-gates
+all original SHA, seven-capture and 94-tree/native Ball
+source checks and the now proven r4→r28 path.
+It scans bounded published Golf units
+(Ball, Simulation, Player, PlayerManager,
+Tree, FieldManager, GolfKCol) for:
+- D-form byte reads and writes with numeric
+  displacement `+0x5C`, counting nearby
+  source sites and their PPC register indices;
+- r13-relative global-slot loads and stores with
+  original signed displacement `-23304`;
+- bounded direct load `lwz rX,-23304(r13)`
+  prior to `lbz`/`stb` numeric `+0x5C(rX)`,
+  flagging intervening branch or register-writer
+  concerns. **A displacement match is only a candidate,
+  not a typed receiver link or dynamic source proof.**
+
+The goal is to find the global byte's actual
+native writer or prove that its source identity
+must be investigated elsewhere, then pivot
+back to concrete native Ball↔KCol impact
+instructions. Do not derive a wood/foliage
+coefficient or an impact flag from this branch.
+No Dolphin, new gameplay, video, RAM writes,
+PPC code words, private pointer values,
+raw game assets or XYZ exported;
+`training_approved=false`.
