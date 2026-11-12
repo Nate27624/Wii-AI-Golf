@@ -53,8 +53,7 @@ class BallKcolStackReceiverTests(unittest.TestCase):
 
     def test_query_direct_call_changed_refuses(self):
         p=program()
-        p[m.BALL+m.CALL]=fixture.fixture.m.previous.cfg.decode_transfer(
-            m.BALL+m.CALL,p[m.BALL+m.CALL]) if False else d(14,3,3,0)
+        p[m.BALL+m.CALL]=d(14,3,3,0)
         with self.assertRaises(ValueError):
             m.original_anchors(read(p))
 
