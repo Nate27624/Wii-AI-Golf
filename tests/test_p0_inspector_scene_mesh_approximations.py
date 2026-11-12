@@ -253,7 +253,7 @@ class Approximate3DSceneTests(unittest.TestCase):
         from wii_ai_golf.inspector.textured_preview import TexturedPreviewWindow
         visual=inspect.getsource(TexturedPreviewWindow.__init__)
         self.assertIn('self.show_direction = tk.BooleanVar(value=True)',visual)
-        self.assertIn('("Swing direction arrow (aim hypothesis)", self.show_direction)',visual)
+        self.assertIn('text="Swing direction arrow (aim hypothesis)"',visual)
         self.assertIn("textvariable=self.direction_status",visual)
         sample=SourceActorSnapshot(
             tee_proxy=(20.,0.,20.), flag=(80.,0.,20.),
