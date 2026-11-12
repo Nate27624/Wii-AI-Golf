@@ -42,6 +42,8 @@ on:
       - scripts/p0_ball_backedge_postcall_arg_private.py
       - scripts/p0_ball_prelude_save_thunk_private.py
       - scripts/p0_ball_prelude_callee_census_private.py
+      - scripts/p0_ball_global_5c_source_census_private.py
+      - tests/test_p0_ball_global_5c_source_census_private.py
       - tests/test_p0_ball_prelude_callee_census_private.py
       - tests/test_p0_ball_prelude_save_thunk_private.py
       - tests/test_p0_ball_backedge_postcall_arg_private.py
@@ -190,5 +192,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_ball_prelude_save_thunk_private.py -v
       - name: Original prelude callee census including PPC stmw and bounded r4 preservation
         run: python -m unittest discover -s tests -p test_p0_ball_prelude_callee_census_private.py -v
+      - name: Original PPC global r13 source byte-0x5C writer and owner census
+        run: python -m unittest discover -s tests -p test_p0_ball_global_5c_source_census_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
