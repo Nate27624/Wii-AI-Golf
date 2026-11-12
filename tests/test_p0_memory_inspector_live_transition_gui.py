@@ -76,9 +76,7 @@ class LiveTransitionUITests(unittest.TestCase):
         view.a_status.set.assert_called_with("A UNKNOWN")
         view.visual_preview.set_actor_overlay.assert_called_once_with(
             SourceActorSnapshot())
-        self.assertIn("new source",str(view.status.set.call_args).lower()
-                      .replace("newly","new source") if False else
-                      str(view.status.set.call_args).lower())
+        self.assertIn("LIVE TRANSITION",str(view.status.set.call_args))
         self.assertIs(view.live_worker,sentinel)
         self.assertIs(view.startup_process,sentinel)
         self.assertFalse(sentinel.stop.called)
