@@ -130,7 +130,8 @@ class LiveTransitionUITests(unittest.TestCase):
         self.assertEqual(len(view.live_buffer),1)
         view.club_status.set.assert_called_with("CLUB UNKNOWN")
         self.assertIn("LIVE FAILED",str(view.status.set.call_args))
-        self.assertFalse(view.visual_preview.set_actor_overlay.called)
+        view.visual_preview.set_actor_overlay.assert_called_once_with(
+            SourceActorSnapshot())
 
 
 if __name__=="__main__":
