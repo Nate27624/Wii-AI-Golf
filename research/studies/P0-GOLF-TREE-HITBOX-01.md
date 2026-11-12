@@ -4480,3 +4480,117 @@ global pointer, no wood/foliage collision
 material handler or native impulse/restitution
 has been verified.
 `training_approved=false`.
+
+
+## Original global slot writer and +0x5C byte initializer: native receiver candidates
+
+Operator uploaded the full original private seven-pair
+Rev1 **capture 7** result
+`P0_ORIGINAL_BALL_GLOBAL_POINTER_AND_BYTE_WRITER_CONTEXT_V1`,
+pinned source SHA `d8e641d4df41159efd69bd5c596fdb921ed98399`.
+`original_source_archive_SHA_and_scene_verified=true`,
+all five exact PPC global/byte anchors passed, and
+`training_approved=false`.
+
+### Source-qualified relevant instruction windows
+
+**Global pointer creation/registration candidate:**
+- `Ball+0x3068: li r3,428` (source literal only).
+- `Ball+0x3070: bl` to code outside published Ball unit.
+  The real target's owner/allocator meaning is **unproven**.
+- `Ball+0x3078`: conditional branch to `Ball+0x3084`
+  around the next local call.
+- `Ball+0x307C: li r4,0`;
+  `Ball+0x3080: bl Ball+0x3BA0`.
+- `Ball+0x3084: stw r3,-23304(r13)` stores
+  the **post-call r3 value** into the global slot
+  used by 15 original Ball unit source reads.
+  This is suggestive of allocating/constructing
+  a global object but **does not establish**
+  the actual returned pointer's type,
+  active selected Ball identity or allocation semantics.
+
+**Source initializer candidate:**
+- `Ball+0x311C: li r6,0`
+  and `Ball+0x3124: li r5,1`.
+- `Ball+0x3134: mr r31,r3` saves the
+  incoming source receiver in r31.
+- `Ball+0x3144: stw r6,+0x54(r3)`,
+  `Ball+0x3148: stw r6,+0x58(r3)`,
+  `Ball+0x314C: stb r5,+0x5C(r3)`,
+  `Ball+0x3150: stb r6,+0x5D(r3)`.
+  Additional source `stfs` initialize
+  +0x78, +0x7C, +0x80, +0x88 and +0x8C.
+  **Potential byte initialization to 1 and 0
+  for whatever receiver is in r3**, subject
+  to checking intervening register writers/CFG.
+  Do not equate the receiver to the global
+  slot or active selected Ball without
+  a caller source proof.
+
+**Potential update through the global pointer:**
+- A previous original source census
+  recorded `Ball+0x2D30:
+  lwz r26,-23304(r13)`.
+- `Ball+0x2D74..+0x2D88` stores six
+  f32 zero-like candidates via r26
+  at +0x78/+0x7C/+0x80 and
+  +0x1A0/+0x1A4/+0x1A8,
+  followed by
+  `Ball+0x2D8C: stb r30,+0x5C(r26)`.
+  Between source load and byte store there
+  are several conditional and linked
+  branch sites, and full CFG reachability
+  and r26 receiver alias are **not yet proven**.
+  Numeric displacement alone is
+  insufficient to identify a tree hit.
+
+**Another +0x5C writer:**
+- `Ball+0x314C: stb r5,+0x5C(r3)`,
+  with a local `li r5,1` and
+  parallel `+0x5D(r3)` write, appears
+  within initialization-like code.
+  This is not automatically the global
+  slot's object.
+
+Original direct reads:
+`Ball+0x2DC0: lwz r4,-23304(r13)` then
+`Ball+0x2DC4: lbz r0,+0x5C(r4)`,
+and `Ball+0x2FB8: lwz r3,-23304(r13)`
+then `Ball+0x2FBC: lbz r0,+0x5C(r3)`.
+The second cache caller's signed
+r28=-1 conditional path has separately
+been source-qualified.
+**The global byte's runtime nonzero
+value and wood/foliage behavior
+remain unobserved.**
+
+### Follow-up source-only stage
+
+Added `scripts/p0_ball_global_5c_initializer_r26_private.py`
+and ten synthetic tests
+`tests/test_p0_ball_global_5c_initializer_r26_private.py`
+to draft PR #422. The audit SHA-rechecks
+all previous original native/scene gates,
+then qualifies the exact initializer
+li/stw/stb source sites, the original
+global-call and postcall registration
+sites, and the literal
+`r26 ← r13 global` / `stb +0x5C(r26)`
+static source correspondence. It
+enumerates recognized r26 reassignment
+candidates and branch barriers rather
+than claiming full CFG/SSA. It reports
+candidate r30 source definitions
+without asserting the byte written
+is a material flag or impact toggle.
+
+This is **read-only original memory
+and native source analysis**; no
+Dolphin sessions, video, new swings,
+guest writes or changes to the
+viewer/renderer code. The scripts
+and study emit no original PPC
+instruction words, ROM bytes,
+private RAM pointers, world XYZ
+or game assets. `training_approved=false`.
