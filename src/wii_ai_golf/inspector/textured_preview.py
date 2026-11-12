@@ -28,7 +28,8 @@ from .fast_texture_render import (
 from .visual_model import PrivateVisualModel, VisualAssetError
 from .source_actor_overlay import (
     SourceActorSnapshot, illustrative_from_terrain)
-from .scene_mesh_approximations import draw_3d_approximations
+from .scene_mesh_approximations import draw_3d_approximations, draw_3d_ball_trace
+from .source_ball_trace import BallTrace
 
 
 class TexturedPreviewWindow:
@@ -70,6 +71,8 @@ class TexturedPreviewWindow:
         self.review_status = tk.StringVar(
             value="Visual check: choose Review top-down; overlay is UNVERIFIED.")
         self.actor_snapshot = SourceActorSnapshot()
+        self.ball_trace = BallTrace()
+        self.show_ball_trace = tk.BooleanVar(value=True)
         self.illustrative_actors = SourceActorSnapshot()
         self.actor_sample_seen = False
         self.show_trees = tk.BooleanVar(value=True)
@@ -178,6 +181,7 @@ class TexturedPreviewWindow:
         for label, state in (
             ("Trees (3D)", self.show_trees),
             ("Flag", self.show_flag), ("Ball", self.show_ball),
+            ("Observed ball trail", self.show_ball_trace),
             ("Player (tee proxy)", self.show_player),
             ("Labels", self.show_actor_labels)):
             ttk.Checkbutton(markers, text=label, variable=state,
@@ -337,6 +341,10 @@ class TexturedPreviewWindow:
             bool(self.show_player.get()) if hasattr(self, "show_player") else True,
             bool(self.show_actor_labels.get()) if hasattr(self, "show_actor_labels") else True,
             bool(self.show_direction.get()) if hasattr(self, "show_direction") else False)
+        self._queued_ball_trace = (
+            getattr(self, "ball_trace", BallTrace()),
+            bool(self.show_ball_trace.get())
+            if hasattr(self, "show_ball_trace") else True)
         self._queued_tree_snapshot = (
             getattr(self, "tree_overlay", ()),
             getattr(self, "tree_overlay_visible", True)
@@ -365,19 +373,22 @@ class TexturedPreviewWindow:
         actor_state = getattr(self, "_queued_actor_snapshot",
                               (None, True, True, True, True, False))
         self._queued_actor_snapshot = None
+        trace_state = getattr(self, "_queued_ball_trace", (BallTrace(), True))
+        self._queued_ball_trace = None
         cancel = Event()
         self._cancel_render = cancel
         future = self._executor.submit(
             self._render_frame, width, height, camera, cancel.is_set,
             mode, kcl, tree_points, tree_visible, tree_illustrations,
-            tree_labels, filtered, actor_state)
+            tree_labels, filtered, actor_state, trace_state)
         self._render_future = (version, camera, future)
 
     def _render_frame(self, width, height, camera, cancelled,
                       mode="Textures", collision=None, tree_points=(),
                        tree_visible=True, tree_illustrations=True,
                        tree_labels=False, filtered=False,
-                       actor_state=(None, True, True, True, True, False)):
+                       actor_state=(None, True, True, True, True, False),
+                       trace_state=(BallTrace(), True)):
         """Worker-only: one source-local camera, no Tk operations or writes."""
         if cancelled():
             raise PreviewCancelled()
@@ -400,6 +411,9 @@ class TexturedPreviewWindow:
         if cancelled():
             raise PreviewCancelled()
         if collision is not None:
+            trace, show_trace = trace_state
+            image = draw_3d_ball_trace(
+                image, collision, camera, trace, visible=show_trace)
             actor, flag, ball, player, labels, direction = actor_state
             # Actual world-space polygon meshes for all toggled objects,
             # drawn using ONE source->visual transform and camera. Snapshot
@@ -815,6 +829,17 @@ class TexturedPreviewWindow:
                     " swing semantics unverified")
         return ("Swing/aim direction: no qualified same-sample angle or"
                 " tee/pin baseline · arrow hidden")
+
+    def set_ball_trace(self, trace: BallTrace) -> None:
+        """Read-only observed current-source ball positions, never prediction.
+
+        Existing caller refreshes the actor overlay immediately afterwards,
+        so no second render scheduling is needed for every LIVE packet.
+        A standalone caller may explicitly schedule after setting the trail.
+        """
+        if not isinstance(trace, BallTrace):
+            raise ValueError("Invalid source-qualified observed ball trail")
+        self.ball_trace = trace
 
     def set_actor_overlay(self, snapshot: SourceActorSnapshot | None) -> None:
         """Same-packet replay/live actor snapshot; no stale field carryover."""
