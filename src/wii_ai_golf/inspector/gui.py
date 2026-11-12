@@ -24,6 +24,7 @@ from .visual_model import VisualAssetError, load_private_visual_model
 from .dae_visual import load_private_dae_visual_model
 from .collada_scene_graph import UnsupportedSceneFeature
 from .source_actor_overlay import SourceActorSnapshot, from_sample
+from .source_ball_trace import BallTrace, observed_ball_trace
 from .private_course_catalog import (
     inspect_private_course, DEFAULT_PRIVATE_ROOT)
 from .startup import StartupError, occupied_bridge, powershell_command, runtime_checkout
@@ -806,17 +807,24 @@ class Inspector:
         """Forward current SHA-qualified same-packet source actor positions."""
         preview = getattr(self, "visual_preview", None)
         setter = getattr(preview, "set_actor_overlay", None)
+        trace_setter = getattr(preview, "set_ball_trace", None)
         if not callable(setter):
             return  # Legacy visual-only synthetic GUI stubs
         replay = getattr(self, "replay", None)
         if replay is None or not replay.samples:
+            if callable(trace_setter):
+                trace_setter(BallTrace())
             setter(None)  # explicitly illustrative mode when no sample
             return
         index = getattr(self, "index", None)
         i = index.get() if index is not None else 0
         if not 0 <= i < len(replay.samples):
+            if callable(trace_setter):
+                trace_setter(BallTrace())
             setter(SourceActorSnapshot())
             return
+        if callable(trace_setter):
+            trace_setter(observed_ball_trace(replay.samples, i))
         setter(from_sample(
             replay.samples[i],
             baseline=getattr(self, "baseline", None),
@@ -837,6 +845,7 @@ class Inspector:
             self.replay = None
             self.club_status.set("CLUB UNKNOWN")
             self.status.set(f"VERIFY FAILED — {exc}")
+            self._sync_visual_actors()
             self.phase_list.delete(0, "end")
             self.rows.delete(*self.rows.get_children())
             self.canvas.delete("all")
@@ -991,6 +1000,13 @@ class Inspector:
         self.landmark_status.set("Pin / flag: awaiting read-only sample   ·   Tee: awaiting sample")
         self.aim_status.set("Aim ray: awaiting qualified aim, tee and pin candidates.")
         self.status.set("CONNECTING read-only to EXISTING Dolphin. No controller, savestate, boot or guest writes.")
+        # No prior shot path may survive the start of a new LIVE session.
+        preview = getattr(self, "visual_preview", None)
+        if preview is not None:
+            if hasattr(preview, "set_ball_trace"):
+                preview.set_ball_trace(BallTrace())
+            if hasattr(preview, "set_actor_overlay"):
+                preview.set_actor_overlay(SourceActorSnapshot())
         worker.start()
 
     def disconnect_live(self, silent: bool = False) -> None:
@@ -1046,6 +1062,8 @@ class Inspector:
                     self.a_indicator.clear()
                     if (getattr(self, "visual_preview", None) is not None
                             and hasattr(self.visual_preview, "set_actor_overlay")):
+                        if hasattr(self.visual_preview, "set_ball_trace"):
+                            self.visual_preview.set_ball_trace(BallTrace())
                         self.visual_preview.set_actor_overlay(SourceActorSnapshot())
                     self.status.set(
                         "LIVE TRANSITION · Golf selected owner/hole changing. "
