@@ -182,12 +182,23 @@ independently checked replacement has actually been accepted by them.
 
 ## Unified scene markers after FC3 operator visual confirmation
 
-The viewer's top row now has independent **Flag**, **Ball**,
-**Player (tee proxy)**, and **Labels** toggles. No manual transform
-controls are exposed. Each marker is drawn in the SAME source-to-visual
-camera/transform as the collision and tree bases. The graphical pole,
-ball and golfer are illustrated overlay symbols, not the game's native
-player/flag/ball 3D meshes; the original GUI preview stays read-only.
+The viewer's **Show in 3D** row now contains **Trees (3D)**,
+**Flag**, **Ball**, **Player (tee proxy)**, and **Labels** toggles.
+The old bottom-row tree visibility/crown/ID checkboxes are removed; the
+Load/Clear 94-tree data buttons stay intact. All visible objects are
+low-polygon WORLD-SPACE 3D approximations transformed through the same
+KCL-source-to-FC3-visual display map and perspective camera as the
+collision mesh. Tree trunks and two conical foliage tiers, faceted
+ball sphere, cylindrical flagpole with cloth, and an articulated
+golfer made of 3D cylinders and head sphere replace the original
+fixed-pixel symbols and separate base-dot/tree pass.
+
+Objects are painter-sorted *against each other*, but are NOT
+depth-tested against the source UV/PNG terrain. Approximate sizes,
+colors, facing and a slight player/tee offset are illustrations,
+not original Nintendo assets, player XYZ or hitbox/collision volumes.
+The existing read-only render/UI, original DAE, KCL OBJ and JSON,
+source memory and physics remain untouched.
 
 - On SHA-qualified replay or read-only LIVE: **Ball** is the selected
   ball `+0x30`, **Flag** uses `pin_candidate`, and the **Player**
