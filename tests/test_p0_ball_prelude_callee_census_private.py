@@ -86,6 +86,19 @@ class OriginalCalleeCensusTests(unittest.TestCase):
         x=m.classify_original_target(read(p),m.MEM1+0x1000000)
         self.assertFalse(x["exact_register_r4_preservation_proven"])
 
+    def test_entry_prelude_r4_overwrite_blocks_complete_negative_argument_proof(self):
+        p=original()
+        for i,reg in enumerate(range(26,32)):
+            p[TARGET+4*i]=d(36,reg,11,-24+4*i)
+        p[TARGET+24]=0x4E800020
+        p[m.old.cfg.ENTRY+4]=d(14,4,4,1)
+        x=m.inspect(read(p),m.MEM1+0x1000000)
+        self.assertTrue(x["exact_callee_preserves_r4_if_stw_stmw_only_plus_blr"])
+        self.assertFalse(x["source_entry_to_save_thunk_r4_register_preservation"][
+            "r4_preserved_between_entry_and_helper_call_source_verified"])
+        self.assertFalse(x["original_entry_r4_to_r28_straightline_source_verified"])
+        self.assertFalse(x["second_caller_minus_one_can_feed_r28_if_executed_and_path_reached"])
+
     def test_postcall_local_r4_write_blocks_negative_r28_propagation(self):
         p=original()
         for i,reg in enumerate(range(26,32)):
