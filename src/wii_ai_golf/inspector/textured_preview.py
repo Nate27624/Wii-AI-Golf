@@ -175,10 +175,15 @@ class TexturedPreviewWindow:
             ("Trees (3D)", self.show_trees),
             ("Flag", self.show_flag), ("Ball", self.show_ball),
             ("Player (tee proxy)", self.show_player),
-            ("Swing direction arrow (aim hypothesis)", self.show_direction),
             ("Labels", self.show_actor_labels)):
             ttk.Checkbutton(markers, text=label, variable=state,
                             command=self.schedule).pack(side="left", padx=(6, 0))
+        direction_controls = ttk.Frame(self.top, padding=(6, 1))
+        direction_controls.pack(fill="x")
+        ttk.Checkbutton(
+            direction_controls, text="Swing direction arrow (aim hypothesis)",
+            variable=self.show_direction, command=self.schedule
+        ).pack(side="left", padx=(3, 0))
         ttk.Label(self.top, textvariable=self.direction_status,
                   padding=(8, 1), wraplength=1000).pack(fill="x")
         ttk.Label(self.top, textvariable=self.actor_status,
