@@ -173,6 +173,11 @@ class LiveSampler:
                             self._emit(LiveEvent(
                                 "transition", reason="SOURCE_TEMPORARILY_UNAVAILABLE",
                                 source_segment=source_segment))
+                        # A failed packet interrupts the consecutive
+                        # requalification run. Do not count two stable
+                        # identities separated by an unqualified frame.
+                        tentative_identity = None
+                        tentative_count = 0
                         if (transition_start is not None
                                 and time.monotonic() - transition_start
                                 > _TRANSITION_MAX_SECONDS):
