@@ -4702,3 +4702,121 @@ private pointers/XYZ, original PPC
 words, raw ROM or game assets exported.
 Draft research PR #422 only,
 other visual/renderer PRs untouched.
+
+
+## Source-possible global +0x5C zero write: preserved r26/r30 on conditional static witness
+
+Operator ran `P0_ORIGINAL_BALL_GLOBAL_5C_ZERO_WRITE_WITNESS_V1`
+at pinned research head
+`3491b89088b29ad0217f2e17bfbe11e7449ad160`
+on original seven-pair Rev1 private SHA-qualified capture **7**.
+The report passed original SHA, scene, and native source gates:
+`status=ORIGINAL_SHA_QUALIFIED_GLOBAL_BYTE_CLEAR_PATH_CONTEXT`,
+`original_SHA_archive_scene_and_native_source_verified=true`.
+
+### Confirmed source-possible zero write
+
+The bounded PPC source CFG contains a **60-instruction
+conditional may-reach witness** with original sequence:
+
+- `Ball+0x2CC4: li r30,0` (PPC `addi r30,r0,0`
+  with rA=0 means a literal-zero instruction);
+- `Ball+0x2D30: lwz r26,-23304(r13)` (exact
+  global-pointer slot load);
+- `Ball+0x2D8C: stb r30,+0x5C(r26)` (the
+  candidate byte-clear site).
+
+Both `all_three_source_anchors_on_one_witness=true`
+and `protected_GPR26_GPR30_preservation_source_qualified=true`
+were returned. The verifier found **no protected-register
+clobber or unknown source opcode along this one witness**,
+including native X-form instructions at +0x2D44
+`srawi` (rA destination r0, not r26/r30) and
++0x2D48 `addze` (rD destination r0, not r26/r30).
+One intervening linked call at +0x2CF4
+is tolerated under PPC r26/r30 **nonvolatile ABI**
+assumptions, *not* a whole-program callee proof.
+
+The source witness chooses:
+`Ball+0x2FC4` fallthrough (requires
+global byte +0x5C nonzero),
+`Ball+0x2FCC` taken (requires
+signed r28<0),
+`Ball+0x2CDC` taken,
+`Ball+0x2D3C` fallthrough,
+`Ball+0x2D50` fallthrough,
+`Ball+0x2D64` taken.
+All six source branch choices are enumerated
+but their mutual feasibility and guest runtime
+register/flag values **have not been observed**.
+The prior original source audit independently
+qualified the second cache caller's
+`li r4,-1` flowing to r28 through the
+nonvolatile save helper if that conditional call path
+executes, which supports—but does not prove—
+the signed-negative branch condition.
+
+**Correct conditional inference:** If this
+source witness executes and the external
+linked call obeys the normal nonvolatile
+GPR ABI, the routine would write **0**
+to the `+0x5C` byte of the object
+loaded from the global `r13,-23304` slot
+into r26. This supports a *possible*
+one-shot cache/lifecycle flag. It does NOT
+prove executed clearing, the runtime
+byte's initial nonzero value, or any
+wood-versus-leaf collision handling,
+velocity, impulse, restitution or
+selected active Ball semantics.
+
+The previously separately qualified source
+initializer `Ball+0x314C` writes literal **1**
+to another source receiver's `+0x5C` byte,
+but **`previous_initialization_written_one_to_same_global_receiver_proven=false`**
+remains correct. The next source gap
+is the global registration at
+`Ball+0x3080: bl Ball+0x3BA0`,
+followed by `Ball+0x3084:
+stw r3,-23304(r13)`, and the native
+function containing the `+0x5C=1`
+initializer.
+
+### Source-only target/caller join audit
+
+Added `scripts/p0_ball_global_5c_init_caller_join_private.py`
+and 11 synthetic tests
+`tests/test_p0_ball_global_5c_init_caller_join_private.py`,
+plus Windows+Ubuntu offline CI. The script
+re-validates original SHA, seven-pair,
+scene and source qualification. It reports
+a **bounded sanitized 32-instruction source
+window** at direct call target
+`Ball+0x3BA0`, a local initializer
+source window near `Ball+0x311C/0x314C`,
+and an inventory of original direct
+`bl` callers whose target lies inside
+the *candidate* initializer entry region
+`Ball+0x30E0..0x311C`.
+It explicitly does not assert these
+source windows are complete function
+boundaries, that any BL receiver is the
+r13-global object, or that an initializer
+matches the exact active Ball. A target
+in this interval is **candidate source
+proximity, not a confirmed constructor call**.
+Unknown indirect dispatch and external
+modules are not claimed exhausted.
+No original PPC words, ROM or assets,
+RAM pointers, XYZ, private path values,
+Dolphin, new swings or video. No guest
+memory writes or training.
+
+Further source-only work should check
+whether there is a real constructor
+call relationship and receiver identity;
+otherwise stop attributing these
+cache/lifecycle flags to tree impact
+and resume direct Ball↔GolfKCol/native
+collision implementation investigation.
+`training_approved=false`.
