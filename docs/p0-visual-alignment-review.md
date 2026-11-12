@@ -339,3 +339,46 @@ status variables continue updating. FC selection and settings are
 preserved if the model is reloaded with Advanced enabled. This is a
 layout-only change; club source gating and all physics/training safety
 restrictions remain unchanged.
+
+## LIVE source transition handling when Dolphin advances shots/scenes
+
+The prior Rev1 live worker treated the **entire fourteen-field source
+identity tuple** (including selected record, ball owner and hole) as
+permanent for the duration of a bridge connection. During genuine
+gameplay transitions these source pointers may be replaced; previously
+the worker raised **ValueError** and the UI showed generic LIVE FAILED,
+stopping all ball/club/A updates.
+
+Now the read-only inspector handles a bounded new-shot *source transition*:
+
+1. A verified owner identity change, or enumerated transient original
+   source-gate failure such as `not Golf scene`,
+   `source identity changed across packet`, or
+   `scene source/owner mismatch`, enters **LIVE TRANSITION**.
+2. Immediately hide the old ball/flag/golfer source coordinates,
+   source aim baseline, old A/club labels, raw rows and active replay
+   segment. The sampler does NOT reconnect, send input or write memory.
+3. Continue only the existing **source-validated read-only** live
+   sampling for at most **20 seconds**. Accept the new source after
+   **two consecutive independently source-qualified packets** with an
+   unchanged identity, valid selected ball, typed BE words and frame
+   brackets. An unqualified/mid-transition packet is never displayed.
+4. Start a fresh source digest/segment even if original private game
+   pointers are recycled, and clear the presumed +0x3C aim baseline.
+   Live A and selected club are then repopulated from the new qualified
+   packet. The header reads **Source segment 2 · actual shot number
+   UNVERIFIED**, not an invented Nintendo shot counter.
+5. Wrong RSPE01 Rev1, malformed bridge bytes, invalid source schemas,
+   exhausted 20-second transition and real RPC disconnects remain
+   hard failures. The UI reports a sanitized failure category, never
+   dynamic guest pointers, addresses or private file paths. No
+   automatic reconnect or input/controller command is performed.
+
+This is a source-epoch stability fix, **NOT** a completed Nintendo
+shot-state detector. Some in-game shot transitions may reuse the same
+owner pointer and need independently established ball-rest/shot-counter
+evidence. The actual player's position is also still unverified; the
+visible 3D golfer is a tee proxy. The FC3 visual/KCL coordinates and
+original private assets are unchanged. Next research phase should
+find a true native shot index or durable ready-at-ball/ball-rest
+transition signal and compare it with independent in-game observations.
