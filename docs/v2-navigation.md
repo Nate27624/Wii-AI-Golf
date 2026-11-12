@@ -21,6 +21,16 @@ python scripts/agent_init.py --role S002 --instance S002-memory-a
 
 Start from the latest `main`, review the live queue and existing CLAIM comments, then claim one bounded task on the corresponding parent issue. Each handoff should include exact SHA, files, tests, limitations, and next owner.
 
+## Optional local execution via private LocalOps v2
+
+An authorized agent can request **registered project tasks** through
+the operator-installed private LocalOps v2 GitHub mailbox and inspect
+structured results. [Agent protocol, approval rules, and examples](
+v2-localops-agent-guide.md). This does not replace the manager roster,
+read-only source verification, full repository CI, or separate live-shot
+authorization; a public GitHub issue must never be used as a command
+queue.
+
 ## Canonical paths
 
 | Behavior | Current integration |
