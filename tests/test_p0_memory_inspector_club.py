@@ -157,7 +157,6 @@ class ClubIndexTests(unittest.TestCase):
         self.assertLess(
             code.index('ttk.Label(a_panel, textvariable=self.a_status'),
             code.index('ttk.Label(a_panel, textvariable=self.club_status'))
-        )
         self.assertNotIn('club_panel = ttk.Frame',code)
 
     def test_live_club_ui_requires_source_qualified_typed_index(self):
