@@ -5266,3 +5266,122 @@ PPC binary words, native heap
 pointers/XYZ, private file paths or
 asset bytes, Dolphin, new swings or
 videos. `training_approved=false`.
+
+
+## Two original r13 globals: separately registered -23300 and -23304, no same-object flag proof; pivot to Ball-KCol
+
+Operator executed
+`P0_ORIGINAL_BALL_TWO_GLOBAL_SLOTS_INITIALIZER_RECEIVERS_V1`
+on existing original **USA Rev1 seven-pair private SHA-qualified
+capture 7**, pinned source head
+`9ab9158e2b844a532e05d5c69faa6b3216cd01d4`.
+`status=SOURCE_QUALIFIED_TWO_ADJACENT_GLOBAL_SLOTS_AND_WRAPPERS`,
+`original_SHA_scene_and_source_verification_passed=true`,
+`training_approved=false`.
+
+**Exact source census across the previously selected seven
+public Golf code units**:
+
+| Original r13 signed slot | Direct `stw` source writer | `lwz` source readers | Direct `stw` writers |
+| --- | --- | ---: | ---: |
+| `-23300(r13)` | `Ball+0x30A0` | 3 | 1 |
+| `-23304(r13)` | `Ball+0x3084` | 15 | 1 |
+
+All 4 direct reads/writes of -23300 and all 16 direct
+reads/writes of -23304 in this bounded D-form
+source census belong to the public Ball unit.
+Other scanned public units (Tree, Simulation,
+Player, PlayerManager, FieldManager, GolfKCol)
+have no matching direct D-form source accesses.
+**This is not a whole-game access inventory.**
+
+`Ball+0x2B50 lwz r3,-23300(r13)`
+feeds the first direct initializer
+`Ball+0x2B60 bl Ball+0x3108` in the original
+source span without a recognized intervening
+r3 writer/call/branch. This **does not read the
+other slot** -23304, which participates in
+the possible zero-clear cache-backedge route.
+The two other native initializer wrappers
+`Ball+0x31F8 -> +0x320C` and
+`Ball+0x322C -> +0x3248` have original
+PPC prologues that **preserve their
+incoming r3** through the direct initializer
+BL; both `source_intervening_r3_writer_sites=[]`,
+`source_unclassified_register_effects=[]`
+and `source_intervening_control_transfers=[]`.
+Their caller-provided receiver identities
+remain unknown.
+
+**Correct interpretation:** two *distinct
+r13 small-data storage locations* have two
+distinct original native source writer sites,
+but the **pointer values stored may alias**.
+No original guest pointer comparison or
+CFG/SSA relation establishes them equal
+or distinct as *objects*. The source initializer
+at `Ball+0x314C` can write byte **1**
+to `+0x5C` of its r3 receiver if executed,
+while the separate conditional may-reach
+witness at `Ball+0x2D8C` can store
+byte **0** to `+0x5C` of the
+`-23304(r13)` global object under
+unobserved branch conditions.
+`initializer_one_then_global_clear_zero_same_receiver_proven=false`
+and `minus23300_and_minus23304_same_pointer_value_proven=false`.
+**Do not call this a proven one-shot flag
+transition or a tree-contact mechanism.**
+
+**Research decision:** close this bounded
+global `+0x5C` cache/lifecycle investigation
+as **inconclusive**, preserving the SHA-qualified
+source findings without any material/physics
+inferences. Higher-value source work now
+resumes **Ball↔GolfKCol collision-code
+provenance**:
+- Original `GolfKCol+0x0118` reads
+  prism halfword `+0x0E` and
+  `+0x011C` stores it into the query
+  result classification.
+- `Ball+0x0B60` wraps another native KCol
+  query and compares codes **13** and **7**
+  at `Ball+0x0B84/+0x0B90`.
+- `Ball+0x14D0` directly calls the native
+  main GolfKCol query, reads the returned
+  stack classification at `+0x14F0`,
+  and compares **7** and **12** at
+  `+0x14F4/+0x14FC`.
+- `Ball+0x1508/+0x1510/+0x1518` write
+  three `f32` fields at receiver offsets
+  `+0xAC/+0xB0/+0xB4` on nearby
+  source branches. Their meanings are
+  *not* yet proven velocity/impulse or
+  wood-versus-foliage.
+
+The **existing source-only** audit
+`scripts/p0_ball_kcol_material_vector_edges_private.py`
+is the next original operator run,
+not a redundant new script. Its
+`P0_ORIGINAL_BALL_KCOL_MATERIAL_TO_VECTOR_EDGE_V1`
+result reports exact native
+material-code compares, adjacent
+control-flow edges and bounded
+may-reach paths from the main
+KCol query to three float stores,
+while explicitly refusing to
+identify class 7/12/13 as tree
+wood/foliage or claim active
+Ball velocity. It revalidates
+the original seven-pair SHA,
+94x84 tree scene and KCol
+prism source gates.
+
+Only original private read-only
+existing archive is accessed.
+No new Dolphin, user swings,
+video, RAM writes, raw PPC
+word exports, native ROM assets,
+private heap pointers/XYZ or
+physics training; `training_approved=false`.
+Draft PR #422 research branch only;
+renderer PRs remain untouched.
