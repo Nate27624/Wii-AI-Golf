@@ -15,6 +15,7 @@ from .replay import AIM, BALL, CACHE, Replay, Sample, float_hypothesis, load_rep
 from .live import LiveSampler
 from .a_reference import discover_reference
 from .a_live import LiveAIndicator
+from .club import club_label
 from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE, MAX_DRAW_FACES
 from .terrain_solid import back_to_front, shaded_hex
 from .terrain_labels import apply_private_surface_labels
@@ -129,6 +130,7 @@ class Inspector:
         self.aim_baseline_mode = "assumed first packet"
         self.a_indicator = LiveAIndicator(None)
         self.a_status = tk.StringVar(value="A UNKNOWN")
+        self.club_status = tk.StringVar(value="CLUB UNKNOWN")
         self.terrain_mesh: TerrainMesh | None = None
         self.terrain_visible = tk.BooleanVar(value=True)
         self.terrain_focus = tk.BooleanVar(value=False)
@@ -232,9 +234,13 @@ class Inspector:
         ttk.Label(head, textvariable=self.status, foreground="#9b271d", wraplength=1190).pack(anchor="w")
         a_panel = ttk.Frame(head)
         a_panel.pack(fill="x", pady=3)
-        ttk.Label(a_panel, textvariable=self.a_status, font=("Segoe UI", 17, "bold")).pack(side="left")
-        ttk.Label(a_panel, text="  Candidate only · start with A RELEASED · press after two baseline samples",
-                  foreground="#566171").pack(side="left")
+        ttk.Label(a_panel, textvariable=self.a_status,
+                  font=("Segoe UI", 17, "bold")).pack(side="left")
+        ttk.Label(a_panel, textvariable=self.club_status,
+                  font=("Segoe UI", 17, "bold")).pack(side="left", padx=(24, 0))
+        ttk.Label(head,
+                  text="A: candidate (baseline assumes RELEASED) · Club: source-checked Rev1 LIVE index; offline UNKNOWN",
+                  foreground="#566171").pack(anchor="w")
 
         main = ttk.PanedWindow(self.root, orient="horizontal")
         main.pack(fill="both", expand=True, padx=10)
@@ -751,6 +757,7 @@ class Inspector:
             replay = load_replay(Path(self.capture.get()), Path(self.manifest.get()))
         except (OSError, ValueError) as exc:
             self.replay = None
+            self.club_status.set("CLUB UNKNOWN")
             self.status.set(f"VERIFY FAILED — {exc}")
             self.phase_list.delete(0, "end")
             self.rows.delete(*self.rows.get_children())
@@ -764,6 +771,8 @@ class Inspector:
         self.aim_baseline_source = None
         self.a_indicator = LiveAIndicator(None)
         self.a_status.set("A UNKNOWN")
+        # Offline JSONL does not contain source-checked selected-club labels.
+        self.club_status.set("CLUB UNKNOWN")
         self.phase_list.delete(0, "end")
         self.phases: list[tuple[str, int]] = []
         for i, sample in enumerate(replay.samples):
@@ -862,6 +871,7 @@ class Inspector:
             self.live_last = None
             self.a_indicator.clear()
             self.a_status.set("A UNKNOWN")
+            self.club_status.set("CLUB UNKNOWN")
             self.a_reason.set("Launch in separate PowerShell; reconnect when ready")
             self.draw_a_overlay()
         try:
@@ -892,6 +902,7 @@ class Inspector:
         self.baseline = None
         self.aim_baseline_source = None
         self.a_status.set("A UNKNOWN")
+        self.club_status.set("CLUB UNKNOWN")
         self.a_reason.set("Connecting; first two samples assume A is RELEASED")
         self.replay = None
         self.phases = []
@@ -904,10 +915,26 @@ class Inspector:
         worker.start()
 
     def disconnect_live(self, silent: bool = False) -> None:
+        self.club_status.set("CLUB UNKNOWN")
         if self.live_worker is not None:
             self.live_worker.stop()
             if not silent:
                 self.status.set("DISCONNECT requested; RPC timeout may delay worker exit. No automatic reconnection.")
+
+    def _show_live_club(self, event: object) -> None:
+        """Show prior source-gated, typed live selection, not fabricated labels.
+
+        Offline samples, stale connections and missing/invalid values stay
+        UNKNOWN. This is read-only operator display, never training data.
+        """
+        sample = getattr(event, "sample", None)
+        index = getattr(event, "club_index", None)
+        if (sample is None or not sample.source_qualified
+                or not sample.source_digest
+                or type(index) is not int or not 0 <= index <= 3):
+            self.club_status.set("CLUB UNKNOWN")
+            return
+        self.club_status.set(f"CLUB {club_label(index)} · index {index}")
 
     def poll_live(self) -> None:
         worker = self.live_worker
@@ -925,6 +952,7 @@ class Inspector:
                     self.slider.configure(to=max(1, len(self.live_buffer) - 1))
                     self.show(len(self.live_buffer) - 1)
                     self.process_a_sample(event)
+                    self._show_live_club(event)
                     self.status.set(f"LIVE READ-ONLY · {self.live_location} · {self.live_rate:.2f} samples/s "
                                     f"· read {event.read_duration_ms:.0f} ms / {event.rpc_calls} RPCs "
                                     "· source checked · training_approved=false")
@@ -932,6 +960,7 @@ class Inspector:
                     self.status.set("LIVE FAILED: " + event.reason + " Existing sample trace frozen. Check RSPE01 Rev1 and bridge.")
                     self.live_last = None
                     self.a_status.set("A UNKNOWN")
+                    self.club_status.set("CLUB UNKNOWN")
                     self.a_reason.set("bridge disconnected, stale, or error")
                     self.draw_a_overlay()
                     self.a_indicator.clear()
@@ -939,6 +968,7 @@ class Inspector:
                     self.status.set("LIVE DISCONNECTED. Existing sample trace retained; no background retries.")
                     self.live_last = None
                     self.a_status.set("A UNKNOWN")
+                    self.club_status.set("CLUB UNKNOWN")
                     self.a_reason.set("bridge disconnected, stale, or error")
                     self.draw_a_overlay()
                     self.a_indicator.clear()
@@ -946,6 +976,7 @@ class Inspector:
                 age = time.monotonic() - self.live_last
                 if age > 3.0:
                     self.a_status.set("A UNKNOWN")
+                    self.club_status.set("CLUB UNKNOWN")
                     self.a_reason.set("bridge disconnected, stale, or error")
                     self.draw_a_overlay()
                     self.a_indicator.clear()
