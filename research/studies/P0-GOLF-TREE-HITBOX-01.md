@@ -4321,3 +4321,65 @@ No Dolphin, new gameplay, video, RAM writes,
 PPC code words, private pointer values,
 raw game assets or XYZ exported;
 `training_approved=false`.
+
+
+## Global +0x5C census abstention root cause: Path.fileno() reader bug, not archive failure
+
+Operator reran `P0_ORIGINAL_BALL_GLOBAL_5C_NATIVE_SOURCE_WRITER_CENSUS_V1`
+at `a3b9cb9cc34672ed820d8291ab2397e11ea5dae3`
+on the same original USA Rev1 SHA-qualified seven-pair
+archive capture **7** and received
+`status=ABSTAIN_ORIGINAL_SHA_SOURCE_OR_ARGUMENT_GATE`,
+`failed_public_stage=private_archive_SHA_verification`,
+`failure_exception_class=AttributeError`.
+The flag-source census **never ran**;
+this is NOT an absence-of-writer finding.
+
+The specific newly introduced code error was
+`mmap.mmap(f.fileno(),...)` while `f`
+was a `pathlib.Path` from
+`seven.src._file(...)`. The correct object
+is the already-opened file handle `h`
+created by `h=stack.enter_context(f.open("rb"))`,
+so the source code now correctly invokes
+`mmap.mmap(h.fileno(),...)`. The older
+archive-backed auditors use the correct
+opened-handle pattern and previously passed
+on this same original archive.
+
+The fix is committed in
+`scripts/p0_ball_global_5c_source_census_private.py`;
+a **synthetic-only mmap integration test**
+in `tests/test_p0_ball_global_5c_source_census_private.py`
+uses a temporary 16-byte fake MEM1 file,
+mocks the external original source SHA
+reader as already qualified and verifies
+the real `Path.open`→`mmap` handoff.
+This would have failed with the
+previous `Path.fileno` implementation;
+it uses no original game data, ROM,
+heap pointer, world XYZ, or captures.
+The existing safe abstention stage and
+exception-class reporting remain enabled.
+
+The prior genuine original native source
+facts still stand: the second Ball caller
+has `li r4,-1`; the original save helper
+is six `stw` r26..31 then `blr`;
+the entry prologue and helper preserve r4,
+and `r28` receives the negative input
+on that straight-line path if executed.
+The separate r13-global object's
+`+0x5C` byte writer, runtime value,
+selected-Ball identity, actual wood/leaf
+collision branch and physics response
+remain **unverified**.
+`training_approved=false`.
+
+No Dolphin, new swings, gameplay video,
+RAM writes or private archive exports are
+required. After CI passes on Windows/Ubuntu,
+the operator should run the corrected
+source-only `p0_ball_global_5c_source_census_private.py`
+once, pinned to its exact commit, and
+paste only the sanitized JSON.
