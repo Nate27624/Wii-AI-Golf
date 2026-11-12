@@ -427,3 +427,20 @@ Combining these *distinct* provenance sources:
 - A separate original callee at **`0x802A3CF4`** remains without a public name or verified native formula; the preceding failed independent helper dump was **`audit.symbolize` bounded-address `Abstain`**, not source mismatch. Further private-original source analysis requires a separately gated decoder with authorized bounds.
 
 **LocalOps v2 transport audit:** User-requested private LocalOps mailbox `Nate27624/Wii-AI-Golf-LocalOps` has source-confirmed successful unattended `list_files` operation [issue #7](https://github.com/Nate27624/Wii-AI-Golf-LocalOps/issues/7) for `scripts` and [issue #13](https://github.com/Nate27624/Wii-AI-Golf-LocalOps/issues/13) for `research/source_maps`; the latter returned a public source-unit map JSON file. This proves **bridge operation on the configured `wii-golf` root**, not execution of the two-helper private original audit. The mailbox protocol allows only locally pre-registered named `run_task` `argv`, and current configured root is the viewer/project checkout, not the private original archive. Do not claim `0x802A3CF4` source pass from `list_files`. Existing `[LOCALOPS-v2]` `run_task` attempt [issue #10](https://github.com/Nate27624/Wii-AI-Golf-LocalOps/issues/10) has no `LOCALOPS_RESULT_V2` receipt as of this note; unregistered tasks are ignored by design. Register an exact bounded offline SHA-gated audit task **locally** if further original-bank evidence is required, without adding remote shell/argv capabilities. `training_approved=false`.
+
+
+## Public code-unit split for remaining nonlinear helper (2026-11-11)
+
+Follow-up to the independently source-symbol-qualified `nw4r::math::SinFIdx` result above: the tracked public text-interval index [`research/source_maps/RSPE01_01_public_text_units.json`](https://github.com/Nate27624/Wii-AI-Golf/blob/main/research/source_maps/RSPE01_01_public_text_units.json) is derived from doldecomp/ogws [`config/RSPE01_01/splits.txt`](https://github.com/doldecomp/ogws/blob/master/config/RSPE01_01/splits.txt). Independently of the private original archive, it partitions:
+
+| Relevant original code PC | Public source unit interval | Unit label |
+| --- | --- | --- |
+| `0x802A3CF4` | `[0x802A3B84, 0x802A3DE4)` | `Pack/RPSports/RPGolScene/RPGolMathTrig.cpp` |
+| `0x8002F898` | `[0x8002F898, 0x8002FCDC)` | `nw4r/math/math_triangular.cpp` |
+| `0x802B2AB4` | `[0x802A79F8, 0x802C7924)` | `Pack/RPSports/RPGolScene/RPGolScene_unsplit.o` |
+
+This explains the earlier original probe's `audit.symbolize` **owner-range abstention** at the first helper: `0x802A3CF4` is *outside* the script's strict GolfScene-unsplit owner range `[0x802A79F8,0x802C7924)`, despite remaining in a distinct Golf-related public source unit. The independently sourced split is not proof of precise semantics or dynamic call execution.
+
+The public `doldecomp/ogws` configure script marks `RPGolMathTrig.cpp` as **`NonMatching`** and no corresponding published source file was found at its expected `src/Pack/RPSports/RPGolScene/RPGolMathTrig.cpp` path. Accordingly, the equation implemented by `0x802A3CF4` is **still unverified**, despite its concrete owning translation unit. Any native original disassembly must be strictly bounded to this `0x802A3B84..0x802A3DE4` public source interval, with operator's existing 14-bank SHA and three original-text phase checks. For `0x8002F898`, reuse the independently published SinFIdx source rather than repeating a private byte audit.
+
+LocalOps v2 was actually used for read-only project filesystem discovery; private mailbox [#13](https://github.com/Nate27624/Wii-AI-Golf-LocalOps/issues/13) returned `research/source_maps/RSPE01_01_public_text_units.json` from its configured checkout. The existing private [#10](https://github.com/Nate27624/Wii-AI-Golf-LocalOps/issues/10) `run_task:redline_helper_consumer_probe` still has **no result receipt**; that is not source-pass evidence, and named tasks cannot be invoked until registered in the local-only config. `training_approved=false`.
