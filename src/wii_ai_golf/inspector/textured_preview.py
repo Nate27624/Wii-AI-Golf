@@ -115,11 +115,13 @@ class TexturedPreviewWindow:
         head = ttk.Frame(self.top, padding=(6, 4))
         head.pack(fill="x")
         ttk.Label(
-            head,
-            text=f"Source visual: {model.source_name} · "
-                 f"{len(model.faces):,} triangles · {len(model.textures)} original PNGs",
+            head, text=f"Course visual · {model.source_name}",
             font=("Segoe UI", 10, "bold"),
         ).pack(anchor="w")
+        source_detail = ttk.Label(
+            head, text=f"{len(model.faces):,} source triangles · "
+                       f"{len(model.textures)} original PNG textures")
+        source_detail.pack(anchor="w")
         scene_warning = getattr(model, "source_scene_warning", None)
         if scene_warning:
             ttk.Label(
@@ -127,12 +129,13 @@ class TexturedPreviewWindow:
                 foreground="#c84820", wraplength=820,
             ).pack(anchor="w")
         else:
-            ttk.Label(
+            provenance_note = ttk.Label(
                 head,
-                text="Collada-authored scene transforms applied where supported; "
+                text="Collada-authored scene transforms where supported · "
                      "KCL/tee/pin native mapping UNVERIFIED · shaders approximate",
                 wraplength=820,
-            ).pack(anchor="w")
+            )
+            provenance_note.pack(anchor="w")
         if model.skipped_source_faces:
             ttk.Label(
                 head,
@@ -165,9 +168,10 @@ class TexturedPreviewWindow:
         review.pack(fill="x")
         ttk.Button(review, text="Top-down view",
                    command=self.start_visual_review).pack(side="left")
-        ttk.Label(review,
-                  text="Visual comparison operator-confirmed for selected course; native physics mapping unverified"
-                  ).pack(side="left", padx=8)
+        review_note = ttk.Label(
+            review, text="Visual alignment operator-confirmed for FC3; "
+                         "native physics mapping remains unverified")
+        review_note.pack(side="left", padx=8)
         markers = ttk.Frame(self.top, padding=(6, 2))
         markers.pack(fill="x")
         ttk.Label(markers, text="Show in 3D:").pack(side="left")
@@ -189,12 +193,13 @@ class TexturedPreviewWindow:
         ttk.Label(self.top, textvariable=self.actor_status,
                   padding=(8, 1), wraplength=1000).pack(fill="x")
 
-        ttk.Label(
+        navigation_tips = ttk.Label(
             controls,
-            text="RMB look · LMB orbit · MMB pan · arrows move forward/back/left/right · "
+            text="RMB look · LMB orbit · MMB pan · arrows move · "
                  "RMB+WASD/QE fly · wheel dolly · Shift faster",
             wraplength=670,
-        ).pack(side="left", padx=8)
+        )
+        navigation_tips.pack(side="left", padx=8)
 
         self.canvas = tk.Canvas(self.top, background="#13202e",
                                 takefocus=1, highlightthickness=0, height=460)
@@ -212,23 +217,63 @@ class TexturedPreviewWindow:
         self.canvas.bind("<FocusOut>", self.focus_lost)
 
         self.camera_status = tk.StringVar()
-        ttk.Label(self.top, textvariable=self.camera_status,
-                  wraplength=820, padding=(8, 1)).pack(fill="x")
+        camera_label = ttk.Label(
+            self.top, textvariable=self.camera_status,
+            wraplength=820, padding=(8, 1))
+        camera_label.pack(fill="x")
         self._update_camera_status()
-        ttk.Label(self.top, textvariable=self.comparison_status,
-                  wraplength=820, padding=(8, 1)).pack(fill="x")
+        comparison_label = ttk.Label(
+            self.top, textvariable=self.comparison_status,
+            wraplength=820, padding=(8, 1))
+        comparison_label.pack(fill="x")
         self.status = tk.StringVar(
             value=("Preparing compiled original UV renderer "
                    "(first frame warms the JIT cache once)"
                    if self.fast_active else
                    "Slow fallback UV renderer: install Numba for fast navigation"))
-        ttk.Label(self.top, textvariable=self.status,
-                  padding=(8, 0)).pack(fill="x")
+        render_label = ttk.Label(
+            self.top, textvariable=self.status, padding=(8, 0))
+        render_label.pack(fill="x")
+
+        # Technical source, frame-timing and navigation prose no longer
+        # takes space away from the FC3 course by default. All state remains
+        # live and can be restored by the parent inspector's Advanced toggle.
+        diagnostic_widgets = [
+            (source_detail, {"anchor": "w"}),
+            (filter_controls, {"fill": "x", "before": review}),
+            (review_note, {"side": "left", "padx": 8}),
+            (navigation_tips, {"side": "left", "padx": 8}),
+            (camera_label, {"fill": "x"}),
+            (comparison_label, {"fill": "x"}),
+            (render_label, {"fill": "x"}),
+        ]
+        if not scene_warning:
+            diagnostic_widgets.insert(1, (provenance_note, {"anchor": "w"}))
+        self._diagnostic_widgets = tuple(diagnostic_widgets)
+        self._diagnostics_visible = True
+        self._render_error_label = ttk.Label(
+            self.top, foreground="#b7352d", padding=(8, 1))
+        self.set_diagnostics_visible(not embedded)
         if not embedded:
             self.top.protocol("WM_DELETE_WINDOW", self.close)
         self._poll_id = self.top.after(
             16 if self.fast_active else 40, self._poll_completed)
         self.schedule()
+
+    def set_diagnostics_visible(self, visible: bool) -> None:
+        """Hide prose/technical stats, never hide errors or change rendering."""
+        if type(visible) is not bool:
+            raise ValueError("Diagnostics visibility must be Boolean")
+        if getattr(self, "_diagnostics_visible", None) == visible:
+            return
+        self._diagnostics_visible = visible
+        for widget, options in self._diagnostic_widgets:
+            if visible:
+                widget.pack(**options)
+            else:
+                widget.pack_forget()
+        # Frame data is unchanged; canvas <Configure> will request an updated
+        # render if the newly available viewport size changed.
 
     def schedule(self, *, navigation: bool = False):
         """Request a frame: nav ticks coalesce without starving the renderer.
@@ -397,6 +442,9 @@ class TexturedPreviewWindow:
                                              anchor="nw")
                     engine = ("compiled CPU" if self.fast_active
                               else "slow NumPy CPU")
+                    # Headless regression stubs can omit Tk-only notices.
+                    if getattr(self, "_render_error_label", None) is not None:
+                        self._render_error_label.pack_forget()
                     self.status.set(
                         f"{drawn:,} visible / {len(self.model.faces):,} "
                         f"source triangles · {render_ms:.0f} ms {engine} "
@@ -406,7 +454,10 @@ class TexturedPreviewWindow:
             except (VisualAssetError, OSError, ValueError,
                     ImportError, RuntimeError) as exc:
                 if version == self._request_version:
-                    self.status.set(f"Source texture preview unavailable: {exc}")
+                    message = f"Source texture preview unavailable: {exc}"
+                    self.status.set(message)
+                    self._render_error_label.configure(text=message)
+                    self._render_error_label.pack(fill="x")
             if self._queued is not None:
                 self._start_latest()
         if not self._closed:
