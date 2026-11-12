@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import io
+import tempfile
 from unittest import mock
 from pathlib import Path
 import unittest
@@ -129,6 +130,34 @@ class GlobalByteWriterCensusTests(unittest.TestCase):
         self.assertEqual(report["failed_public_stage"],"initial")
         self.assertNotIn(secret,captured.getvalue())
         self.assertFalse(report["training_approved"])
+
+    def test_native_archive_mmap_uses_open_file_handle_not_path(self):
+        # Synthetic-only bank fixture: no original source archive/ROM.
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/"synthetic.mem1"
+            path.write_bytes(b"\\x60\\x00\\x00\\x00"*4)
+            def fake_inspect(read,progress=None):
+                if progress is not None:
+                    progress["stage"]="synthetic_native_bank_check"
+                if read(m.MEM1)!=0x60000000:
+                    raise ValueError("Synthetic MEM1 mapping mismatch")
+                return {"status":"SYNTHETIC_SOURCE_BANK_OPENED"}
+            fake_sha_gate={
+                "original_seven_pair_SHA_and_source_verified":True,
+                "original_source_capture":7,
+                "original_entry_r4_to_r28_straightline_source_verified":True,
+            }
+            with mock.patch.object(m.before,"run",return_value=fake_sha_gate):
+                with mock.patch.object(m.seven,"_check_archive",
+                                       return_value={7:Path(folder)}) as verifier:
+                    with mock.patch.object(m.seven,"SIZE",(16,)):
+                        with mock.patch.object(m.seven.src,"_file",
+                                               return_value=path):
+                            with mock.patch.object(m,"inspect",side_effect=fake_inspect):
+                                result=m.run(Path(folder),7)
+            self.assertEqual(result["status"],"SYNTHETIC_SOURCE_BANK_OPENED")
+            self.assertTrue(result["original_archive_and_native_scene_SHA_verified"])
+            self.assertEqual(verifier.call_count,2)
 
     def test_output_remains_source_only_no_original_RAM_or_physics_promotion(self):
         r=m.inspect(reader(data()))
