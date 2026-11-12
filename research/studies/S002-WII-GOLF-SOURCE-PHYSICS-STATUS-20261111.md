@@ -139,3 +139,15 @@ The operator ran a narrowly source-gated standalone PowerShell/Python inspection
 **Exact logical inference:** For these archived contexts, the **manager-context early exit does not block** the distance-dependent branch of `fn_802A7CD8` *if that function is invoked*. This is only an eligibility gate. The incoming scalar must independently be **ordered less than 1.0**, and the prior `fn_802B2A40` routing based on `r4` and calc `+0x40` must first call the alternate function. No captures were proven to be at the exact shot-commit frame. **Do not claim** all seven ran the alternate transfer, that distance influences every club/shot, or that the 300-unit threshold equals game yards/feet.
 
 **Next minimum discriminant:** inspect only source-selected Player `+0x8C` calc pointer (with original selected-player provenance), its `calc+0x40` byte and `calc+0x1A4` state, plus the source-scoped selected Ball `+0x138` calc-like pointer equality. Report boolean mode flags, integer states, and categories for scalar `+0x0C/+0x10`, never private raw floats or pointers. Confirm the native selector `r4=0` means `calc+0x40==0` takes `fn_802A8110`, nonzero takes `fn_802A7CD8`; no game-frame execution inference.
+
+
+## Operator-original seven-capture discriminator: distance path threshold is 300.0 (2026-11-11)
+
+Operator pasted a successful `REV1_ALT_CONTEXT_GATE_PASS` from their existing RSPE01 Rev1 seven-paired source archive: **14 original bank SHA-256 verified pre/post**, PPC startup SDA register checks, static load/compare/branch gates at `0x802A7D50..0x802A7D6C`, and all four parent-child vtables qualified in captures 1..7.
+
+- Original `r2-13924` scalar is **300.0f**.
+- `parent+0x186C` was **finite and < 300.0** in **all seven captures**: native case sequence `[0,0,3,0,2,2,2]`.
+- Therefore the second early-bypass condition in `fn_802A7CD8` **would not** skip the distance-dependent section if execution reached it in those snapshots.
+- **This does NOT establish the alternate path executed**, nor that its initial incoming scalar was `<1.0`, nor even that an archived manager observation occurred on an accepted-shot frame. The separate `fn_802B2A40` branch to `fn_802A7CD8` or `fn_802A8110` is not resolved by this table. Humans labelled captures driver/putter/wedge, but the native case-to-club writer remains unproven.
+
+Recommended next narrow discriminator: determine `calc+0x40` branch byte **from the same source-qualified calc object** at the Ball dispatcher `0x80299AE4 lwz r3,+0x138`, identify calc object's runtime pointer/value provenance and capture mode under the actual source-selected Ball, then examine selected calc state `+0x1A4`. Do not assume a captured Ball is the one that invoked the launch dispatcher without a shot-event gate. Do not generate percent power labels or train on these archived snapshots.
