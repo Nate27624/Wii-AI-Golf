@@ -105,9 +105,11 @@ class APIClient:
 
 def decode_request(issue: dict, trusted_actor: str) -> tuple[str, dict]:
     """Strict transport shape, no shell/PowerShell, no arbitrary path/command."""
+    author = issue.get("user")
     if (issue.get("title") != TITLE
-            or issue.get("user", {}).get("login", "").lower()
-            != trusted_actor.lower()
+            or not isinstance(author, dict)
+            or not isinstance(author.get("login"), str)
+            or author["login"].lower() != trusted_actor.lower()
             or "pull_request" in issue):
         raise BridgeError("Issue author/type is not trusted")
     raw = issue.get("body")
@@ -187,23 +189,39 @@ def approved(op: str, description: str) -> bool:
     return response.strip().lower() == "y"
 
 
+def _child_env() -> dict[str, str]:
+    """Do not expose the mailbox GitHub credential to project code/tests."""
+    forbidden = {"WII_GOLF_LOCALOPS_GITHUB_TOKEN",
+                 "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN"}
+    return {k: v for k, v in os.environ.items() if k not in forbidden}
+
+
+def _redact_output(value: str) -> str:
+    secret = os.environ.get("WII_GOLF_LOCALOPS_GITHUB_TOKEN", "")
+    if secret:
+        value = value.replace(secret, "[REDACTED GITHUB CREDENTIAL]")
+    value = re.sub(r"(?i)(?:ghp_|github_pat_|ghu_|ghs_)[A-Za-z0-9_]{15,}",
+                   "[REDACTED GITHUB CREDENTIAL]", value)
+    return value[:MAX_OUTPUT]
+
+
 def run_fixed(cmd: list[str], root: Path, timeout: int = 25) -> str:
     """No shell, user-provided command/path/executable or unbounded output."""
     try:
         result = subprocess.run(
             cmd, cwd=str(root), capture_output=True, text=True,
             errors="replace", timeout=timeout, shell=False,
-            stdin=subprocess.DEVNULL, check=False)
+            stdin=subprocess.DEVNULL, check=False, env=_child_env())
     except subprocess.TimeoutExpired:
         raise BridgeError("Fixed operation timed out") from None
     except OSError:
         raise BridgeError("Required local tool unavailable") from None
-    combined = (result.stdout + "\n" + result.stderr).strip()
+    combined = _redact_output((result.stdout + "\n" + result.stderr).strip())
     if result.returncode != 0:
         raise BridgeError(
             f"Fixed command failed (exit {result.returncode}): "
-            + combined[:500].replace("ghp_", "[redacted]_"))
-    return combined[:MAX_OUTPUT]
+            + combined[:500])
+    return combined
 
 
 def execute(op: str, params: dict, root: Path, terrain: Path | None,
@@ -222,12 +240,16 @@ def execute(op: str, params: dict, root: Path, terrain: Path | None,
                 "truncated": len(entries) > 80}
     if op == "run_inspector_tests":
         suite = params["suite"]
-        pattern = ("test_p0_inspector*.py" if suite == "inspector"
-                   else "test_p0_localops*.py")
-        output = run_fixed(
-            [sys.executable, "-I", "-m", "unittest", "discover",
-             "-s", "tests", "-p", pattern, "-v"], root, timeout=180)
-        return {"suite": suite, "output": output}
+        patterns = (
+            ("test_p0_inspector*.py", "test_p0_memory_inspector*.py")
+            if suite == "inspector" else ("test_p0_localops*.py",))
+        outputs = []
+        for pattern in patterns:
+            text = run_fixed(
+                [sys.executable, "-I", "-m", "unittest", "discover",
+                 "-s", "tests", "-p", pattern, "-v"], root, timeout=180)
+            outputs.append(pattern + ":\n" + text[:1900])
+        return {"suite": suite, "output": "\n".join(outputs)[:MAX_OUTPUT]}
     if op == "sync_review_branch":
         status = run_fixed(["git", "status", "--porcelain=v1"], root)
         if status:
@@ -237,12 +259,16 @@ def execute(op: str, params: dict, root: Path, terrain: Path | None,
         remote = run_fixed(["git", "remote", "get-url", "origin"], root)
         if remote.strip().rstrip("/") not in (
             "https://github.com/Nate27624/Wii-AI-Golf.git",
+            "https://github.com/Nate27624/Wii-AI-Golf",
             "git@github.com:Nate27624/Wii-AI-Golf.git"):
             raise BridgeError("Origin remote is not the approved Wii Golf repo")
         ref = "refs/remotes/origin/" + branch
         run_fixed(["git", "fetch", "--no-tags", "origin",
                    "+refs/heads/" + branch + ":" + ref], root, timeout=90)
-        run_fixed(["git", "merge-base", "--is-ancestor", sha, ref], root)
+        # EXACT reviewed commit only, never a newer unreviewed descendant.
+        actual = run_fixed(["git", "rev-parse", ref], root).strip()
+        if actual != sha:
+            raise BridgeError("Remote branch head differs from reviewed SHA")
         run_fixed(["git", "switch", "--detach", ref], root)
         head = run_fixed(["git", "rev-parse", "HEAD"], root)
         return {"checkout": branch, "commit": head}
@@ -260,7 +286,7 @@ def execute(op: str, params: dict, root: Path, terrain: Path | None,
              str(terrain), "--terrain-labels", str(labels),
              "--visual-course", "3"], cwd=str(root),
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL, shell=False,
+            stderr=subprocess.DEVNULL, shell=False, env=_child_env(),
             creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
         return {"status": "Inspector launch requested locally"}
     raise BridgeError("Unsupported fixed local operation")
@@ -269,11 +295,19 @@ def execute(op: str, params: dict, root: Path, terrain: Path | None,
 def result_comment(number: int, op: str, state: str, payload) -> str:
     # Results go exclusively to verified PRIVATE issue. Never include
     # environment variables, auth headers or local private course content.
+    # Truncate long output BEFORE serializing. JSON remains valid and
+    # parseable by the ChatGPT GitHub connector after completion.
+    if isinstance(payload, str):
+        payload = _redact_output(payload)[:MAX_OUTPUT - 600]
+    if isinstance(payload, dict):
+        payload = {k: (_redact_output(str(v))[:MAX_OUTPUT - 600]
+                       if isinstance(v, str) else v)
+                   for k, v in payload.items()}
     text = json.dumps(
         {"schema": SCHEMA, "issue": number, "operation": op,
          "status": state, "result": payload},
         indent=2, ensure_ascii=True)
-    return RESULT + "\n\x60\x60\x60json\n" + text[:MAX_OUTPUT] + "\n\x60\x60\x60"
+    return RESULT + "\n\x60\x60\x60json\n" + text + "\n\x60\x60\x60"
 
 
 def process_one(client: APIClient, root: Path, trusted_actor: str,
