@@ -18,7 +18,7 @@ from .scene_camera import (
     fit_camera, frame_playable_camera, look_in_place, orbit, pan, dolly,
     move_continuous, camera_axes)
 from .unified_source_view import (
-    prepare_comparison_kcl, draw_comparison, draw_tree_comparison, overlay_summary)
+    prepare_comparison_kcl, draw_comparison, overlay_summary)
 from .material_alignment import (
     derive_material_alignment, MaterialAlignmentError)
 from .texture_render import PreviewCancelled, prepare_textures, render_preview
@@ -27,7 +27,8 @@ from .fast_texture_render import (
     accelerated_available, prepare_fast_scene, render_fast)
 from .visual_model import PrivateVisualModel, VisualAssetError
 from .source_actor_overlay import (
-    SourceActorSnapshot, illustrative_from_terrain, draw_source_actors)
+    SourceActorSnapshot, illustrative_from_terrain)
+from .scene_mesh_approximations import draw_3d_approximations
 
 
 class TexturedPreviewWindow:
@@ -71,6 +72,7 @@ class TexturedPreviewWindow:
         self.actor_snapshot = SourceActorSnapshot()
         self.illustrative_actors = SourceActorSnapshot()
         self.actor_sample_seen = False
+        self.show_trees = tk.BooleanVar(value=True)
         self.show_flag = tk.BooleanVar(value=True)
         self.show_ball = tk.BooleanVar(value=True)
         self.show_player = tk.BooleanVar(value=True)
@@ -167,6 +169,7 @@ class TexturedPreviewWindow:
         markers.pack(fill="x")
         ttk.Label(markers, text="Show in 3D:").pack(side="left")
         for label, state in (
+            ("Trees (3D)", self.show_trees),
             ("Flag", self.show_flag), ("Ball", self.show_ball),
             ("Player (tee proxy)", self.show_player),
             ("Labels", self.show_actor_labels)):
@@ -279,7 +282,8 @@ class TexturedPreviewWindow:
             bool(self.show_actor_labels.get()) if hasattr(self, "show_actor_labels") else True)
         self._queued_tree_snapshot = (
             getattr(self, "tree_overlay", ()),
-            getattr(self, "tree_overlay_visible", True),
+            getattr(self, "tree_overlay_visible", True)
+            and (bool(self.show_trees.get()) if hasattr(self, "show_trees") else True),
             getattr(self, "tree_illustrations", True),
             getattr(self, "tree_labels", False))
         filter_var = getattr(self, "filtered_texture", None)
@@ -336,20 +340,18 @@ class TexturedPreviewWindow:
             raise PreviewCancelled()
         if collision is not None and mode in {"Collision", "Both", "Overlay", "Split"}:
             image = draw_comparison(image, collision, camera, mode=mode)
-            # Split is a clean same-camera texture/KCL comparison. In Both
-            # and Overlay the original source tree base markers remain visible.
-            if mode != "Split" and tree_visible and tree_points:
-                image = draw_tree_comparison(
-                    image, collision, camera, tree_points,
-                    illustrations=tree_illustrations, labels=tree_labels)
         if cancelled():
             raise PreviewCancelled()
         if collision is not None:
             actor, flag, ball, player, labels = actor_state
-            image = draw_source_actors(
-                image, collision, camera, actor,
-                show_flag=flag, show_ball=ball,
-                show_player=player, labels=labels)
+            # Actual world-space polygon meshes for all toggled objects,
+            # drawn using ONE source->visual transform and camera. Snapshot
+            # carries no Tk widgets/threads, game writes, or private bytes.
+            image = draw_3d_approximations(
+                image, collision, camera, snapshot=actor,
+                source_tree_positions=tree_points if tree_visible else (),
+                show_trees=tree_visible, show_flag=flag,
+                show_ball=ball, show_player=player, labels=labels)
         return image, drawn, (time.perf_counter()-started)*1000.
 
     def _poll_completed(self):
