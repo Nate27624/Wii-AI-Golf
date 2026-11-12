@@ -4594,3 +4594,111 @@ and study emit no original PPC
 instruction words, ROM bytes,
 private RAM pointers, world XYZ
 or game assets. `training_approved=false`.
+
+
+## Global +0x5C initializer source verified; r30 zero and r26-global candidate updater need CFG qualified path
+
+The operator completed
+`P0_ORIGINAL_BALL_GLOBAL_5C_INITIALIZER_AND_R26_SOURCE_V1`
+on original SHA-gated USA Rev1 seven-pair private archive
+**capture 7**, at pinned source head
+`9fa0820cb92727c9f84b9a0b2a24f47d3df7feb6`.
+`original_SHA_7pair_archive_and_scene_gates_verified=true`,
+`status=SHA_QUALIFIED_NATIVE_INITIALIZER_AND_GLOBAL_R26_CANDIDATES`.
+The original user-supplied sanitized JSON shows:
+
+- **Initializer value source qualified, conditional on execution:**
+  `Ball+0x311C li r6,0`,
+  `Ball+0x3124 li r5,1`,
+  `Ball+0x3144/+0x3148 stw r6,+0x54/+0x58(r3)`,
+  `Ball+0x314C stb r5,+0x5C(r3)`,
+  `Ball+0x3150 stb r6,+0x5D(r3)`.
+  The bounded source report finds no recognized intervening
+  writes or control sites for r3/r5/r6 in the checked local
+  spans and positively reports literal 1 to `+0x5C`,
+  literal 0 to `+0x5D` **if the initializer executes**.
+  The initializer's r3 object **is not proven**
+  to match the r13-global slot, the selected Ball,
+  a tree, or a collision material.
+- **Global slot setter:**
+  `Ball+0x3068 li r3,428`,
+  `Ball+0x3070 bl` out of public Ball unit,
+  source conditional `Ball+0x3078`,
+  `Ball+0x307C li r4,0`,
+  `Ball+0x3080 bl Ball+0x3BA0`,
+  then `Ball+0x3084 stw r3,-23304(r13)`.
+  These syntax facts *suggest* global object allocation
+  and initialization but do not prove the external callee,
+  object type, or identity.
+- **Global-slot byte update candidate:**
+  `Ball+0x2D30 lwz r26,-23304(r13)`,
+  and later
+  `Ball+0x2D8C stb r30,+0x5C(r26)`.
+  Original bounded source contains **zero recognized
+  r26 redefinitions** between them; PPC r26 is
+  callee-saved under the standard ABI, but
+  **four conditional branch sites**
+  at +0x2D3C, +0x2D50, +0x2D64,
+  +0x2D70 may bypass the store.
+  Two unclassified X-form source instructions
+  +0x2D44 XO824 and +0x2D48 XO202 need
+  register-destination decoding before a stronger
+  same-pointer claim.
+- **Candidate byte value:** the only recognized
+  r30 definition in the examined published function
+  source span is at **Ball+0x2CC4**
+  `addi r30,r0,0`. PPC `addi` with rA=0
+  means **`li r30,0`**, not addition from
+  the prior r0 value. Because source path
+  reachability, intervening unknown GPR writes
+  and guest execution were not proved, the
+  last report correctly left
+  `source_r30_runtime_byte_value_proven=false`.
+
+**Follow-up authored:**
+`scripts/p0_ball_global_5c_zero_witness_private.py`
+and 11 synthetic-only tests in
+`tests/test_p0_ball_global_5c_zero_witness_private.py`,
+plus Windows/Ubuntu offline CI.
+The new original-source script re-runs all
+prior original SHA, scene/94-tree and native
+source gates, verifies the exact
+`li r30,0`, global-slot `lwz r26` and
+byte `stb r30`, and decodes the two
+original PPC X-form categories:
+**XO824 `srawi` (destination is rA)**
+and **XO202 `addze` (destination is rD)**.
+This is important: a partial GPR decoder
+might incorrectly treat the rS source
+register of `srawi` as its destination.
+A bounded source CFG may-reach witness
+from the published cache routine entry
+to `Ball+0x2D8C` is constructed
+using conditional transfer choices,
+and any intervening recognized r26/r30
+clobber or unknown instruction semantics
+prevents promoting register continuity.
+
+**Interpretation boundary:** even if
+the original tool finds a static witness
+containing `r30=0` then
+`r26=*(r13-23304)` then
+`stb r30,+0x5C(r26)` with no GPR
+clobbers, that establishes a
+**conditional source-possible zero write
+to the global object's byte**, not an
+observed event. It does not prove
+the initializer object is that global,
+that `+0x5C` is a tree contact latch,
+that a guest collision executes the path,
+or any native wood/foliage response,
+velocity, impulse or restitution.
+`training_approved=false`.
+
+All processing is read-only against
+the user's existing SHA-qualified original
+archive; no Dolphin/new shots/video,
+private pointers/XYZ, original PPC
+words, raw ROM or game assets exported.
+Draft research PR #422 only,
+other visual/renderer PRs untouched.
