@@ -17,6 +17,7 @@ from typing import Callable
 
 from .replay import Sample
 from .a_button import RECORD_WORDS
+from .club import club_label
 
 _ALLOWED = frozenset({"memory.read_u32", "memory.read_bytes", "frame.get_count"})
 ROOT = Path(__file__).resolve().parents[3]
@@ -47,6 +48,8 @@ class LiveEvent:
     a_read_start_ns: int | None = None
     read_duration_ms: float = 0.0
     rpc_calls: int = 0
+    club_index: int | None = None
+    club_label: str = "UNKNOWN"
 
 
 class LiveSampler:
@@ -103,7 +106,8 @@ class LiveSampler:
                 from p0_live_directional_aim_series import packet as canonical_packet, end_epoch_matches
                 from .fast import packet as batched_packet
                 packet = (lambda rpc, phase, index: batched_packet(
-                    rpc, phase, index, include_a_state=self.include_a_state
+                    rpc, phase, index, include_a_state=self.include_a_state,
+                    include_club_state=True
                 )) if self.use_batched_reads else canonical_packet
                 source_gate = self.source_gate or end_epoch_matches
             else:
@@ -204,6 +208,15 @@ class LiveSampler:
                         if (ball_after == words.get("selected_ball_plus_0x30")
                                 and aim_after == words.get("aim_candidate_plus_0x3c")):
                             a_words = candidate
+                    # Only the built-in source/epoch-gated batched reader may
+                    # supply a live selected-club label. Arbitrary injected
+                    # packet readers cannot promote a fabricated index.
+                    raw_club = (data.get('club_index')
+                                if self.packet_reader is None and self.use_batched_reads
+                                else None)
+                    if raw_club is not None and (type(raw_club) is not int or not 0 <= raw_club <= 3):
+                        raise ValueError('unqualified selected-club index')
+                    selected_club_label = club_label(raw_club)
                     sample = Sample(index, "LIVE", index, start, end, words, owner_digest,
                                     True, "Read-only non-atomic source-qualified host sample", "complete", tuple(frames))
                     clock.append(time.monotonic())
@@ -211,7 +224,8 @@ class LiveSampler:
                     self._emit(LiveEvent("sample", sample, int(actor[13]), int(actor[5]), rate,
                                          a_record=a_words, a_read_start_ns=probe_start,
                                          read_duration_ms=(time.monotonic_ns()-cycle_start)/1e6,
-                                         rpc_calls=rpc.calls-rpc_before))
+                                         rpc_calls=rpc.calls-rpc_before,
+                                         club_index=raw_club, club_label=selected_club_label))
                     index += 1
                     self.stop_event.wait(self.pause)
             self._emit(LiveEvent("disconnected", reason="Operator stopped or bridge closed"))
