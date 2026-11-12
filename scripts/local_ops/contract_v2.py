@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""Pure data contract for requesting the separate PRIVATE LocalOps v2 agent.
+
+This module NEVER opens network connections, runs commands, reads environment
+variables, or accesses the operator's machine. Authorized ChatGPT agents can
+produce the exact GitHub issue title/body through their GitHub connector and
+parse the agent's result comments. Execution policies reside ONLY in the
+private LocalOps agent's local Windows configuration.
+"""
+from __future__ import annotations
+
+import json
+import re
+
+MAILBOX_REPOSITORY = "Nate27624/Wii-AI-Golf-LocalOps"
+ISSUE_TITLE = "[LOCALOPS-v2]"
+SCHEMA = "localops-v2"
+PROJECT = "wii-golf"
+RESULT_MARKER = "LOCALOPS_RESULT_V2"
+APPROVAL_MARKER = "LOCALOPS_APPROVAL_REQUIRED_V2"
+NAME = re.compile(r"[a-z][a-z0-9_-]{0,49}\Z")
+BRANCH = re.compile(r"agent/[A-Za-z0-9][A-Za-z0-9._/-]{0,90}\Z")
+SHA40 = re.compile(r"[a-f0-9]{40}\Z")
+PATH_PART = re.compile(r"[A-Za-z0-9._-]+\Z")
+DENIED_PARTS = frozenset({
+    "", ".", "..", ".git", ".env", ".venv",
+    ".ssh", ".config", "node_modules", "__pycache__", "secrets",
+})
+OPERATIONS = frozenset({
+    "git_status", "list_files", "run_task", "checkout_reviewed",
+})
+
+
+def request(operation: str, *, task: str | None = None,
+            subdir: str | None = None, branch: str | None = None,
+            sha: str | None = None) -> tuple[str, str]:
+    """Return title + JSON body for ONE request; never execute any task.
+
+    run_task always chooses a locally pre-registered named task. The title
+    and body must be submitted to MAILBOX_REPOSITORY, not Wii-AI-Golf.
+    """
+    if type(operation) is not str or operation not in OPERATIONS:
+        raise ValueError("Unrecognized LocalOps operation")
+    if operation == "git_status":
+        if any(x is not None for x in (task, subdir, branch, sha)):
+            raise ValueError("git_status does not accept parameters")
+        params = {}
+    elif operation == "run_task":
+        if (type(task) is not str or not NAME.fullmatch(task)
+                or any(x is not None for x in (subdir, branch, sha))):
+            raise ValueError("Only a registered task NAME is allowed")
+        params = {"task": task}
+    elif operation == "list_files":
+        if (type(subdir) is not str or not 1 <= len(subdir) <= 130
+                or subdir.startswith(("/", "\\"))
+                or "\\" in subdir or ":" in subdir
+                or any(not PATH_PART.fullmatch(part)
+                       or part in DENIED_PARTS for part in subdir.split("/"))
+                or any(x is not None for x in (task, branch, sha))):
+            raise ValueError("Invalid relative project subdirectory")
+        params = {"subdir": subdir}
+    else:  # checkout_reviewed
+        if (type(branch) is not str or not BRANCH.fullmatch(branch)
+                or ".." in branch or "//" in branch
+                or branch.endswith(("/", "."))
+                or type(sha) is not str or not SHA40.fullmatch(sha)
+                or any(x is not None for x in (task, subdir))):
+            raise ValueError("An exact reviewed agent branch and SHA are required")
+        params = {"branch": branch, "sha": sha}
+    body = {"schema": SCHEMA, "project": PROJECT,
+            "operation": operation, "params": params}
+    return ISSUE_TITLE, json.dumps(body, separators=(",", ":"), sort_keys=True)
+
+
+def parse_result_comment(comment_body: str, *, issue_number: int,
+                         operation: str) -> dict | None:
+    """Parse a trusted author's structured LocalOps RESULT, or return None.
+
+    The caller MUST verify the comment's GitHub repo/author and issue number
+    through its authenticated connector. This parser itself is not an
+    authentication mechanism. A CLAIM or pending-approval comment is NOT
+    execution evidence.
+    """
+    if (type(comment_body) is not str or len(comment_body) > 20000
+            or type(issue_number) is not int or issue_number < 1
+            or operation not in OPERATIONS):
+        return None
+    start = RESULT_MARKER + "\n```json\n"
+    if not comment_body.startswith(start) or not comment_body.endswith("\n```"):
+        return None
+    raw = comment_body[len(start):-4]
+    try:
+        result = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    if (type(result) is not dict
+            or set(result) != {"schema", "issue", "operation", "status", "result"}
+            or result["schema"] != SCHEMA
+            or type(result["issue"]) is not int or result["issue"] != issue_number
+            or result["operation"] != operation
+            or result["status"] not in ("success", "error")
+            or not isinstance(result["result"], (dict, str))):
+        return None
+    return result
+
+
+def approval_pending(comment_body: str) -> bool:
+    """This is a *request to ask the operator*, not proof of approval."""
+    return (type(comment_body) is str
+            and comment_body.startswith(APPROVAL_MARKER + ": "))
+
+
+if __name__ == "__main__":
+    # This module is a contract library, deliberately not a CLI that sends
+    # private requests or executes local code.
+    raise SystemExit("Use the GitHub connector to submit private LocalOps issues.")
