@@ -280,3 +280,28 @@ Regression tests guard these behaviors.
 
 No change to original KCL, DAE, tree source positions, samples, game
 RAM, controller inputs, native physics or training approval.
+
+## Selected club next to the A indicator (restored from PR #426)
+
+The previous operator source study and live validation established a
+separate US RSPE01 Rev1 club selector global pointer at **0x804BF900**,
+distinct from the PlayerManager global, and a bounded u32 field at
+owner **+0x1C**. The four validated labels are:
+0 DRIVER, 1 IRON, 2 WEDGE, 3 PUTTER.
+The old false PlayerManager+0x1C candidate is NOT used.
+
+Port the original proven source-gated batched live reader and typed label
+from the original PR #426 into the newer FC3 3D inspector branch. In the
+main header, **CLUB WEDGE · index 2**, for example, appears on the very
+same row as **A PRESSED/RELEASED**. The independent club pointer and
+value must be valid, 0..3, unchanged across a complete original
+source-validated packet. Arbitrary injected packet readers may NOT
+promote a club index to verified; replay/offline captures do not contain
+the new club index and display **CLUB UNKNOWN**.
+
+Connection/reconnection resets, playback changes, disconnect, errors,
+and stale (>3s) live samples all clear the club indicator to UNKNOWN.
+The existing A heuristic is unchanged and independent. This UI feature
+only exposes an existing operator-confirmed source mapping: no added
+RAM scanning, no controller commands, no write RPCs, no training,
+no original art/geometry and no player physics reinterpretation.
