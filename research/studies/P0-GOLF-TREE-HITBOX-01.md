@@ -4820,3 +4820,123 @@ cache/lifecycle flags to tree impact
 and resume direct Ball↔GolfKCol/native
 collision implementation investigation.
 `training_approved=false`.
+
+
+## Original +0x5C initializer direct callers are +2B60, +320C and +3248; global registrar +3BA0 is separate
+
+Operator supplied original source-qualified
+`P0_ORIGINAL_BALL_GLOBAL_5C_INIT_CALLER_JOIN_V1` JSON
+from the existing private USA Rev1 seven-pair
+archive capture **7**, pinned original research
+head `7be051b39407171be9a91f4a3266adfeab4de67e`.
+The original native SHA, scene/94-tree and
+seven-pair source checks passed.
+`status=SOURCE_QUALIFIED_REGISTRATION_INITIALIZER_CALLSITE_CENSUS`,
+`original_SHA_scene_native_source_verified=true`,
+`training_approved=false`.
+
+The target of all **three** native direct `bl`
+instructions into the candidate initializer
+region is exactly **Ball+0x3108**,
+which has a conventional PPC prologue
+(`stwu r1,...` at +0x3108,
+`mfspr` at +0x310C,
+stack saves +0x3110..3118).
+The three original direct callers, within
+the public Ball source unit, are:
+
+- **Ball+0x2B60 → Ball+0x3108**
+- **Ball+0x320C → Ball+0x3108**
+- **Ball+0x3248 → Ball+0x3108**
+
+The exact source initializer inside this
+routine contains `Ball+0x311C li r6,0`,
+`Ball+0x3124 li r5,1`,
+`Ball+0x314C stb r5,+0x5C(r3)`
+and `Ball+0x3150 stb r6,+0x5D(r3)`.
+These establish conditional source-local
+writes of **1** and **0** to the
+*initializer receiver*, but **no caller
+r3 receiver alias to the global object
+is yet proven**.
+
+The independent global registration source
+is `Ball+0x3080 bl Ball+0x3BA0` followed
+by `Ball+0x3084 stw r3,-23304(r13)`.
+The original PPC context for the first
+32 instructions at +0x3BA0 includes
+a prologue, `mr r31,r3`, `mr r24,r4`,
+direct calls (some external), a write
+`stb r24,+0x50(r31)`, and
+`stw r3,+0x13C(r31)`.
+There is **no direct `bl` into
+the initializer candidate region**
+inside this bounded callee snippet.
+It may be a separate object initialization
+path; neither helper/constructor semantics
+nor the resulting r3 pointer's type
+or active selected Ball identity is proven.
+Indirect calls, tailcalls, and paths
+beyond the checked window remain
+unresolved.
+
+**Conditional independent clear path**
+from the prior original audit:
+`Ball+0x2CC4 li r30,0`
+→ `Ball+0x2D30
+lwz r26,-23304(r13)`
+→ `Ball+0x2D8C stb r30,+0x5C(r26)`
+on a 60-instruction static may-reach
+witness, with preserved r26/r30
+register syntax along that one
+witness and six unobserved
+conditional branch choices.
+This proves a *possible native
+zero write to the globally
+referenced object's +0x5C*,
+not that guest execution occurred,
+not that the initializer and global
+receiver are identical, and not a
+tree collision/material mechanism.
+
+**New source-only audit**:
+`scripts/p0_ball_global_5c_init_three_caller_r3_private.py`
+and 11 synthetic-only tests
+`tests/test_p0_ball_global_5c_init_three_caller_r3_private.py`
+are added to draft PR #422 with
+Windows/Ubuntu offline CI.
+It revalidates all previous
+original Rev1 SHA/scene/native
+anchors; checks that the complete
+**direct-BL source scan of the
+public Ball unit** finds exactly
+the three original +0x3108
+caller sites (and that +0x3080
+instead calls +0x3BA0);
+reports a bounded 12-instruction
+precall/3-instruction postcall
+source context for **each** caller;
+and inspects nearest syntactic
+**r3 argument definitions** with
+intervening branch/call barriers
+and unsupported-opcode indicators.
+The script can flag a *direct
+syntactic* `lwz r3,-23304(r13)`
+near a caller, but does not
+automatically prove all-path
+CFG/SSA provenance, caller receiver
+identity or actual runtime execution.
+This is the next useful source
+gate before modeling a
+`+0x5C = 1 → 0` state
+transition, or abandoning the
+cache-latch hypothesis in favor
+of direct Ball↔GolfKCol collision
+instructions.
+
+No original native PPC words,
+private RAM/ROM, pointers/XYZ,
+game assets, personal paths,
+Dolphin, new gameplay, video
+or guest writes are included.
+`training_approved=false`.
