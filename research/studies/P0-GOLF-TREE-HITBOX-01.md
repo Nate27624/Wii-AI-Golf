@@ -4031,3 +4031,106 @@ No Dolphin, video (operator explicitly
 declines uploads), live RAM interaction,
 new swings, or training.
 `training_approved=false`.
+
+
+## Original callee census resolves the missed r26 save: six stw + blr
+
+Operator supplied the original success report
+`P0_ORIGINAL_BALL_PRELUDE_CALLEE_INSTRUCTION_CENSUS_V2`
+for private SHA-qualified Rev1 seven-pair
+source archive **capture 7**, at pinned research
+head `410e11e60077d9619d22e0a57ac7cb957b68120c`.
+
+The **actual first seven PPC instructions at
+the source-qualified BL target of Ball+0x2CB0**,
+reported as instruction categories without
+native instruction words or absolute callee
+addresses, are exactly:
+
+```text
+relative 0: stw r26, -24(r11)
+relative 1: stw r27, -20(r11)
+relative 2: stw r28, -16(r11)
+relative 3: stw r29, -12(r11)
+relative 4: stw r30,  -8(r11)
+relative 5: stw r31,  -4(r11)
+relative 6: blr
+```
+
+**The previous two source tools missed a valid
+nonvolatile-GPR save helper** because they
+only allowed stores of **r27–r31**, while
+the original starts with **r26**. This
+previous negative test was a **parser
+false negative**, NOT proof the callee
+clobbered r4. Each of the six actual
+`stw` instructions writes to memory
+without modifying r4; the following
+ordinary unconditional `blr` returns
+to the caller. The additional 17
+source instructions printed by the
+24-instruction census come **after
+the return** and do not affect this
+straight-line helper path; the
+report classified them as unrecognized
+primary opcode 32 (PowerPC `lwz`),
+likely part of adjacent restore
+machinery, but that restore function's
+symbol/entry is not yet verified.
+
+**Updated source proof** in
+`scripts/p0_ball_prelude_callee_census_private.py`
+now accepts `stw r26..r31`,
+`stmw` beginning no earlier than r26,
+and NOPs as store-helper constituents,
+and separately publishes
+`exact_original_r26_through_r31_six_store_then_blr_shape_verified`.
+The script **does not assume** the
+entry argument r4 reaches the
+`mr r28,r4` at Ball+0x2CBC merely
+because the helper preserves it:
+an additional bounded gate checks
+all original function-entry instructions
+up to Ball+0x2CB0, and all original
+instructions from the helper return
+to +0x2CBC for any possible
+recognized r4 writes or unknown
+instruction categories. The second
+direct caller still explicitly sets
+`li r4,-1` at Ball+0x2C78
+and BLs the cache routine at
++0x2C80. **Only when the original
+revised source audit confirms
+the full entry → helper → r28
+register chain** can the
+negative second-caller argument
+be source-qualified as r28.
+No runtime tree contact or
+material-specific physics follows.
+
+The exact original native byte
+flag on the candidate backedge
+is still **`lbz r0,+0x5C(r3)`**
+where current r3 is read from
+an r13-global pointer. Its
+runtime nonzero value, the
+global object's identity and
+whether native code takes
+the source CFG route during
+actual wood or leaf collision
+remain unresolved. No
+velocity, restitution, KCL
+material identity or native
+tree hitbox verified.
+`training_approved=false`.
+
+All artifacts remain source-only,
+SHA-gated, read-only, and
+sanitized: no original PPC
+binary words, ROM extracts,
+private RAM pointers, ball XYZ,
+game assets, personal paths,
+new gameplay, Dolphin or
+video. Source study and
+synthetic-only tests updated
+on draft PR #422.
