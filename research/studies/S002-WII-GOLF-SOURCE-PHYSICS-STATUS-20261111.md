@@ -92,3 +92,28 @@ This is not exact NW4R lookup-table implementation, f32/Gekko parity, a gauge pe
 5. **Calibration:** only after native same-shot synchronization, compare accepted game value, on-screen percent, selected Ball motion and timed outcomes under independent trials; retain non-atomicity and censoring guards.
 
 **Hard boundary:** no original-bank bytes, private heap pointers, coordinates, ROM, savestate, sensor payloads, or secret paths exported; no Dolphin actions or state mutation performed by this research document; no training promotion.
+
+
+## Further source research — actual ExStatus nonlinear filter
+
+The public matching `doldecomp/ogws/src/Pack/RPKernel/RPSysController.cpp` implementation of `CalcAcc` is **not** a simple fixed-rate low-pass filter. For each of X/Y/Z, writing `old` for the previous filtered component and `raw` for the incoming KPAD component:
+
+```text
+delta = raw - old
+normalized = abs(delta) / threshold
+gate = 1                    if abs(delta) >= threshold
+       normalized**4        otherwise
+alpha = rate * gate
+filtered_new = old + alpha * delta
+```
+
+The public default parameters are `threshold=0.1` and `rate=0.05` for **extended status index 2** (Golf's filter-2 magnitude input); index 1 has `0.1/0.015`, index 3 `0.1/0.02`. `setExAccParam` can change the parameters, so these are **defaults, not yet proved effective in every shot**. Source for `ExStatus::calc`: starting `prev=status[0].acc`, iterate sample indices from `count-1` **down to 0**; write `acc_value=length(filtered_new)` and `acc_speed=length(filtered_new-prev)`; update `prev=filtered_new`.
+
+**Analytical illustration (not a measured game response):** with filtered component initially 0, target acceleration `0.05`, threshold `0.1`, rate `0.05`, the gate is `(0.05/0.1)^4=0.0625`, `alpha=0.003125`, and the component moves only to `0.00015625` in one smoothing update. By contrast, for an impulse `abs(delta)>=0.1`, the gate becomes 1 and `alpha=0.05`. The discontinuity is in the **slope**, not the gate value at the threshold. These are mathematical illustrations, not calibrated Wii Remote units or exact Gekko rounding.
+
+**Consequences for modeling:** a replay model cannot derive Golf magnitude from isolated nominal swing amplitudes alone. It needs filtered prior state, the actual sample ordering/count, input units, and potentially parameter overrides. The input waveform → controller-status conversion also remains unverified for the emulator swing primitive. This is primary-source **decomp evidence**, not newly SHA-gated PPC for the complete `ExStatus::calc` body.
+
+Matching public primary-source links:
+- [RPSysController.cpp](https://github.com/doldecomp/ogws/blob/master/src/Pack/RPKernel/RPSysController.cpp) (`CalcAcc`, `ExStatus::calc`, defaults, `setExAccParam`).
+- [RSPE01_01 public symbols](https://github.com/doldecomp/ogws/blob/master/config/RSPE01_01/symbols.txt) (`FrSqrt__Q24nw4r4mathFf` at `0x8002F874`).
+- [NW4R FrSqrt implementation](https://github.com/doldecomp/ogws/blob/master/src/nw4r/math/math_arithmetic.cpp) (reciprocal square-root estimate/refinement), independently supporting the Player `fn_8029E6D8` positive squared-distance branch.
