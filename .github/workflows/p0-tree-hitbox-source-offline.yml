@@ -47,6 +47,8 @@ on:
       - scripts/p0_ball_global_5c_initializer_r26_private.py
       - scripts/p0_ball_global_5c_zero_witness_private.py
       - scripts/p0_ball_global_5c_init_caller_join_private.py
+      - scripts/p0_ball_global_5c_init_three_caller_r3_private.py
+      - tests/test_p0_ball_global_5c_init_three_caller_r3_private.py
       - tests/test_p0_ball_global_5c_init_caller_join_private.py
       - tests/test_p0_ball_global_5c_zero_witness_private.py
       - tests/test_p0_ball_global_5c_initializer_r26_private.py
@@ -210,5 +212,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_ball_global_5c_zero_witness_private.py -v
       - name: Source qualified global flag initializer direct BL inbound and local registrar helper
         run: python -m unittest discover -s tests -p test_p0_ball_global_5c_init_caller_join_private.py -v
+      - name: Original Ball initializer three BL sites and bounded caller r3 argument provenance
+        run: python -m unittest discover -s tests -p test_p0_ball_global_5c_init_three_caller_r3_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
