@@ -733,7 +733,11 @@ class Inspector:
         if not 0 <= i < len(replay.samples):
             setter(SourceActorSnapshot())
             return
-        setter(from_sample(replay.samples[i]))
+        setter(from_sample(
+            replay.samples[i],
+            baseline=getattr(self, "baseline", None),
+            baseline_source=getattr(self, "aim_baseline_source", None),
+            baseline_mode=getattr(self, "aim_baseline_mode", "")))
 
     def pick(self, var: tk.StringVar) -> None:
         name = filedialog.askopenfilename(title="Choose local file (not uploaded)")

@@ -145,7 +145,10 @@ def actor_mesh_size(comp: "ComparisonKCL") -> float:
         max(v[0] for v in comp.vertices)-min(v[0] for v in comp.vertices),
         max(v[2] for v in comp.vertices)-min(v[2] for v in comp.vertices))
     source_span = span / max(abs(comp.source_scale), 1e-10)
-    return min(1e4, max(.02, source_span*.035))
+    # The previous .035 fraction rendered the golfer/flag 4–5× too tall
+    # on operator-confirmed FC3. Use a conservative course-scale silhouette.
+    # This is a VISUAL ratio, not native golfer/flag dimensions or physics.
+    return min(1e4, max(.02, source_span*.008))
 
 
 def actor_mesh_faces(comp: "ComparisonKCL", snapshot: "SourceActorSnapshot | None",
@@ -175,7 +178,7 @@ def actor_mesh_faces(comp: "ComparisonKCL", snapshot: "SourceActorSnapshot | Non
     if show_flag and flag is not None:
         top = _up(flag, h*1.36)
         faces.extend(_cylinder(
-            "flag", flag, top, h*.014, ("#f1f5fa", "#c9d6e2")))
+            "flag", flag, top, h*.038, ("#f1f5fa", "#c9d6e2")))
         rim_center = _up(flag, h*.018)
         for i in range(8):
             a = i*math.tau/8.
@@ -202,9 +205,9 @@ def actor_mesh_faces(comp: "ComparisonKCL", snapshot: "SourceActorSnapshot | Non
         # raised by a visual radius to rest above the course polygon.
         pos = snapshot.ball
         if snapshot.illustrative_only:
-            pos = _up(pos, h*.11)
+            pos = _up(pos, h*.15)
         faces.extend(_sphere(
-            "ball", pos, h*.11, ("#ffffff", "#d9e4ee"),
+            "ball", pos, h*.15, ("#ffffff", "#d9e4ee"),
             sides=10, bands=5))
 
     if show_player and tee is not None:
@@ -243,6 +246,64 @@ def actor_mesh_faces(comp: "ComparisonKCL", snapshot: "SourceActorSnapshot | Non
     return tuple(faces)
 
 
+def direction_arrow_faces(
+        comp: "ComparisonKCL", snapshot: "SourceActorSnapshot | None"
+        ) -> tuple[ApproxFace, ...]:
+    """3D ground-parallel relative aim/swing HYPOTHESIS from tee toward pin.
+
+    A qualified same-source +0x3C baseline or an explicitly illustrative
+    tee-to-green proxy is REQUIRED. An uncalibrated raw float is never used
+    as a native heading. No physical swing direction is established.
+    """
+    if snapshot is None or not (snapshot.source_qualified or
+                                snapshot.illustrative_only):
+        return ()
+    start, pin, degrees = (snapshot.tee_proxy, snapshot.flag,
+                           snapshot.aim_delta_degrees)
+    if start is None or pin is None or degrees is None:
+        return ()
+    if not math.isfinite(degrees) or abs(degrees) > 180.00001:
+        return ()
+    dx, dz = pin[0]-start[0], pin[2]-start[2]
+    dist = math.hypot(dx, dz)
+    if not math.isfinite(dist) or not 1e-5 < dist < 1e6:
+        return ()
+    h = actor_mesh_size(comp)
+    heading = math.atan2(dz, dx) + math.radians(degrees)
+    forward = (math.cos(heading), 0., math.sin(heading))
+    side = (-forward[2], 0., forward[0])
+    # Explicitly visual length and width, not a shot vector or shot power.
+    length = min(max(dist*.20, h*2.4), h*20.)
+    thickness = h*.085
+    shaft_half = h*.085
+    head_half = max(h*.25, length*.105)
+    # Source-space outline with raised top + vertical rim. Its projected
+    # length/size change naturally as the camera moves.
+    profile = (
+        (0., -shaft_half),
+        (length*.70, -shaft_half),
+        (length*.70, -head_half),
+        (length, 0.),
+        (length*.70, head_half),
+        (length*.70, shaft_half),
+        (0., shaft_half),
+    )
+    base = _up(start, h*.14)
+    def place(along: float, across: float, up: float) -> Point:
+        return _add(_up(base, up),
+                    _add(_mul(forward, along), _mul(side, across)))
+    bottom = tuple(place(t,w,0.) for t,w in profile)
+    top = tuple(place(t,w,thickness) for t,w in profile)
+    faces = [ApproxFace("direction",top,"#ffdb55"),
+             ApproxFace("direction",tuple(reversed(bottom)),"#d9981e")]
+    for i in range(len(top)):
+        j=(i+1)%len(top)
+        faces.append(ApproxFace(
+            "direction", (bottom[i],bottom[j],top[j],top[i]),
+            "#e7af2e" if i%2 else "#b87b19"))
+    return tuple(faces)
+
+
 def draw_3d_approximations(image, comp: "ComparisonKCL | None",
                            camera: "VisualCamera", *,
                            snapshot: "SourceActorSnapshot | None" = None,
@@ -251,6 +312,7 @@ def draw_3d_approximations(image, comp: "ComparisonKCL | None",
                            show_flag: bool = True,
                            show_ball: bool = True,
                            show_player: bool = True,
+                           show_direction: bool = False,
                            labels: bool = True):
     """Project 3D surfaces at varying world depths with one common camera.
 
@@ -260,7 +322,8 @@ def draw_3d_approximations(image, comp: "ComparisonKCL | None",
     if comp is None:
         return image
     if any(type(x) is not bool for x in
-           (show_trees, show_flag, show_ball, show_player, labels)):
+           (show_trees, show_flag, show_ball, show_player,
+            show_direction, labels)):
         raise ValueError("Scene toggles must be Boolean")
     from PIL import ImageDraw
     from .source_actor_overlay import SourceActorSnapshot
@@ -275,6 +338,8 @@ def draw_3d_approximations(image, comp: "ComparisonKCL | None",
         faces.extend(actor_mesh_faces(
             comp, snapshot, show_flag=show_flag,
             show_ball=show_ball, show_player=show_player))
+        if show_direction:
+            faces.extend(direction_arrow_faces(comp, snapshot))
     if len(faces) > MAX_SCENE_FACES:
         raise ValueError("Unbounded approximated scene face count")
     if not faces:
@@ -337,6 +402,15 @@ def draw_3d_approximations(image, comp: "ComparisonKCL | None",
                  "#f1ce7b")):
                 if show and pos is not None:
                     label_positions.append((pos,label,tint))
+            if (show_direction and snapshot.tee_proxy is not None
+                    and snapshot.flag is not None
+                    and snapshot.aim_delta_degrees is not None):
+                label = (
+                    f"AIM {snapshot.aim_delta_degrees:+.1f}° "
+                    + ("illustrative" if inferred else
+                       "relative candidate"))
+                label_positions.append((
+                    snapshot.tee_proxy, label, "#ffde72"))
         if show_trees and source_tree_positions:
             # One short source-identity label for the whole tree set:
             # don't spam 94 labels on every navigation frame.

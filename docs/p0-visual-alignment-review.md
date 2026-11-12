@@ -219,3 +219,33 @@ The user can load a SHA-verified JSONL capture + manifest in the existing
 inspector UI or connect the existing read-only LIVE sampler; individual
 sample selections update only same-packet markers. No new memory reads,
 controller writes, geometry exports or original art publication.
+
+## Reduced FC3 flag/golfer scale and aim-direction arrow
+
+The user confirmed textured terrain/KCL registration but the first
+3D illustrative golfer and pin were **far too tall** in the FC3
+inspector screenshot. Both meshes now use **0.8% of the course span**
+as a basic scene height instead of 3.5% (about **4.4× smaller**).
+The flagpole receives a slightly thicker *illustrative* shaft for
+visibility; the 3D ball radius remains deliberately legible. This
+does not change the rendered source terrain scale, native world
+units, source KCL, actual ball size, or hitboxes.
+
+The Show in 3D toolbar gains **Swing direction arrow (aim hypothesis)**.
+The world-space raised arrow starts at the tee candidate, points toward
+the pin candidate as the zero-degree reference, and rotates by the
+per-sample +0x3C **relative angle candidate** if and only if a same-source
+baseline is available. The UI displays the signed angle in **degrees**,
+including whether the baseline was operator-set or merely assumed
+from the first packet. The original field remains a *candidate*, not
+an established physical swing/club trajectory or controller direction.
+
+If there is no replay/live sample, the existing illustrative tee/green
+proxy draws a labeled **0.0° approximate-to-green** direction arrow.
+If there is a qualified sample but no matching angle baseline, the UI
+may show the raw candidate angle in degrees but **hides the arrow**
+rather than inventing its orientation. Source identity changes or
+unqualified packets also hide it. Turning the arrow checkbox off
+removes only the arrow geometry; degrees remain visible as a
+read-only status when evidence permits. No controller commands,
+game writes, or data training result from this feature.
