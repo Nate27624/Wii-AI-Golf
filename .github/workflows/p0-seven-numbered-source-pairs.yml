@@ -32,6 +32,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install numpy required by the full FC3 source-fit regression
+        run: python -m pip install numpy
       - name: Run fabricated negative-control tests
         run: python -m unittest discover -s tests -p test_p0_seven_numbered_source_pairs_private.py -v
       - name: Full offline regression suite (no Dolphin)
