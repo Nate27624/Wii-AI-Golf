@@ -180,6 +180,10 @@ class LiveSampler:
                                 and self.use_batched_reads
                                 and _is_source_transition(exc)):
                             begin_transition("Golf source temporarily unavailable / changing")
+                            # A gap breaks any putative two-in-a-row stable
+                            # packet run; require two fresh successes.
+                            pending_identity = None
+                            pending_count = 0
                             check_transition_timeout()
                             self.stop_event.wait(max(self.pause, _TRANSITION_POLL_S))
                             continue
