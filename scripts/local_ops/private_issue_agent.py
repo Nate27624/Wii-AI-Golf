@@ -160,6 +160,9 @@ def decode_request(issue: dict, trusted_actor: str) -> tuple[str, dict]:
 
 def project_subdir(root: Path, relative: str) -> Path:
     try:
+        # Windows can return canonical casing/long-path aliases when
+        # resolving a child. Normalize the *base* before checking containment.
+        root = root.resolve(strict=True)
         target = (root / relative).resolve(strict=True)
     except (FileNotFoundError, NotADirectoryError, OSError):
         raise BridgeError("Requested project directory does not exist") from None
