@@ -26,6 +26,8 @@ from .texture_sampling import build_rgba_mips
 from .fast_texture_render import (
     accelerated_available, prepare_fast_scene, render_fast)
 from .visual_model import PrivateVisualModel, VisualAssetError
+from .source_actor_overlay import (
+    SourceActorSnapshot, illustrative_from_terrain, draw_source_actors)
 
 
 class TexturedPreviewWindow:
@@ -66,6 +68,16 @@ class TexturedPreviewWindow:
         self.review_offset_xz = (0., 0.)
         self.review_status = tk.StringVar(
             value="Visual check: choose Review top-down; overlay is UNVERIFIED.")
+        self.actor_snapshot = SourceActorSnapshot()
+        self.illustrative_actors = SourceActorSnapshot()
+        self.actor_sample_seen = False
+        self.show_flag = tk.BooleanVar(value=True)
+        self.show_ball = tk.BooleanVar(value=True)
+        self.show_player = tk.BooleanVar(value=True)
+        self.show_actor_labels = tk.BooleanVar(value=True)
+        self.actor_status = tk.StringVar(value=(
+            "Illustrative scene markers until source-qualified replay / LIVE"
+            " is available. Real player XYZ not mapped."))
         self.tree_overlay = ()
         self.tree_overlay_visible = True
         self.tree_illustrations = True
@@ -144,47 +156,24 @@ class TexturedPreviewWindow:
             filter_controls,
             text="Mipmapped bilinear sampling · toggle off to inspect original TEX0 texels",
         ).pack(side="left", padx=9)
-        orientation_controls = ttk.Frame(self.top, padding=(6, 2))
-        orientation_controls.pack(fill="x")
-        ttk.Label(
-            orientation_controls,
-            text="KCL + tree display yaw (UNVERIFIED):",
-        ).pack(side="left")
-        for angle in (0, 90, 180, 270):
-            ttk.Radiobutton(
-                orientation_controls, text=f"{angle}°", value=angle,
-                variable=self.display_rotation, command=self.set_display_rotation,
-            ).pack(side="left", padx=(4, 1))
-        ttk.Label(
-            orientation_controls,
-            text=("INCOMPLETE SOURCE GRAPH: verify omitted scene features" if scene_warning
-                  else "DAE authored matrices applied · yaw is only a display trial"),
-        ).pack(side="left", padx=8)
-        review = ttk.LabelFrame(self.top, text="Visual alignment check — display only", padding=(6, 3))
-        review.pack(fill="x", padx=6, pady=(2, 2))
-        review_buttons = ttk.Frame(review)
-        review_buttons.pack(fill="x")
-        ttk.Button(review_buttons, text="Review top-down",
-                   command=self.start_visual_review).pack(side="left", padx=(0, 6))
-        ttk.Button(review_buttons, text="Reset display fit",
-                   command=self.reset_visual_review).pack(side="left")
-        ttk.Label(review_buttons,
-                  text="Modes: Both = cyan edges · Overlay = transparent KCL · Split = textures/KCL"
-                  ).pack(side="left", padx=10)
-        manual_controls = ttk.Frame(review)
-        manual_controls.pack(fill="x", pady=(3, 0))
-        ttk.Label(manual_controls, text="KCL + 94 trees:").pack(side="left")
-        for label, axis, step in (
-            ("Scale −", "scale", -1), ("Scale +", "scale", 1),
-            ("X −", "x", -1), ("X +", "x", 1),
-            ("Z −", "z", -1), ("Z +", "z", 1)):
-            ttk.Button(
-                manual_controls, text=label,
-                command=lambda a=axis, d=step: self.nudge_visual_review(a, d),
-            ).pack(side="left", padx=(3, 0))
-        ttk.Label(
-            review, textvariable=self.review_status, wraplength=1000
-        ).pack(anchor="w")
+        review = ttk.Frame(self.top, padding=(6, 2))
+        review.pack(fill="x")
+        ttk.Button(review, text="Top-down view",
+                   command=self.start_visual_review).pack(side="left")
+        ttk.Label(review,
+                  text="FC3 visual alignment operator-confirmed; physics coordinates unverified"
+                  ).pack(side="left", padx=8)
+        markers = ttk.Frame(self.top, padding=(6, 2))
+        markers.pack(fill="x")
+        ttk.Label(markers, text="Show in 3D:").pack(side="left")
+        for label, state in (
+            ("Flag", self.show_flag), ("Ball", self.show_ball),
+            ("Player (tee proxy)", self.show_player),
+            ("Labels", self.show_actor_labels)):
+            ttk.Checkbutton(markers, text=label, variable=state,
+                            command=self.schedule).pack(side="left", padx=(6, 0))
+        ttk.Label(self.top, textvariable=self.actor_status,
+                  padding=(8, 1), wraplength=1000).pack(fill="x")
 
         ttk.Label(
             controls,
@@ -280,6 +269,14 @@ class TexturedPreviewWindow:
         kcl = getattr(self, "comparison_kcl", None)
         self._queued = (self._request_version, width, height,
                         self.camera, mode, kcl)
+        self._queued_actor_snapshot = (
+            getattr(self, "actor_snapshot", None)
+            if getattr(self, "actor_sample_seen", False)
+            else getattr(self, "illustrative_actors", None),
+            bool(self.show_flag.get()) if hasattr(self, "show_flag") else True,
+            bool(self.show_ball.get()) if hasattr(self, "show_ball") else True,
+            bool(self.show_player.get()) if hasattr(self, "show_player") else True,
+            bool(self.show_actor_labels.get()) if hasattr(self, "show_actor_labels") else True)
         self._queued_tree_snapshot = (
             getattr(self, "tree_overlay", ()),
             getattr(self, "tree_overlay_visible", True),
@@ -304,18 +301,22 @@ class TexturedPreviewWindow:
         self._queued_tree_snapshot = None
         filtered = getattr(self, "_queued_texture_filter", False)
         self._queued_texture_filter = None
+        actor_state = getattr(self, "_queued_actor_snapshot",
+                              (None, True, True, True, True))
+        self._queued_actor_snapshot = None
         cancel = Event()
         self._cancel_render = cancel
         future = self._executor.submit(
             self._render_frame, width, height, camera, cancel.is_set,
             mode, kcl, tree_points, tree_visible, tree_illustrations,
-            tree_labels, filtered)
+            tree_labels, filtered, actor_state)
         self._render_future = (version, camera, future)
 
     def _render_frame(self, width, height, camera, cancelled,
                       mode="Textures", collision=None, tree_points=(),
                        tree_visible=True, tree_illustrations=True,
-                       tree_labels=False, filtered=False):
+                       tree_labels=False, filtered=False,
+                       actor_state=(None, True, True, True, True)):
         """Worker-only: one source-local camera, no Tk operations or writes."""
         if cancelled():
             raise PreviewCancelled()
@@ -343,6 +344,12 @@ class TexturedPreviewWindow:
                     illustrations=tree_illustrations, labels=tree_labels)
         if cancelled():
             raise PreviewCancelled()
+        if collision is not None:
+            actor, flag, ball, player, labels = actor_state
+            image = draw_source_actors(
+                image, collision, camera, actor,
+                show_flag=flag, show_ball=ball,
+                show_player=player, labels=labels)
         return image, drawn, (time.perf_counter()-started)*1000.
 
     def _poll_completed(self):
@@ -686,6 +693,7 @@ class TexturedPreviewWindow:
     def set_collision_terrain(self, terrain):
         """Source-labeled material fit; decline missing controller scale."""
         if terrain is None:
+            self.illustrative_actors = SourceActorSnapshot()
             self._source_terrain = None
             self.comparison_kcl = None
             self.mode.set("Textures")
@@ -696,9 +704,35 @@ class TexturedPreviewWindow:
             value = angle.get() if angle is not None else 0
             mapped, status = self._source_comparison(terrain, value)
             self._source_terrain = terrain
+            self.illustrative_actors = illustrative_from_terrain(terrain)
             self.comparison_kcl = mapped
             self.mode.set("Both" if mapped is not None else "Textures")
             self.comparison_status.set(status)
+        self.schedule()
+        if hasattr(self, "actor_status"):
+            self.set_actor_overlay(self.actor_snapshot if self.actor_sample_seen else None)
+
+    def set_actor_overlay(self, snapshot: SourceActorSnapshot | None) -> None:
+        """Same-packet replay/live actor snapshot; no stale field carryover."""
+        if snapshot is not None and not isinstance(snapshot, SourceActorSnapshot):
+            raise ValueError("Invalid current source actor sample")
+        self.actor_sample_seen = snapshot is not None
+        self.actor_snapshot = snapshot if snapshot is not None else SourceActorSnapshot()
+        if self.actor_sample_seen:
+            if self.actor_snapshot.source_qualified:
+                status = ("SOURCE-QUALIFIED SAMPLE: selected ball/pin/tee when present."
+                          " Player marker uses tee proxy, NOT actual player XYZ.")
+            else:
+                status = ("Source sample unqualified: all actor markers hidden;"
+                          " never reusing stale source coordinates.")
+        elif self.illustrative_actors.illustrative_only:
+            status = ("ILLUSTRATIVE: flag≈green; ball/player≈far fairway."
+                      " NOT actual source positions. Load replay / LIVE for data.")
+        else:
+            status = ("No source actors or classified terrain available."
+                      " Load KCL labels and qualified replay / LIVE.")
+        if hasattr(self, "actor_status"):
+            self.actor_status.set(status)
         self.schedule()
 
     def set_tree_overlay(self, points, *, visible: bool, illustrations: bool,
