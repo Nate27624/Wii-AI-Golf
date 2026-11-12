@@ -46,6 +46,8 @@ on:
       - scripts/p0_ball_global_byte_writer_context_private.py
       - scripts/p0_ball_global_5c_initializer_r26_private.py
       - scripts/p0_ball_global_5c_zero_witness_private.py
+      - scripts/p0_ball_global_5c_init_caller_join_private.py
+      - tests/test_p0_ball_global_5c_init_caller_join_private.py
       - tests/test_p0_ball_global_5c_zero_witness_private.py
       - tests/test_p0_ball_global_5c_initializer_r26_private.py
       - tests/test_p0_ball_global_byte_writer_context_private.py
@@ -206,5 +208,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_ball_global_5c_initializer_r26_private.py -v
       - name: Original Ball global +0x5C zero-write candidate, X-form and CFG witness
         run: python -m unittest discover -s tests -p test_p0_ball_global_5c_zero_witness_private.py -v
+      - name: Source qualified global flag initializer direct BL inbound and local registrar helper
+        run: python -m unittest discover -s tests -p test_p0_ball_global_5c_init_caller_join_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
