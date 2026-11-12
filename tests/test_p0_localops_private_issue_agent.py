@@ -148,8 +148,10 @@ class LocalOpsSafetyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             (root / "scripts").mkdir()
+            # Windows CI may create a temporary path with 8.3 aliases
+            # (RUNNER~1) while resolve() uses the canonical account name.
             self.assertEqual(agent.project_subdir(root, "scripts"),
-                             root / "scripts")
+                             (root / "scripts").resolve())
             with self.assertRaises(agent.BridgeError):
                 agent.project_subdir(root, "..")
             with self.assertRaises(agent.BridgeError):
