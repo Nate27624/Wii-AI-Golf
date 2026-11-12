@@ -99,6 +99,41 @@ class OriginalCalleeCensusTests(unittest.TestCase):
         self.assertFalse(x["original_entry_r4_to_r28_straightline_source_verified"])
         self.assertFalse(x["second_caller_minus_one_can_feed_r28_if_executed_and_path_reached"])
 
+    def test_native_stfd_and_psq_store_original_prologue_preserve_r4(self):
+        p=original()
+        for i,reg in enumerate(range(26,32)):
+            p[TARGET+4*i]=d(36,reg,11,-24+4*i)
+        p[TARGET+24]=0x4E800020
+        # Simulate the two previously unrecognized original prologue
+        # instructions without inventing any real native source words.
+        p[m.old.cfg.ENTRY+12]=d(54,31,1,16)  # stfd f31,16(r1)
+        p[m.old.cfg.ENTRY+16]=d(60,31,1,8)   # psq_st f31,8(r1)
+        x=m.inspect(read(p),m.MEM1+0x1000000)
+        entry=x["source_entry_to_save_thunk_r4_register_preservation"]
+        self.assertTrue(entry["r4_preserved_between_entry_and_helper_call_source_verified"])
+        self.assertEqual(
+            [s["source_primary_opcode_number"] for s in
+             entry["bounded_entry_prologue_register_gate_sites"][3:5]], [54,60])
+        self.assertTrue(x["original_entry_r4_to_r28_straightline_source_verified"])
+        self.assertTrue(x["second_caller_minus_one_can_feed_r28_if_executed_and_path_reached"])
+        self.assertFalse(x["actual_native_collision_branch_proven"])
+
+    def test_psq_stu_with_r4_base_update_fails_prologue(self):
+        p=original()
+        p[m.old.cfg.ENTRY+12]=d(61,31,4,16)
+        gate=m.entry_r4_register_gate(read(p))
+        self.assertFalse(gate["r4_preserved_between_entry_and_helper_call_source_verified"])
+        record=gate["bounded_entry_prologue_register_gate_sites"][3]
+        self.assertTrue(record["recognized_destination_r4_write"])
+        self.assertFalse(record["r4_preserved_by_this_instruction_source_gate"])
+
+    def test_nonupdating_floating_store_with_r4_source_base_does_not_write_r4(self):
+        p=original()
+        p[m.old.cfg.ENTRY+12]=d(54,31,4,16)
+        p[m.old.cfg.ENTRY+16]=d(60,31,4,8)
+        gate=m.entry_r4_register_gate(read(p))
+        self.assertTrue(gate["r4_preserved_between_entry_and_helper_call_source_verified"])
+
     def test_postcall_local_r4_write_blocks_negative_r28_propagation(self):
         p=original()
         for i,reg in enumerate(range(26,32)):
