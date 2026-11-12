@@ -5483,3 +5483,102 @@ raw RAM, private heap pointers/XYZ,
 asset data, archive paths, Dolphin,
 new user swings, video or writes
 are requested or committed.
+
+
+## Rev1 native KCol classification CR0 EQ gates verified; Ball float triad copies stack +0x4C/+0x50/+0x54
+
+Operator completed
+`P0_ORIGINAL_BALL_KCOL_CR0_EQ_FLOAT_SOURCE_V1`
+on original **USA Rev1 seven-pair SHA-qualified archive
+capture 7**, pinned research head
+`f99e9fda703633f0aab0c0de59c7a2f13bc4c74e`.
+All original source/scene/94-tree/KCol prism gates passed:
+`status=SHA_QUALIFIED_KCOL_CLASS_CR0_BRANCH_AND_FLOAT_SOURCE`,
+`original_source_SHA_scene_and_prism_gates_verified=true`,
+`training_approved=false`.
+
+**Four exact adjacent PPC comparison/branch pairs are
+now source-qualified as CR0 EQ `beq`:**
+
+| Ball compare | Class literal | Following CR0 EQ branch | Branch target if equal |
+| --- | ---: | --- | --- |
+| `+0x0B84 cmpwi r3` | **13** | `+0x0B88 beq` | `Ball+0x0BF4` |
+| `+0x0B90 cmpwi r3` | **7** | `+0x0B94 beq` | `Ball+0x0B9C` |
+| `+0x14F4 cmplwi r0` | **7** | `+0x14F8 beq` | `Ball+0x152C` |
+| `+0x14FC cmplwi r0` | **12** | `+0x1500 beq` | `Ball+0x152C` |
+
+All four original PPC compares have `CR_field=0`,
+`L_bit=0`, and matching immediate next branch
+`BO=12`, `BI=2`; thus on an execution path
+that reaches them, the conditional native
+branch is **taken when the compared code
+equals its literal**. The main returned
+classification loaded from stack
+`Ball+0x14F0: lhz r0,+0x08(r1)`
+is preserved through the two 7/12 compares.
+Therefore main code **7 or 12** bypasses
+the three stores through the direct branch
+to `Ball+0x152C`; otherwise the source
+fallthrough can reach the triad
+if the earlier query status branch allows.
+No dynamic guest execution or any specific
+KCl class's trunk/foliage identity is proven.
+
+**Three adjacent scalar FP copies are exact
+in original PPC source**, conditional on that
+fallthrough:
+
+- `Ball+0x1504 lfs f0,+0x4C(r1)`
+  → `+0x1508 stfs f0,+0xAC(r23)`;
+- `Ball+0x150C lfs f0,+0x50(r1)`
+  → `+0x1510 stfs f0,+0xB0(r23)`;
+- `Ball+0x1514 lfs f0,+0x54(r1)`
+  → `+0x1518 stfs f0,+0xB4(r23)`.
+
+The exact source reports
+`all_three_float_source_load_to_store_pairs_qualified=true`,
+`fallthrough_from_both_beq_source_has_no_intervening_branch_in_triad=true`,
+and *all four* `exact_adjacent_cmp_to_beq_CR0_EQ_source_verified=true`.
+These are **three float member copies from caller-local
+stack to an r23-referenced object**; they are
+not yet proven native velocity, restitution,
+spin, a selected live Ball, or an original
+GolfKCol result vector.
+
+**Next bounded source-only provenance audit**
+`scripts/p0_ball_kcol_stack_receiver_provenance_private.py`
+and ten synthetic-only tests
+`tests/test_p0_ball_kcol_stack_receiver_provenance_private.py`
+are added to research draft PR #422 with
+Windows/Ubuntu offline CI. After requalifying
+the original seven-pair SHA/scene/prism/class/
+CR0/source gates and exact stack offsets,
+it inventories:
+- PPC scalar D-form memory reads/writes
+  of the three stack slots `+0x4C/50/54(r1)`
+  before and after the direct main
+  `Ball+0x14D0` KCol query;
+- nearby `addi rX,r1,offset` stack-address
+  formations that could source a query
+  output pointer;
+- bounded original r23 syntactic register
+  definitions and source branch/unknown
+  GPR-writer barriers before the main query;
+- bounded native GolfKCol query-entry memory
+  access categories, without pretending
+  stack offsets or mere register indices
+  are interprocedural receiver identity.
+
+Do not claim the KCol callee wrote the
+three caller stack slots unless actual
+pointer-argument and store dataflow can
+be shown. Do not treat a lexical r23
+definition as complete CFG/SSA.
+The scripts emit no raw PPC executable
+words, ROM/assets, private RAM
+pointers/XYZ or archive paths.
+No Dolphin/new shots/videos/guest writes
+or physics training. All native
+material/impact/velocity semantics
+remain unverified;
+`training_approved=false`.
