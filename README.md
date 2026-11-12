@@ -6,6 +6,13 @@ Build a reproducible Wii Sports Golf research pipeline from **Dolphin control â†
 
 > **New agent?** Start at [V2 navigation](docs/v2-navigation.md), then read the [role charter](docs/v2-agent-charter.md), [agent continuity / successor handoff](docs/v2-agent-continuity.md), and root [self-merge policy](merging.md). These are the current V2 operating rules. Always check live `main`, GitHub claims, and CI; documentation is not a live PR dashboard.
 
+**Optional private Windows command bridge:** Assigned agents can use the
+existing GitHub connector with the operator-installed, locally allowlisted
+[LocalOps v2 agent guide](docs/v2-localops-agent-guide.md). A private
+GitHub issue requests a named task; a structured issue comment returns
+the result. The bridge does not run arbitrary commands or authorize
+live game actions. See the guide for approval and source/privacy gates.
+
 ## Current V2 operator contract
 
 **V2 work is CLI-first and has one maintained implementation per behavior.** The canonical public CLI is `scripts/golf.py`; `scripts/research_cli.py` is the reviewed result-first research orchestration entry point. Legacy Python scripts are implementation details, source-review utilities, or historical experimentsâ€”not interchangeable user-facing launchers. A prior Lab GUI exists in repository history, but it is **not the V2 agent onboarding path or a requirement for new features**. Do not rebuild its retired workflow merely because historical documentation mentions it.
