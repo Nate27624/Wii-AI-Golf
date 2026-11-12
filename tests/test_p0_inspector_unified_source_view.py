@@ -460,6 +460,65 @@ class UnifiedSourceTests(unittest.TestCase):
         self.assertEqual(view.camera.position,after)
 
 
+    def test_navigation_controls_preserve_original_camera_direction_and_eye(self):
+        from wii_ai_golf.inspector.scene_camera import (
+            LOOK_SENSITIVITY, move_continuous)
+        model, collision = scene()
+        view = object.__new__(TexturedPreviewWindow)
+        view.camera = frame_playable_camera(model)
+        view.drag_origin = (200, 150)
+        view.drag_button = 3
+        view.canvas = Mock()
+        view.schedule = Mock()
+        old = view.camera
+        TexturedPreviewWindow.drag_move(
+            view, SimpleNamespace(x=215, y=156))
+        self.assertEqual(view.camera.position, old.position)
+        self.assertEqual(view.camera.focus, old.focus)
+        self.assertAlmostEqual(
+            view.camera.yaw, old.yaw - 15*LOOK_SENSITIVITY)
+        self.assertAlmostEqual(
+            view.camera.pitch, old.pitch - 6*LOOK_SENSITIVITY)
+        view.schedule.assert_called_with(navigation=True)
+        view.camera = old
+        view.drag_origin = (200, 150)
+        view.drag_button = 1
+        TexturedPreviewWindow.drag_move(
+            view, SimpleNamespace(x=215, y=156))
+        self.assertEqual(view.camera.focus, old.focus)
+        self.assertNotEqual(view.camera.position, old.position)
+        # Continuous held-key movement still moves eye+focus together.
+        moved = move_continuous(old, frozenset({"up"}), .05)
+        self.assertNotEqual(moved.position, old.position)
+        self.assertEqual(moved.yaw, old.yaw)
+        self.assertEqual(moved.pitch, old.pitch)
+
+    def test_f_and_shift_f_restore_collision_specific_framing(self):
+        model, collision = scene()
+        view = object.__new__(TexturedPreviewWindow)
+        view.mode = Mock()
+        view.home_camera = frame_playable_camera(model)
+        view.full_camera = fit_camera(model.vertices)
+        view.comparison_kcl = prepare_comparison_kcl(collision, model)
+        view.camera = None
+        view.schedule = Mock()
+        view.mode.get.return_value = "Collision"
+        view.frame()
+        self.assertEqual(view.camera,
+                         fit_camera(view.comparison_kcl.vertices))
+        view.frame_all()
+        self.assertEqual(view.camera,
+                         fit_camera(view.comparison_kcl.vertices))
+        view.mode.get.return_value = "Both"
+        view.frame()
+        self.assertEqual(view.camera, view.home_camera)
+        view.frame_all()
+        self.assertEqual(view.camera, view.full_camera)
+        view.comparison_kcl = None
+        view.mode.get.return_value = "Collision"
+        view.frame()
+        self.assertEqual(view.camera, view.home_camera)
+
     def test_drag_adaptively_lowers_pixel_resolution_not_source_faces(self):
         view=object.__new__(TexturedPreviewWindow)
         view._pending=None

@@ -204,10 +204,14 @@ def actor_mesh_faces(comp: "ComparisonKCL", snapshot: "SourceActorSnapshot | Non
         # On geometry-derived illustrative-only positions the center is
         # raised by a visual radius to rest above the course polygon.
         pos = snapshot.ball
+        # Previous .15h radius meant a golf ball was almost one third of
+        # the illustrative golfer's height, visibly enormous in FC3.
+        # This remains display geometry, NOT a confirmed physical radius.
+        radius = h*.035
         if snapshot.illustrative_only:
-            pos = _up(pos, h*.15)
+            pos = _up(pos, radius)
         faces.extend(_sphere(
-            "ball", pos, h*.15, ("#ffffff", "#d9e4ee"),
+            "ball", pos, radius, ("#ffffff", "#d9e4ee"),
             sides=10, bands=5))
 
     if show_player and tee is not None:
@@ -253,7 +257,9 @@ def direction_arrow_faces(
 
     A qualified same-source +0x3C baseline or an explicitly illustrative
     tee-to-green proxy is REQUIRED. An uncalibrated raw float is never used
-    as a native heading. No physical swing direction is established.
+    as a native heading. Operator confirmed visual left/right convention:
+    invert the *display* yaw sign, not the source signed angle.
+    No physical swing direction is established.
     """
     if snapshot is None or not (snapshot.source_qualified or
                                 snapshot.illustrative_only):
@@ -269,7 +275,11 @@ def direction_arrow_faces(
     if not math.isfinite(dist) or not 1e-5 < dist < 1e6:
         return ()
     h = actor_mesh_size(comp)
-    heading = math.atan2(dz, dx) + math.radians(degrees)
+    # Operator A/B check against live in-game left/right rotation found
+    # the prior display-angle sign reversed. The tee->pin source reference
+    # stays intact; mirror ONLY the relative *visual* angle offset.
+    # Raw +0x3C / calibrated degrees are retained without rewriting data.
+    heading = math.atan2(dz, dx) - math.radians(degrees)
     forward = (math.cos(heading), 0., math.sin(heading))
     side = (-forward[2], 0., forward[0])
     # Explicitly visual length and width, not a shot vector or shot power.

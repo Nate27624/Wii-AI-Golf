@@ -562,12 +562,25 @@ class TexturedPreviewWindow:
         self._stop_navigation()
 
 
+    def _collision_frame_camera(self):
+        """Retain original Collision-mode F/Shift+F framing semantics.
+
+        Navigation direction, mouse sensitivity and held-key movement are
+        untouched; only recenter based on already displayed source geometry.
+        """
+        mode = getattr(self, "mode", None)
+        comp = getattr(self, "comparison_kcl", None)
+        if mode is not None and mode.get() == "Collision":
+            if comp is not None and comp.vertices:
+                return fit_camera(comp.vertices)
+        return None
+
     def frame(self, event=None):
-        self.camera = self.home_camera
+        self.camera = self._collision_frame_camera() or self.home_camera
         self.schedule()
 
     def frame_all(self, event=None):
-        self.camera = self.full_camera
+        self.camera = self._collision_frame_camera() or self.full_camera
         self.schedule()
 
     def _update_review_status(self):

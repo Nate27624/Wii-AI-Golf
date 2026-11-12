@@ -173,6 +173,29 @@ class Approximate3DSceneTests(unittest.TestCase):
             self.assertGreater(height, .3)
         self.assertLess(h, 100*.01)
 
+    def test_ball_scaled_down_independently_of_flag_and_golfer(self):
+        h = actor_mesh_size(comp())
+        anchor = (20., 2., 20.)
+        snapshot = SourceActorSnapshot(
+            ball=anchor, flag=(52., 1., 52.),
+            tee_proxy=(20., 1., 20.), source_qualified=True)
+        mesh = actor_mesh_faces(comp(), snapshot)
+        ball_vertices = [point for face in mesh if face.kind == "ball"
+                         for point in face.vertices]
+        self.assertTrue(ball_vertices)
+        extent = max(p[0] for p in ball_vertices) - min(
+            p[0] for p in ball_vertices)
+        self.assertLess(extent, h*.075)
+        self.assertGreater(extent, h*.06)
+        # Player and pole heights remain unchanged (operator approved).
+        for kind in ("player", "flag"):
+            verts = [p for face in mesh if face.kind == kind
+                     for p in face.vertices]
+            height = max(p[1] for p in verts) - min(p[1] for p in verts)
+            self.assertGreater(height, h*.9)
+            self.assertLess(height, h*1.5)
+        self.assertEqual(snapshot.ball, anchor)
+
     def test_degree_delta_requires_qualified_matching_source_baseline(self):
         import struct
         angle = lambda v: struct.unpack(">I", struct.pack(">f", v))[0]
@@ -218,11 +241,19 @@ class Approximate3DSceneTests(unittest.TestCase):
             aim_reference="assumed")
         sideways={v for face in direction_arrow_faces(comp(),rotated)
                   for v in face.vertices}
-        # +90 degrees rotates from tee -> +X to tee -> +Z.
-        self.assertGreater(max(v[2] for v in sideways) -
-                           min(v[2] for v in sideways), 6.)
+        # Operator-verified fix: +90 source candidate must render toward
+        # -Z (was +Z and reversed the on-screen in-game turn).
+        self.assertLess(min(v[2] for v in sideways), source.tee_proxy[2]-6.)
         self.assertLess(max(v[0] for v in sideways) -
                         min(v[0] for v in sideways), 4.)
+        minus=SourceActorSnapshot(
+            tee_proxy=source.tee_proxy, flag=source.flag,
+            aim_delta_degrees=-90., source_qualified=True,
+            aim_reference="operator")
+        opposite={v for face in direction_arrow_faces(comp(), minus)
+                  for v in face.vertices}
+        self.assertGreater(max(v[2] for v in opposite), source.tee_proxy[2]+6.)
+        self.assertEqual(source.aim_delta_degrees, 0.)
         self.assertEqual(source.tee_proxy, (20.,1.,20.))
         self.assertEqual(source.flag, (70.,1.,20.))
 
