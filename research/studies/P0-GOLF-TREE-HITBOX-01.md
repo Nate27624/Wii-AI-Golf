@@ -5148,3 +5148,121 @@ not fit collision parameters
 from labels inferred solely
 from memory proximity or
 source compilation unit names.
+
+
+## Initializer r3 argument origins: -23300 global versus -23304 global, plus two entry-forwarding wrappers
+
+Operator supplied the source-qualified
+`P0_ORIGINAL_BALL_GLOBAL_5C_INIT_THREE_CALLER_R3_V1`
+result from the original USA Rev1 seven-pair private
+archive capture **7**, pinned original research
+head `609608340e40256414fbd0e3d9630aa481369f5c`.
+All original SHA/scene/native gates pass;
+`status=SHA_QUALIFIED_NATIVE_INITIALIZER_R3_SOURCE_CONTEXT`,
+`training_approved=false`.
+
+There are exactly three direct Ball-unit calls to
+`Ball+0x3108`, the routine that contains
+`Ball+0x314C stb r5,+0x5C(r3)` and
+source-local `Ball+0x3124 li r5,1`:
+
+1. **`Ball+0x2B60`**: nearest pre-call
+   r3 definition **`Ball+0x2B50:
+   lwz r3,-23300(r13)`**. The intervening
+   source window +0x2B54..+0x2B5C
+   has no recognized r3 redefinition,
+   call/branch barrier or unknown opcode
+   in the local source checker. This reads
+   a **different r13 signed displacement**
+   than the global object whose
+   `+0x5C` byte is conditionally cleared
+   (`-23304(r13)`). Adjacent globals
+   may have matching runtime values;
+   **equal pointers or separate heap
+   identities are NOT proven**. The
+   source straightline first caller
+   is only a *different storage-slot
+   provenance*, not a proof of
+   unique objects.
+2. **`Ball+0x320C`**: source immediately
+   before the call includes a PPC
+   prologue `Ball+0x31F8`,
+   and `Ball+0x3208: mr r31,r3`.
+   This stores incoming r3 to r31,
+   but **does not assign new r3**.
+   The old bounded backward
+   lexical scanner wandered into
+   the preceding function and
+   found `Ball+0x31A4 addi r3,r3,416`
+   behind `Ball+0x31F4` return,
+   +0x31AC direct BL and several
+   unknown FP/paired-single ops.
+   That earlier candidate is **not
+   proven to reach the new wrapper's
+   entry argument**. Treat r3 as
+   *wrapper's caller-supplied parameter*.
+3. **`Ball+0x3248`**: independent PPC
+   prologue `Ball+0x322C`,
+   `Ball+0x3244: mr r30,r3`
+   just before its direct BL to
+   +0x3108. Again **mr only copies
+   entry r3**, does not define
+   the initializer's receiver
+   independently. The earlier
+   lexical window includes the
+   prior wrapper's +0x320C
+   call and +0x3228 return, so
+   there is no legitimate same-path
+   source definition to infer
+   from the preceding text.
+
+The global registration is a separate
+site `Ball+0x3080 bl Ball+0x3BA0`,
+then `Ball+0x3084 stw r3,-23304(r13)`.
+No source call to +0x3108 was observed
+among the first 32 instructions of the
++0x3BA0 callee. The 60-instruction
+original source may-reach zero-clear
+witness still targets
+`+0x5C(*(r13-23304))` if executed
+under six unobserved branch conditions.
+It is NOT proved to be the same object
+as the +0x3108 initializer's r3.
+Do not describe this as a confirmed
+runtime `1→0` flag transition or
+as a native tree-collision/material
+mechanism.
+
+**Next narrow original-source audit**
+`scripts/p0_ball_two_global_slots_initializer_receivers_private.py`
+and nine synthetic-only tests
+`tests/test_p0_ball_two_global_slots_initializer_receivers_private.py`
+were authored on draft PR #422 with
+offline Windows/Ubuntu CI. It examines
+exact native D-form reads and writes
+of both r13-relative slots
+`-23300` and `-23304` across the
+previously qualified seven Golf source
+units, and checks whether the two
+entry-forwarding initializer wrappers
+actually preserve their incoming
+r3 arguments up to direct +0x3108
+BLs. The explicit output keeps
+**pointer equality, active selected Ball
+identity, runtime branch execution,
+and physics/training all false**.
+Any source slot writer relationship
+is a clue only; identifying both
+objects' real runtime alias requires
+a stronger dataflow or archived
+memory-value proof.
+
+All processing remains read-only on
+the existing SHA-qualified private
+archive. Report uses public source
+relative offsets and PPC register/
+opcode categories only: no original
+PPC binary words, native heap
+pointers/XYZ, private file paths or
+asset bytes, Dolphin, new swings or
+videos. `training_approved=false`.
