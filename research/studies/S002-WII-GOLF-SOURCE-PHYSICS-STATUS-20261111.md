@@ -362,3 +362,24 @@ Operator supplied `REV1_CORRECTED_EVENT_AND_POWER_CONSUMER_PASS` after the prece
 **New independently public Rev1 symbol resolution:** `0x8002F898` is **`nw4r::math::SinFIdx`**, a sine table-index math routine (matching `config/RSPE01_01/symbols.txt`); `calc+0x1B4` receives its output at `0x802B2ED4` on the examined source path. This establishes a **sine-based state transform**, NOT typed ball spin or physical angle units. Also `0x800A600C` in `fn_802A7BFC` resolves to **`EGG::CoreController::stopRumbleMgr`**, reinforcing the side-effect branch as controller/audio feedback rather than proof of shot commit. The other direct callees `0x802A0CA8`, `0x802C7660` remain source-unsplit/unnamed; do not assign gameplay roles.
 
 The downstream selected Ball investigation [#415](https://github.com/Nate27624/Wii-AI-Golf/issues/415#issuecomment-6813842377) independently achieved **conditional incoming-Ball+0x8C scalar pointer provenance** through case-vtable slot +0x10; it is **not** a selected velocity `+0x78..+0x80` proof. Next independent high-value microtask: original SHA-gated four wrapper prefixes `0x802B5FBC,0x802B5AC8,0x802AFC4C,0x802B0098`, decode their scalar `lfs f0` constants and intervening `op59` operations; then trace actual selected Ball velocity writer. Do not repeat the already finished vtable discovery/CFG. All training flags remain false.
+
+
+## Source PASS — final five nonlinear constants and normalized signed adjustment (2026-11-11)
+
+**Exact human operator receipt:** `REV1_REDLINE_NONLINEAR_CONSTANTS_PASS` (original seven paired Rev1 archive, all14 SHA pre/post `True`, PPC text phases1/5/7 identical `True`, all native `lfs`/branch/store gates `True`). The previous `DIAGNOSTIC_ABSTAIN` on first attempt was only an omitted local `WII_GOLF_AUDIT_SCRIPTS` environment variable; the corrected rerun completed successfully. Output constants decoded from original immutable SDA2 with unique `0.992f` anchor:
+
+| Native PC / displacement | Purpose | Exact source float32 |
+|---|---|---:|
+| `0x802B2E44` / `r2-12992` | signed range denominator | `-10.995574951171875` |
+| `0x802B2E58` / `r2-13116` | nonlinear return gain | `0.949999988079071` |
+| `0x802B2EC4` / `r2-13044` | first helper input scale | `40.7436637878418` |
+| `0x802B2ED8` / `r2-13036` | second nonlinear helper parameter | `0.550000011920929` |
+| `0x802B2EE8` / `r2-13040` | final secondary-field scale | `5.0` |
+
+**Finite ordered-path model, still not full PPC parity:** With `a=calc+0x1B8` and `L=10.995574951171875f`, conditional adjustment block only operates when `calc+0x40!=0`, `calc+0x1BC!=0`, `|a|<L`, and the enclosing `calc+0x04 >= 0.75 * f31` gate passes. `0x2E48..0x2E54` computes `t=f32(f32(|a|-L)/(-L))`, i.e. approximately `1-|a|/L`, then passes **`f1=0.8500000238418579f`**, **`f2=t`** to `fn_802A3CF4`. Its *return contract is not yet proven*. If returned scalar is `F(0.85,t)`, `0x2E58..0x2E80` computes `w=clamp(f32_fma(0.949999988f,F,0.050000000745f),0.050000000745f,1.0f)` and `step=f32(f30*w)`, with `f30=min(0.1f,f32_fma(0.07f,calc+0x1AC,0.03f))`. `calc+0x1BC==1` adds `step` to `calc+0x1B8`; other nonzero states subtract it. The role/units of `calc+0x1B8` remain unclassified, even if the constants resemble angular math; do not assert spin or aim.
+
+**Further derived values:** `0x2EC0..0x2ED4` passes `40.7436637878418f * calc+0x1B8` into `fn_8002F898`, saving its returned f1 to `calc+0x1B4`. The returned f1 (via `fmr f0,f1` then `frsp f2,f0`) is also input to `fn_802A3CF4` with `f1=0.550000011920929f`; afterward `0x2EE4..0x2EF4` computes `calc+0x1B0=f32(f32(Q*5.0f)*returned_f1)` where `Q=calc+0x1AC`. Source-backed PC references prove **dataflow to +0x1B4 and +0x1B0**, but not the meaning/implementation of either callee. Explicitly distinguish the `0x802A3CF4` invocation with `f1=0.85` from its second invocation with `f1=0.55`.
+
+**No runtime-shot claim:** all prior named calls and constants are from original static text; `power_internal=EXTERNAL_UNVERIFIED` for external launch model; `training_approved=false`. Do not conflate `calc+0x1B0/+0x1B4/+0x1B8` with selected Ball spin/velocity/heading until source receiver-consumer and same-shot handoff are proven.
+
+**Next source-only priority:** bounded original PPC disassembly of `fn_802A3CF4` and `fn_8002F898`, resolve their exact FP contract and public function-symbol identity before inferring physical meaning; then source-qualify direct consumers of the three calculated fields. Coordinate first-contact and selected Ball transfer with [#415](https://github.com/Nate27624/Wii-AI-Golf/issues/415); do not duplicate per-club launch curves, controller filters or seven-capture flag audit.
