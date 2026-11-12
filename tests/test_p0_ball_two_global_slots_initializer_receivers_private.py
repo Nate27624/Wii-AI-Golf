@@ -60,8 +60,9 @@ class TwoGlobalSlotNativeSourceTests(unittest.TestCase):
         a=m.two_slot_census(read(p))
         self.assertEqual(a["-23300"]["source_unit_accesses"]["Ball"][
             "total_counts"]["source_store"],1)
+        # The fixture also contains global registration at Ball+0x3084.
         self.assertEqual(a["-23304"]["source_unit_accesses"]["Ball"][
-            "total_counts"]["source_store"],1)
+            "total_counts"]["source_store"],2)
         self.assertFalse(a["-23300"]["other_slot_alias_proven"])
         self.assertFalse(a["-23304"]["complete_whole_game_writer_inventory_proven"])
 
