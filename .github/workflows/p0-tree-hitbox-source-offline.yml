@@ -43,6 +43,8 @@ on:
       - scripts/p0_ball_prelude_save_thunk_private.py
       - scripts/p0_ball_prelude_callee_census_private.py
       - scripts/p0_ball_global_5c_source_census_private.py
+      - scripts/p0_ball_global_byte_writer_context_private.py
+      - tests/test_p0_ball_global_byte_writer_context_private.py
       - tests/test_p0_ball_global_5c_source_census_private.py
       - tests/test_p0_ball_prelude_callee_census_private.py
       - tests/test_p0_ball_prelude_save_thunk_private.py
@@ -194,5 +196,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_p0_ball_prelude_callee_census_private.py -v
       - name: Original PPC global r13 source byte-0x5C writer and owner census
         run: python -m unittest discover -s tests -p test_p0_ball_global_5c_source_census_private.py -v
+      - name: Native Ball global pointer setter and 0x5C byte store receiver contexts
+        run: python -m unittest discover -s tests -p test_p0_ball_global_byte_writer_context_private.py -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
