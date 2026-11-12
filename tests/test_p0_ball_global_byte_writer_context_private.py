@@ -83,7 +83,7 @@ class BallGlobalWriterContextTests(unittest.TestCase):
         defs=q["nearest_bounded_syntactic_definitions"]
         self.assertEqual(defs[0]["possible_definition_source_site"],"Ball+0x3140")
         self.assertEqual(defs[0]["recognized_definition_class"],"lwz")
-        self.assertFalse(defs[0]["definition_is_reaching_on_actual_CFG_path"])
+        self.assertFalse(defs[0]["definition_is_reaching_on_actual_CFG_path_proven"])
         self.assertFalse(q["global_pointer_alias_at_byte_write_proven"])
 
     def test_prior_unconditional_branch_exposes_unproven_path_gap(self):
