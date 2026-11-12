@@ -233,3 +233,54 @@ new_calc_plus_04 = ppc_fmadds(
 At positive finite `x=1.0`, the target is exactly `1.0`, whereas the right-hand limit `x→1.0+` is approximately **1.03**, a **source-backed discontinuity in this intermediate target**; whether any on-screen redline/gauge has the same discontinuity is unverified. At `x=1.25`, the transformed target is approximately 1.25. Do **not** claim unrestricted native input beyond bounded selector output, no unconditional clipping to 1.25 here, no exact f32 parity, or accepted-shot labeling. The distinct coefficients `0.01` and `0.05` apply to the **post-selector scalar** threshold, not directly to acceleration.
 
 **Next priority:** source forward slice from `0x802B2B78` after `GetMinRedlinePow` to the next `calc+0x04` read, redline state, and native shot-commit/launch caller. Full `fn_802B2AB4` source function extends to `0x802B2F90` by public RSPE01 Rev1 symbols. Never assume `calc+0x04` is actual shot strength, a rendered gauge, or a launch velocity.
+
+
+## Operator original PASS — forward slice after redline threshold (`0x802B2B7C..0x802B2C90`)
+
+The operator's `REV1_POST_REDLINE_FORWARD_SLICE_PASS` verified SHA-256 of all 14 original private banks pre/post, phase1/5/7 identical original PPC across the bounded source interval, and a direct `0x802B2B78 bl 0x802A7C50` redline getter. The excerpt is **compiled source only**; it does not prove the function ran during a specific recorded shot.
+
+### Post-smoother redline gate
+
+`0x2B7C lfs f0,calc+0x04`; `0x2B80 fmr f31,f0` saves the smoothed power candidate **P**. `0x2B84 fcmpo P,f1` compares with the returned minimum-redline threshold **R**, followed by `0x2B88 cror 2,1,2` (CR0 EQ := GT OR EQ), and `0x2B8C bc BO4 BI2→0x2B98` branches on **not (P>=R)** for ordinary finite comparisons. If true, `f5=0.0`; otherwise `f5=calc+0x1A8` (`0x2B90`).
+
+For finite source values:
+```python
+u = calc[+0x1A8] if P >= R else 0.0
+```
+
+This uses **different** CROR operands from the earlier `0x2B58 cror 2,0,2`; do not conflate threshold directions.
+
+### Piecewise auxiliary mapping (temporary FP f5)
+
+At `0x2B9C..0x2C54` the code checks `u>0`, `u>1` and applies different mappings. Ordinary finite-path interpretation, respecting per-op f32 roundoff and special zero-denominator checks:
+
+```python
+if u <= 0:
+    q = u                     # here u is normally 0 due to prior redline gate
+elif u <= 1:
+    # f4 = 1.0 - 0.0 = 1.0, so denominator is nonzero
+    q = clamp(0.15 + 0.85*u, 0.15, 1.0)
+else:
+    g = *(float32*)(r13-27392)   # = 0x804BE880, public Rev1 .sdata global
+    # g is a runtime/global float; its value was NOT established in this source-only trace
+    q = 1.0 if (g-1.0)==0.0 else 1.0 + 0.5*(u-1.0)/(g-1.0)
+    q = clamp(q,1.0,1.5)
+```
+
+The exact zero/NaN comparison paths and legal domain are not fully established. `fn_802B2BB4 lfs f2,-27392(r13)` is in matching public Rev1 symbol object `lbl_804BE880` of type **`.sdata`**, **not** an immutable `r2` numeric constant.
+
+### Second stateful value at calc+0x1AC
+
+`0x802B2C58 lfs f4,428(r31)` reads **old calc+0x1AC** and `0x802B2C60 fsubs f3,f5,f4` forms **q-old**. `0x2C64` loads f32 0.10000000149, `0x2C6C fmadds f2,f2,f4,f3`, `0x2C70 stfs f2,428(r31)`:
+
+```text
+new_calc[+0x1AC] = native_fmadds_f32(
+    0.10000000149011612,
+    old_calc[+0x1AC],
+    f32(q - old_calc[+0x1AC])
+)
+```
+
+**Caution: this is not a conventional EMA** `old+0.1*(q-old)`. Algebraically, ignoring f32 roundoff, it equals `q - 0.9*old`. Avoid naming `+0x1AC` a smoothed redline percentage until subsequent consumers are traced; this recurrence may be a deliberately decaying difference/innovation or another control signal. The `0x2C74..0x2C8C` branch compares old `+0x1AC` with zero, new `+0x1AC` with zero, and **f29 = the earlier P_old** with **redline R**. Subsequent branch destinations `0x802B2C98`, `0x802B2D78` lie outside this source excerpt and require a separate bounded CFG.
+
+**Research priority:** inspect `0x802B2C90..0x802B2D90` to establish the control effects and later consumers of `calc+0x1AC`; determine the live `.sdata` global `0x804BE880` only with a source-qualified, categorical/sanitized probe if necessary; do not assume the redline computation feeds the Ball launch setter or the actual guest shot. Still `training_approved=false`.
