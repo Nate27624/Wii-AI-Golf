@@ -1,0 +1,94 @@
+# Wii Sports Golf RSPE01 Rev1 — swing-to-launch physics research status (2026-11-11)
+
+**Status:** operator-original read-only source research and provisional offline numerical model. **NOT** a validated game-executed shot-power estimator, rendered-ball trajectory model, or training dataset. `training_approved=false`.
+
+**Coordination:** native accepted power [#418](https://github.com/Nate27624/Wii-AI-Golf/issues/418), downstream Ball/physics [#415](https://github.com/Nate27624/Wii-AI-Golf/issues/415), upstream controller magnitude [draft PR #437](https://github.com/Nate27624/Wii-AI-Golf/pull/437), first-contact/model owner S003. This file is a research consolidation, not ownership of code/tests or approval to merge another agent's changes.
+
+## Integrity / evidence levels
+
+- Human operator executed bounded PowerPC/source-only reads against the original RSPE01 Rev1 **seven paired MEM1/MEM2 capture archive (14 banks)**. Local outputs reported manifest SHA-256 **pre/post PASS**, static source equality across phases **1/5/7**, and `training_approved=false`. New raw game bytes or private paths are **not** recorded in this document.
+- **Static-original-source VERIFIED** means exact compiled PCs/instructions/immutable constants qualified, not that a specific native function was exercised on a particular accepted shot.
+- **Public-decomp CORROBORATED** refers to `doldecomp/ogws` RSPE01 Rev1 matching symbols/layouts and math helper names.
+- **Capture ASSOCIATION** means a read-only value was seen in archived captures with *human-supplied* club/phase descriptions; neither atomic frame synchronization nor club enum writer is fully proven.
+- **Provisional MODEL** means code/math derived from static source but neither native floating-point parity nor recorded-flight prediction parity.
+- Do not promote source-selected Ball translation to proven rendered XYZ, the hypothetical `s=0.5` to accepted on-screen power, or 100-ft off-green penalty to physical carry.
+
+## Manager, cases, club correspondence
+
+Source constructor `fn_802AA380` allocates parent (~6264 bytes), constructs four polymorphic children, stores them in `parent+0x0C/0x10/0x14/0x18`, and publishes **the parent** at `[r13-23168]` (SDA global `0x804BF900`). It also stores a *separate* Ball child at `parent+0x1874`; do not confuse the parent, child and selected/third Ball. Both `fn_802B4794` multiplier calls use index `parent+0x1C` and vtable slot `+0x38`; the Ball dispatcher uses selected object's slot `+0x0C`.
+
+| Native case | Vtable | `+0x38` leaf getter | exact return f32 (display approx) | `+0x0C` launch wrapper | `+0x18` scalar method | operator-linked club |
+|---|---|---|---:|---|---|---|
+| 0 | `0x803C8178` | `0x802B5CF4` | 0.03700000047683716 | `0x802B5FCC` | `0x802B5DCC` | driver |
+| 1 | `0x803C8138` | `0x802B5800` | 0.04100000113248825 | `0x802B5AD8` | `0x802B58D8` | iron (previous club-index context; no sample in seven captures) |
+| 2 | `0x803C7FE8` | `0x802AF984` | 0.04500000178813934 | `0x802AFC5C` | `0x802AFA5C` | wedge |
+| 3 | `0x803C8028` | `0x802AFE74` | 0.15000000596046448 | `0x802B00A4` | `0x802AFF4C` | putter |
+
+All four `+0x38` leaf getter bodies are `lfs f1,<SDA2 disp>(r2); blr`. Original vtable/constant reads agreed across phases 1/5/7. The operator's **independently observed parent index** was `[0,0,3,0,2,2,2]` for captures 1..7; human archive labels are driver (1,2,4), putter (3), wedge (5,6,7). This strongly corroborates the club correspondence; a complete native club-enum → parent-index writer/control-flow proof is still an explicit boundary.
+
+## Source-qualified input and magnitude pipeline
+
+- The controller accessor `fn_8019BAE8` is consistent with `RPSysCoreController::getExCoreStatus` and indexes samples of `KPADStatus`, stride 0x84. Golf `fn_802B4794` uses extended-status selections 1/2/3. Filter-2's `record+0x18` = **filtered acceleration norm** `acc_value`; `record+0x1C` = **filtered acceleration-difference norm** `acc_speed` (per matching public decomp `ExStatus::calc`), **not** gyroscope angular velocity. Controller `mKPADReadLength` at +0x854 is source-matched.
+- Separate filter-1 path: `fn_802B4474` calls `fn_800A6400`, copying `acc.x/y/z`; the two-f32 circular history uses filtered `acc.x` (optional sign flip) and `acc.y`, not `acc.z` in that pair. This path is distinct from the filter-2 magnitude product.
+- Golf decay factor at `r2-12892` is exact f32 `0.9919999837875366` (~0.992). On the verified instruction path, with `h` the calc object and `q` the filtered status-2 record, `h+0x18` and `h+0x1C` are conditional maxima of `q.acc_value`; `h+0x20/0x24` are separate persistent recurrences of the form `f32(previous * 0.992 + q.acc_speed)`, subject to exact instruction order. `h+0x28/0x2C` retain conditional maxima of the corresponding accumulators.
+- The two indirect `+0x38` calls return a **case-dependent constant** when the selected case is unchanged. Source products at `0x802B48B8/48EC` and subsequent instructions are:
+
+```text
+k = [0.03700000047683716, 0.04100000113248825,
+     0.04500000178813934, 0.15000000596046448][selected_case]
+A = f32(f32(calc[+0x18] * k) * calc[+0x28])
+B = f32(f32(calc[+0x1C] * k) * calc[+0x2C])
+calc[+0x98] = f32(A - old_calc[+0x08])
+if A > old_calc[+0x08]: calc[+0x08] = A
+if B > old_calc[+0x0C]: calc[+0x0C] = B
+```
+
+This pseudocode is **not** a bit-exact emulator of PowerPC NaN/rounding/branch behavior. Reset and beginning/end-of-shot conditions remain open. In state3 `fn_802B2F90` **conditionally** copies `calc+0x0C → calc+0x10` (not guaranteed unconditionally).
+
+## State-dependent selection and post-processing
+
+- At `fn_802B2A40`: `calc+0x1A4` state **1 → constant 0.0**; state **2 → calc+0x0C**; other observed switch branches → `calc+0x10`. Check all CFG conditions before treating this as exhaustive game behavior.
+- Launch caller `fn_80299ACC` passes `r4=0` at `0x80299AE8 bl fn_802B2A40`. The selector branches between:
+  - `fn_802A8110`: selected case's virtual `+0x18` callback then bounded clamp **[0,1.25]** (exact constant f32 values).
+  - `fn_802A7CD8`: much more involved alternative transformation; bounded snippets show another virtual call, piecewise subexpressions, clamp [0,1] of intermediates, thresholds involving 20 and 75, `fn_802A3CF4` calls, multiple comparisons; its full CFG/formula and runtime branch predicate remain unresolved.
+- Case0 virtual `+0x18` method `fn_802B5DCC` has piecewise math and calls `fn_8029683C` with `f2=0.08` lower and alternative upper `f3=0.75` or `0.25`; native `fn_8029683C` is three-way `clamp(f1,f2,f3)`. Other case callback bodies and predicates not fully interpreted.
+- Alternate function calls Player `fn_8029E6D8`, which obtains two pairs of position-like fields and for a positive squared horizontal distance uses `fn_8002F874` = public-identified `nw4r::math::FrSqrt`; multiplying `distance_squared * reciprocal_sqrt` approximates **horizontal Euclidean distance**. Exact geometry owner and role in accepted shot still unverified.
+
+## Four launch-wrapper curves (separate coefficients from magnitude multipliers)
+
+From original PPC launch wrappers and matching `nw4r` math source, a **provisional finite-positive internal scalar** `s` is shaped by:
+
+```text
+T_p(s) ~ s ** log2(1/p)                  # FLog/FExp approximation
+m      = low + T_p(s) * (high-low)
+vprep  = m * (heading_x*cos(loft), sin(loft), heading_z*cos(loft))
+aux    = aux_multiplier * T_p(s)
+```
+
+This is not exact NW4R lookup-table implementation, f32/Gekko parity, a gauge percentage, or a verified horizontal heading normalization.
+
+| Case | shape p (approximately) | low | high | nominal loft | auxiliary coefficient |
+|---|---:|---:|---:|---:|---:|
+| 0 | 0.700 | 0.020 | 3.320 | 11° | 0.7 |
+| 1 | 0.656 | 0.020 | 2.300 | 25° | 0.5 |
+| 2 | 0.640 | 0.010 | 1.280 | 43° | 0 |
+| 3 | 0.630 | 0.004 | 0.410 | 0° | 0 |
+
+`fn_802A3CF4` has an original-source near-zero guard `abs(s)<0.0010000000475`, and unusual NaN/negative-input branch behavior. Normal positive capped path at case0/1/2 clamps input to <=1; case3 high cap not yet established. Do not rewrite the native function as an unconditional generic `pow`. `fn_802A7A64` constructs launch-prep output, and `fn_8029A0E0` writes to a **third/prep Ball** (`+0x88=aux`, `+0x8C=0` in the original examined path); proof of source-selected *moving* Ball identity/transfer is missing.
+
+## Downstream physics/terrain scope
+
+- An independent offline provisional `launch_cases_provisional.py` had 19/19 **synthetic** tests PASS and four case-specific `s=0.5` launch-prep oracles:
+  - magnitudes approximately `[2.33, 1.51568, 0.8228, 0.25978]`.
+- A read-only synthetic point-center/zero-spin/zero-wind integration against an operator original 2,498-triangle course collision OBJ (private exact SHA separately recorded in #415) returned **four provisional first-contact steps**, but these are **not guest-game physics ticks**, not physical carry in yards, not exact source KCol sphere-radius contact, and not evidence of real-shot landing accuracy.
+- The visual mesh inspector's manual visual alignment and scale are display-only. Physics must use original source KCL native coordinates, not preview transforms or decorative tree silhouettes.
+
+## Priority open gaps / next independently testable claims
+
+1. **Native per-shot accepted scalar / branch condition:** verify which `fn_802B2A40` state + mode path is selected during a shot; resolve `calc+0x40` writer and the live state3/commit event. Previous human 101% gauge is not a native label.
+2. **Alternate transfer:** complete `fn_802A7CD8` CFG / branch predicates (including `fn_8029E6D8`'s distance) with exact PPC FP semantics and case callback contracts. Do not fit free parameters before source audit.
+3. **Club enum join:** locate writer of manager `+0x1C` and establish native club enumeration vs selected case. Seven-capture label association is strong but not the complete writer provenance.
+4. **Ball identity/physics:** trace `fn_80299ACC → fn_8029A0E0/0x8029A5EC` and prove which prepared fields are installed in the **source-selected actual Ball**. Validate `+0x84` speed refresh, spin/trajectory timestep and KCol radius/triangle contact.
+5. **Calibration:** only after native same-shot synchronization, compare accepted game value, on-screen percent, selected Ball motion and timed outcomes under independent trials; retain non-atomicity and censoring guards.
+
+**Hard boundary:** no original-bank bytes, private heap pointers, coordinates, ROM, savestate, sensor payloads, or secret paths exported; no Dolphin actions or state mutation performed by this research document; no training promotion.
