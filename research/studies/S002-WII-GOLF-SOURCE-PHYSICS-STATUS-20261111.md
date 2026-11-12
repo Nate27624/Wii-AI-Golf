@@ -276,11 +276,27 @@ The exact zero/NaN comparison paths and legal domain are not fully established. 
 ```text
 new_calc[+0x1AC] = native_fmadds_f32(
     0.10000000149011612,
-    old_calc[+0x1AC],
-    f32(q - old_calc[+0x1AC])
+    f32(q - old_calc[+0x1AC]),
+    old_calc[+0x1AC]
 )
 ```
 
-**Caution: this is not a conventional EMA** `old+0.1*(q-old)`. Algebraically, ignoring f32 roundoff, it equals `q - 0.9*old`. Avoid naming `+0x1AC` a smoothed redline percentage until subsequent consumers are traced; this recurrence may be a deliberately decaying difference/innovation or another control signal. The `0x2C74..0x2C8C` branch compares old `+0x1AC` with zero, new `+0x1AC` with zero, and **f29 = the earlier P_old** with **redline R**. Subsequent branch destinations `0x802B2C98`, `0x802B2D78` lie outside this source excerpt and require a separate bounded CFG.
+**CORRECTION (verified ISA operand order):** PowerPC `fmadds FRT,FRA,FRC,FRB` computes `FRA*FRC+FRB` with one rounding; decoded `fd=2,fa=2,fb=4,fc=3` means `f2=fma(f2,f3,f4)`, **not** `fma(f2,f4,f3)`. Thus this **is a conventional 0.1 EMA**, `old+0.1*(q-old)` up to native f32 rounding. The earlier claim `q-0.9*old` was incorrect and is superseded. The `0x2C74..0x2C8C` branch compares old `+0x1AC` with zero, new `+0x1AC` with zero, and **f29 = the earlier P_old** with **redline R**.
 
 **Research priority:** inspect `0x802B2C90..0x802B2D90` to establish the control effects and later consumers of `calc+0x1AC`; determine the live `.sdata` global `0x804BE880` only with a source-qualified, categorical/sanitized probe if necessary; do not assume the redline computation feeds the Ball launch setter or the actual guest shot. Still `training_approved=false`.
+
+
+## Operator-original PASS — redline threshold crossing/audio call block (`0x802B2C90..0x802B2DA0`)
+
+Operator returned `REV1_POST_REDLINE_BRANCH_FOLLOWON_PASS` with all 14 original capture banks SHA pre/post, phases1/5/7 native source equal, exact `fmadds` / branch gates, no training promotion.
+
+For ordinary finite compare outcomes, side-effect block `0x802B2C98..0x802B2D74` can be entered when **either**:
+
+1. `Qold=calc+0x1AC` was zero and `Qnew>0` at `0x802B2C74..0x802B2C7C`; OR
+2. `Pold=calc+0x04` (saved in f29 before its update) was **strictly below** minimum-redline R at `0x802B2C80`, and `Pnew=calc+0x04` was **>= R** at `0x802B2C8C..0x802B2C94` with `cror 2,1,2` setting CR0.EQ=GT||EQ.
+
+The side-effect block dispatches **two source-qualified virtual calls** with immediate r5 arguments **39** and **40**, passing an object-related `+2344` address; on a conditional success path each invokes **`0x801B6AB0`**, whose matching public Rev1 symbols and public decomp identify as **`RPSndAudioMgr::setRemote(u32 playerFlag)`** in `Pack/RPAudio/RPSndAudioMgr.cpp`. Public function implementation configures remote speaker output for an already attached system sound. This is concrete **audio/remote-speaker-related event handling** (the exact virtual method(s) still unresolved), NOT by itself a proven ball-strike/launch/accepted-power event. A further direct `0x802B2D28 bl 0x802A7BFC` and an eight-step virtual call loop remain unresolved.
+
+At convergence `0x802B2D78`, root manager selected case index is compared with **3**. Case3 branches to `0x802B2DA4`; non-case3 goes through `0x802B2D88..0x802B2D9C`, where `Pnew` is compared with **1.0** and `f1` is assigned `min(Pnew,1.0)` for ordinary finite inputs (full consumer follows outside excerpt). **No proof this is HUD percentage or shot power;** requires source trace from `0x802B2DA0` onward.
+
+Next falsifiable target: audit original source `0x802B2D98..0x802B2E80` and `fn_802A7BFC(0x802A7BFC..0x802A7C50)` to identify event/handoff store semantics and whether clamped `f1` is consumed as audio presentation or launch. Avoid another constants/club-index/flag scan; `training_approved=false`.
