@@ -191,3 +191,45 @@ More promising and independently **already operator-original source qualified**:
 - The eight SDA2 numeric values, the exact CROR condition, and post-`2B78` consumers remain unverified as numeric results. The manager/calc receiver and original source PCs were qualified by the separate operator audit, **not reproduced in this document**.
 
 **Next small discriminant** is source-gated static read of these eight f32 constants and CROR BT/BA/BB, followed by forward dataflow from the calc+0x04 write and redline getter; this is more informative than further attempts to find the flag setter in another arbitrary static region. Neither `calc+0x04` nor `calc+0x10` is promoted as native accepted percentage; `training_approved=false`.
+
+
+## Original Rev1 operator source PASS — exact eight post-selector scalar constants and CROR (2026-11-11)
+
+The operator returned `REV1_POST_SELECTOR_EIGHT_F32_CONSTANTS_PASS`, original 14 SHA before/after, source PPC phase1/5/7 equality, exact linked calls at `0x802B34D4→0x802B2AB4`, `0x802B2AEC→0x802B2A40` and `0x802B2B78→0x802A7C50`, `0x802B2B70 fmadds`, `0x802B2B74 stfs f0,4(r31)`, `0x802B2B58 cror BT=2,BA=0,BB=2`, `0x802B2B5C bc BO=4,BI=2→0x802B2B68`.
+
+| Source SDA2 displacement | Label | Exact observed source float32 |
+|---|---|---:|
+| `-13192` | initial comparison threshold | `1.0` |
+| `-13032` | upper affine reference | `1.25` |
+| `-13028` | upper affine offset | `1.0299999713897705` |
+| `-13024` | affine span | `0.2200000286102295` |
+| `-13148` | case3/putter-like smoothing threshold | `0.10000000149011612` |
+| `-13020` | cases0/1/2 smoothing threshold | `0.07999999821186066` |
+| `-13016` | alpha on ordered `target <= threshold` | `0.009999999776482582` |
+| `-13052` | alpha on ordered `target > threshold` | `0.05000000074505806` |
+
+**Finite ordered input semantics** (the source FPU has per-instruction f32 rounding; the code below is structural, NOT bit-identical Python):
+
+```python
+if selected_scalar <= 1.0:
+    target = selected_scalar
+else:
+    # The 1.25-1.0 denominator is exactly 0.25f,
+    # but all subsequent intermediate arithmetic uses native PPC f32 behavior.
+    target = 1.03_f32 + 0.22_f32 * (selected_scalar - 1.0_f32) / 0.25_f32
+
+threshold = (0.1_f32 if selected_case == 3 else 0.08_f32)
+# cror 2,0,2 overwrites EQ with LT||EQ. Subsequent bc BO4,BI2
+# branches to 0x2B68 iff ordered comparison is > threshold;
+# NaN / unordered must not be silently classified as normal input.
+alpha = 0.01_f32 if target <= threshold else 0.05_f32
+new_calc_plus_04 = ppc_fmadds(
+    alpha,
+    f32(target - old_calc_plus_04),
+    old_calc_plus_04,
+)
+```
+
+At positive finite `x=1.0`, the target is exactly `1.0`, whereas the right-hand limit `x→1.0+` is approximately **1.03**, a **source-backed discontinuity in this intermediate target**; whether any on-screen redline/gauge has the same discontinuity is unverified. At `x=1.25`, the transformed target is approximately 1.25. Do **not** claim unrestricted native input beyond bounded selector output, no unconditional clipping to 1.25 here, no exact f32 parity, or accepted-shot labeling. The distinct coefficients `0.01` and `0.05` apply to the **post-selector scalar** threshold, not directly to acceleration.
+
+**Next priority:** source forward slice from `0x802B2B78` after `GetMinRedlinePow` to the next `calc+0x04` read, redline state, and native shot-commit/launch caller. Full `fn_802B2AB4` source function extends to `0x802B2F90` by public RSPE01 Rev1 symbols. Never assume `calc+0x04` is actual shot strength, a rendered gauge, or a launch velocity.
