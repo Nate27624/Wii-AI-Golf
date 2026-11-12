@@ -98,6 +98,7 @@ def classify_original_target(read,bank_limit):
     if not NONEXEC_MIN<=target<bank_limit-MAX_SITE_CENSUS*4 or target%4:
         return {
             "target_in_original_source_MEM1_bounded_window":False,
+            "exact_original_r26_through_r31_six_store_then_blr_shape_verified":False,
             "original_previous_plain_stw_only_helper_verified":
                 initial["r4_is_preserved_by_exact_callee_source_verified"],
             "bounded_native_callee_instruction_categories":[],
@@ -116,13 +117,26 @@ def classify_original_target(read,bank_limit):
             break
         if ins["kind"]=="nop":
             continue
-        if ins["kind"]=="stw" and ins["stored_register"] in range(27,32):
+        # The actual Rev1 source target saves r26 through r31, not
+        # r27 through r31. Stores of nonvolatile r26 are also safe.
+        if ins["kind"]=="stw" and ins["stored_register"] in range(26,32):
             continue
-        if ins["kind"]=="stmw" and ins["first_stored_register"]>=27:
+        if ins["kind"]=="stmw" and ins["first_stored_register"]>=26:
             continue
         all_store_only=False
         break
     verified=(return_index is not None and return_index>0 and all_store_only)
+    # Stronger positive control for the exact six instruction stores
+    # in original operator report; excludes unrelated save thunks.
+    original_six_store_shape=(
+        return_index==6
+        and all(
+            decoded[i]["kind"]=="stw"
+            and decoded[i]["stored_register"]==26+i
+            and decoded[i]["base_register"]==11
+            and decoded[i]["signed_displacement"]==-24+4*i
+            for i in range(6))
+    )
     return {
         "target_in_original_source_MEM1_bounded_window":True,
         "original_previous_plain_stw_only_helper_verified":
@@ -132,6 +146,8 @@ def classify_original_target(read,bank_limit):
             for i,ins in enumerate(decoded)],
         "recognized_store_only_path_prefix":witness,
         "store_only_complete_ordinary_blr_index":return_index,
+        "exact_original_r26_through_r31_six_store_then_blr_shape_verified":
+            original_six_store_shape,
         "exact_register_r4_preservation_proven":verified,
         "recognized_complete_store_only_helper_proven":verified,
         "unclassified_or_control_paths_exhausted":False,
@@ -152,6 +168,8 @@ def inspect(read,bank_limit):
         "previous_stw_only_helper_result_was_not_r4_clobber_proof":True,
         "callee_first_24_source_instruction_syntax":callee,
         "exact_callee_preserves_r4_if_stw_stmw_only_plus_blr":result,
+        "native_original_r26_r31_save_thunk_source_verified":
+            callee.get("exact_original_r26_through_r31_six_store_then_blr_shape_verified",False),
         "second_caller_minus_one_can_feed_r28_if_executed_and_path_reached":
             result and args[1]["caller_entry_r4_statically_fixed_proven"],
         "original_r13_global_flag_object_identity_proven":False,
