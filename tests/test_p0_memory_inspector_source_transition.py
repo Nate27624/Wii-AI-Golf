@@ -149,6 +149,7 @@ class SourceTransitionTests(unittest.TestCase):
         view.replay=object()
         view.phase_list=Mock()
         view.rows=Mock()
+        view.rows.get_children.return_value = ()
         view.live_last=10.
         # Exercise the event blocks in the real poll handler, no Tk.
         class Worker:
