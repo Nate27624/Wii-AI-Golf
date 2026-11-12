@@ -225,7 +225,7 @@ def run(archive:Path,capture:int,progress=None):
         for i,size in enumerate(seven.SIZE,1):
             f=seven.src._file(roots[capture],f"{capture}.{i}.raw",size)
             h=stack.enter_context(f.open("rb"))
-            banks.append(stack.enter_context(mmap.mmap(f.fileno(),0,access=mmap.ACCESS_READ)))
+            banks.append(stack.enter_context(mmap.mmap(h.fileno(),0,access=mmap.ACCESS_READ)))
         def read(pc):
             if pc%4 or pc<MEM1 or pc+4>MEM1+len(banks[0]):
                 raise ValueError("Original PPC source outside SHA-qualified MEM1")
