@@ -117,3 +117,16 @@ Matching public primary-source links:
 - [RPSysController.cpp](https://github.com/doldecomp/ogws/blob/master/src/Pack/RPKernel/RPSysController.cpp) (`CalcAcc`, `ExStatus::calc`, defaults, `setExAccParam`).
 - [RSPE01_01 public symbols](https://github.com/doldecomp/ogws/blob/master/config/RSPE01_01/symbols.txt) (`FrSqrt__Q24nw4r4mathFf` at `0x8002F874`).
 - [NW4R FrSqrt implementation](https://github.com/doldecomp/ogws/blob/master/src/nw4r/math/math_arithmetic.cpp) (reciprocal square-root estimate/refinement), independently supporting the Player `fn_8029E6D8` positive squared-distance branch.
+
+
+## Additional original-source branch result: when the alternate transfer is bypassed
+
+Operator-original symbolic PPC around `fn_802A7CD8` gives a useful **early-exit predicate**:
+
+- `0x802A7D14 fmr f26,f1` preserves the incoming scalar.
+- `0x802A7D28 mr r29,r3` keeps the manager receiver, and `0x802A7D4C bcctrl` calls its selected case's virtual `+0x18` callback; `0x802A7D54 fmr f28,f1` saves that callback's scalar result.
+- `0x802A7D50 lfs f0,-13944(r2)` is original source `1.0f`. `0x802A7D58 fcmpo f26,1`; `0x802A7D5C bc BO=4,BI=0→0x802A80A0` jumps to final clamp whenever the incoming scalar is **not ordered less than 1.0**. For ordinary finite positive scalars, `s>=1` skips the entire distance-dependent section.
+- If `s<1`, `0x802A7D60 lfs f2,6252(r29)`; `0x802A7D64 lfs f0,-13924(r2)`; `0x802A7D68 fcmpo f2,f0`; `0x802A7D6C bc BO=4,BI=0→0x802A80A0`. Thus a second threshold tests **manager+0x186C** against a still **numerically unread static SDA2 f32 threshold**. Ordinary finite `manager+0x186C >= threshold` also bypasses the distance-dependent logic.
+- Tail `0x802A80A0..80C4` bounds the returned `f1` by **[0.0,1.25]**, but the return of the selected case callback and its full side-effects/inputs are not yet validated in game runtime.
+
+**Research consequence:** the alternate geometric/distance math is only eligible for a strict subset of scalar + manager-context values on the examined path; it is unsafe to apply it to all shots. The remaining minimum informative original-archive observation is **only** the constant `r2-13924` and a **categorical** per-capture test of `parent+0x186C < threshold` (never export the original runtime floats/addresses). This source gate is much smaller than another complete disassembly. This does **not** show that alternate mode actually ran during any archived shot or establish game-accepted power.
