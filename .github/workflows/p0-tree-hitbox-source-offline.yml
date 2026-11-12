@@ -1,0 +1,234 @@
+name: P0 Wii Golf Tree Hitbox Source Audit Offline
+on:
+  push:
+    branches:
+      - agent/p0-tree-hitbox-source-audit-20261030
+  pull_request:
+    paths:
+      - scripts/p0_tree_hitbox_source_callgraph_private.py
+      - tests/test_p0_tree_hitbox_source_callgraph_private.py
+      - scripts/p0_tree_hitbox_five_calls_private.py
+      - tests/test_p0_tree_hitbox_five_calls_private.py
+      - scripts/p0_ball_kcol_twelve_calls_private.py
+      - tests/test_p0_ball_kcol_twelve_calls_private.py
+      - scripts/p0_ball_kcol_postcall_context_private.py
+      - tests/test_p0_ball_kcol_postcall_context_private.py
+      - scripts/p0_ball_kcol_material_branch_private.py
+      - scripts/p0_ball_kcol_result_provenance_private.py
+      - scripts/p0_ball_kcol_prism_type_origin_private.py
+      - scripts/p0_ball_kcol_active_resource_private.py
+      - scripts/p0_ball_kcol_prism_dummy_layout_private.py
+      - scripts/p0_ball_kcol_seven_capture_active_kcl_private.py
+      - scripts/p0_tree_ball_indirect_dispatch_private.py
+      - scripts/p0_tree_ball_runtime_table_alias_private.py
+      - scripts/p0_tree_full_public_table_targets_private.py
+      - scripts/p0_tree_contact_record_private.py
+      - scripts/run_p0_tree_contact_record.ps1
+      - tests/test_p0_tree_contact_record_private.py
+      - scripts/recover_p0_tree_contact_record_private.py
+      - tests/test_recover_p0_tree_contact_record_private.py
+      - scripts/analyze_p0_tree_contact_memory_private.py
+      - scripts/p0_tree_contact_source_phase_triage_private.py
+      - scripts/p0_tree_contact_memory_response_private.py
+      - scripts/p0_tree_live_ball_selfref_private.py
+      - scripts/p0_tree_ball_source_store_inventory_private.py
+      - scripts/p0_tree_ball_writer_register_context_private.py
+      - scripts/p0_ball_cache_r27_lineage_private.py
+      - scripts/p0_ball_cc_fc_copy_receiver_private.py
+      - scripts/p0_ball_cc_global_caller_source_private.py
+      - scripts/p0_ball_cache_cfg_reachability_private.py
+      - scripts/p0_ball_cache_backedge_condition_private.py
+      - scripts/p0_ball_cc_backedge_signed_operands_private.py
+      - scripts/p0_ball_backedge_postcall_arg_private.py
+      - scripts/p0_ball_prelude_save_thunk_private.py
+      - scripts/p0_ball_prelude_callee_census_private.py
+      - scripts/p0_ball_global_5c_source_census_private.py
+      - scripts/p0_ball_global_byte_writer_context_private.py
+      - scripts/p0_ball_global_5c_initializer_r26_private.py
+      - scripts/p0_ball_global_5c_zero_witness_private.py
+      - scripts/p0_ball_global_5c_init_caller_join_private.py
+      - scripts/p0_ball_global_5c_init_three_caller_r3_private.py
+      - scripts/p0_ball_two_global_slots_initializer_receivers_private.py
+      - tests/test_p0_ball_two_global_slots_initializer_receivers_private.py
+      - scripts/p0_ball_kcol_material_vector_edges_private.py
+      - scripts/p0_ball_kcol_cr0_float_sources_private.py
+      - scripts/p0_ball_kcol_stack_receiver_provenance_private.py
+      - tests/test_p0_ball_kcol_stack_receiver_provenance_private.py
+      - tests/test_p0_ball_kcol_cr0_float_sources_private.py
+      - tests/test_p0_ball_kcol_material_vector_edges_private.py
+      - tests/test_p0_ball_global_5c_init_three_caller_r3_private.py
+      - tests/test_p0_ball_global_5c_init_caller_join_private.py
+      - tests/test_p0_ball_global_5c_zero_witness_private.py
+      - tests/test_p0_ball_global_5c_initializer_r26_private.py
+      - tests/test_p0_ball_global_byte_writer_context_private.py
+      - tests/test_p0_ball_global_5c_source_census_private.py
+      - tests/test_p0_ball_prelude_callee_census_private.py
+      - tests/test_p0_ball_prelude_save_thunk_private.py
+      - tests/test_p0_ball_backedge_postcall_arg_private.py
+      - tests/test_p0_ball_cc_backedge_signed_operands_private.py
+      - tests/test_p0_ball_cache_backedge_condition_private.py
+      - tests/test_p0_ball_cache_cfg_reachability_private.py
+      - tests/test_p0_ball_cc_global_caller_source_private.py
+      - tests/test_p0_ball_cc_fc_copy_receiver_private.py
+      - tests/test_p0_ball_cache_r27_lineage_private.py
+      - tests/test_p0_tree_ball_writer_register_context_private.py
+      - tests/test_p0_tree_ball_source_store_inventory_private.py
+      - tests/test_p0_tree_live_ball_selfref_private.py
+      - tests/test_p0_tree_contact_memory_response_private.py
+      - tests/test_p0_tree_contact_source_phase_triage_private.py
+      - tests/test_analyze_p0_tree_contact_memory_private.py
+      - tests/test_p0_tree_full_public_table_targets_private.py
+      - tests/test_p0_tree_ball_runtime_table_alias_private.py
+      - tests/test_p0_tree_ball_indirect_dispatch_private.py
+      - tests/test_p0_ball_kcol_seven_capture_active_kcl_private.py
+      - tests/test_p0_ball_kcol_prism_dummy_layout_private.py
+      - tests/test_p0_ball_kcol_active_resource_private.py
+      - tests/test_p0_ball_kcol_prism_type_origin_private.py
+      - tests/test_p0_ball_kcol_result_provenance_private.py
+      - tests/test_p0_ball_kcol_material_branch_private.py
+      - scripts/p0_golf_kcol_collision_windows_private.py
+      - tests/test_p0_golf_kcol_collision_windows_private.py
+      - scripts/p0_tree_hitbox_object_dispatch_private.py
+      - tests/test_p0_tree_hitbox_object_dispatch_private.py
+      - scripts/p0_tree_ball_84byte_context_private.py
+      - tests/test_p0_tree_ball_84byte_context_private.py
+      - scripts/p0_tree_proximity_flag_private.py
+      - tests/test_p0_tree_proximity_flag_private.py
+      - scripts/p0_tree_flag_consumer_trace_private.py
+      - tests/test_p0_tree_flag_consumer_trace_private.py
+      - scripts/p0_tree_flag_receiver_disambiguation_private.py
+      - tests/test_p0_tree_flag_receiver_disambiguation_private.py
+      - scripts/p0_fieldmanager_tree_caller_receivers_private.py
+      - tests/test_p0_fieldmanager_tree_caller_receivers_private.py
+      - scripts/p0_tree_second_loop_geometry_private.py
+      - tests/test_p0_tree_second_loop_geometry_private.py
+      - scripts/p0_tree_kcl_spatial_broadphase_private.py
+      - tests/test_p0_tree_kcl_spatial_broadphase_private.py
+      - scripts/p0_tree_kcl_frame_diagnostics_private.py
+      - tests/test_p0_tree_kcl_frame_diagnostics_private.py
+      - scripts/p0_tree_kcl_exact_triangle_distance_private.py
+      - tests/test_p0_tree_kcl_exact_triangle_distance_private.py
+      - scripts/p0_tree_kcl_surface_group_join_private.py
+      - tests/test_p0_tree_kcl_surface_group_join_private.py
+      - research/studies/P0-GOLF-TREE-HITBOX-01.md
+      - .github/workflows/p0-tree-hitbox-source-offline.yml
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Focused native PPC source callgraph and static falsification
+        run: python -m unittest discover -s tests -p test_p0_tree_hitbox_source_callgraph_private.py -v
+      - name: Focused five original Tree callsites and target decode bounds
+        run: python -m unittest discover -s tests -p test_p0_tree_hitbox_five_calls_private.py -v
+      - name: Focused Ball to GolfKCol real source calls, no false tree physics
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_twelve_calls_private.py -v
+      - name: Focused source-bound KCL query and narrowphase five code windows
+        run: python -m unittest discover -s tests -p test_p0_golf_kcol_collision_windows_private.py -v
+      - name: Source-verified tree object dispatch/inline collider cues
+        run: python -m unittest discover -s tests -p test_p0_tree_hitbox_object_dispatch_private.py -v
+      - name: Tree and Ball 84-byte inline access source code windows
+        run: python -m unittest discover -s tests -p test_p0_tree_ball_84byte_context_private.py -v
+      - name: Source PSVECSquareDistance tree flag and 94-position scaling tests
+        run: python -m unittest discover -s tests -p test_p0_tree_proximity_flag_private.py -v
+      - name: Source-verified tree distance flag consumer context
+        run: python -m unittest discover -s tests -p test_p0_tree_flag_consumer_trace_private.py -v
+      - name: P0 tree +0x48 receiver identity vs native camera calls
+        run: python -m unittest discover -s tests -p test_p0_tree_flag_receiver_disambiguation_private.py -v
+      - name: Source-authenticated FieldManager true-tree vs other reader caller
+        run: python -m unittest discover -s tests -p test_p0_fieldmanager_tree_caller_receivers_private.py -v
+      - name: Source 94-tree second loop and camera geometry receiver
+        run: python -m unittest discover -s tests -p test_p0_tree_second_loop_geometry_private.py -v
+      - name: Original KCL prism reconstruction versus 94 source tree spatial bins
+        run: python -m unittest discover -s tests -p test_p0_tree_kcl_spatial_broadphase_private.py -v
+      - name: KCL world-frame tee-pin controls and full unfiltered near-face diagnostics
+        run: python -m unittest discover -s tests -p test_p0_tree_kcl_frame_diagnostics_private.py -v
+      - name: Original exact triangle distance vs 94 trees and tee pin positive controls
+        run: python -m unittest discover -s tests -p test_p0_tree_kcl_exact_triangle_distance_private.py -v
+      - name: Native 72-22 resource group versus per-tree rough OOB surface join
+        run: python -m unittest discover -s tests -p test_p0_tree_kcl_surface_group_join_private.py -v
+      - name: P0 source five Ball-KCol return branch and velocity-store triage
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_postcall_context_private.py -v
+      - name: Native Ball KCL material 7 12 13 return and ball member float triad source
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_material_branch_private.py -v
+      - name: Native KCL classification-producer and Ball field consumer strict evidence audit
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_result_provenance_private.py -v
+      - name: Native KCL prism type-to-result and Ball state-copy provenance audit
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_prism_type_origin_private.py -v
+      - name: Source-qualified Ball KCol global resource and true terrain KCL identity
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_active_resource_private.py -v
+      - name: Active Ball KCL prism table 16-byte dummy-base versus usable-prism alignment
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_prism_dummy_layout_private.py -v
+      - name: Seven capture active KCL resource and class13 native material audit
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_seven_capture_active_kcl_private.py -v
+      - name: Original Ball tree firstword table and indirect dispatch strict evidence gate
+        run: python -m unittest discover -s tests -p test_p0_tree_ball_indirect_dispatch_private.py -v
+      - name: Source-gated 94-tree table versus Ball child dispatch receiver memory identity
+        run: python -m unittest discover -s tests -p test_p0_tree_ball_runtime_table_alias_private.py -v
+      - name: Exact Tree shared-table 64 slots versus complete public Rev1 text map
+        run: python -m unittest discover -s tests -p test_p0_tree_full_public_table_targets_private.py -v
+      - name: Synthetic operator wood foliage and near-miss read-only recorder
+        run: python -m unittest discover -s tests -p test_p0_tree_contact_record_private.py -v
+      - name: Offline SHA-checked recovery of completed wood foliage and near-miss recordings
+        run: python -m unittest discover -s tests -p test_recover_p0_tree_contact_record_private.py -v
+      - name: Deep offline three-trial source candidate and 94-tree memory differential
+        run: python -m unittest discover -s tests -p test_analyze_p0_tree_contact_memory_private.py -v
+      - name: Source-only original Ball candidate sustained-phase and tree 24/2C timeline triage
+        run: python -m unittest discover -s tests -p test_p0_tree_contact_source_phase_triage_private.py -v
+      - name: Source-only signed displacement, moving alias and tree native word categories
+        run: python -m unittest discover -s tests -p test_p0_tree_contact_memory_response_private.py -v
+      - name: Original selected Ball self-pointer to +0x30 versus second read and cached copies
+        run: python -m unittest discover -s tests -p test_p0_tree_live_ball_selfref_private.py -v
+      - name: Original PPC Ball candidate position cache direct and pointer-based store syntax
+        run: python -m unittest discover -s tests -p test_p0_tree_ball_source_store_inventory_private.py -v
+      - name: Original PPC grouped Ball cache writer base registers and pointer receiver syntax
+        run: python -m unittest discover -s tests -p test_p0_tree_ball_writer_register_context_private.py -v
+      - name: Native Ball cache r27 store receiver and BL r3 caller syntax
+        run: python -m unittest discover -s tests -p test_p0_ball_cache_r27_lineage_private.py -v
+      - name: Original PPC Ball source-CC and destination-FC copy with strict r27 receiver gate
+        run: python -m unittest discover -s tests -p test_p0_ball_cc_fc_copy_receiver_private.py -v
+      - name: Native global-source Ball CC input dereference and caller r31 register preservation
+        run: python -m unittest discover -s tests -p test_p0_ball_cc_global_caller_source_private.py -v
+      - name: Original cache entry unconditional branch and bounded CFG source reachability
+        run: python -m unittest discover -s tests -p test_p0_ball_cache_cfg_reachability_private.py -v
+      - name: Native Ball cache return backedge CR predicates and static witness routes
+        run: python -m unittest discover -s tests -p test_p0_ball_cache_backedge_condition_private.py -v
+      - name: Original PPC Ball cache CR EQ versus LT and r0/r28 witness operands
+        run: python -m unittest discover -s tests -p test_p0_ball_cc_backedge_signed_operands_private.py -v
+      - name: Native Ball CC backedge postcall volatile r4 and byte-flag receiver trace
+        run: python -m unittest discover -s tests -p test_p0_ball_backedge_postcall_arg_private.py -v
+      - name: Native Ball function prelude actual callee save-GPR helper and r4 preservation
+        run: python -m unittest discover -s tests -p test_p0_ball_prelude_save_thunk_private.py -v
+      - name: Original prelude callee census including PPC stmw and bounded r4 preservation
+        run: python -m unittest discover -s tests -p test_p0_ball_prelude_callee_census_private.py -v
+      - name: Original PPC global r13 source byte-0x5C writer and owner census
+        run: python -m unittest discover -s tests -p test_p0_ball_global_5c_source_census_private.py -v
+      - name: Native Ball global pointer setter and 0x5C byte store receiver contexts
+        run: python -m unittest discover -s tests -p test_p0_ball_global_byte_writer_context_private.py -v
+      - name: Native Ball global 0x5C initializer and r26 byte writer source audit
+        run: python -m unittest discover -s tests -p test_p0_ball_global_5c_initializer_r26_private.py -v
+      - name: Original Ball global +0x5C zero-write candidate, X-form and CFG witness
+        run: python -m unittest discover -s tests -p test_p0_ball_global_5c_zero_witness_private.py -v
+      - name: Source qualified global flag initializer direct BL inbound and local registrar helper
+        run: python -m unittest discover -s tests -p test_p0_ball_global_5c_init_caller_join_private.py -v
+      - name: Original Ball initializer three BL sites and bounded caller r3 argument provenance
+        run: python -m unittest discover -s tests -p test_p0_ball_global_5c_init_three_caller_r3_private.py -v
+      - name: Direct Ball KCol prism class branch and vector store native source witness
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_material_vector_edges_private.py -v
+      - name: Native two adjacent global-slot census and initializer wrapper receiver preservation
+        run: python -m unittest discover -s tests -p test_p0_ball_two_global_slots_initializer_receivers_private.py -v
+      - name: Original Ball KCol classification CR0 EQ branch and three float source transfers
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_cr0_float_sources_private.py -v
+      - name: Original Ball KCol stack result values and r23 receiver bounded source provenance
+        run: python -m unittest discover -s tests -p test_p0_ball_kcol_stack_receiver_provenance_private.py -v
+      - name: Full offline regression
+        run: python -m unittest discover -s tests -v
