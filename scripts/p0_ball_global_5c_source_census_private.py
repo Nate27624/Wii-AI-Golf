@@ -129,10 +129,12 @@ def bounded_global_producer(read,unit,at,base):
             "same_global_object_proven":False}
 
 
-def census(read):
+def census(read,progress=None):
     results={}
     global_store_sites=[]
     for name,(lo,hi) in UNITS.items():
+        if progress is not None:
+            progress["stage"]="native_unit_"+name
         counts=Counter()
         accesses=[]
         global_reads=[]
@@ -186,12 +188,18 @@ def census(read):
     }
 
 
-def inspect(read):
+def inspect(read,progress=None):
+    if progress is not None:
+        progress["stage"]="original_exact_flag_gate"
+    exact=exact_flag_gate(read)
+    if progress is not None:
+        progress["stage"]="native_source_unit_census"
+    scan=census(read,progress)
     return {
         "kind":"P0_ORIGINAL_BALL_GLOBAL_5C_NATIVE_SOURCE_WRITER_CENSUS_V1",
         "status":"SOURCE_QUALIFIED_GLOBAL_POINTER_BYTE_FIELD_CANDIDATES",
-        "original_qualified_byte_branch_input":exact_flag_gate(read),
-        "bounded_global_and_byte_field_source_census":census(read),
+        "original_qualified_byte_branch_input":exact,
+        "bounded_global_and_byte_field_source_census":scan,
         "backedge_second_caller_negative_operand_verified_if_executed":True,
         "byte_field_runtime_nonzero_verified":False,
         "global_owner_selected_live_Ball_verified":False,
@@ -201,12 +209,16 @@ def inspect(read):
     }
 
 
-def run(archive:Path,capture:int):
+def run(archive:Path,capture:int,progress=None):
+    if progress is not None:
+        progress["stage"]="prior_native_source_qualification"
     p=before.run(archive,capture)
     if (not p.get("original_seven_pair_SHA_and_source_verified") or
             p.get("original_source_capture")!=capture or
             p.get("original_entry_r4_to_r28_straightline_source_verified") is not True):
         raise ValueError("Original negative-argument and scene SHA gates not met")
+    if progress is not None:
+        progress["stage"]="private_archive_SHA_verification"
     roots=seven._check_archive(archive)
     with ExitStack() as stack:
         banks=[]
@@ -218,7 +230,9 @@ def run(archive:Path,capture:int):
             if pc%4 or pc<MEM1 or pc+4>MEM1+len(banks[0]):
                 raise ValueError("Original PPC source outside SHA-qualified MEM1")
             return struct.unpack_from(">I",banks[0],pc-MEM1)[0]
-        result=inspect(read)
+        result=inspect(read,progress)
+    if progress is not None:
+        progress["stage"]="final_private_archive_SHA_verification"
     seven._check_archive(archive)
     return {**result,"original_archive_and_native_scene_SHA_verified":True,
             "original_capture":capture}
@@ -229,16 +243,22 @@ def main(argv=None):
     p.add_argument("--archive",type=Path,required=True)
     p.add_argument("--capture",type=int,choices=range(1,8),default=7)
     a=p.parse_args(argv)
+    progress={"stage":"initial"}
     try:
-        print(json.dumps(run(a.archive,a.capture),sort_keys=True,
+        print(json.dumps(run(a.archive,a.capture,progress),sort_keys=True,
                          separators=(",",":"),allow_nan=False))
         return 0
     except (OSError,ValueError,KeyError,TypeError,IndexError,
-            AttributeError,OverflowError,struct.error):
+            AttributeError,OverflowError,struct.error) as exc:
+        # Source data, paths, native PCs, binary bytes and exception
+        # messages MUST NOT be included in an error report.
         print(json.dumps({
             "kind":"P0_ORIGINAL_BALL_GLOBAL_5C_NATIVE_SOURCE_WRITER_CENSUS_V1",
             "status":"ABSTAIN_ORIGINAL_SHA_SOURCE_OR_ARGUMENT_GATE",
-            "training_approved":False}))
+            "failed_public_stage":progress["stage"],
+            "failure_exception_class":type(exc).__name__,
+            "exception_message_or_private_data_exposed":False,
+            "training_approved":False},sort_keys=True))
         return 2
 
 
