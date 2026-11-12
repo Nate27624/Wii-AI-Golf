@@ -303,3 +303,17 @@ Next falsifiable target: audit original source `0x802B2D98..0x802B2E80` and `fn_
 
 
 **Direct public code check:** `RPSndAudioMgr::setRemote` checks for an attached system sound, reads user parameters, and configures Wii Remote speaker output using `RPSndSpeakerMgr::setRemoteSend`. This supports *audio-event dispatch* at the threshold crossing. It does not prove an audio event was emitted by an archived runtime sample, and its specific sound effects 39 and 40 are not identified.
+
+
+## Operator continuation receipt and output-key correction (2026-11-11)
+
+**Source receipt:** The operator executed the read-only `REV1_REDLINE_CONTINUATION_SOURCE_PASS` on the original seven paired MEM1/MEM2 capture archive. The returned verification reported all ten gates true: `smoothed_scalar_store`, `redline_virtual_getter_call`, `redline_cror_ge`, `redline_payload_read`, `redline_skip_zero`, `anchor`, and the four `above_one_gain`/`above_one_clamp`/`below_one_base`/`below_one_gain` floating-point constant gates. This script reuses the qualified archive, 14-bank SHA pre/post, and phase-1/5/7 original source-identity checks, and shifted its **bounded symbolic tail window to `0x802B2D34..0x802B2E38`**. Do not claim a guest-executed launch from that source pass.
+
+**Display caveat:** The operator's console printed an empty `=== REDLINE EVENT CONTINUATION ===` section because the PowerShell printer used the incorrect JSON field `$report.symbolic_tail`; the Python report stores the excerpt in **`$report.symbolic_tail_only`**. An empty display is **not a zero-length source slice or proof that the continuation has no instructions**. The next operator command is:
+```powershell
+$report.symbolic_tail_only |
+    ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 6 }
+```
+Until those resulting instructions are supplied and reviewed, this particular pass adds **integrity and native-gate evidence**, not an independently interpreted `0x802B2D34..0x802B2E38` CFG. Other previously documented source passes (above) may independently cover overlapping PCs; do not conflate their provenance.
+
+**Evidence boundary at this checkpoint:** Source-backed ordered finite remaps and `calc+0x04`/`calc+0x1AC` FMA updates are documented above, including the PowerPC `FRA*FRC+FRB` correction. The mutable `r13-27392` runtime value, same-shot accepted scalar, launch-wrapper input, and selected Ball handoff remain **UNVERIFIED**. Keep `training_approved=false`, avoid claims of HUD percent or native trajectory parity. Coordinate launch/selected-Ball trace through [#415](https://github.com/Nate27624/Wii-AI-Golf/issues/415); the power evidence log stays at [#418](https://github.com/Nate27624/Wii-AI-Golf/issues/418).
