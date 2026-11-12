@@ -492,6 +492,10 @@ class Inspector:
                 model = load_private_visual_model(filename)
             from .textured_preview import TexturedPreviewWindow
             preview = TexturedPreviewWindow(self.visual_tab, model, embedded=True)
+            # Preserve layout choice when swapping private source DAEs.
+            if (getattr(self, "_advanced_visible", False)
+                    and hasattr(preview, "set_diagnostics_visible")):
+                preview.set_diagnostics_visible(True)
             if getattr(self, "terrain_mesh", None) is not None:
                 try:
                     # set_collision_terrain makes the source-verified
