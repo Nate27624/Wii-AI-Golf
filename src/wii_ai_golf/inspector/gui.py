@@ -994,6 +994,12 @@ class Inspector:
             "Shot number: unverified · acquiring source")
         self.a_reason.set("Connecting; first two samples assume A is RELEASED")
         self.replay = None
+        # Do not keep the preceding shot's 3D ball/player/flag while the
+        # next source epoch is still unqualified.
+        preview = getattr(self, "visual_preview", None)
+        clear_actor = getattr(preview, "set_actor_overlay", None)
+        if callable(clear_actor):
+            clear_actor(SourceActorSnapshot())
         self.phases = []
         self.phase_list.delete(0, "end")
         self.rows.delete(*self.rows.get_children())
@@ -1115,6 +1121,10 @@ class Inspector:
                     self.a_reason.set("bridge disconnected, stale, or error")
                     self.draw_a_overlay()
                     self.a_indicator.clear()
+                    preview = getattr(self, "visual_preview", None)
+                    clear_actor = getattr(preview, "set_actor_overlay", None)
+                    if callable(clear_actor):
+                        clear_actor(SourceActorSnapshot())
                 elif event.kind == "disconnected":
                     self.status.set("LIVE DISCONNECTED. Existing sample trace retained; no background retries.")
                     self.live_last = None
@@ -1123,6 +1133,10 @@ class Inspector:
                     self.a_reason.set("bridge disconnected, stale, or error")
                     self.draw_a_overlay()
                     self.a_indicator.clear()
+                    preview = getattr(self, "visual_preview", None)
+                    clear_actor = getattr(preview, "set_actor_overlay", None)
+                    if callable(clear_actor):
+                        clear_actor(SourceActorSnapshot())
             if self.live_last is not None:
                 age = time.monotonic() - self.live_last
                 if age > 3.0:
