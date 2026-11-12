@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import math
 from typing import TYPE_CHECKING
 
-from .replay import BALL
+from .replay import BALL, AIM, float_hypothesis
 
 if TYPE_CHECKING:
     from .replay import Sample
@@ -27,19 +27,44 @@ class SourceActorSnapshot:
     tee_proxy: tuple[float, float, float] | None = None
     source_qualified: bool = False
     illustrative_only: bool = False
+    # Angle candidate from the current qualified packet, interpreted as
+    # radians for display ONLY. Delta needs a same-source tee-to-pin baseline.
+    aim_raw_degrees: float | None = None
+    aim_delta_degrees: float | None = None
+    aim_reference: str = ""  # "operator", "assumed", or "illustrative"
 
 
-def from_sample(sample: "Sample | None") -> SourceActorSnapshot:
+def from_sample(sample: "Sample | None", *, baseline: float | None = None,
+                baseline_source: str | None = None,
+                baseline_mode: str = "") -> SourceActorSnapshot:
     if (sample is None or not sample.source_qualified
             or not sample.source_digest):
         return SourceActorSnapshot()
     # sample.vec decodes only finite three-component f32. Never cache flag,
     # tee or ball across missing packets or changed source identities.
+    raw = sample.words.get(AIM)
+    raw_angle = (float_hypothesis(raw[0])
+                 if raw is not None and len(raw) == 1 else None)
+    if raw_angle is not None and abs(raw_angle) > math.tau:
+        raw_angle = None
+    valid_baseline = (
+        raw_angle is not None and type(baseline) in (int, float)
+        and math.isfinite(baseline) and abs(baseline) <= math.tau
+        and isinstance(baseline_source, str)
+        and baseline_source == sample.source_digest)
+    delta = (math.degrees(math.remainder(raw_angle-baseline, math.tau))
+             if valid_baseline else None)
+    reference = ("operator" if baseline_mode.startswith("OPERATOR")
+                 else "assumed") if valid_baseline else ""
     return SourceActorSnapshot(
         ball=sample.vec(BALL),
         flag=sample.vec(PIN),
         tee_proxy=sample.vec(TEE),
         source_qualified=True,
+        aim_raw_degrees=(math.degrees(raw_angle)
+                         if raw_angle is not None else None),
+        aim_delta_degrees=delta,
+        aim_reference=reference,
     )
 
 
@@ -82,7 +107,8 @@ def illustrative_from_terrain(terrain) -> SourceActorSnapshot:
             (item[1][0]-flag[0])**2+(item[1][2]-flag[2])**2,
             item[0]))
     return SourceActorSnapshot(
-        ball=tee, flag=flag, tee_proxy=tee, illustrative_only=True)
+        ball=tee, flag=flag, tee_proxy=tee, illustrative_only=True,
+        aim_delta_degrees=0., aim_reference="illustrative")
 
 
 def draw_source_actors(image, comp, camera, snapshot: SourceActorSnapshot | None,
