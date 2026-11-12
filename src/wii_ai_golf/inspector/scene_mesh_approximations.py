@@ -327,7 +327,7 @@ def draw_3d_approximations(image, comp: "ComparisonKCL | None",
             inferred = snapshot.illustrative_only
             for show, pos, label, tint in (
                 (show_flag, snapshot.flag,
-                 "FLAG (approx green)" if inferred else "FLAG (source pin)",
+                 "FLAG (approx green)" if inferred else "FLAG (pin candidate)",
                  "#f9eeee"),
                 (show_ball, snapshot.ball,
                  "BALL (approx tee)" if inferred else "BALL (selected)",
