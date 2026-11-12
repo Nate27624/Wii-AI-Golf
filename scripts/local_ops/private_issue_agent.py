@@ -159,7 +159,10 @@ def decode_request(issue: dict, trusted_actor: str) -> tuple[str, dict]:
 
 
 def project_subdir(root: Path, relative: str) -> Path:
-    target = (root / relative).resolve(strict=True)
+    try:
+        target = (root / relative).resolve(strict=True)
+    except (FileNotFoundError, NotADirectoryError, OSError):
+        raise BridgeError("Requested project directory does not exist") from None
     if not target.is_relative_to(root) or not target.is_dir():
         raise BridgeError("Directory is outside the approved project checkout")
     return target
