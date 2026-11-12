@@ -82,6 +82,7 @@ class StartupTests(unittest.TestCase):
         obj=object.__new__(gui.Inspector)
         worker=FakeWorker();obj.live_worker=worker;obj.live_port=Var('55355')
         obj.a_status=Var('A RELEASED');obj.a_reason=Var('candidate')
+        obj.club_status=Var('CLUB WEDGE')
         obj.status=Var();obj.live_last=10
         obj.a_indicator=Mock();obj.startup_process=None
         obj.draw_a_overlay=Mock()
@@ -96,6 +97,7 @@ class StartupTests(unittest.TestCase):
         self.assertEqual(worker.thread.joins,[2.0])
         self.assertIsNone(obj.live_worker)
         self.assertEqual(obj.a_status.get(),'A UNKNOWN')
+        self.assertEqual(obj.club_status.get(),'CLUB UNKNOWN')
         self.assertIn('No swing',obj.status.get())
         self.assertEqual(popen.call_args.args[0],['powershell.exe','-NoExit'])
         self.assertFalse(popen.call_args.kwargs['shell'])
