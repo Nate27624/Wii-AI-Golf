@@ -22,6 +22,52 @@ from .club import club_label
 _ALLOWED = frozenset({"memory.read_u32", "memory.read_bytes", "frame.get_count"})
 ROOT = Path(__file__).resolve().parents[3]
 
+# Only known source-owner discontinuities are eligible for one bounded,
+# in-connection transition. Malformed revision, transport/bridge failures,
+# invalid data schema, frame ordering and guessed game states remain fatal.
+_TRANSIENT_SOURCE_ERRORS = frozenset({
+    "invalid source actor pointer",
+    "not Golf scene",
+    "not active Hitting-the-Green hole",
+    "ambiguous selected player",
+    "selected ball class mismatch",
+    "scene source/owner mismatch",
+    "source identity changed across packet",
+    "invalid scene static",
+    "invalid player manager type",
+})
+_TRANSITION_TIMEOUT_S = 30.0
+_TRANSITION_POLL_S = 0.08
+
+
+def _is_source_transition(exc: Exception) -> bool:
+    return type(exc) is ValueError and str(exc) in _TRANSIENT_SOURCE_ERRORS
+
+
+def _safe_failure_category(exc: Exception) -> str:
+    """Stable diagnostic category only; no exception content or RAM pointer."""
+    if isinstance(exc, TimeoutError):
+        return "BRIDGE_TIMEOUT"
+    if isinstance(exc, OSError):
+        return "BRIDGE_OR_OS_READ_FAILURE"
+    if isinstance(exc, PermissionError):
+        return "READONLY_ALLOWLIST_DENIAL"
+    if type(exc) is ValueError:
+        return {
+            "not Wii Sports USA Rev1": "REVISION_MISMATCH",
+            "source transition not qualified within limit":
+                "SOURCE_TRANSITION_TIMEOUT",
+            "source identity changed": "SOURCE_OWNER_CHANGED",
+            "source identity changed across packet":
+                "SOURCE_EPOCH_CHANGED",
+            "not Golf scene": "NOT_GOLF_SCENE",
+            "not active Hitting-the-Green hole":
+                "NOT_HITTING_THE_GREEN",
+            "invalid frame bracket": "FRAME_BRACKET_INVALID",
+            "invalid bridge ordering": "FRAME_ORDER_INVALID",
+        }.get(str(exc), "VALUE_VALIDATION_FAILURE")
+    return "UNCLASSIFIED_READ_FAILURE"
+
 
 class ReadOnlyRPC:
     """Fail closed if a reused source reader ever attempts game control/write."""
@@ -57,7 +103,8 @@ class LiveSampler:
     def __init__(self, *, port: int = 55355, poll_pause_s: float = 0.0,
                  connector: Callable | None = None, packet_reader: Callable | None = None,
                  include_a_state: bool = False, source_gate: Callable | None = None,
-                 use_batched_reads: bool = True):
+                 use_batched_reads: bool = True,
+                 allow_source_transitions: bool = False):
         if type(port) is not int or not 1 <= port <= 65535:
             raise ValueError("invalid local bridge port")
         self.port = port
@@ -67,6 +114,11 @@ class LiveSampler:
         self.include_a_state = include_a_state
         self.source_gate = source_gate
         self.use_batched_reads = use_batched_reads
+        if type(allow_source_transitions) is not bool:
+            raise ValueError("source transition recovery must be Boolean")
+        # This opt-in applies ONLY to the built-in Rev1 packet reader.
+        # Custom/injected readers retain strict fail-closed identity gates.
+        self.allow_source_transitions = allow_source_transitions
         self.events: queue.Queue[LiveEvent] = queue.Queue(maxsize=24)
         self.stop_event = threading.Event()
         self.thread: threading.Thread | None = None
@@ -122,20 +174,83 @@ class LiveSampler:
                 connector = self.connector
             identity = None
             clock = deque(maxlen=12)
+            transition_start = None
+            pending_identity = None
+            pending_count = 0
+
+            def begin_transition(reason: str) -> None:
+                nonlocal transition_start, pending_identity, pending_count
+                if transition_start is None:
+                    transition_start = time.monotonic()
+                    pending_identity = None
+                    pending_count = 0
+                    # Sanitized categories only: never leak source pointers.
+                    self._emit(LiveEvent("transition", reason=reason))
+
+            def check_transition_timeout() -> None:
+                if (transition_start is not None
+                        and time.monotonic()-transition_start > _TRANSITION_TIMEOUT_S):
+                    raise ValueError("source transition not qualified within limit")
             with connector() as raw_rpc:
                 rpc = ReadOnlyRPC(raw_rpc)
                 index = 0
                 while not self.stop_event.is_set():
                     cycle_start = time.monotonic_ns()
                     rpc_before = rpc.calls
-                    data = packet(rpc, "LIVE", index)
+                    try:
+                        data = packet(rpc, "LIVE", index)
+                    except ValueError as exc:
+                        if (self.allow_source_transitions
+                                and self.packet_reader is None
+                                and self.use_batched_reads
+                                and _is_source_transition(exc)):
+                            begin_transition("Golf source temporarily unavailable / changing")
+                            # A gap breaks any putative two-in-a-row stable
+                            # packet run; require two fresh successes.
+                            pending_identity = None
+                            pending_count = 0
+                            check_transition_timeout()
+                            self.stop_event.wait(max(self.pause, _TRANSITION_POLL_S))
+                            continue
+                        raise
                     actor = data["identity"]
                     if not isinstance(actor, (tuple, list)) or len(actor) != 14:
                         raise ValueError("source identity schema changed")
-                    if identity is None:
-                        identity = tuple(actor)
-                    elif tuple(actor) != identity:
-                        raise ValueError("source identity changed")
+                    actor = tuple(actor)
+                    if identity is None and transition_start is None:
+                        # Initial ready source: the built-in reader already
+                        # independently validates beginning and end epochs.
+                        identity = actor
+                    elif transition_start is None and actor != identity:
+                        if not (self.allow_source_transitions
+                                and self.packet_reader is None
+                                and self.use_batched_reads):
+                            raise ValueError("source identity changed")
+                        begin_transition("Golf selected owner / hole changed")
+                        pending_identity = actor
+                        pending_count = 1
+                        self.stop_event.wait(max(self.pause, _TRANSITION_POLL_S))
+                        continue
+                    elif transition_start is not None:
+                        # Two distinct complete, revalidated source packets
+                        # must agree on all 14 identity fields before ANY
+                        # A/club/ball or player proxy can be shown again.
+                        if actor == pending_identity:
+                            pending_count += 1
+                        else:
+                            pending_identity = actor
+                            pending_count = 1
+                        check_transition_timeout()
+                        if pending_count < 2:
+                            self.stop_event.wait(max(self.pause, _TRANSITION_POLL_S))
+                            continue
+                        identity = pending_identity
+                        transition_start = None
+                        pending_identity = None
+                        pending_count = 0
+                        clock.clear()
+                        self._emit(LiveEvent("resumed", reason=(
+                            "Two consecutive full source-qualified Golf packets agreed")))
                     raw_words = data["words"]
                     if not isinstance(raw_words, dict) or not raw_words:
                         raise ValueError("invalid source-qualified packet")
@@ -231,4 +346,10 @@ class LiveSampler:
             self._emit(LiveEvent("disconnected", reason="Operator stopped or bridge closed"))
         except (OSError, ValueError, RuntimeError, TypeError, KeyError, ImportError, TimeoutError, PermissionError, IndexError) as exc:
             # Avoid leaking dynamic guest pointers or local private file paths into UI.
-            self._emit(LiveEvent("error", reason=f"Read-only source/bridge failure ({type(exc).__name__}). No automatic retry."))
+            # Exact exception messages can include live guest addresses.
+            # Expose ONLY controlled human-readable categories.
+            category = _safe_failure_category(exc)
+            self._emit(LiveEvent(
+                "error", reason=(
+                    f"Read-only source/bridge failure ({type(exc).__name__}; "
+                    f"{category}). No automatic retry.")))
