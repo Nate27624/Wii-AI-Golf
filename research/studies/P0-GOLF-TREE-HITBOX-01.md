@@ -4940,3 +4940,110 @@ game assets, personal paths,
 Dolphin, new gameplay, video
 or guest writes are included.
 `training_approved=false`.
+
+
+## Original initializer callers do not establish alias to r13 global -23304; return focus to Ball↔GolfKCol
+
+The operator's successful original SHA-gated Rev1 seven-pair
+capture **7** report
+`P0_ORIGINAL_BALL_GLOBAL_5C_INIT_THREE_CALLER_R3_V1`
+was generated at pinned source head
+`609608340e40256414fbd0e3d9630aa481369f5c`.
+`status=SHA_QUALIFIED_NATIVE_INITIALIZER_R3_SOURCE_CONTEXT`,
+`original_archive_and_scene_SHA_gates_verified=true`.
+
+The report verified all three direct native
+`bl Ball+0x3108` callsites and source-relative
+r3 argument contexts:
+
+- **Ball+0x2B60** receives r3 via a source-qualified
+  `Ball+0x2B50: lwz r3,-23300(r13)`,
+  with no intervening identified r3 writer,
+  control barrier or unknown opcode in
+  the bounded local window. Importantly,
+  the byte-clearing candidate is loaded from
+  the **different** r13-global offset
+  `-23304`, not `-23300`.
+  Different global slots could alias the
+  same object, but no original source
+  alias or runtime equality has been
+  demonstrated.
+- **Ball+0x320C** has a native function-like
+  prologue at `Ball+0x31F8`,
+  `mr r31,r3` at `+0x3208`,
+  then `bl Ball+0x3108` at +0x320C.
+  The backward lexical scan's
+  `Ball+0x31A4: addi r3,r3,416`
+  occurs *before* the +0x31F4
+  return and +0x31F8 prologue,
+  separated by control barriers,
+  and **must not be promoted to
+  the incoming r3 receiver**.
+- **Ball+0x3248** similarly has a distinct
+  function-like prologue at
+  `Ball+0x322C`, preserves incoming
+  r3 in r30 via `mr r30,r3`
+  at +0x3244, then invokes
+  `bl Ball+0x3108` at +0x3248.
+  No direct `lwz r3,-23304(r13)`
+  is identified before this call.
+  The earlier lexical search crossed
+  other function boundaries; the r3
+  receiver remains untyped.
+
+The initializer source at +0x3108
+writes literal `1` to `+0x5C(r3)`
+if executed. A separate 60-instruction
+conditional source witness can write
+literal `0` to the `+0x5C` field
+of the object loaded from
+`-23304(r13)`. The **same-object
+alias is not proven**, and no
+real guest execution sequence
+connecting these writes has
+been identified. Do not call
+this an established one-shot
+flag, nor a tree-collision latch.
+Source unit names, nearby byte
+offsets, and compiler-prologue
+syntax are insufficient.
+
+**Research decision:** deprioritize
+the global-byte cache loop. Return
+to source-qualified Ball↔GolfKCol
+collision processing, where prior
+original native source gates already
+proved five direct Ball→GolfKCol
+calls, an exported prism
+classification halfword from
+`GolfKCol+0x0118/+0x011C` and
+source comparisons of classes
+`7,12,13` in Ball code.
+Ball+0x14D0 queries GolfKCol;
+Ball+0x14F0 obtains the
+classification halfword from a
+stack result; and source conditionally
+stores three floats to Ball-side
+candidate members `+0xAC/+0xB0/+0xB4`.
+None of those code facts alone
+shows a tree-specific shape,
+wood-versus-leaf branch,
+active selected Ball receiver,
+velocity, impulse or restitution.
+The next audit should map
+the *actual source comparisons*
+to their direct conditional
+control-flow edges and the
+candidate vector-write path,
+without promoting a KCL flag
+number to tree material semantics.
+
+Original source SHA/scene and
+94×84 tree-count gates remain
+in force, `training_approved=false`.
+No Dolphin, new recordings,
+gameplay video, native
+ROM/PPC instruction words,
+private RAM pointers/XYZ,
+game assets or guest writes
+are required or uploaded.
