@@ -5047,3 +5047,104 @@ ROM/PPC instruction words,
 private RAM pointers/XYZ,
 game assets or guest writes
 are required or uploaded.
+
+
+## Pivot audit: original Ball-GolfKCol code 7/12/13 comparisons and conditional vector writes
+
+Following the original three-caller
+initializer audit's failure to establish
+alias between the object initialized at
+`+0x5C=1` and the global
+`-23304(r13)` object's conditional
+`+0x5C=0` write,
+the project is shifting to the more
+relevant native collision-query route.
+
+Earlier source-qualified independent
+Ball/KCol audits already established:
+
+- Five original direct Ball→GolfKCol
+  BL sites and seven reverse
+  native callsites, with original
+  scene SHA and 94×84 tree
+  source gates passed.
+- `GolfKCol+0x0118: lhz r0,+0x0E(r3)`
+  loads a native prism halfword,
+  and `+0x011C: sth r0,0(r28)`
+  places the classification
+  into the query output.
+- `Ball+0x0B60` invokes the
+  GolfKCol wrapper at +0x1AC4;
+  after a candidate query result,
+  Ball+0x0B84 compares code **13**
+  and +0x0B90 compares code **7**.
+- `Ball+0x14D0` invokes the
+  main GolfKCol entry +0x0000;
+  `Ball+0x14F0` reads
+  the returned stack halfword,
+  then +0x14F4 compares **7**
+  and +0x14FC compares **12**.
+  Native code at
+  `Ball+0x1508/+0x1510/+0x1518`
+  stores three floats to a
+  Ball-side receiver at
+  member offsets +0xAC/+0xB0/+0xB4
+  when their original source
+  branch path is entered.
+
+Crucially, *none of those
+numeric source classifications*
+has yet been proven to denote
+tree bark, foliage, wood,
+a particular original KCL prism
+surface, or the selected active
+Ball's velocity vector.
+
+**Next focused direct-collision code audit**
+`scripts/p0_ball_kcol_material_vector_edges_private.py`
+and 11 synthetic tests
+`tests/test_p0_ball_kcol_material_vector_edges_private.py`
+were added to draft research PR #422,
+registered in Win/Ubuntu CI.
+It requires all prior original
+SHA, scene/94-tree, five-query,
+seven-inverse-call and exact
+KCol prism/halfword source gates.
+It checks exact PPC source
+compare immediates and native
+BL destinations, and publishes
+only sanitized direct branch
+destinations after the four
+Ball classification comparisons,
+plus a bounded direct-CFG
+*may-reach* result for the
+three candidate float stores
+near the main Ball KCol call.
+
+This is an improved **branch
+target and possible response path
+inventory**, not a confirmed
+tree collision, selected Ball
+velocity, impulse, material
+coefficient or restitution.
+No runtime test or new shot
+is required. The program
+never exports private original
+PPC words, ROM/RAM, heap
+pointers, XYZ, KCL vertices,
+user asset bytes or paths.
+`training_approved=false`.
+
+If this source-only audit
+finds nearby branch edges
+for the special classifications,
+the following step is to
+identify the original KCol
+resource and active prism
+type for any tree candidate
+before promoting wood-versus-leaf
+collision logic. It should
+not fit collision parameters
+from labels inferred solely
+from memory proximity or
+source compilation unit names.
