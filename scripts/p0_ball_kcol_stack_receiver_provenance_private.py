@@ -60,7 +60,7 @@ def kcol(off):
 def mem(w):
     op=w>>26
     if op not in (32,33,34,35,36,37,38,39,40,41,42,43,44,45,
-                  46,47,48,49,50,51,52,53,54,55,60,61):
+                  46,47,48,49,50,51,52,53,54,55):
         return None
     return {
         "opcode_number":op,
@@ -69,7 +69,7 @@ def mem(w):
             38:"stb",39:"stbu",40:"lhz",41:"lhzu",42:"lha",
             43:"lhau",44:"sth",45:"sthu",46:"lmw",47:"stmw",
             48:"lfs",49:"lfsu",50:"lfd",51:"lfdu",52:"stfs",
-            53:"stfsu",54:"stfd",55:"stfdu",60:"psq_st",61:"psq_stu",
+            53:"stfsu",54:"stfd",55:"stfdu",
         }[op],
         "register_T_or_FPR":(w>>21)&31,
         "base_GPR":(w>>16)&31,
