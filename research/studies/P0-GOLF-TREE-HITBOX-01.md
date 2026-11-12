@@ -4134,3 +4134,103 @@ new gameplay, Dolphin or
 video. Source study and
 synthetic-only tests updated
 on draft PR #422.
+
+
+## Original save helper confirmed, entry r4 provenance blocked by two unclassified instructions
+
+The operator reran the source-verified original
+USA Rev1 private seven-pair archive **capture 7**
+under head `6f5943ed2b4e7f44a60f47af00ead6a0ac2e0cbd`.
+Output `P0_ORIGINAL_BALL_PRELUDE_CALLEE_INSTRUCTION_CENSUS_V2`
+established:
+
+- The original native BL target at Ball+0x2CB0
+  is **exactly** six PPC `stw` instructions
+  saving r26 through r31 to
+  `-24,-20,-16,-12,-8,-4(r11)`,
+  followed by ordinary `blr`.
+  `exact_original_r26_through_r31_six_store_then_blr_shape_verified=true`
+  and `exact_register_r4_preservation_proven=true`.
+  The earlier `stw r27..` only failure was
+  a false negative from an incomplete decoder.
+- The two bounded source instructions **after**
+  the return and **before** `Ball+0x2CBC
+  mr r28,r4` both qualified
+  as non-control, non-r4-writing.
+  `r4_preserved_between_return_and_r28_binding_source_verified=true`.
+- The **remaining failed gate** is
+  `r4_preserved_between_entry_and_helper_call_source_verified=false`.
+  It inspected the six instructions at
+  the published native cache routine entry
+  `0x80299C70` (public Ball+0x2C98)
+  through the helper BL at Ball+0x2CB0.
+  The previous partial decoder accepted
+  relative instruction indices 0,1,2,5
+  and conservatively abstained at
+  **index 3 = Ball+0x2CA4**
+  and **index 4 = Ball+0x2CA8**,
+  with **no recognized** r4 writes at
+  either. This proves neither that r4
+  was modified nor that it was preserved;
+  `second_caller_minus_one_can_feed_r28_if_executed_and_path_reached=false`
+  was correctly left unpromoted.
+
+**Follow-up in-place source checker improvement:**
+`scripts/p0_ball_prelude_callee_census_private.py`
+now recognizes the actual Gekko PPC
+D-form **`stfd` (opcode 54)** and
+paired-single **`psq_st` (opcode 60)**
+as floating-point store operations
+that do **not** modify any GPR.
+It recognizes update variants
+`stfdu` (55) and `psq_stu` (61)
+only if their **updated base GPR
+is not r4**. It preserves
+conservative abstention for
+unrecognized operations, control
+transfers and any known r4
+destination. The sanitized
+report now provides per-instruction
+**primary opcode numbers** and,
+where relevant, **base register
+indices** for the six-entry
+source span, so any remaining
+unrecognized original instructions
+can be identified without
+printing native PPC words or
+private binaries.
+
+These added opcode rules are
+**not** a claim that original
+indices 3 and 4 were `stfd`/
+`psq_st`. That is a testable
+hypothesis; the source-archive
+operator must rerun the corrected
+script before `r4` path
+preservation can be verified.
+Three synthetic tests guard
+ordinary floating stores vs
+updating `r4`, in addition to
+the earlier save-helper and
+source-gate regression suite.
+
+If the full entry→helper→postcall→r28
+path qualifies and the second
+caller still passes `li r4,-1`,
+then signed r28 is source-qualified
+as negative **if that caller
+and linear prologue path execute**.
+The **other** branch gate,
+the **r13-global object's
+`+0x5C` byte being nonzero**,
+is still an unknown runtime value,
+and neither native wood-vs-foliage
+material, selected Ball identity,
+impact frame, velocity nor physics
+restitution is established.
+`training_approved=false`.
+No Dolphin, new shots, video,
+raw PPC words, original game
+assets, private RAM pointers
+or coordinates are requested
+or committed.
