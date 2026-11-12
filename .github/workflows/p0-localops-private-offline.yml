@@ -1,0 +1,29 @@
+name: Private LocalOps mailbox — offline safety tests
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/local_ops/**'
+      - 'tests/test_p0_localops*.py'
+      - 'docs/localops-private-issue-bridge.md'
+      - '.github/workflows/p0-localops-private-offline.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile source-only agent and tests
+        run: python -m py_compile scripts/local_ops/private_issue_agent.py tests/test_p0_localops_private_issue_agent.py
+      - name: Security and transport tests (NO network, NO local commands)
+        run: python -m unittest discover -s tests -p "test_p0_localops*.py" -v
