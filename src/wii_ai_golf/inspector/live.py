@@ -329,8 +329,22 @@ class LiveSampler:
         except (OSError, ValueError, RuntimeError, TypeError, KeyError, ImportError, TimeoutError, PermissionError, IndexError) as exc:
             # Avoid leaking dynamic guest pointers or local private file paths into UI.
             # Report a bounded reason class, not guest pointers or paths.
-            category = ("TRANSITION_TIMEOUT" if str(exc) == "source transition timed out"
-                        else "UNEXPECTED_SOURCE_OR_BRIDGE_FAILURE")
+            safe_codes = {
+                "source transition timed out": "TRANSITION_TIMEOUT",
+                "not Wii Sports USA Rev1": "WRONG_GAME_REVISION",
+                "invalid revision header": "INVALID_REVISION_HEADER",
+                "malformed bounded read": "MALFORMED_BRIDGE_READ",
+                "invalid BE bytes": "MALFORMED_BRIDGE_READ",
+                "short bounded read": "SHORT_BRIDGE_READ",
+                "invalid bridge frame bracket": "INVALID_BRIDGE_FRAME",
+                "invalid frame bracket": "INVALID_BRIDGE_FRAME",
+                "invalid bridge ordering": "INVALID_BRIDGE_FRAME",
+                "source identity changed": "CUSTOM_READER_SOURCE_SWAP",
+                "source identity schema changed": "SOURCE_IDENTITY_SCHEMA",
+                "invalid source-qualified packet": "SOURCE_PACKET_SCHEMA",
+            }
+            category = safe_codes.get(
+                str(exc), "UNEXPECTED_SOURCE_OR_BRIDGE_FAILURE")
             self._emit(LiveEvent(
-                "error", reason=f"Read-only failure: {category} "
+                "error", reason=f"Read-only source/bridge failure: {category} "
                 f"({type(exc).__name__}). No automatic reconnect."))
