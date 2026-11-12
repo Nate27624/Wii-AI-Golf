@@ -76,7 +76,10 @@ class TexturedPreviewWindow:
         self.show_flag = tk.BooleanVar(value=True)
         self.show_ball = tk.BooleanVar(value=True)
         self.show_player = tk.BooleanVar(value=True)
+        self.show_direction = tk.BooleanVar(value=True)
         self.show_actor_labels = tk.BooleanVar(value=True)
+        self.direction_status = tk.StringVar(
+            value="Aim direction: unavailable (no pin/tee baseline) · swing not verified")
         self.actor_status = tk.StringVar(value=(
             "Illustrative scene markers until source-qualified replay / LIVE"
             " is available. Real player XYZ not mapped."))
@@ -172,9 +175,12 @@ class TexturedPreviewWindow:
             ("Trees (3D)", self.show_trees),
             ("Flag", self.show_flag), ("Ball", self.show_ball),
             ("Player (tee proxy)", self.show_player),
+            ("Swing direction arrow (aim hypothesis)", self.show_direction),
             ("Labels", self.show_actor_labels)):
             ttk.Checkbutton(markers, text=label, variable=state,
                             command=self.schedule).pack(side="left", padx=(6, 0))
+        ttk.Label(self.top, textvariable=self.direction_status,
+                  padding=(8, 1), wraplength=1000).pack(fill="x")
         ttk.Label(self.top, textvariable=self.actor_status,
                   padding=(8, 1), wraplength=1000).pack(fill="x")
 
@@ -279,7 +285,8 @@ class TexturedPreviewWindow:
             bool(self.show_flag.get()) if hasattr(self, "show_flag") else True,
             bool(self.show_ball.get()) if hasattr(self, "show_ball") else True,
             bool(self.show_player.get()) if hasattr(self, "show_player") else True,
-            bool(self.show_actor_labels.get()) if hasattr(self, "show_actor_labels") else True)
+            bool(self.show_actor_labels.get()) if hasattr(self, "show_actor_labels") else True,
+            bool(self.show_direction.get()) if hasattr(self, "show_direction") else False)
         self._queued_tree_snapshot = (
             getattr(self, "tree_overlay", ()),
             getattr(self, "tree_overlay_visible", True)
@@ -306,7 +313,7 @@ class TexturedPreviewWindow:
         filtered = getattr(self, "_queued_texture_filter", False)
         self._queued_texture_filter = None
         actor_state = getattr(self, "_queued_actor_snapshot",
-                              (None, True, True, True, True))
+                              (None, True, True, True, True, False))
         self._queued_actor_snapshot = None
         cancel = Event()
         self._cancel_render = cancel
@@ -320,7 +327,7 @@ class TexturedPreviewWindow:
                       mode="Textures", collision=None, tree_points=(),
                        tree_visible=True, tree_illustrations=True,
                        tree_labels=False, filtered=False,
-                       actor_state=(None, True, True, True, True)):
+                       actor_state=(None, True, True, True, True, False)):
         """Worker-only: one source-local camera, no Tk operations or writes."""
         if cancelled():
             raise PreviewCancelled()
@@ -343,7 +350,7 @@ class TexturedPreviewWindow:
         if cancelled():
             raise PreviewCancelled()
         if collision is not None:
-            actor, flag, ball, player, labels = actor_state
+            actor, flag, ball, player, labels, direction = actor_state
             # Actual world-space polygon meshes for all toggled objects,
             # drawn using ONE source->visual transform and camera. Snapshot
             # carries no Tk widgets/threads, game writes, or private bytes.
@@ -351,7 +358,8 @@ class TexturedPreviewWindow:
                 image, collision, camera, snapshot=actor,
                 source_tree_positions=tree_points if tree_visible else (),
                 show_trees=tree_visible, show_flag=flag,
-                show_ball=ball, show_player=player, labels=labels)
+                show_ball=ball, show_player=player,
+                show_direction=direction, labels=labels)
         return image, drawn, (time.perf_counter()-started)*1000.
 
     def _poll_completed(self):
@@ -714,6 +722,31 @@ class TexturedPreviewWindow:
         if hasattr(self, "actor_status"):
             self.set_actor_overlay(self.actor_snapshot if self.actor_sample_seen else None)
 
+    @staticmethod
+    def direction_readout(snapshot: SourceActorSnapshot | None) -> str:
+        """Degree readout with explicit uncertainty; NEVER physical swing."""
+        if snapshot is None or not (
+                snapshot.source_qualified or snapshot.illustrative_only):
+            return ("Swing/aim direction: unavailable · requires qualified"
+                    " tee/pin and a same-source baseline; no physical swing measured")
+        delta = snapshot.aim_delta_degrees
+        if delta is not None and snapshot.flag is not None and snapshot.tee_proxy is not None:
+            if snapshot.illustrative_only:
+                return ("Direction 0.0° toward approximate flag · ILLUSTRATIVE,"
+                        " not a sampled shot or player heading")
+            reference = ("operator-set" if snapshot.aim_reference == "operator"
+                         else "assumed first-packet")
+            return (f"Aim-angle offset {delta:+.1f}° from tee→pin "
+                    f"({reference} +0x3C baseline) · display HYPOTHESIS,"
+                    " not verified physical swing direction")
+        raw = snapshot.aim_raw_degrees
+        if raw is not None:
+            return (f"Raw +0x3C aim candidate: {raw:+.1f}° · no"
+                    " valid same-source tee/pin baseline; arrow hidden,"
+                    " swing semantics unverified")
+        return ("Swing/aim direction: no qualified same-sample angle or"
+                " tee/pin baseline · arrow hidden")
+
     def set_actor_overlay(self, snapshot: SourceActorSnapshot | None) -> None:
         """Same-packet replay/live actor snapshot; no stale field carryover."""
         if snapshot is not None and not isinstance(snapshot, SourceActorSnapshot):
@@ -735,6 +768,10 @@ class TexturedPreviewWindow:
                       " Load KCL labels and qualified replay / LIVE.")
         if hasattr(self, "actor_status"):
             self.actor_status.set(status)
+        if hasattr(self, "direction_status"):
+            active = (self.actor_snapshot if self.actor_sample_seen
+                      else self.illustrative_actors)
+            self.direction_status.set(self.direction_readout(active))
         self.schedule()
 
     def set_tree_overlay(self, points, *, visible: bool, illustrations: bool,
