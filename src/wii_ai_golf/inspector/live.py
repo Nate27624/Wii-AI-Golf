@@ -44,6 +44,31 @@ def _is_source_transition(exc: Exception) -> bool:
     return type(exc) is ValueError and str(exc) in _TRANSIENT_SOURCE_ERRORS
 
 
+def _safe_failure_category(exc: Exception) -> str:
+    """Stable diagnostic category only; no exception content or RAM pointer."""
+    if isinstance(exc, TimeoutError):
+        return "BRIDGE_TIMEOUT"
+    if isinstance(exc, OSError):
+        return "BRIDGE_OR_OS_READ_FAILURE"
+    if isinstance(exc, PermissionError):
+        return "READONLY_ALLOWLIST_DENIAL"
+    if type(exc) is ValueError:
+        return {
+            "not Wii Sports USA Rev1": "REVISION_MISMATCH",
+            "source transition not qualified within limit":
+                "SOURCE_TRANSITION_TIMEOUT",
+            "source identity changed": "SOURCE_OWNER_CHANGED",
+            "source identity changed across packet":
+                "SOURCE_EPOCH_CHANGED",
+            "not Golf scene": "NOT_GOLF_SCENE",
+            "not active Hitting-the-Green hole":
+                "NOT_HITTING_THE_GREEN",
+            "invalid frame bracket": "FRAME_BRACKET_INVALID",
+            "invalid bridge ordering": "FRAME_ORDER_INVALID",
+        }.get(str(exc), "VALUE_VALIDATION_FAILURE")
+    return "UNCLASSIFIED_READ_FAILURE"
+
+
 class ReadOnlyRPC:
     """Fail closed if a reused source reader ever attempts game control/write."""
     def __init__(self, inner: object):
@@ -321,4 +346,10 @@ class LiveSampler:
             self._emit(LiveEvent("disconnected", reason="Operator stopped or bridge closed"))
         except (OSError, ValueError, RuntimeError, TypeError, KeyError, ImportError, TimeoutError, PermissionError, IndexError) as exc:
             # Avoid leaking dynamic guest pointers or local private file paths into UI.
-            self._emit(LiveEvent("error", reason=f"Read-only source/bridge failure ({type(exc).__name__}). No automatic retry."))
+            # Exact exception messages can include live guest addresses.
+            # Expose ONLY controlled human-readable categories.
+            category = _safe_failure_category(exc)
+            self._emit(LiveEvent(
+                "error", reason=(
+                    f"Read-only source/bridge failure ({type(exc).__name__}; "
+                    f"{category}). No automatic retry.")))
