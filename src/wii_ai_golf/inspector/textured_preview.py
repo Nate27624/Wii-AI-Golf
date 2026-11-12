@@ -272,9 +272,8 @@ class TexturedPreviewWindow:
                 widget.pack(**options)
             else:
                 widget.pack_forget()
-        # The actual status string is still updated in compact mode; errors
-        # are surfaced separately rather than disappearing with diagnostics.
-        self.schedule()
+        # Frame data is unchanged; canvas <Configure> will request an updated
+        # render if the newly available viewport size changed.
 
     def schedule(self, *, navigation: bool = False):
         """Request a frame: nav ticks coalesce without starving the renderer.
