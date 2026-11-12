@@ -148,6 +148,22 @@ Operator pasted a successful `REV1_ALT_CONTEXT_GATE_PASS` from their existing RS
 - Original `r2-13924` scalar is **300.0f**.
 - `parent+0x186C` was **finite and < 300.0** in **all seven captures**: native case sequence `[0,0,3,0,2,2,2]`.
 - Therefore the second early-bypass condition in `fn_802A7CD8` **would not** skip the distance-dependent section if execution reached it in those snapshots.
-- **This does NOT establish the alternate path executed**, nor that its initial incoming scalar was `<1.0`, nor even that an archived manager observation occurred on an accepted-shot frame. The separate `fn_802B2A40` branch to `fn_802A7CD8` or `fn_802A8110` is not resolved by this table. Humans labelled captures driver/putter/wedge, but the native case-to-club writer remains unproven.
+- **This does NOT establish the alternate path executed**, nor that its initial incoming scalar was `<1.0`, nor even that an archived manager observation occurred on an accepted-shot frame. This specific table did not recheck the route flag, but an **earlier independent operator original-archive audit** did: see the reconciliation below. Humans labelled captures driver/putter/wedge, but the native case-to-club writer remains unproven.
 
-Recommended next narrow discriminator: determine `calc+0x40` branch byte **from the same source-qualified calc object** at the Ball dispatcher `0x80299AE4 lwz r3,+0x138`, identify calc object's runtime pointer/value provenance and capture mode under the actual source-selected Ball, then examine selected calc state `+0x1A4`. Do not assume a captured Ball is the one that invoked the launch dispatcher without a shot-event gate. Do not generate percent power labels or train on these archived snapshots.
+Do not assume a captured Ball is the one that invoked the launch dispatcher without a shot-event gate. Do not generate percent power labels or train on these archived snapshots.
+
+
+## Reconciliation with prior original-archive route data (do not repeat this audit)
+
+Earlier operator SHA-verified source evidence already reported in [#418 comment 6518944979](https://github.com/Nate27624/Wii-AI-Golf/issues/418#issuecomment-6518944979):
+
+| Original capture(s) | Native calc state `+0x1A4` | Calc flag `+0x40` | `fn_802B2A40` route at caller mode `r4=0` |
+|---|---:|---:|---|
+| 1, 3, 4 | 0 | 0 | **B** `fn_802A8110` |
+| 2, 5, 6, 7 | 3 | 1 | **A** `fn_802A7CD8` |
+
+The earlier original study also noted the source-selected calculation object pointer matched across all seven captures and provided **W5/6/7 `calc+0x10=calc+0x0C` about 0.466131** (stable over their non-atomic human-phase snapshots); D2 `calc+0x10=calc+0x0C` about 0.586430. These are *intermediate source-selected scalars*, not accepted shot powers, physical-speed values, or on-screen meter labels. Exact runtime branch execution and private same-frame causal joins remain unverified.
+
+**New combined evidence:** in 2,5,6,7, route A is **statically eligible under the archived calc flag**; the newly verified manager `+0x186C<300.0` does not block its geometric subpath. The remaining source gate to assess per capture is the selected scalar `s<1.0`: the earlier sample descriptions report W5/6/7 and D2 `calc+0x10` below 1, but should be requalified if an actual guest frame is needed. This implies a coherent *candidate* path for 2/5/6/7, not observed launch execution. Route A function and case0 callback do not supply a validated on-screen power percentage.
+
+**Next high-value research:** prefer static branch/dataflow from accepted-shot event into Ball launch and third/prep→selected Ball propagation, plus exact mode-flag setter provenance, rather than additional club-index, constant, or route-flag remeasurement.
