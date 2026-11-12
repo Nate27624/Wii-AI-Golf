@@ -339,3 +339,44 @@ status variables continue updating. FC selection and settings are
 preserved if the model is reloaded with Advanced enabled. This is a
 layout-only change; club source gating and all physics/training safety
 restrictions remain unchanged.
+
+## In-session recovery when Golf source identity changes between shots
+
+The operator observed that switching shots sometimes caused:
+`LIVE FAILED: Read-only source/bridge failure (ValueError). No automatic
+retry`, followed by A UNKNOWN and CLUB UNKNOWN. The older LIVE sampler
+had treated any change in the complete 14-word source identity (which
+includes selected player, record, ball, tee/pin owners, hole and scene)
+as a **fatal** error, even though a game shot transition may change
+those live owners. This remains a working explanation, **not** a proven
+trace of the particular observed ValueError (the production error string
+intentionally suppressed specific private guest addresses).
+
+The inspector explicitly opts in to bounded in-connection source
+recovery on **known, whitelisted game scene/owner transitions only**.
+It does not reconnect the bridge or send game/controller commands:
+- First discontinuity/gap emits `transition`; the GUI immediately
+  hides A, club and source-anchored actor indicators. Historical data
+  can remain in memory but cannot be rendered as the new shot.
+- Each attempted packet is still independently checked for RSPE01
+  Rev1, Golf scene, Hitting-the-Green scene state, original parent/
+  vtable/selected owner pointers, guest frame brackets and source epoch.
+- The first valid packet after a transition is withheld. Two **consecutive
+  complete successful packets** with the same entire 14-field identity
+  are required before emitting `resumed` and a new qualified `sample`.
+  Any intervening rejected source packet breaks the requalification streak.
+- On resume, the UI clears the old plot cohort and heading baseline,
+  resets the A button's classifier, then updates source-gated selected
+  ball, 3D tee proxy, pin and club from the new packet only.
+- Transition recovery is bounded to 30 seconds and paces polls to
+  at least 80 ms to avoid busy-spinning. Expiry, invalid revision,
+  malformed schemas, invalid host/bridge timing, TCP errors, permission
+  violations, and custom/injected readers **fail closed** as before.
+- No shot counter has yet been verified; source-owner replacement is a
+  *transition candidate*, not proof of a completed stroke. Do not
+  increment a displayed shot number until a separate source-backed
+  stroke-count field or independently verified transition semantics
+  have been established.
+
+Original fast reader, A and club source mapping, private art, KCL,
+game physics, and training approval are untouched.
