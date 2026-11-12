@@ -64,6 +64,48 @@ class OriginalCalleeCensusTests(unittest.TestCase):
         self.assertFalse(x["original_previous_plain_stw_only_helper_verified"])
         self.assertTrue(x["exact_register_r4_preservation_proven"])
 
+    def test_actual_six_stw_r26_through_r31_then_blr_source_shape(self):
+        p=original()
+        for i,reg in enumerate(range(26,32)):
+            p[TARGET+4*i]=d(36,reg,11,-24+4*i)
+        p[TARGET+24]=0x4E800020
+        p[TARGET+28]=d(32,26,11,-24)  # after the return
+        x=m.inspect(read(p),m.MEM1+0x1000000)
+        callee=x["callee_first_24_source_instruction_syntax"]
+        self.assertFalse(callee["original_previous_plain_stw_only_helper_verified"])
+        self.assertTrue(x["native_original_r26_r31_save_thunk_source_verified"])
+        self.assertTrue(callee["exact_register_r4_preservation_proven"])
+        self.assertEqual(callee["store_only_complete_ordinary_blr_index"],6)
+        self.assertTrue(x["original_callee_and_following_instructions_preserve_r4_verified"])
+        self.assertTrue(x["second_caller_minus_one_can_feed_r28_if_executed_and_path_reached"])
+        self.assertFalse(x["actual_native_collision_branch_proven"])
+
+    def test_actual_save_helper_with_r25_prefix_does_not_match_restricted_grammar(self):
+        p=original()
+        p[TARGET]=d(36,25,11,-24)
+        x=m.classify_original_target(read(p),m.MEM1+0x1000000)
+        self.assertFalse(x["exact_register_r4_preservation_proven"])
+
+    def test_postcall_local_r4_write_blocks_negative_r28_propagation(self):
+        p=original()
+        for i,reg in enumerate(range(26,32)):
+            p[TARGET+4*i]=d(36,reg,11,-24+4*i)
+        p[TARGET+24]=0x4E800020
+        p[m.old.PRELUDE+4]=d(14,4,0,1)
+        result=m.inspect(read(p),m.MEM1+0x1000000)
+        self.assertTrue(result["exact_callee_preserves_r4_if_stw_stmw_only_plus_blr"])
+        self.assertFalse(result[
+            "source_postcall_to_r28_r4_register_preservation"][
+                "r4_preserved_between_return_and_r28_binding_source_verified"])
+        self.assertFalse(result["second_caller_minus_one_can_feed_r28_if_executed_and_path_reached"])
+
+    def test_postcall_unknown_instruction_abstains_from_r4_proof(self):
+        p=original()
+        p[m.old.PRELUDE+4]=(31<<26)|(4<<21)|(4<<16)|(3<<11)|(266<<1)
+        x=m.postcall_r4_register_gate(read(p))
+        self.assertFalse(x["r4_preserved_between_return_and_r28_binding_source_verified"])
+        self.assertFalse(x["whole_game_runtime_path_or_external_entry_proven"])
+
     def test_unknown_instruction_first_fails_without_r4_clobber_conclusion(self):
         p=original(stmw=True)
         p[TARGET]=0x64010000
