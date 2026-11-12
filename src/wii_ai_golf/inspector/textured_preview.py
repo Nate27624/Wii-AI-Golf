@@ -442,7 +442,9 @@ class TexturedPreviewWindow:
                                              anchor="nw")
                     engine = ("compiled CPU" if self.fast_active
                               else "slow NumPy CPU")
-                    self._render_error_label.pack_forget()
+                    # Headless regression stubs can omit Tk-only notices.
+                    if getattr(self, "_render_error_label", None) is not None:
+                        self._render_error_label.pack_forget()
                     self.status.set(
                         f"{drawn:,} visible / {len(self.model.faces):,} "
                         f"source triangles · {render_ms:.0f} ms {engine} "
