@@ -65,6 +65,90 @@ def symbolic_handoff(*, state3: bool | None, flag1: bool | None,
     }
 
 
+
+# Exact public ogws RSPE01_01 symbols.txt function intervals:
+# fn_80299890 [0x80299890,0x80299ACC)
+# fn_80299C70 [0x80299C70,0x8029A038)
+# fn_8029B554 [0x8029B554,0x8029B57C)
+# These windows stay strictly inside them, avoiding neighboring functions.
+WINDOWS = {
+    "integrator_receiver_prefix": (0x80299890, 0x802998D0),
+    "global_processing_call": (0x80299C9C, 0x80299CDC),
+    "selected_sim_entry": (0x8029B554, 0x8029B57C),
+}
+ALLOWED_DFORM = {14: "addi", 32: "lwz", 34: "lbz", 36: "stw",
+                 40: "lhz", 48: "lfs", 52: "stfs"}
+
+def signed16(x: int) -> int:
+    return x - 65536 if x & 32768 else x
+
+def decode_symbolic(pc: int, word: int) -> dict:
+    """Compact PPC operands, no private memory values or instruction words."""
+    if type(word) is not int or not 0 <= word <= 0xFFFFFFFF:
+        raise ValueError("unqualified source word")
+    op = word >> 26
+    row = {"pc": f"0x{pc:08X}", "kind": "unresolved_opcode"}
+    if op in ALLOWED_DFORM:
+        row.update(kind=ALLOWED_DFORM[op], register=(word >> 21) & 31,
+                   base=(word >> 16) & 31, offset=signed16(word & 65535))
+    elif op == 18:
+        displacement = word & 0x03FFFFFC
+        if displacement & 0x02000000:
+            displacement -= 0x04000000
+        target = (displacement if word & 2 else pc + displacement) & 0xFFFFFFFF
+        row.update(kind="bl" if word & 1 else "b", target=f"0x{target:08X}")
+    elif op == 16:
+        displacement = word & 0xFFFC
+        if displacement & 0x8000:
+            displacement -= 0x10000
+        target = (displacement if word & 2 else pc + displacement) & 0xFFFFFFFF
+        row.update(kind="bc", target=f"0x{target:08X}",
+                   bo=(word >> 21) & 31, bi=(word >> 16) & 31,
+                   lk=bool(word & 1))
+    elif op == 19:
+        row.update(kind="branch_register_candidate", xo=(word >> 1) & 1023)
+    elif op == 31:
+        row.update(kind="integer_xform_candidate", rt=(word >> 21) & 31,
+                   ra=(word >> 16) & 31, rb=(word >> 11) & 31,
+                   xo=(word >> 1) & 1023)
+    return row
+
+def source_window_report(archive: Path) -> dict:
+    """Original-bank source windows only; cannot prove runtime receivers."""
+    original._check_archive(archive)
+    phases = {}
+    with ExitStack() as stack:
+        for phase in PHASES:
+            mapped = []
+            for bank_index, size in enumerate(original.SIZE):
+                path = original.src._file(
+                    archive, f"{phase}.{bank_index+1}.raw", size)
+                fd = stack.enter_context(path.open("rb"))
+                mapped.append(stack.enter_context(
+                    mmap.mmap(fd.fileno(), 0, access=mmap.ACCESS_READ)))
+            rd = banks.TwoBankReader(*mapped)
+            phases[phase] = {
+                name: tuple(rd.u32(pc) for pc in range(lo, hi, 4))
+                for name, (lo, hi) in WINDOWS.items()
+            }
+    if not all(phases[1] == phases[phase] for phase in (5, 7)):
+        raise ValueError("original source windows mismatch")
+    report = {
+        name: [decode_symbolic(pc, word)
+               for pc, word in zip(range(*WINDOWS[name], 4), phases[1][name])]
+        for name in WINDOWS
+    }
+    original._check_archive(archive)
+    return {
+        "status": "SOURCE_BOUNDED_INTEGRATOR_WINDOWS_ONLY",
+        "source_windows_phases_1_5_7_equal": True,
+        "original_archive_sha_pre_post": True,
+        "symbolic_windows": report,
+        "selected_receiver_must_definition_verified": False,
+        "selected_v0_runtime_verified": False,
+        "training_approved": False,
+    }
+
 def discover_approved_archive() -> Path:
     """Find exactly one original seven-pair archive in the existing private root.
 
@@ -139,9 +223,12 @@ def verify_original_calls(archive: Path) -> dict:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--archive", type=Path, help="Optional existing private archive; LocalOps must use no arguments")
+    parser.add_argument("--study", choices=("calls", "integrator"), default="integrator")
     opts = parser.parse_args(argv)
     try:
-        result = verify_original_calls(opts.archive if opts.archive is not None else discover_approved_archive())
+        archive = opts.archive if opts.archive is not None else discover_approved_archive()
+        result = (source_window_report(archive) if opts.study == "integrator"
+                  else verify_original_calls(archive))
     except (ValueError, OSError, TypeError, KeyError, OverflowError):
         # Never display exception strings (private paths/native state).
         result = {"status": "ABSTAIN",
