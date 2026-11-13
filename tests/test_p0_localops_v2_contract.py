@@ -51,6 +51,45 @@ class PublicContractTests(unittest.TestCase):
         self.assertNotIn("os.system", source)
         self.assertNotIn("Popen(", source)
 
+    def test_scoped_research_request_has_no_arbitrary_shell_or_source_access(self):
+        self.assert_request(
+            "run_research",
+            {"script": "scripts/audit_motion_candidates.py", "args": []},
+            script="scripts/audit_motion_candidates.py")
+        self.assert_request(
+            "run_research",
+            {"script": "scripts/deep/audit_original_banks.py",
+             "args": ["--phase=1", "--verbose"]},
+            script="scripts/deep/audit_original_banks.py",
+            args=["--phase=1", "--verbose"])
+        self.assertIsNone(contract.parse_result_comment(
+            "LOCALOPS_APPROVAL_REQUIRED_V2: wii-golf/run_research",
+            issue_number=1, operation="run_research"))
+
+    def test_scoped_research_builder_denies_path_traversal_and_code_arguments(self):
+        for script in (
+            "../audit_x.py", "/tmp/audit_x.py", "C:/scripts/audit_x.py",
+            "scripts/../audit_x.py", "scripts/.ssh/audit_x.py",
+            "scripts/audit_x.sh", "scripts\\audit_x.py", "audit_x.py",
+        ):
+            with self.subTest(script=script), self.assertRaises(ValueError):
+                contract.request("run_research", script=script)
+        for arguments in (
+            ["--"], ["--exec=x"], ["--path=private"],
+            ["../../private"], ["--phase=bad value"], [";touch"],
+            ["--phase=1"]*13, [True],
+        ):
+            with self.subTest(arguments=arguments), self.assertRaises(ValueError):
+                contract.request(
+                    "run_research", script="scripts/audit_x.py",
+                    args=arguments)
+        with self.assertRaises(ValueError):
+            contract.request(
+                "git_status", script="scripts/audit_x.py")
+        with self.assertRaises(ValueError):
+            contract.request(
+                "run_task", task="inspector_tests", args=["--phase=1"])
+
     def test_exact_sha_only_for_checkout(self):
         sha = "b8cd643b93386d22d22ccc05169156ff2c59fe06"
         self.assert_request("checkout_reviewed", {
@@ -144,7 +183,7 @@ class PublicContractTests(unittest.TestCase):
             "[LOCALOPS-v2]", "LOCALOPS_RESULT_V2",
             "LOCALOPS_APPROVAL_REQUIRED_V2", "wii-golf",
             "Nate27624/Wii-AI-Golf-LocalOps",
-            "git_status", "list_files", "run_task",
+            "git_status", "list_files", "run_task", "run_research",
             "checkout_reviewed", "source", "approval",
         ):
             with self.subTest(necessary=necessary):
