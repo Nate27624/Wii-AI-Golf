@@ -280,4 +280,55 @@ class StudyTests(unittest.TestCase):
             m._field_opcode_registers({(lo,hi):bytes(data)})
         self.assertEqual(cm.exception.code,'FIELD_LEXICAL_COUNT_CAP')
 
+
+    def test_triple_store_prefix_lexical_origin_and_direct_caller(self):
+        lo,hi=m.SOURCE_WINDOWS[2]
+        data=bytearray(hi-lo)
+        prefix=0x802B499C
+        data[prefix-lo:prefix-lo+4]=dform(48,1,2,-96).to_bytes(4,'big')
+        for pc,off in ((0x802B49C0,0x1b0),
+                       (0x802B49C4,0x1b4),
+                       (0x802B49C8,0x1b8)):
+            data[pc-lo:pc-lo+4]=stfs(1,3,off).to_bytes(4,'big')
+        caller=0x802B5100
+        data[caller-lo:caller-lo+4]=bl(caller,prefix).to_bytes(4,'big')
+        result=m._triple_store_provenance({(lo,hi):bytes(data)})
+        self.assertTrue(result['validated_three_stfs_same_f1_r3'])
+        self.assertEqual(result['f1_internal_def_candidates_lexical_only'],
+                         ['0x802B499C'])
+        self.assertEqual(result['same_scene_direct_bl_callers'],
+                         [f'0x{caller:08X}'])
+        self.assertFalse(result['r3_receiver_alias_proven'])
+        self.assertFalse(result['f1_numeric_value_proven'])
+
+    def test_triple_store_rejects_wrong_float_and_receiver_registers(self):
+        lo,hi=m.SOURCE_WINDOWS[2]
+        data=bytearray(hi-lo)
+        for pc,off in ((0x802B49C0,0x1b0),
+                       (0x802B49C4,0x1b4),
+                       (0x802B49C8,0x1b8)):
+            data[pc-lo:pc-lo+4]=stfs(1,3,off).to_bytes(4,'big')
+        self.assertTrue(m._triple_store_provenance(
+            {(lo,hi):bytes(data)})['validated_three_stfs_same_f1_r3'])
+        for word in (stfs(0,3,0x1b4),stfs(1,4,0x1b4),stfs(1,3,0x1b8)):
+            changed=bytearray(data)
+            pc=0x802B49C4
+            changed[pc-lo:pc-lo+4]=word.to_bytes(4,'big')
+            with self.subTest(word=word),self.assertRaises(m.Abstain):
+                m._triple_store_provenance({(lo,hi):bytes(changed)})
+
+    def test_triple_store_direct_caller_count_fails_closed(self):
+        lo,hi=m.SOURCE_WINDOWS[2]
+        data=bytearray(hi-lo)
+        for pc,off in ((0x802B49C0,0x1b0),
+                       (0x802B49C4,0x1b4),
+                       (0x802B49C8,0x1b8)):
+            data[pc-lo:pc-lo+4]=stfs(1,3,off).to_bytes(4,'big')
+        for k in range(13):
+            pc=lo+0x1200+4*k
+            data[pc-lo:pc-lo+4]=bl(pc,0x802B499C).to_bytes(4,'big')
+        with self.assertRaises(m.Abstain) as ctx:
+            m._triple_store_provenance({(lo,hi):bytes(data)})
+        self.assertEqual(ctx.exception.code,'TRIPLE_STORE_CALLER_COUNT_CAP')
+
 if __name__=='__main__':unittest.main()
