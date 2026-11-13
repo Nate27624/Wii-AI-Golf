@@ -472,3 +472,33 @@ Follow-up on the same PR #453 improved the bounded search to at most three level
 - Public implementation counterpart for both math primitives: [`doldecomp/ogws/src/nw4r/math/math_arithmetic.cpp`](https://github.com/doldecomp/ogws/blob/master/src/nw4r/math/math_arithmetic.cpp); approximation/table math means ordinary host `pow()` and `exp()` cannot be assumed bit-identical.
 
 **Next independent source study:** A separate exact-SDA2 native `lfs` site probe for displacements `-14112,-14100,-14096,-14108,-14092` and `cror` operands at `0x802A3D50` is queued for local review on pinned commit `6f88d4c1c29991fe5b6d4404a8ddf31cb65243fb`. That probe has **not produced numerical values in this note**. The preexisting accepted-power/selected-Ball transfer and actual flight physics are still unverified; `training_approved=false`.
+
+
+## Original Rev1 source PASS — GolfMathTrig signed power-response function fully determined (2026-11-12)
+
+**NEW original source-only proof:** Private, operator-approved LocalOps issue #67 completed `REV1_GOLF_MATH_TRIG_SOURCE_PASS` from source-reviewed Git head `443720ac62726f4e529535f208e8d459058005e2` (read-only study in [draft PR #453](https://github.com/Nate27624/Wii-AI-Golf/pull/453)). Its output reported `original_14_bank_verified=true`, `phase_1_5_7_code_equal=true`, and all **three exact native caller targets** qualified (two `fn_802A3CF4` callers at `0x802B2E54` and `0x802B2EE0`, one `SinFIdx` caller at `0x802B2ECC`). It independently qualified five `RPGolMathTrig.cpp` `.sdata2` native `lfs` sites inside the public data interval `[0x804C4300,0x804C4318)`, with three-original-phase exact raw float32 word identity verified *without publishing native words*:
+
+| Exact native `lfs` | SDA2 displacement | Verified original f32 constant |
+| --- | ---: | --- |
+| `0x802A3D18` | `r2-14112` | `0.0` |
+| `0x802A3D34` | `r2-14100` | `0.0010000000474974513` |
+| `0x802A3D78`, `0x802A3D98` | `r2-14096` | `F32_NAN` (IEEE class, not numeric JSON) |
+| `0x802A3D7C` | `r2-14108` | `1.0` |
+| `0x802A3DA0` | `r2-14092` | `1.4426950216293335` (approx `log2(e)=1/ln(2)`) |
+
+The `0x802A3D50` native `cror` operands are **`bt=2, ba=0, bb=2`**, therefore `CR0.EQ := CR0.LT OR CR0.EQ`, corresponding to an ordered finite **`f1 <= 0`** test; then `0x802A3D54 bc BO4 BI2→0x802A3D60` continues when `f1>0` and otherwise returns 0. This **corrects** earlier uncertainty around that branch. For the other input `f2=x`, the source takes absolute value under sign test `0x802A3D24..0x802A3D30`; `0x802A3D38..0x802A3D44` returns 0 when `|x|<0.001f` for finite ordered values.
+
+**Finite positive-parameter mathematical contract:** With `a=f1>0`, `x=f2`, and `|x|>=0.001f`, the source executes `FLog(|x|)` at `0x802A3D6C`, `FLog(1.0f/a)` at `0x802A3D90`, multiplies the two results, multiplies by `1.4426950216293335f`, calls NW4R `FExp` at `0x802A3DA8`, and conditionally negates result when original `x<0`. Thus the idealized **real-number** equivalent is
+
+```
+F(a, x) = sign(x) * exp( ln(abs(x)) * ln(1/a) * (1/ln(2)) )
+        = sign(x) * abs(x) ** log2(1/a)
+```
+
+for the stated input range. `F(a,x)=0` on ordered finite `a<=0` or `|x|<0.001f` branches. The native `FLog` and `FExp` use NW4R table/bit methods in [doldecomp/ogws math_arithmetic.cpp](https://github.com/doldecomp/ogws/blob/master/src/nw4r/math/math_arithmetic.cpp); do **not** claim bitwise equality to host `powf` or exact IEEE NaN/signed-zero special cases. The genuine native `F32_NAN` fallback is a source data constant but its use is not evidence of a normal-path NaN.
+
+**Integrated with earlier source-qualified consumers:**
+- First call at `0x802B2E54` uses `a=0.8500000238418579f`, `x=t=f32(f32(|calc+0x1B8|-L)/(-L))`, `L=10.995574951171875f`. For ordinary `0<t<=1`, `F(0.85,t)≈t^{log2(1/0.85)}`. The step weight `w = clamp(fma_f32(0.949999988079071f,F,0.05000000074505806f),0.05f,1.0f)`, `step=f32(w*f30)`, `f30=min(0.1f, fma_f32(0.07000000029802322f,Q,0.029999999329447746f))`, `Q=calc+0x1AC`. Source `+0x1BC==1` adds step to signed `calc+0x1B8`; other nonzero direction subtracts. The first helper makes a nonlinear *easing profile* in that angle-like internal variable.
+- Second call at `0x802B2EE0` uses `a=0.550000011920929f`, `x=` rounded result of `nw4r::math::SinFIdx(40.7436637878418f*calc+0x1B8)`; that sine result is stored `calc+0x1B4`. The second transformed result is scaled by `5.0f*Q` and stored to `calc+0x1B0` at `0x802B2EF4`. The mathematical equivalent on ordinary finite inputs `|x|>=0.001` is `calc+0x1B0≈5*Q*sign(x)*|x|^{log2(1/0.55)}`, with native f32 and NW4R table fidelity still required.
+
+**Provenance and limits:** this is a *source-qualified computation*, not demonstrated per-shot launch angle, selected Ball spin, accepted power, guest frame rate, contact, wind or training signal. It materially narrows the simulator's internal math uncertainty and should feed a **consumer/receiver source-ownership trace**, not an immediate physical-parameter hardcoding. `training_approved=false`. Cross-track selected Ball/physics coordination remains [issue #415](https://github.com/Nate27624/Wii-AI-Golf/issues/415).
