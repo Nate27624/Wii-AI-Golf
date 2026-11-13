@@ -78,8 +78,10 @@ requiring operation, provide a concise, honest optional `intent` and
 understand what will run and what it is meant to find. These strings
 are display-only, not execution parameters or verified evidence.
 The operator reviews pending issues with the local PowerShell
-`Invoke-LocalOps.ps1 -Review` queue and enters **Y/N**, with an
-optional text feedback prompt. Agents must read
+`Invoke-LocalOps.ps1 -Review` **persistent polling console** and
+enters **Y/N**, with optional text feedback. The console listens for new
+pending requests until Ctrl+C; keep the noninteractive `-Watch` watcher
+running separately. Agents must read
 `LOCALOPS_APPROVAL_REQUIRED_V2`, terminal
 `LOCALOPS_RESULT_V2` (including `declined`), and optional
 `LOCALOPS_OPERATOR_FEEDBACK_V2` comments from the PRIVATE issue.
