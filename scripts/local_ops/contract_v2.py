@@ -150,7 +150,7 @@ def parse_operator_feedback(comment_body: str, *, issue_number: int) -> dict | N
     """Parse non-executable operator feedback after verifying issue/author."""
     if (type(comment_body) is not str or len(comment_body) > 1500
             or type(issue_number) is not int or issue_number < 1
-            or not comment_body.startswith(FEEDBACK_MARKER + "\\n")):
+            or not comment_body.startswith(FEEDBACK_MARKER + "\n")):
         return None
     try:
         item = json.loads(comment_body[len(FEEDBACK_MARKER) + 1:])
