@@ -19,6 +19,10 @@ def stfs(fr, ra, off):
     return (52 << 26) | (fr << 21) | (ra << 16) | off
 
 
+def dform(op, fr, ra, off):
+    return (op << 26) | (fr << 21) | (ra << 16) | (off & 0xffff)
+
+
 def psq(op, fr, ra, off, w=0, i=0):
     """Synthetic PowerPC DQ-form; W/I live above 12-bit signed displacement."""
     return ((op << 26) | (fr << 21) | (ra << 16) |
@@ -223,5 +227,57 @@ class StudyTests(unittest.TestCase):
             with self.assertRaises(m.Abstain) as ctx:
                 m._find_candidates(checkout)
             self.assertEqual(ctx.exception.code,'NO_CANONICAL_ARCHIVE')
+
+
+    def test_field_register_census_all_scalar_and_paired_update_forms(self):
+        lo,hi=m.SOURCE_WINDOWS[2]
+        data=bytearray(hi-lo)
+        instructions=(
+            dform(48,1,31,0x1b0), dform(49,2,30,0x1b4),
+            dform(52,3,29,0x1b8), dform(53,4,28,0x1b0),
+            psq(56,5,27,0x1b4,w=1,i=3),
+            psq(57,6,26,0x1b8,w=1,i=5),
+            psq(60,7,25,0x1b0,w=0,i=2),
+            psq(61,8,24,0x1b4,w=0,i=7),
+        )
+        for j,w in enumerate(instructions):
+            data[4*j:4*j+4]=w.to_bytes(4,'big')
+        result=m._field_opcode_registers({(lo,hi):bytes(data)})
+        rows=result['rows']
+        self.assertEqual([r[2] for r in rows],
+                         ['lfs','lfsu','stfs','stfsu','psq_l','psq_lu',
+                          'psq_st','psq_stu'])
+        self.assertEqual([r[3] for r in rows],list(range(31,23,-1)))
+        self.assertEqual([r[4] for r in rows],list(range(1,9)))
+        self.assertEqual(result['counts_by_field'],
+                         {'1B0':3,'1B4':3,'1B8':2})
+        self.assertFalse(result['receiver_alias_proven'])
+        self.assertFalse(result['same_shot_selected_ball_consumer_proven'])
+
+    def test_field_register_census_lexical_negative_controls(self):
+        lo,hi=m.SOURCE_WINDOWS[2]
+        data=bytearray(hi-lo)
+        cases=(dform(32,1,31,0x1b0),     # unrelated lwz GPR
+               dform(48,2,31,-0x1b0),    # signed negative, not +1B0
+               dform(50,3,31,0x1b4),     # lfd not in studied f32 set
+               (4<<26)|(2<<21)|(31<<16)|0x1b8)
+        for j,w in enumerate(cases):
+            data[4*j:4*j+4]=w.to_bytes(4,'big')
+        result=m._field_opcode_registers({(lo,hi):bytes(data)})
+        self.assertEqual(result['rows'],[])
+        self.assertEqual(result['counts_by_field'],
+                         {'1B0':0,'1B4':0,'1B8':0})
+
+    def test_field_register_census_fails_closed_on_window_and_count(self):
+        lo,hi=m.SOURCE_WINDOWS[2]
+        with self.assertRaises(m.Abstain):
+            m._field_opcode_registers({(lo,hi):b'\x00'*8})
+        data=bytearray(hi-lo)
+        w=dform(48,1,31,0x1b0).to_bytes(4,'big')
+        for j in range(41):
+            data[4*j:4*j+4]=w
+        with self.assertRaises(m.Abstain) as cm:
+            m._field_opcode_registers({(lo,hi):bytes(data)})
+        self.assertEqual(cm.exception.code,'FIELD_LEXICAL_COUNT_CAP')
 
 if __name__=='__main__':unittest.main()
