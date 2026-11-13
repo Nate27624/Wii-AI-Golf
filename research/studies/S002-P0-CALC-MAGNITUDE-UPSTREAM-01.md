@@ -1,0 +1,233 @@
+# P0 Rev1 Source-only Upstream Swing-Magnitude Writer Audit
+
+**Status: source research / not executed on the original private archive by this agent.** Scope is a small, read-only PPC-window study in original SHA-verified RSPE01 Rev1 Golf code. It does **not** modify memory, start Dolphin, send controller inputs, or label real accepted shot power.
+
+## Why this is the highest-information missing link
+
+In previous original-revision operator-qualified traces, `fn_802B4794` writes an intermediate current `+0x08` with `0x802B4914 stfs f30,8(r24)` and a peak-like `+0x0C` with `0x802B4924 stfs f1,12(r24)`, following an apparent comparison with earlier `+0x0C`. The same calc receiver is forwarded `0x802B4938 bl fn_802B3BA0 → 0x802B3D04 bl fn_802B2F90`. This later routine conditionally loads `+0x0C` and writes `+0x10` in state3 at `0x802B31B0..31C4`. These are compiled **register/field** claims, not proof that the game consumes Wii Remote acceleration, computes rotational speed, or accepts the value as shot power.
+
+Previous bounded source writer inventory also contains `r24 +0x18/+0x1C` and `+0x28/+0x2C` stores in the same `fn_802B4794` source window. Their role (input axis? previous sample? timer? scale factor?) remains unverified. The first priority is **reaching f30/f1 definitions and their direct/indirect producers, including the earlier scratch float stores and callbacks**. Keep this separate from #415's downstream case launch wrappers/transfer function.
+
+### Source-only diagram
+
+```
+unknown game-consumed motion samples / mode / state   UNRESOLVED
+               |
+        fn_802B4794
+        r24+0x18/+0x1C, +0x28/+0x2C   candidate intermediates
+               |
+        0x802B4914  stfs f30,+0x08(r24)
+        0x802B4924  stfs f1,+0x0C(r24)
+               |
+        0x802B4938 → fn_802B3BA0
+        0x802B3D04 → fn_802B2F90
+               |
+        state3 conditional +0x0C → +0x10
+               |
+        fn_802B2A40 state-dependent getter
+               |
+        virtual transfer → fn_802A3CF4 → fn_802A7A64
+               |
+        launch-prep Ball writer fn_8029A0E0
+```
+
+The bottom half is source-traced but **not a matched guest-executed shot/selected-ball transfer**. `+0x08/+0x0C/+0x10` are currently calc state candidates, not proven gauge percentages or "power 101."
+
+## 2026-11-11 operator original-archive result — **SOURCE PASS**
+
+User executed the source-only script on the existing untouched original 7-pair archive, and pasted the sanitized JSON. The audit returned:
+- `status: REV1_CALC_UPSTREAM_STATIC_SOURCE_PASS`
+- `original_14_bank_sha_pre_and_post_verified: true`
+- `native_mem1_code_phases_1_5_7_identical: true`
+- `four_explicit_mr_receiver_copies_exact: true`
+- `two_direct_bl_edges_exact: true`
+- `calc_0x0C_accepted_power_verified: false`
+- `game_input_consumption_verified: false`
+
+**New arithmetic decoded from that original sanitized source excerpt:** PowerPC single-precision `fmuls` has primary opcode 59, XO 25; `fsubs` is 59/20; `fadds` is 59/21; `fcmpo` 63/32. IBM PowerPC instruction reference: https://www.ibm.com/docs/en/aix/7.2.0?topic=reference-appendix-f-powerpc-instructions
+
+There are **two virtual `bcctrl` calls** at `0x802B48B8` and `0x802B48EC`. Each is preceded by a `lwz r12,56(r12)` virtual slot load. The actual callee address, whether these calls return equivalent signals, and whether either sees raw Wii Remote movement are **not** source-verified.
+
+Downstream of those two return values, original native PPC corresponds to these **per-update source expressions** (grouped as real single-precision multiplications, not exact real-number equivalence):
+
+~~~python
+# This is an interpretation of original instruction semantics, NOT game source.
+R1 = float_returned_by_virtual_call_at_0x802B48B8
+R2 = float_returned_by_virtual_call_at_0x802B48EC
+
+candidate_A = (calc[0x18] * R1) * calc[0x28]  # fmuls at 48C8, 48DC
+candidate_B = (calc[0x1C] * R2) * calc[0x2C]  # fmuls at 48F8, 4908
+
+old_A = calc[0x08]
+calc[0x98] = candidate_A - old_A              # fsubs 4900 / stfs 490C
+if candidate_A > old_A:                      # fcmpo 4904; bc BO=4 BI=1 4910
+    calc[0x08] = candidate_A                  # stfs 4914
+if candidate_B > calc[0x0C]:                 # fcmpo 491C; bc BO=4 BI=1 4920
+    calc[0x0C] = candidate_B                  # stfs 4924
+~~~
+
+This shows **conditional running-maximum updates on this path**, not an arbitrary static scalar or a proven in-game power percentage. No assertion about resetting those maxima at the beginning/end of a shot is warranted yet. Both `+0x28`/`+0x2C` are also subject to earlier compare-and-conditionally-store instructions at `0x802B487C/4880` and `0x802B4890/4894`, making their earlier update definitions the next critical subproblem.
+
+**New exact opcodes/branch guards:** The draft audit now checks those five arithmetic sites, two ordered comparisons, both BO4/BI1 skip branches, two `lwz r12,56(r12)` slot loads and two linked `bcctrl` instructions; it fails closed if a different native source is used. This is a reproducible source-math check and NOT executable game-frame confirmation.
+
+### Most useful next operator-only read (no new code required)
+
+The original source audit was run without `--detailed` and therefore did **not include 0x802B4820–0x802B485C** in the public output; that missing segment contains the earlier definitions of `f2/f3` and `calc+0x18/+0x1C/+0x28/+0x2C`. Run from the existing isolated **Calc-Source-Audit** checkout:
+
+~~~powershell
+py -3 -I scripts/p0_calc_magnitude_upstream_private.py --detailed
+~~~
+
+This does not start Dolphin or send controller input. It re-checks all original archive SHA gates and prints symbolic PC, relative field and FP operand information only. The next reverse trace should identify `r31` source-object provenance and the indirect vtable +56 callee for each virtual call.
+
+
+## 2026-11-11 second operator --detailed source PASS (13 local focused tests)
+
+User ran the SHA-gated `--detailed` audit on the original archived 14 banks. `original_14_bank_sha_pre_and_post_verified=true` and phase-1/5/7 code-identical confirmed again. The result exposed the previously missing `0x802B4820..485C` instructions, completing the **current field-level recurrence** on this path. Strict compare/skip conditions are PPC `fcmpo` and BO4/BI1, not the Python `max()` operation for NaNs or denormals; single precision rounding is not modeled.
+
+~~~python
+# Simplified instruction semantics; NOT named Wii Remote axes.
+if incoming_f1 > calc[0x18]:
+    calc[0x18] = incoming_f1
+if source_r31[0x18] > calc[0x1C]:
+    calc[0x1C] = source_r31[0x18]
+
+calc[0x20] = (calc[0x20] * f31) + source_r31[0x1C]
+calc[0x24] = (calc[0x24] * f31) + source_r31[0x1C]
+
+if calc[0x20] > calc[0x28]:
+    calc[0x28] = calc[0x20]
+if calc[0x24] > calc[0x2C]:
+    calc[0x2C] = calc[0x24]
+
+V1 = virtual_call_at_0x802B48B8()
+V2 = virtual_call_at_0x802B48EC()
+A = (calc[0x18] * V1) * calc[0x28]
+B = (calc[0x1C] * V2) * calc[0x2C]
+# Then the earlier known +0x08/+0x0C strict-greater updates.
+~~~
+
+The first track `+0x20/+0x28` and second `+0x24/+0x2C` apply the **same new `r31+0x1C` field** to separate persisted accumulators, weighted by incoming `f31`. This may be smoothing/history, but the origin/meaning of `f31` and `r31` are still unknown and should NOT be called physical acceleration, velocity or angle.
+
+**New selector insight:** both virtual returns are requested using the exact same *static* expression: `root=lwz(-23168,r13)`, `idx=lwz(root+0x1C)`, `offset=idx*4` via `rlwinm SH=2 MB=0 ME=29`, `object=lwz(root+offset+0x0C)`, `target=lwz(lwz(object)+0x38)`, then `mtctr/bctrl`. They can be **two calls to the same virtual method on the same selected object** if the first callback does not mutate global selection or vtable. So calling V1/V2 "two distinct sensor sources" is UNJUSTIFIED. Static code does not prove both return exactly the same value at runtime or identify the virtual callee.
+
+### New bounded gates and next read
+
+The newly extended source audit additionally validates exact `stfs/lfs/fmuls/fadds/fcmpo/bc` for `+0x18/+0x1C/+0x20/+0x24/+0x28/+0x2C`, and the **full duplicate global-indexed virtual-getter selection path**. It now emits symbolic instructions from function ENTRY `0x802B4794..0x802B481C`, which were absent in the second operator output. This entry prelude is the next source-only place to find where `r31`, `f31` and incoming `f1` came from. No new game/controller input required.
+
+**Source-quality boundary:** the operator has verified original original-bank code for earlier operations; the *expanded gates* themselves are not confirmed against the original archive until the operator re-runs the updated isolated PR script. Exact-head Windows/Ubuntu synthetic and full CI are a separate check and are not a replacement for the private original source pass.
+
+
+## 2026-11-11 direct controller accessor **CONFIRMED by independent original Rev1 source audit**
+
+The operator's `fn_8019BAE8` excerpt was followed by a **separately completed** native-source audit on #418, `REV1_EXSTATUS_SENSOR_FIELD_SOURCE_PASS`, with **all seven instruction/offset gates passing on the original 14-bank SHA-qualified archive**. This is already complete; **do not ask the operator to rerun the same getter-layout proof**.
+
+Exact instructions:
+- `8019BAE8 mulli r4,r4,2120` = `0x848` extended filter stride = 8 + 16 * 132.
+- `8019BAEC mulli r0,r5,132` = `0x84` sample stride.
+- `8019BAF0 add r3,r3,r4`; `8019BAF4 add r3,r3,r0`; `8019BAF8 addi r3,r3,0xA90`; `8019BAFC blr`.
+- `0xA90` = `RPSysCoreController::mExStatus(+0xA88) + ExStatus::status(+8)`. Original `lwz mKPADReadLength(+0x854)` aligns exactly with public EGG class layout.
+- Selector-2 `EGG::CoreStatus` (publicly derived from `KPADStatus`) fields `+0x18=acc_value` (filtered acceleration norm), `+0x1C=acc_speed` (filtered acceleration-change norm). Both feed the golfing history/peaks; neither is directly accepted shot power.
+- Public filter-2 default rate is 0.05 and threshold 0.10; **game active runtime settings still need validation**.
+- Original native f31 constant was separately read as approximately 0.992 (single-precision); this is a Golf history coefficient, not a directly verified physical sampling interval.
+
+Source receipt: https://github.com/Nate27624/Wii-AI-Golf/issues/418#issuecomment-6789143765 . Public original source: [RPSysController.cpp](https://github.com/doldecomp/ogws/blob/master/src/Pack/RPKernel/RPSysController.cpp), [RPSysController.h](https://github.com/doldecomp/ogws/blob/master/include/Pack/RPKernel/RPSysController.h), [KPAD.h](https://github.com/doldecomp/ogws/blob/master/include/revolution/KPAD/KPAD.h). This compiled-source/native-offset concordance is **stronger evidence than the initial public API name hypothesis**. Still unknown: precise in-game accepted shot power, reset/shot latch timing and the vtable+56 dynamic target.
+
+### New source-only call-site and preprocessor audit
+
+The next useful problem is **when the Golf accumulation update runs** and what `fn_802B4474` does before the two filters are accumulated. The audit now validates the **entire** compiled `GolfScene_unsplit.o` text section remains identical between original phases 1/5/7, then scans **only that one source-owned code unit** for direct `bl` instructions targeting:
+- `fn_802B4794` history update;
+- `fn_802B4474` preceding sample preprocessor;
+- `fn_802B3BA0` state-update follow-on;
+- `fn_802B2F90` conditional peak latch.
+
+Only source PCs are published. It also prints a bounded sanitized PPC excerpt from `0x802B4474..0x802B4504` for next operand/reaching-definition analysis. **Indirect calls, callbacks and callers outside GolfScene_unsplit.o are not covered**, so zero matches are not proof of no invocation. This is SOURCE ONLY, no Dolphin, no game input, no training.
+
+After fetching a separately SHA-reviewed PR #437 head in an existing isolated source worktree, run:
+~~~powershell
+$lines = & py -3 -I scripts/p0_calc_magnitude_upstream_private.py --detailed
+if ($LASTEXITCODE -ne 0) { throw 'Source audit abstained' }
+$report = ($lines -join "`n") | ConvertFrom-Json
+if ($report.status -ne 'REV1_CALC_UPSTREAM_STATIC_SOURCE_PASS' -or
+    $report.original_14_bank_sha_pre_and_post_verified -ne $true -or
+    $report.complete_golf_text_phases_1_5_7_identical -ne $true) {
+    throw 'Source audit provenance failure'
+}
+$report.golf_text_direct_call_inventory | ConvertTo-Json -Depth 6
+$report.calc_preprocessor_source_excerpt |
+    ForEach-Object { $_ | ConvertTo-Json -Compress }
+~~~
+
+
+## 2026-11-11 operator same-unit census result: direct caller is OUTSIDE the scanned unit
+
+Operator ran source SHA-gated `REV1_BOUNDED_GOLF_DIRECT_BL_INVENTORY`: zero direct linked `BL` references to `fn_802B4794` inside **only** `Pack/RPSports/RPGolScene/RPGolScene_unsplit.o` `0x802A79F8..0x802C7924`. Its only direct reference to `fn_802B4474` is from `0x802B4818`; `fn_802B3BA0` from `0x802B4938`; `fn_802B2F90` from `0x802B3D04`. **Zero in this source unit cannot mean unused.** A separate earlier source owner independently verified across **all 832 public PPC source units**: **exactly one direct `fn_802B4794` linked BL from `0x8029ECF0` in `RPGolPlayer.cpp`**: https://github.com/Nate27624/Wii-AI-Golf/issues/418#issuecomment-6789215336 . It did not find a stable static function-pointer reference, but indirect or computed calls remain possible; no game execution proven.
+
+### Preprocessor float-pair ring in native source
+
+The `fn_802B4474` excerpt `0x802B4474..4500` from the same original qualified audit shows:
+- `0x802B449C bl 0x800A6400`, in public OGWS `egg/core/eggController.cpp`, supplying two floats via stack `+0x38/+0x3C`. Actual helper semantics and its source operands are **not yet verified**.
+- `0x802B44A0 lbz +0xA8(r31)`; if the flag is nonzero, `0x802B44B0 fneg` negates the first float.
+- `+0x9C` loads the ring buffer pointer, `+0xA4` holds the cursor, `+0xA0` is a limit/capacity. `rlwinm sh3 mb0 me28` multiplies the current cursor by **eight** bytes.
+- `0x802B44D0 stfsux f0,r3,r0` stores first float at the indexed address **and updates r3 to that address**, `0x802B44D4 stfs f1,4(r3)` writes the second float at the next four bytes.
+- The compare/conditional branches and stores `0x802B44EC/44F8` increment and wrap the cursor at the capacity. The evidence supports a **paired-f32 ring buffer**, not a confirmed angular velocity buffer, directional array, or direct shot-power latch.
+
+### New exact native-caller/paired-float source gates
+
+Extended read-only `scripts/p0_calc_magnitude_upstream_private.py` now verifies the independent *cross-unit* `0x8029ECF0 bl 0x802B4794` and the `0x802B449C bl 0x800A6400` at the exact original PPC instruction encoding. It also gates the preprocessor `lbz/lfs/stfs/lwz/rlwinm/stfsux/fneg` layout and two sign/wrap branches. Its narrow additional source excerpts are `RPGolPlayer.cpp 0x8029EBE0..ED40` and `eggController.cpp 0x800A63C0..6460`. The original complete 14-bank SHA pre/post integrity gates and phase 1/5/7 code equality still apply. Synthetic tests cannot substitute for an operator original-source pass.
+
+Next short source-only output is `cross_unit_player_and_preprocessor_ring`, `player_caller_context_source_excerpt`, and `egg_controller_preprocessor_helper_source_excerpt`. These are sanitized original source PC/operands only. Check player branch and receiver provenance before claiming *when* or *if* the accumulation step runs in an accepted shot. No Dolphin, ROM, controller calls, training or RAM writes.
+
+## What the microaudit actually checks
+
+New-only `scripts/p0_calc_magnitude_upstream_private.py`:
+- Autodiscovers a **unique existing** `p0-private-numbered-capture-inventory` under sibling ignored `Wii-AI-Golf-Data/captures`. Reuses reviewed `audit_p0_seven_numbered_source_pairs_private._check_archive` to verify **all 14 original banks' SHA256 and exact manifest identity before and after reading**. It refuses wrong sizes, missing, ambiguous, linked archives or altered originals.
+- Opens ONLY existing phase 1, 5 and 7 original MEM1 read-only, verifies the bounded Golf source text windows have **identical instructions** across these three snapshots. Public source unit is OGWS `GolfScene_unsplit.o 0x802A79F8..0x802C7924`.
+- Validates exact PowerPC `stfs` stores `0x802B4914(+0x08,r24,f30), 0x802B4924(+0x0C,r24,f1), 0x802B31C4(+0x10,r27,f0)`; `lfs` source `0x802B31B0(+0x0C,r27,f0)`; state `stw` `0x802B31C0(+0x1A4,r27,r0)`; and two relative BL edges `0x802B4938 → 0x802B3BA0`, `0x802B3D04 → 0x802B2F90`.
+- Produces only a bounded sanitized symbolic **PC/opcode/register/relative field/branch-target** table for `0x802B4820..0x802B4938`, and a compact focused subset `0x802B4860..0x802B4924` to resolve producers and scratch stores. NEVER prints native 4-byte words, raw float values, heap pointers, file paths, original private hashes or game state. Unknown FP operations remain explicit `opcode63, xo5/xo10` rather than guessed mnemonics.
+- Does not claim that forward-only `set_wiimote_swing` parameters equal in-game angular velocity or real accepted power.
+
+This is a **static instruction slice**. Calls, virtual branches and conditional stores require separate CFG/read-target verification before claiming a live control-to-power mapping.
+
+## Windows operator command (source-only; no ROM path, no Dolphin)
+
+Run only after PR and exact-head CI validation. This creates a separate isolated source worktree; it will refuse to reuse an existing directory. Use PowerShell 5 or PowerShell 7.
+
+~~~powershell
+$ErrorActionPreference = 'Stop'
+$main = 'D:\Projects\Wii Golf AI\Wii-AI-Golf'
+$work = 'D:\Projects\Wii Golf AI\Wii-AI-Golf-Calc-Source-Audit'
+if (-not (Test-Path -LiteralPath $main -PathType Container)) {
+    throw 'Existing main checkout missing'
+}
+if (Test-Path -LiteralPath $work) {
+    throw 'Audit worktree exists; do not overwrite'
+}
+git -C $main fetch origin refs/pull/437/head
+if ($LASTEXITCODE -ne 0) { throw 'Source audit PR fetch failed' }
+$head = (git -C $main rev-parse FETCH_HEAD).Trim()
+if ($head -ne 'REVIEWED_EXACT_HEAD_SHA') {
+    throw 'Source audit HEAD changed; review before running'
+}
+git -C $main worktree add --detach $work $head
+if ($LASTEXITCODE -ne 0) { throw 'Isolated worktree failed' }
+Set-Location -LiteralPath $work
+py -3 -I -m unittest discover -s tests -p test_p0_calc_magnitude_upstream.py -v
+if ($LASTEXITCODE -ne 0) { throw 'Synthetic source-audit tests failed' }
+# No Dolphin or controller is started. Only already preserved original banks.
+py -3 -I scripts/p0_calc_magnitude_upstream_private.py
+if ($LASTEXITCODE -ne 0) {
+    throw 'Source audit ABSTAINED; preserve data, do not run live shots'
+}
+~~~
+
+If the unique archive cannot be autodiscovered, the script returns `ABSTAIN`; do not replace with a random unverified ROM or downloaded snapshot. An optional explicit `--archive` argument exists for a single already-verified local cohort, and it never asks for a game image. Report only the sanitized JSON, not raw banks.
+
+## Decision after source report
+
+1. Decode precise arithmetic/branch guards that produce `f30` before `+0x08` and `f1` before conditional `+0x0C`, including the candidate r24 `+0x18/+0x1C/+0x28/+0x2C` stores.
+2. Trace CALL instruction destinations and receiver provenance, if any, that supply those intermediate values; source-select the actual Wii Remote input sampling function rather than projecting Felk movement parameters.
+3. Verify whether `+0x0C` is peak-acceleration, animation, directional magnitude or a related candidate before equating with accepted power. Inspect A/state and redline separately.
+4. Only then integrate #415 downstream nonlinear magnitude transfer and selected-ball launch writer, with independent real shot/guest frame evidence. `training_approved=false`.
+
+Coordination claim: [issue #418](https://github.com/Nate27624/Wii-AI-Golf/issues/418#issuecomment-6788479516). Owns only the four new files listed there; no existing shared modules are changed.
