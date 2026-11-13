@@ -217,7 +217,7 @@ class SourceHandoffControls(unittest.TestCase):
         lwz = (32 << 26) | (3 << 21) | (31 << 16) | 0x138
         self.assertTrue(audit.dform_matches(lwz, 32, 3, 31, 0x138))
         self.assertFalse(audit.dform_matches(lwz, 32, 3, 3, 0x138))
-        self.assertFalse(audit.dform_matches(lwz | (1 << 21),
+        self.assertFalse(audit.dform_matches(lwz ^ (1 << 21),
                                             32, 3, 31, 0x138))
         stw = (36 << 26) | (0 << 21) | (31 << 16) | 0x138
         self.assertTrue(audit.dform_matches(stw, 36, 0, 31, 0x138))
