@@ -151,4 +151,77 @@ class StudyTests(unittest.TestCase):
         self.assertEqual(rows['+0x1B4']['lexical_paired_single_dq_count'],1)
         self.assertEqual(rows['+0x1B8']['lexical_paired_single_dq_count'],1)
 
+
+    def test_discovery_crowded_captures_with_only_one_exact_manifest(self):
+        import json
+        with tempfile.TemporaryDirectory() as root:
+            parent=pathlib.Path(root)
+            checkout=parent/'viewer'
+            checkout.mkdir()
+            captures=parent/'Wii-AI-Golf-Data'/'captures'
+            captures.mkdir(parents=True)
+            for i in range(45):  # More than the old arbitrary 30-dir cap.
+                (captures/f'historical-{i:03d}').mkdir()
+            invalid=captures/'legacy-with-kind-but-no-7-pair'
+            invalid.mkdir()
+            (invalid/'manifest-PRIVATE.json').write_text(json.dumps({
+                'kind':'p0-private-numbered-capture-inventory',
+                'capture_count':2}),encoding='utf-8')
+            good=captures/'original-seven'
+            good.mkdir()
+            (good/'manifest-PRIVATE.json').write_text(
+                json.dumps(manifest()),encoding='utf-8')
+            self.assertEqual(
+                m._find_candidates(checkout), ((good,'direct-sibling'),))
+
+    def test_discovery_rejects_two_canonical_manifests(self):
+        import json
+        with tempfile.TemporaryDirectory() as root:
+            parent=pathlib.Path(root)
+            checkout=parent/'viewer'
+            checkout.mkdir()
+            captures=parent/'Wii-AI-Golf-Data'/'captures'
+            captures.mkdir(parents=True)
+            for name in ('first','second'):
+                sub=captures/name
+                sub.mkdir()
+                (sub/'manifest-PRIVATE.json').write_text(
+                    json.dumps(manifest()),encoding='utf-8')
+            with self.assertRaises(m.Abstain) as ctx:
+                m._find_candidates(checkout)
+            self.assertEqual(ctx.exception.code,'AMBIGUOUS_ARCHIVE')
+
+    def test_discovery_rejects_over_explicit_scan_bound(self):
+        with tempfile.TemporaryDirectory() as root:
+            parent=pathlib.Path(root)
+            checkout=parent/'viewer'
+            checkout.mkdir()
+            captures=parent/'Wii-AI-Golf-Data'/'captures'
+            captures.mkdir(parents=True)
+            for i in range(m.MAX_CAPTURE_DIRS_PER_ROOT+1):
+                (captures/f'historical-{i:04d}').mkdir()
+            with self.assertRaises(m.Abstain) as ctx:
+                m._find_candidates(checkout)
+            self.assertEqual(ctx.exception.code,'TOO_MANY_ARCHIVES')
+
+    def test_discovery_ignores_symlinked_capture_cohort(self):
+        import json
+        with tempfile.TemporaryDirectory() as root:
+            parent=pathlib.Path(root)
+            checkout=parent/'viewer'
+            checkout.mkdir()
+            captures=parent/'Wii-AI-Golf-Data'/'captures'
+            captures.mkdir(parents=True)
+            actual=parent/'external'
+            actual.mkdir()
+            (actual/'manifest-PRIVATE.json').write_text(
+                json.dumps(manifest()),encoding='utf-8')
+            try:
+                (captures/'alias').symlink_to(actual,target_is_directory=True)
+            except (OSError,NotImplementedError):
+                self.skipTest('symlink creation not permitted on this OS')
+            with self.assertRaises(m.Abstain) as ctx:
+                m._find_candidates(checkout)
+            self.assertEqual(ctx.exception.code,'NO_CANONICAL_ARCHIVE')
+
 if __name__=='__main__':unittest.main()
