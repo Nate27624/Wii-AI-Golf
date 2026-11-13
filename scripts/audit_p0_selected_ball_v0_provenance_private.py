@@ -64,6 +64,45 @@ def symbolic_handoff(*, state3: bool | None, flag1: bool | None,
         "training_approved": False,
     }
 
+
+def discover_approved_archive() -> Path:
+    """Find exactly one original seven-pair archive in the existing private root.
+
+    Directory metadata only: no broad filesystem traversal or outside root
+    fallback. The complete manifest, native source and SHA gates run later.
+    """
+    root = original.src.selected.DATA_ROOT
+    if root.is_symlink():
+        raise ValueError("private root symlink")
+    captures = root / "captures"
+    if captures.is_symlink() or not captures.is_dir():
+        raise ValueError("private captures directory unavailable")
+    candidates = []
+    entries = list(captures.iterdir())
+    if len(entries) > 32:
+        raise ValueError("private capture inventory exceeds bound")
+    for candidate in entries:
+        if candidate.is_symlink() or not candidate.is_dir():
+            continue
+        marker = candidate / "manifest-PRIVATE.json"
+        if marker.is_symlink() or not marker.is_file():
+            continue
+        if marker.stat().st_size > 65536:
+            continue
+        try:
+            manifest = json.loads(marker.read_text(encoding="utf-8-sig"))
+        except (ValueError, OSError, UnicodeError):
+            continue
+        if (type(manifest) is dict
+                and manifest.get("kind") == "p0-private-numbered-capture-inventory"
+                and manifest.get("capture_count") == 7
+                and manifest.get("capture_numbers") == list(range(1, 8))
+                and manifest.get("training_approved") is False):
+            candidates.append(candidate)
+    if len(candidates) != 1:
+        raise ValueError("original archive not uniquely identified")
+    return candidates[0]
+
 def verify_original_calls(archive: Path) -> dict:
     # Private archive identity, source root and all 14 bank SHA gates.
     original._check_archive(archive)
@@ -99,10 +138,10 @@ def verify_original_calls(archive: Path) -> dict:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--archive", type=Path, required=True)
+    parser.add_argument("--archive", type=Path, help="Optional existing private archive; LocalOps must use no arguments")
     opts = parser.parse_args(argv)
     try:
-        result = verify_original_calls(opts.archive)
+        result = verify_original_calls(opts.archive if opts.archive is not None else discover_approved_archive())
     except (ValueError, OSError, TypeError, KeyError, OverflowError):
         # Never display exception strings (private paths/native state).
         result = {"status": "ABSTAIN",
