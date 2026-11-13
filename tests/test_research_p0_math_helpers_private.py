@@ -39,6 +39,15 @@ class ResearchMathHelperTests(unittest.TestCase):
         self.assertNotIn("raw", row)
         self.assertNotIn("word", row)
 
+    def test_exact_static_float_source_sites_are_within_public_sda2(self):
+        self.assertEqual(len(helper.CONSTANT_SITES), 5)
+        self.assertEqual(helper.SDA2_SOURCE_UNIT, (0x804C4300, 0x804C4318))
+        self.assertEqual(helper.SDA2_ANCHOR_DISP, -12892)
+        for pc, register, offset in helper.CONSTANT_SITES.values():
+            self.assertTrue(helper.SOURCE_UNIT[0] <= pc < helper.SOURCE_UNIT[1])
+            self.assertTrue(0 <= register < 32)
+            self.assertEqual(offset % 4, 0)
+
     def test_rejects_outside_public_unit(self):
         for pc in (helper.SOURCE_UNIT[0] - 4, helper.SOURCE_UNIT[1]):
             with self.assertRaises(helper.Abstain):
