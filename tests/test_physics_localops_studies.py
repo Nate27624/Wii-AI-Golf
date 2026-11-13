@@ -28,7 +28,9 @@ class PhysicsResearchLocalOpsTests(unittest.TestCase):
             self.assertAlmostEqual(item["source_lift_dot_v"], 0., places=8)
             self.assertAlmostEqual(item["source_lateral_dot_v"], 0., places=8)
             self.assertAlmostEqual(item["source_lift_dot_lateral"], 0., places=8)
-            self.assertEqual(item["provisional_default_spin_delta_v"], 0.)
+            self.assertEqual(item["default_spin_status"],
+                             "REJECTED_MISSING_SPIN_AXIS")
+            self.assertIsNone(item["provisional_default_spin_delta_v"])
         self.assertGreater(
             r["cases"][0]["provisional_explicit_spin_delta_v"], 0.)
 
