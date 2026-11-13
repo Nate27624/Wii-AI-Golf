@@ -19,6 +19,12 @@ def stfs(fr, ra, off):
     return (52 << 26) | (fr << 21) | (ra << 16) | off
 
 
+def psq(op, fr, ra, off, w=0, i=0):
+    """Synthetic PowerPC DQ-form; W/I live above 12-bit signed displacement."""
+    return ((op << 26) | (fr << 21) | (ra << 16) |
+            (w << 15) | (i << 12) | (off & 0xfff))
+
+
 def manifest():
     return {'kind':'p0-private-numbered-capture-inventory',
             'training_approved':False,
@@ -100,5 +106,49 @@ class StudyTests(unittest.TestCase):
         rows=m._lexical_consumers({(lo,hi):bytes(data)})
         self.assertEqual(rows['+0x1B4']['lexical_dform_count'],1)
         self.assertFalse(rows['+0x1B4']['receiver_proven'])
+
+
+    def test_source_gates_fail_on_helper_callsite_mutation(self):
+        d=native()
+        # Two total helper calls, but one moved to an unsupported source PC.
+        d[0x802B2E54]=0
+        d[0x802B2E50]=bl(0x802B2E50,0x802A3CF4)
+        with self.assertRaises(m.Abstain):
+            m._source_gates(lambda pc:d.get(pc,0))
+
+    def test_source_gates_fail_on_wrong_store_base(self):
+        d=native()
+        d[0x802B2ED4]=stfs(1,30,0x1b4)
+        with self.assertRaises(m.Abstain):
+            m._source_gates(lambda pc:d.get(pc,0))
+
+    def test_paired_single_dq_forms_and_quantization_bits(self):
+        lo,hi=m.SOURCE_WINDOWS[2]
+        data=bytearray(hi-lo)
+        pc=lo+0x800
+        for j,op in enumerate((56,57,60,61)):
+            w=psq(op,2,31,0x1b0,w=j%2,i=j%8)
+            data[pc-lo+j*4:pc-lo+j*4+4]=w.to_bytes(4,'big')
+        rows=m._lexical_consumers({(lo,hi):bytes(data)})
+        one=rows['+0x1B0']
+        self.assertEqual(one['lexical_paired_single_dq_count'],4)
+        self.assertEqual(one['lexical_dform_count'],0)
+        self.assertTrue(one['indexed_pair_accesses_unresolved'])
+        self.assertFalse(one['receiver_proven'])
+        self.assertEqual({x.split(':')[1] for x in one['sample_paired_single_pc_operation']},
+                         {'psq_l','psq_lu','psq_st','psq_stu'})
+
+    def test_paired_single_negative_control_and_offset_separation(self):
+        lo,hi=m.SOURCE_WINDOWS[2]
+        data=bytearray(hi-lo)
+        # Nearby offsets must not look like reads of +0x1B0.
+        data[0:4]=psq(56,0,31,0x1b4).to_bytes(4,'big')
+        data[4:8]=psq(60,0,31,0x1b8).to_bytes(4,'big')
+        # Indexed or unrelated opcode has no DQ-form constant displacement.
+        data[8:12]=((4<<26)|(31<<16)|0x1b0).to_bytes(4,'big')
+        rows=m._lexical_consumers({(lo,hi):bytes(data)})
+        self.assertEqual(rows['+0x1B0']['lexical_paired_single_dq_count'],0)
+        self.assertEqual(rows['+0x1B4']['lexical_paired_single_dq_count'],1)
+        self.assertEqual(rows['+0x1B8']['lexical_paired_single_dq_count'],1)
 
 if __name__=='__main__':unittest.main()
