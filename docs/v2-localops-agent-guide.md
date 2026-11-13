@@ -104,12 +104,15 @@ allowlist boundary.
 ### Opt-in scoped research studies (only on upgraded LocalOps)
 
 The operator supports a **broader family of Python source-audit scripts**,
-provided scope is explicit. This requires the optional, independently
-reviewed [LocalOps research-profile change](
-https://github.com/Nate27624/Wii-AI-Golf-LocalOps/pull/15) to be installed
-on Windows **and** an operator-approved `research` profile in the LOCAL
-`config.json`. Merely merging the public code, creating a request, or
-having a previously working v2 bridge does not enable this operation.
+provided scope is explicit. The optional
+[LocalOps research-profile change](
+https://github.com/Nate27624/Wii-AI-Golf-LocalOps/pull/15) is merged into
+the private bridge repository at reviewed commit
+`a59095fda52fc1f4b71fe1ebff516794a0713acc`. It must still be
+**installed on Windows** and separately enabled through an operator-approved
+`research` profile in the LOCAL `config.json`. Neither merging the public
+code, creating an issue nor the verified read-only LocalOps issue #16 proves
+that the Windows watcher has been upgraded.
 
 After installation, an assigned agent may request:
 
