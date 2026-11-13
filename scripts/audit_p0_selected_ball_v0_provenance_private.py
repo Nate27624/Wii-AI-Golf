@@ -233,6 +233,93 @@ def mode_source_report(archive: Path) -> dict:
         raise ValueError("research report would be clipped by LocalOps")
     return report
 
+
+# Public ogws RSPE01_01 symbols.txt exact boundaries, not lexical lookbacks.
+ALT_CALLER_FUNCTIONS = {
+    "small_initializer_caller": (0x8029A1D0, 0x8029A204),
+    "initializer_and_state_copy_caller": (0x8029A204, 0x8029A2D0),
+}
+ALT_CALLS = (
+    (0x8029A1E4, 0x8029A0E0),
+    (0x8029A220, 0x8029A0E0),
+    (0x8029A2B4, 0x8029A5EC),
+)
+ALT_MAX_OPERANDS = 12
+
+def alternative_initializer_report(archive: Path) -> dict:
+    """Prove only exact call edges and bounded possible r3/r4 preparation.
+
+    No nearest-writer result is accepted as must-def across intervening BL or
+    conditional branches. Published function boundaries prevent lookback bleed.
+    """
+    folders = original._check_archive(archive)
+    phases = []
+    with ExitStack() as stack:
+        for phase in PHASES:
+            mapped = []
+            for bank_index, size in enumerate(original.SIZE):
+                path = original.src._file(
+                    folders[phase], f"{phase}.{bank_index + 1}.raw", size)
+                fd = stack.enter_context(path.open("rb"))
+                mapped.append(stack.enter_context(
+                    mmap.mmap(fd.fileno(), 0, access=mmap.ACCESS_READ)))
+            rd = banks.TwoBankReader(*mapped)
+            phases.append({
+                name: tuple(rd.u32(pc) for pc in range(lo, hi, 4))
+                for name, (lo, hi) in ALT_CALLER_FUNCTIONS.items()
+            })
+    if phases[0] != phases[1] or phases[0] != phases[2]:
+        raise ValueError("alternative caller PPC phases differ")
+    rows = phases[0]
+    edges = []
+    for pc, target in ALT_CALLS:
+        owner = next((name for name, (lo, hi) in ALT_CALLER_FUNCTIONS.items()
+                      if lo <= pc < hi), None)
+        if owner is None:
+            raise ValueError("callsite exceeds source function")
+        lo = ALT_CALLER_FUNCTIONS[owner][0]
+        words = rows[owner]
+        if direct_bl_target(pc, words[(pc - lo) // 4]) != target:
+            raise ValueError("alternative native call target mismatch")
+        # Whole-function prefix through the call, capped output, no raw words.
+        preceding = [
+            decode_symbolic(here, words[(here - lo) // 4])
+            for here in range(lo, pc, 4)
+        ]
+        branches = sum(r["kind"] in ("bc", "b", "bl",
+                                     "branch_register_candidate")
+                       for r in preceding)
+        operands = [
+            {"pc": r["pc"], "op": r["kind"], "reg": r.get("register"),
+             "base": r.get("base"), "offset": r.get("offset")}
+            for r in preceding
+            if r["kind"] in ALLOWED_DFORM.values()
+            and (r.get("register") in (3, 4) or r.get("base") in (3, 4))
+        ]
+        if len(operands) > ALT_MAX_OPERANDS:
+            raise ValueError("callsite operand inventory exceeds bound")
+        edges.append({
+            "callsite": f"0x{pc:08X}",
+            "target": f"0x{target:08X}",
+            "function": owner,
+            "prefix_branches_or_calls": branches,
+            "candidate_r3_r4_operands": operands,
+            "receiver_must_definition": "UNKNOWN",
+        })
+    original._check_archive(archive)
+    result = {
+        "status": "SOURCE_ALTERNATIVE_CALLS_ONLY",
+        "original_sha_14_bank_pre_post": True,
+        "source_phases_1_5_7_equal": True,
+        "edges": edges,
+        "selected_v0_verified": False,
+        "guest_execution_verified": False,
+        "training_approved": False,
+    }
+    if len(json.dumps(result, separators=(",", ":"))) > 2200:
+        raise ValueError("alternative caller report exceeds receipt budget")
+    return result
+
 def discover_approved_archive() -> Path:
     """Find exactly one original seven-pair archive in the existing private root.
 
@@ -306,11 +393,12 @@ def verify_original_calls(archive: Path) -> dict:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--archive", type=Path, help="Optional existing private archive; LocalOps must use no arguments")
-    parser.add_argument("--study", choices=("calls", "integrator", "mode"), default="mode")
+    parser.add_argument("--study", choices=("calls", "integrator", "mode", "alternative"), default="mode")
     opts = parser.parse_args(argv)
     try:
         archive = opts.archive if opts.archive is not None else discover_approved_archive()
-        result = (mode_source_report(archive) if opts.study == "mode"
+        result = (alternative_initializer_report(archive) if opts.study == "alternative"
+                  else mode_source_report(archive) if opts.study == "mode"
                   else source_window_report(archive) if opts.study == "integrator"
                   else verify_original_calls(archive))
     except (ValueError, OSError, TypeError, KeyError, OverflowError):
