@@ -266,5 +266,47 @@ class SourceHandoffControls(unittest.TestCase):
         self.assertIn("original._check_archive(archive)", source)
         self.assertIn("selected_v0_must_def_proven", source)
 
+
+    def test_v0_7_speed_field_census_is_syntax_only(self):
+        lfs = (48 << 26) | (7 << 21) | (29 << 16) | 0x84
+        stfs = (52 << 26) | (3 << 21) | (30 << 16) | 0x84
+        decoy = (48 << 26) | (4 << 21) | (29 << 16) | 0x88
+        integer_same_offset = (32 << 26) | (5 << 21) | (30 << 16) | 0x84
+        data = audit.speed_field_dform_summary(
+            0x80298E70, (lfs, stfs, decoy, integer_same_offset))
+        self.assertEqual(data["candidate_lfs_count"], 1)
+        self.assertEqual(data["candidate_stfs_count"], 1)
+        self.assertEqual(data["lfs_samples"],
+                         [{"pc": "0x80298E70", "base_register": 29}])
+        self.assertEqual(data["stfs_samples"],
+                         [{"pc": "0x80298E74", "base_register": 30}])
+        self.assertFalse(data["receiver_proven"])
+        self.assertNotIn("word", json.dumps(data))
+
+    def test_v0_7_speed_functions_bounded_to_public_source_owners(self):
+        self.assertEqual(audit.SPEED_WINDOW,
+                         (0x80299890, 0x80299ACC))
+        self.assertEqual(
+            audit.SPEED_FUNCTIONS["force_callee"],
+            (0x80298E70, 0x80299528))
+        self.assertEqual(
+            audit.SPEED_FUNCTIONS["speed_refresh_callee"],
+            (0x80299528, 0x80299890))
+        self.assertEqual(tuple(pc for pc, _ in audit.SPEED_ORDER_CALLS),
+                         (0x802998B4, 0x802998C0,
+                          0x80299A18, 0x80299A20))
+        for pc, target in audit.SPEED_ORDER_CALLS:
+            self.assertTrue(audit.SPEED_WINDOW[0] <= pc
+                            < audit.SPEED_WINDOW[1])
+            word = (18 << 26) | ((target - pc) & 0x03FFFFFC) | 1
+            self.assertEqual(audit.direct_bl_target(pc, word), target)
+            self.assertIsNone(audit.direct_bl_target(pc, word & ~1))
+        source = inspect.getsource(audit.speed_freshness_source_report)
+        self.assertIn("folders = original._check_archive(archive)", source)
+        self.assertIn("original._check_archive(archive)", source)
+        self.assertIn("same_path_and_receiver_verified", source)
+        self.assertIn("speed_scalar_freshness_verified", source)
+
+
 if __name__ == "__main__":
     unittest.main()
