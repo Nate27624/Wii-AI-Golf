@@ -37,27 +37,45 @@ def discover_private_scripts(repo: Path) -> Path:
     """Only inspect a bounded nearby project structure, never search whole disk."""
     base = repo.parent.resolve(strict=True)
     found = []
-    for file in base.glob("*/" + "*/scripts/p0_calc_magnitude_upstream_private.py"):
-        try:
-            if (file.is_symlink() or not file.is_file()
-                    or file.parent.is_symlink() or file.parent.parent.is_symlink()):
+    # Exactly one, two or three directory levels beneath the Projects parent;
+    # never recursively scan user profile, disk roots, or arbitrary locations.
+    for pattern in (
+        "*/scripts/p0_calc_magnitude_upstream_private.py",
+        "*/*/scripts/p0_calc_magnitude_upstream_private.py",
+        "*/*/*/scripts/p0_calc_magnitude_upstream_private.py",
+    ):
+        for file in base.glob(pattern):
+            try:
+                if (file.is_symlink() or not file.is_file()
+                        or file.parent.is_symlink() or file.parent.parent.is_symlink()):
+                    continue
+                folder = file.parent.resolve(strict=True)
+                if not folder.is_relative_to(base):
+                    continue
+                names = (
+                    "audit_p0_seven_numbered_source_pairs_private.py",
+                    "audit_p0_inflight_vs_b0_private.py",
+                    "audit_golf_two_bank_roster_private.py",
+                )
+                if all((folder / n).is_file() and not (folder / n).is_symlink()
+                       for n in names):
+                    found.append(folder)
+            except OSError:
                 continue
-            folder = file.parent.resolve(strict=True)
-            if not folder.is_relative_to(base):
-                continue
-            names = (
-                "audit_p0_seven_numbered_source_pairs_private.py",
-                "audit_p0_inflight_vs_b0_private.py",
-                "audit_golf_two_bank_roster_private.py",
-            )
-            if all((folder / n).is_file() and not (folder / n).is_symlink()
-                   for n in names):
-                found.append(folder)
-        except OSError:
-            continue
-    if len(found) != 1:
-        raise Abstain("PRIVATE_HELPER_NOT_UNIQUE")
-    return found[0]
+    unique = list(dict.fromkeys(found))
+    if len(unique) == 1:
+        return unique[0]
+    if len(unique) > 1:
+        # Distinguish an exact existing operator audit checkout by its
+        # repository leaf name, not an absolute private filesystem path.
+        matching = [
+            folder for folder in unique
+            if folder.parent.name == "Wii-AI-Golf-Calc-Source-Audit"
+        ]
+        if len(matching) == 1:
+            return matching[0]
+        raise Abstain("PRIVATE_HELPER_AMBIGUOUS")
+    raise Abstain("PRIVATE_HELPER_MISSING")
 
 
 def decode_bl(pc: int, word: int) -> tuple[int, bool] | None:
@@ -189,8 +207,13 @@ def research(segment: str) -> dict:
             "raw_original_bytes_published": False, "exact_function_boundary_proven": False,
             "guest_execution_verified": False, "training_approved": False,
         }
+    except Abstain as exc:
+        # These enumerated codes contain no private paths or native data.
+        return {"status": "DIAGNOSTIC_ABSTAIN", "failed_stage": stage,
+                "reason_code": str(exc), "training_approved": False}
     except (Exception, KeyboardInterrupt):
         return {"status": "DIAGNOSTIC_ABSTAIN", "failed_stage": stage,
+                "reason_code": "UNCLASSIFIED_SOURCE_EXCEPTION",
                 "training_approved": False}
 
 
