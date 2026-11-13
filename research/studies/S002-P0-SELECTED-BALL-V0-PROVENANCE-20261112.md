@@ -94,3 +94,26 @@ It verifies exact D-form opcode/register/base/displacement gates and required ca
 Build a def-use/CFG proof for selected `+0x78/+0x7C/+0x80` *before* its first eligible `fn_8029B554 -> fn_80299890` invocation, not merely the first integration's `v += a`. Qualify candidate receiver lineage through `fn_80299ACC`, the two V0-4 alternative initializer entry functions, exact `fn_8029A5EC -> fn_8029A3FC` destination/source order, and separately classify selected writes vs third/global writes. Gate every original native source window and call clobber, branch reachability and source identity. Outcomes: `PRESTEP_SELECTED_WRITER_PATH` (source-only conditional), `NO_DIRECT_PRESTEP_SELECTED_WRITER_IN_SCOPED_WINDOWS`, or `ABSTAIN`. Do not conclude no velocity exists from lack of direct call/writer in the bounded windows: indirect dispatch and external constructors remain possible. If H1 is supported, S003 may accept a source-conditional v0 provenance record; otherwise keep initial velocity EXTERNAL_UNVERIFIED.
 
 **Execution sequencing:** V0-3 mode, V0-4 alternative and V0-5 gates are separate choices and must each receive independent LocalOps Y/N only after a *clean, exact-SHA, operator-reviewed* source-audit worktree is available. Two earlier checkouts rejected untracked worktree; do not retry without LocalOps maintainer diagnosis. Never report source success from code written but not executed. S003 source/model ownership remains exclusive.
+
+
+## V0-7: force-before-speed-refresh source PCs vs carried `Ball+0x84` (ready for review, unexecuted)
+
+**Unique research question, separate from V0-3 mode and V0-5 pointer gates:** is `Ball+0x84` a carried *previous-step* speed-like input to the force routines, rather than a scalar recomputed from the current updated velocity before force application?
+
+Original-source-ledger callsite hypotheses within shared integrator `fn_80299890 [0x80299890,0x80299ACC)`:
+- `0x802998B4 BL fn_80298E70` — force-like/update callee `[0x80298E70,0x80299528)`.
+- `0x802998C0 BL fn_80298C98` — postprocessing/collision candidate.
+- `0x80299A18 BL fn_80297A00` — position/vector adjustment candidate.
+- `0x80299A20 BL fn_80299528` — speed-like `+0x84` writer candidate in `[0x80299528,0x80299890)`.
+
+**V0-7 implementation** `--study speed` does exact SHA-gated, phases1/5/7 whole-code equality of all three bounded source function bodies. It requires all four exact direct-BL targets AND the integrator `r4->r30` PPC MR alias. For each of the two bounded callees, it counts and samples only direct D-form `lfs/stfs` using literal displacement `+0x84` (including base GPR and PC, never native words or private values). It returns `same_path_and_receiver_verified=false`, `speed_scalar_freshness_verified=false`, and `selected_pre_step_v0_verified=false` even if static lexical call order and candidate offset occurrences are found. Output is capped to 2,200 characters; original archive SHA rechecked after source reads.
+
+**Falsifiers / decision tree:**
+1. Any original 14-bank SHA, phase code, callsite, or `r4->r30` gate fails: `ABSTAIN`, no inferred lag.
+2. Direct source +0x84 occurrences absent from one callee: identify **no direct D-form match in the bounded slice**, not absence of indexed/paired-single or deeper callees.
+3. Both callees show candidate reads/writes: request follow-on register must-def, `r3` aliasing, branch CFG and caller mode=0 reachability; same code lexical order alone does **not** imply same selected Ball or one executed step.
+4. Only after a selected-receiver, same-path proof would an explicit synthetic `speed_prev` versus `speed_current` differential be meaningful. Source `+0x84` and native mode/f32 order stay independent until qualified.
+
+**Archive-discovery reliability update:** the earlier script aborted if over 32 immediate capture-directory entries existed, though the approved other original-source preflight #81 now successfully handles a populated archive with a bounded 512 metadata entry cap. S002 discovery now tolerates up to 512 *immediate* entries under its **existing** trusted `original.src.selected.DATA_ROOT/captures` only, while still requiring exactly one metadata-qualified 7-pair manifest; `original._check_archive` enforces full 14-bank SHA and strict signed metadata pre/post. Added fabricated test with 60 unrelated capture directories and one reviewed cohort, plus over-cap rejection. **Important source helper nuance:** `original._check_archive` returns `{phase: qualified_capture_directory}` and entries can point to the *same* archive root, not seven distinct directories. Using `folders[phase]` is a correct helper contract and SHA-qualified path binding, but is NOT evidence the earlier direct `archive` argument would necessarily fail in a valid flat archive.
+
+**Execution state:** no S002 PR #455 original native script has been run. Branch source/test updates require exact-head Windows/Ubuntu CI and original source-audit checkout. The protected source-audit checkout remains blocked pending an operator-installed diagnostic from private LocalOps PR #82; do not submit further checkout retries or source runs before that dependency. V0-7 is distinct from already executed synthetic #75/#76 and original nonlinear #83, and does not modify S003 model or accepted-power owner files.
