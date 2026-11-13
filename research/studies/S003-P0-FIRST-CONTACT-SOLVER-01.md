@@ -36,3 +36,21 @@ Default demonstration uses synthetic planar geometry only. Do not publish privat
 ## Delivery / evaluation gates
 
 A tested provisional API is an offline numerical instrument, not a verified Wii Sports Golf landing predictor. Native initial-ball state transfer is S002's separate assignment, and real same-shot/guest frame physics/contact evidence requires S001/S002 independent evidence and separate operator authorization. No live Dolphin, game actions, private capture or training eligibility is authorized by this code. Source and source-coordinate systems must not be replaced by visual display-fit transforms. `training_approved=false` always.
+
+
+## External airborne trajectory boundary (2026-11-12)
+
+\`predict_contact_from_trajectory(samples, terrain, *, contact_mode, assume_tree_free)\`
+accepts strictly increasing \`(t, xyz, vxyz)\` tuples. The caller defines the
+time coordinate and all spatial units; \`vxyz\` is validated but never used to
+extrapolate a hidden launch state. Between samples only **linear geometric CCD**
+is performed. Contact returns \`contact_t\`, \`time_base=caller_supplied_unverified\`,
+ball center, terrain surface, and contact feature. This does not claim native
+game seconds, guest ticks, a verified starting velocity, or change ownership of
+the independently assigned S003 airborne stepper.
+
+When speed-like strength and nonzero illustrative lift or lateral terms are
+provided, an explicit nonparallel spin axis is now mandatory: otherwise the
+model fails closed rather than silently zeroing these forces. The actual native
+spin-direction formula remains delegated to the S003 airborne owner.
+OBJ zero vertex indices are rejected; original private meshes remain local.

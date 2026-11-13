@@ -82,6 +82,10 @@ class State:
             vec(p)
         if not all(isfinite(x) for x in (self.speed_like,self.lift,self.lateral)):
             raise ValueError("nonfinite motion scalar")
+        # Fail closed instead of silently discarding requested illustrative spin.
+        if self.speed_like != 0 and (self.lift != 0 or self.lateral != 0):
+            if norm(cross(self.spin_axis, self.velocity)) <= EPS:
+                raise ValueError("illustrative force requires a nonparallel explicit spin_axis")
 
 
 def step_airborne(s: State) -> State:
@@ -193,6 +197,7 @@ def read_obj(path: str | Path,max_faces:int=200000) -> list[Triangle]:
                 indices=[]
                 for token in row[1:]:
                     i=int(token.split("/")[0])
+                    if i == 0: raise ValueError("OBJ vertex index zero is invalid")
                     idx=i-1 if i>0 else len(vertices)+i
                     if not 0<=idx<len(vertices): raise ValueError("invalid OBJ index")
                     indices.append(idx)
@@ -202,6 +207,88 @@ def read_obj(path: str | Path,max_faces:int=200000) -> list[Triangle]:
                                           vertices[indices[j+1]],material,len(faces)))
     if not faces: raise ValueError("empty OBJ")
     return faces
+
+
+def _terrain_segment_hit(p: Vec, q: Vec, tris: list[Triangle], radius: float):
+    """Find the earliest generic CCD contact for a segment and supplied terrain."""
+    low=[min(p[k],q[k])-radius-1e-8 for k in range(3)]
+    high=[max(p[k],q[k])+radius+1e-8 for k in range(3)]
+    best=None
+    for tri in tris:
+        if any(max(tri.a[k],tri.b[k],tri.c[k])<low[k] or
+               min(tri.a[k],tri.b[k],tri.c[k])>high[k] for k in range(3)):
+            continue
+        hit=segment_hit(p,q,tri,radius)
+        if hit is not None and (best is None or
+                                (hit[0],tri.face_id)<(best[1][0],best[0].face_id)):
+            best=(tri,hit)
+    return best
+
+
+def _contact_result(tri: Triangle, hit, mode: str, provenance: str) -> dict:
+    fraction,center,surface,feature=hit
+    return {"status":"PROVISIONAL_FIRST_CONTACT",
+            "fraction_within_step":fraction,"ball_center_xyz":center,
+            "surface_contact_xyz":surface,"face_id":tri.face_id,
+            "material_uninterpreted":tri.material,"contact_feature":feature,
+            "contact_mode":mode,
+            "query_radius":SOURCE_QUERY_RADIUS if mode=="swept_kcol_query_0p5" else 0.,
+            "provenance":provenance,
+            "uncertainties":["native_guest_clock_unknown","native_launch_transfer_unknown",
+                             "native_collision_sidedness_unknown","tree_clearance_assumed",
+                             "full_native_integrator_unknown"],
+            "native_game_parity_verified":False,"training_approved":False}
+
+
+def predict_contact_from_trajectory(samples: Iterable[tuple[float, Vec, Vec]],
+                                    terrain: Iterable[Triangle], *,
+                                    contact_mode: str="point_center",
+                                    assume_tree_free: bool=False) -> dict:
+    """First terrain contact from explicit (t, xyz, vxyz) airborne samples.
+
+    t is a strictly increasing caller-defined coordinate, NOT verified guest
+    frames or seconds. vxyz is checked but not used for interpolation. Positions
+    are linearly interpolated between samples using the existing generic CCD.
+    This is a non-owning interface boundary, not another native integrator.
+    """
+    if contact_mode not in ("point_center","swept_kcol_query_0p5"):
+        raise ValueError("unknown mode")
+    if not assume_tree_free:
+        return {"status":"ABSTAIN_TREE_CLEARANCE_UNKNOWN",
+                "native_game_parity_verified":False,"training_approved":False}
+    tris=list(terrain)
+    if not tris or len(tris)>200000 or not all(isinstance(t,Triangle) for t in tris):
+        raise ValueError("invalid terrain")
+    seq=list(samples)
+    if not 2<=len(seq)<=100001:
+        raise ValueError("trajectory requires 2..100001 samples")
+    validated=[]
+    for sample in seq:
+        if len(sample)!=3: raise ValueError("sample must be (t, xyz, vxyz)")
+        t,position,velocity=sample
+        t=float(t)
+        if not isfinite(t): raise ValueError("nonfinite trajectory time")
+        if validated and t<=validated[-1][0]:
+            raise ValueError("trajectory times must increase")
+        validated.append((t,vec(position),vec(velocity)))
+    radius=SOURCE_QUERY_RADIUS if contact_mode=="swept_kcol_query_0p5" else 0.
+    for i in range(len(validated)-1):
+        t0,p,_=validated[i]
+        t1,q,_=validated[i+1]
+        best=_terrain_segment_hit(p,q,tris,radius)
+        if best is not None:
+            tri,hit=best
+            result=_contact_result(tri,hit,contact_mode,
+                                   "EXTERNAL_EXPLICIT_TRAJECTORY__GENERIC_TWO_SIDED_CCD")
+            result["contact_t"]=t0+(t1-t0)*hit[0]
+            result["trajectory_sample_index"]=i
+            result["time_base"]="caller_supplied_unverified"
+            result["uncertainties"].append("linear_interpolation_between_samples")
+            return result
+    return {"status":"NO_CONTACT_IN_HORIZON",
+            "time_base":"caller_supplied_unverified",
+            "contact_mode":contact_mode,"native_game_parity_verified":False,
+            "training_approved":False}
 
 
 def predict_first_contact(start_xyz:Vec, initial_velocity:Vec, terrain:Iterable[Triangle], *,
@@ -228,28 +315,14 @@ def predict_first_contact(start_xyz:Vec, initial_velocity:Vec, terrain:Iterable[
                 speed_like,lift,lateral,vec(spin_axis))
     for step in range(max_steps):
         nxt=step_airborne(state)
-        low=[min(state.position[k],nxt.position[k])-radius-1e-8 for k in range(3)]
-        high=[max(state.position[k],nxt.position[k])+radius+1e-8 for k in range(3)]
-        hits=[]
-        for tri in tris:
-            if any(max(tri.a[k],tri.b[k],tri.c[k])<low[k] or
-                   min(tri.a[k],tri.b[k],tri.c[k])>high[k] for k in range(3)):
-                continue
-            hit=segment_hit(state.position,nxt.position,tri,radius)
-            if hit: hits.append((hit[0],tri.face_id,tri,hit))
-        if hits:
-            fraction,_,tri,hit=min(hits,key=lambda h:(h[0],h[1]))
-            return {"status":"PROVISIONAL_FIRST_CONTACT",
-                    "time_numerical_steps":step+fraction,"step_index":step,
-                    "fraction_within_step":fraction,"ball_center_xyz":hit[1],
-                    "surface_contact_xyz":hit[2],"face_id":tri.face_id,
-                    "material_uninterpreted":tri.material,"contact_feature":hit[3],
-                    "contact_mode":contact_mode,"query_radius":radius,
-                    "provenance":"SOURCE_GUIDED_PARTIAL_AIRBORNE__GENERIC_TWO_SIDED_CCD",
-                    "uncertainties":["native_guest_clock_unknown","native_launch_transfer_unknown",
-                                     "native_collision_sidedness_unknown","tree_clearance_assumed",
-                                     "full_native_integrator_unknown"],
-                    "native_game_parity_verified":False,"training_approved":False}
+        best=_terrain_segment_hit(state.position,nxt.position,tris,radius)
+        if best is not None:
+            tri,hit=best
+            result=_contact_result(tri,hit,contact_mode,
+                                   "SOURCE_GUIDED_PARTIAL_AIRBORNE__GENERIC_TWO_SIDED_CCD")
+            result["time_numerical_steps"]=step+hit[0]
+            result["step_index"]=step
+            return result
         state=nxt
     return {"status":"NO_CONTACT_IN_HORIZON","horizon_numerical_steps":max_steps,
             "contact_mode":contact_mode,"native_game_parity_verified":False,
