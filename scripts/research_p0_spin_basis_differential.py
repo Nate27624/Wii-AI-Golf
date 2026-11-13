@@ -51,17 +51,24 @@ def report():
         base = model.State((0.0, 1.0, 0.0), velocity,
                            acceleration=(0.0, 0.0, 0.0),
                            speed_like=2.0)
-        active = model.State(base.position, velocity,
-                             acceleration=base.acceleration,
-                             speed_like=2.0, lift=2.0, lateral=3.0)
         plain = model.step_airborne(base)
-        default_spin = model.step_airborne(active)
+        try:
+            active = model.State(base.position, velocity,
+                                 acceleration=base.acceleration,
+                                 speed_like=2.0, lift=2.0, lateral=3.0)
+            default_spin = model.step_airborne(active)
+            default_outcome = "ALLOWED"
+            residual_default = norm(tuple(x - y for x, y in zip(
+                default_spin.velocity, plain.velocity)))
+        except ValueError as exc:
+            if "nonparallel explicit spin_axis" not in str(exc):
+                raise
+            default_outcome = "REJECTED_MISSING_SPIN_AXIS"
+            residual_default = None
         explicit = model.step_airborne(model.State(
             base.position, velocity, acceleration=base.acceleration,
             speed_like=2.0, lift=2.0, lateral=3.0,
             spin_axis=(0.0, 0.0, 1.0)))
-        residual_default = norm(tuple(x - y for x, y in zip(
-            default_spin.velocity, plain.velocity)))
         residual_explicit = norm(tuple(x - y for x, y in zip(
             explicit.velocity, plain.velocity)))
         row = {
@@ -71,12 +78,14 @@ def report():
             "source_lift_dot_v": round(dot(lift_basis, velocity), 12),
             "source_lateral_dot_v": round(dot(side_basis, velocity), 12),
             "source_lift_dot_lateral": round(dot(lift_basis, side_basis), 12),
-            "provisional_default_spin_delta_v": round(residual_default, 12),
+            "default_spin_status": default_outcome,
+            "provisional_default_spin_delta_v": (round(residual_default, 12)
+                                                  if residual_default is not None else None),
             "provisional_explicit_spin_delta_v": round(residual_explicit, 12),
         }
         if not all(math.isfinite(n) for n in (
                 row["source_lift_norm"], row["source_lateral_norm"],
-                residual_default, residual_explicit)):
+                residual_explicit)):
             raise ValueError("NONFINITE_STUDY_OUTPUT")
         rows.append(row)
     return {
