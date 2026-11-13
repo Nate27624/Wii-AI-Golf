@@ -115,14 +115,13 @@ def decode_symbolic(pc: int, word: int) -> dict:
 
 def source_window_report(archive: Path) -> dict:
     """Original-bank source windows only; cannot prove runtime receivers."""
-    original._check_archive(archive)
+    folders = original._check_archive(archive)
     phases = {}
     with ExitStack() as stack:
         for phase in PHASES:
             mapped = []
             for bank_index, size in enumerate(original.SIZE):
-                path = original.src._file(
-                    archive, f"{phase}.{bank_index+1}.raw", size)
+                path = original.src._file(folders[phase], f"{phase}.{bank_index + 1}.raw", size)
                 fd = stack.enter_context(path.open("rb"))
                 mapped.append(stack.enter_context(
                     mmap.mmap(fd.fileno(), 0, access=mmap.ACCESS_READ)))
@@ -188,14 +187,13 @@ def mode_reference(pc: int, word: int) -> dict | None:
 
 def mode_source_report(archive: Path) -> dict:
     """Minimal JSON for LocalOps; SHA gates pre/post, no output clipping."""
-    original._check_archive(archive)
+    folders = original._check_archive(archive)
     snapshots = []
     with ExitStack() as stack:
         for phase in PHASES:
             mapped = []
             for bank_index, size in enumerate(original.SIZE):
-                bank_path = original.src._file(
-                    archive, f"{phase}.{bank_index+1}.raw", size)
+                bank_path = original.src._file(folders[phase], f"{phase}.{bank_index + 1}.raw", size)
                 fd = stack.enter_context(bank_path.open("rb"))
                 mapped.append(stack.enter_context(
                     mmap.mmap(fd.fileno(), 0, access=mmap.ACCESS_READ)))
@@ -275,14 +273,13 @@ def discover_approved_archive() -> Path:
 
 def verify_original_calls(archive: Path) -> dict:
     # Private archive identity, source root and all 14 bank SHA gates.
-    original._check_archive(archive)
+    folders = original._check_archive(archive)
     rows = []
     with ExitStack() as stack:
         for phase in PHASES:
             mapped = []
             for bank_index, size in enumerate(original.SIZE):
-                path = original.src._file(
-                    archive, f"{phase}.{bank_index + 1}.raw", size)
+                path = original.src._file(folders[phase], f"{phase}.{bank_index + 1}.raw", size)
                 fd = stack.enter_context(path.open("rb"))
                 mapped.append(stack.enter_context(
                     mmap.mmap(fd.fileno(), 0, access=mmap.ACCESS_READ)))
