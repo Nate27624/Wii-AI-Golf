@@ -38,6 +38,20 @@ class TestNativeTransferSources(unittest.TestCase):
         self.assertEqual(result["field_counts"]["lfs"],1)
         self.assertEqual(result["wind_reaches_selected_ball_velocity"],"UNKNOWN")
 
+    def test_impact_calls_and_conditional_98_candidate(self):
+        blocks = self.blank("impact")
+        self.set_pc(blocks, 0x802998B4, direct_bl(0x802998B4,0x80298E70))
+        self.set_pc(blocks, 0x802998C0, direct_bl(0x802998C0,0x80298C98))
+        self.set_pc(blocks, 0x80299A18, direct_bl(0x80299A18,0x80297A00))
+        self.set_pc(blocks, 0x80297F78, dform(34,0,31,0x98))
+        self.set_pc(blocks, 0x80297F80, (16 << 26) | 0x10)
+        result = study.analyze_source("impact",blocks)
+        self.assertEqual(result["native_call_count"],3)
+        self.assertEqual(len(result["candidate_0x98_integer_accesses"]),1)
+        self.assertEqual(result["conditional_branch_pcs"],["0x80297F80"])
+        self.assertEqual(result["damping_precontact_reachable"],"UNKNOWN")
+        self.assertFalse(result["factor_98_predicate_proven"])
+
     def test_kcol_direct_call_and_candidate(self):
         blocks = self.blank("contact")
         self.set_pc(blocks, 0x802974B0, direct_bl(0x802974B0,0x802A3DE4))
