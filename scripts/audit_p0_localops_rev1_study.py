@@ -25,6 +25,10 @@ PHASES = tuple(range(1, 8))
 SOURCE_WINDOWS = ((0x802A3CF4, 0x802A3DE4),
                   (0x802B2E34, 0x802B2EF8),
                   (0x802A79F8, 0x802C7924))
+SDA2_GOLF_SCENE = (0x804C4388, 0x804C4CB8)  # published Rev1 source split
+SDA2_R2_ANCHOR_DISP = -12892  # source-qualified 0.992f float in scene
+SDA2_F1_DISP = -13196
+SDA2_F0_DISP = -13192
 MAX_SIBLINGS = 80
 MAX_CAPTURE_DIRS_PER_ROOT = 512
 MAX_CAPTURE_DIRS_TOTAL = 768
@@ -390,6 +394,58 @@ def _triple_store_provenance(windows: dict[tuple[int, int], bytes]) -> dict:
             'r3_receiver_alias_proven':False}
 
 
+
+def _triple_sda2_constants(views: list[dict[tuple[int,int],bytes]],
+                           scene_sda2: list[bytes]) -> dict:
+    """Read two source-anchored .sdata2 floats, never raw words or addresses.
+
+    The anchor is the existing original-SHA-verified unique 0.992f scene
+    literal with published r2 displacement. It is NOT a guessed r2 pointer.
+    """
+    lo, hi = SDA2_GOLF_SCENE
+    if (len(views) != 3 or len(scene_sda2) != 3 or
+            any(len(b) != hi-lo for b in scene_sda2)):
+        raise Abstain('SDA2_SOURCE_WINDOW')
+    if not (scene_sda2[0] == scene_sda2[1] == scene_sda2[2]):
+        raise Abstain('SDA2_SOURCE_PHASES_DISAGREE')
+    for view in views:
+        for pc, fpr, disp in ((0x802B499C, 1, SDA2_F1_DISP),
+                              (0x802B49A4, 0, SDA2_F0_DISP)):
+            word = _word(view,pc)
+            displacement = word & 0xffff
+            if displacement & 0x8000:
+                displacement -= 0x10000
+            if (word >> 26 != 48 or (word >> 21) & 31 != fpr
+                    or (word >> 16) & 31 != 2
+                    or displacement != disp):
+                raise Abstain('SDA2_LFS_SOURCE_GATE')
+        _triple_store_provenance(view)  # verify all 3 immediate stfs f1/r3
+    anchor = struct.pack('>f',0.992)
+    original = scene_sda2[0]
+    matches = [lo+i for i in range(0,len(original)-3,4)
+               if original[i:i+4] == anchor]
+    if len(matches) != 1:
+        raise Abstain('SDA2_ANCHOR_NOT_UNIQUE')
+    r2 = matches[0] - SDA2_R2_ANCHOR_DISP
+    f1_addr, f0_addr = r2 + SDA2_F1_DISP, r2 + SDA2_F0_DISP
+    if not (lo <= f1_addr < f0_addr and f0_addr+4 <= hi):
+        raise Abstain('SDA2_CONSTANT_OUTSIDE_SCENE')
+    f1 = struct.unpack_from('>f',original,f1_addr-lo)[0]
+    f0 = struct.unpack_from('>f',original,f0_addr-lo)[0]
+    if not (-float('inf') < f1 < float('inf') and
+            -float('inf') < f0 < float('inf')):
+        raise Abstain('SDA2_NONFINITE_FLOAT')
+    return {'sda2_source_owner':'RPGolScene_unsplit.o',
+            'unique_0p992_anchor_and_r2_binding_verified':True,
+            'two_lfs_source_gates_verified':True,
+            'source_sda2_phases_1_5_7_identical':True,
+            'triple_field_common_f1_f32':f1,
+            'adjacent_f0_f32':f0,
+            'triple_field_value_is_zero':f1 == 0.0,
+            'function_runtime_execution_verified':False,
+            'selected_ball_same_receiver_verified':False}
+
+
 def _source_owners() -> bool:
     scripts_root = str(pathlib.Path(__file__).resolve().parent)
     if scripts_root not in sys.path:
@@ -413,7 +469,7 @@ def study(stage: str, checkout: pathlib.Path) -> dict:
               'original_bank_sha_verified':len(banks),
               'public_rev1_unit_source_verified':True,
               'training_approved':False, 'allowed_to_publish':False}
-    if stage in ('nonlinear', 'field-registers', 'triple-store'):
+    if stage in ('nonlinear', 'field-registers', 'triple-store', 'triple-constants'):
         phase_files = {p:path for p,size,path,sha in banks if size == MEM1_SIZE}
         views = [_read_windows(phase_files[p]) for p in (1,5,7)]
         if views[0] != views[1] or views[1] != views[2]:
@@ -430,11 +486,19 @@ def study(stage: str, checkout: pathlib.Path) -> dict:
             # LocalOps stdout budget; never publish a silently clipped report.
             if len(json.dumps(report,separators=(',',':'))) > 1900:
                 raise Abstain('FIELD_RECEIPT_BUDGET')
-        else:
+        elif stage == 'triple-store':
             report['triple_store'] = _triple_store_provenance(views[0])
             report['status'] = 'TRIPLE_STORE_SOURCE_PASS'
             if len(json.dumps(report,separators=(',',':'))) > 1900:
                 raise Abstain('TRIPLE_STORE_RECEIPT_BUDGET')
+        else:
+            scene_data = [_read_windows(phase_files[p],
+                          windows=(SDA2_GOLF_SCENE,))[SDA2_GOLF_SCENE]
+                          for p in (1,5,7)]
+            report['triple_sda2'] = _triple_sda2_constants(views,scene_data)
+            report['status'] = 'TRIPLE_CONSTANTS_SOURCE_PASS'
+            if len(json.dumps(report,separators=(',',':'))) > 1700:
+                raise Abstain('TRIPLE_CONSTANTS_RECEIPT_BUDGET')
         report['same_shot_native_ball_consumer_verified'] = False
         report['lexical_matches_are_receiver_proof'] = False
     # Independently recheck original 14 SHA values after all reads.
@@ -447,7 +511,7 @@ def study(stage: str, checkout: pathlib.Path) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--stage', required=True, choices=('preflight','nonlinear','field-registers','triple-store'))
+    parser.add_argument('--stage', required=True, choices=('preflight','nonlinear','field-registers','triple-store','triple-constants'))
     args = parser.parse_args(argv)
     try:
         result = study(args.stage, pathlib.Path(__file__).resolve().parents[1])

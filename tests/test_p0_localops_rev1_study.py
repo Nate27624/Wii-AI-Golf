@@ -42,6 +42,26 @@ def manifest():
                 for n in range(1,8)]}
 
 
+
+def triple_sda2_fixture():
+    import struct
+    lo,hi=m.SOURCE_WINDOWS[2]
+    data=bytearray(hi-lo)
+    data[0x802B499C-lo:0x802B49A0-lo]=dform(48,1,2,-13196).to_bytes(4,'big')
+    data[0x802B49A4-lo:0x802B49A8-lo]=dform(48,0,2,-13192).to_bytes(4,'big')
+    for pc,off in ((0x802B49C0,0x1b0),
+                   (0x802B49C4,0x1b4),
+                   (0x802B49C8,0x1b8)):
+        data[pc-lo:pc-lo+4]=stfs(1,3,off).to_bytes(4,'big')
+    source={(lo,hi):bytes(data)}
+    sda2=bytearray(m.SDA2_GOLF_SCENE[1]-m.SDA2_GOLF_SCENE[0])
+    # anchor at +400, f1 constant at +96, adjacent f0 at +100
+    sda2[400:404]=struct.pack('>f',0.992)
+    sda2[96:100]=struct.pack('>f',0.0)
+    sda2[100:104]=struct.pack('>f',1.0)
+    return [source]*3,[bytes(sda2)]*3
+
+
 def native():
     d={0x802A3D6C:bl(0x802A3D6C,0x8002F7E8),
        0x802A3D90:bl(0x802A3D90,0x8002F7E8),
@@ -330,5 +350,46 @@ class StudyTests(unittest.TestCase):
         with self.assertRaises(m.Abstain) as ctx:
             m._triple_store_provenance({(lo,hi):bytes(data)})
         self.assertEqual(ctx.exception.code,'TRIPLE_STORE_CALLER_COUNT_CAP')
+
+
+    def test_triple_sda2_source_anchor_and_loads(self):
+        views,blobs=triple_sda2_fixture()
+        result=m._triple_sda2_constants(views,blobs)
+        self.assertTrue(result['unique_0p992_anchor_and_r2_binding_verified'])
+        self.assertTrue(result['two_lfs_source_gates_verified'])
+        self.assertEqual(result['triple_field_common_f1_f32'],0.0)
+        self.assertEqual(result['adjacent_f0_f32'],1.0)
+        self.assertTrue(result['triple_field_value_is_zero'])
+        self.assertFalse(result['selected_ball_same_receiver_verified'])
+
+    def test_triple_sda2_rejects_phase_mismatch_and_second_anchor(self):
+        import struct
+        views,blobs=triple_sda2_fixture()
+        other=bytearray(blobs[1])
+        other[96:100]=struct.pack('>f',2.0)
+        with self.assertRaises(m.Abstain):
+            m._triple_sda2_constants(views,[blobs[0],bytes(other),blobs[2]])
+        other=bytearray(blobs[0])
+        other[500:504]=struct.pack('>f',0.992)
+        with self.assertRaises(m.Abstain) as cm:
+            m._triple_sda2_constants(views,[bytes(other)]*3)
+        self.assertEqual(cm.exception.code,'SDA2_ANCHOR_NOT_UNIQUE')
+
+    def test_triple_sda2_rejects_wrong_load_gpr_and_nonfinite(self):
+        import struct
+        views,blobs=triple_sda2_fixture()
+        lo,hi=m.SOURCE_WINDOWS[2]
+        damaged=bytearray(views[0][(lo,hi)])
+        pc=0x802B499C
+        damaged[pc-lo:pc-lo+4]=dform(48,1,3,-13196).to_bytes(4,'big')
+        with self.assertRaises(m.Abstain) as cm:
+            m._triple_sda2_constants(
+                [{(lo,hi):bytes(damaged)}]*3,blobs)
+        self.assertEqual(cm.exception.code,'SDA2_LFS_SOURCE_GATE')
+        altered=bytearray(blobs[0])
+        altered[96:100]=struct.pack('>f',float('nan'))
+        with self.assertRaises(m.Abstain) as cm:
+            m._triple_sda2_constants(views,[bytes(altered)]*3)
+        self.assertEqual(cm.exception.code,'SDA2_NONFINITE_FLOAT')
 
 if __name__=='__main__':unittest.main()
