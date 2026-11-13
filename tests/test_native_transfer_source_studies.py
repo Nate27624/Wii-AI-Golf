@@ -1,18 +1,12 @@
 """Offline synthetic PPC opcode gates only; never native/game execution."""
 import struct
 import sys
-import types
 import unittest
 from pathlib import Path
 
-# Use a deliberately minimal preflight stub to test source-operand logic
-# without touching private original bank files or filesystem discovery.
-stub = types.ModuleType("audit_p0_localops_rev1_study")
-class Abstain(Exception):
-    def __init__(self, code):
-        self.code = code
-stub.Abstain = Abstain
-sys.modules.setdefault("audit_p0_localops_rev1_study", stub)
+# Import the real reviewed preflight code without running any original-bank
+# reads. Do not register a global sys.modules stub that could interfere
+# with subsequent full-suite tests of the actual preflight implementation.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import research_p0_native_transfer_sources_private as study
 
