@@ -23,6 +23,7 @@ CALLS = (
     (0x80299CCC, 0x80299890, "conditional_global_process_candidate"),
 )
 PHASES = (1, 5, 7)
+MAX_CAPTURE_DIRS = 512  # matches already approved Rev1 preflight metadata cap
 
 def direct_bl_target(pc: int, word: int) -> int | None:
     """Return only a relative PowerPC direct BL target."""
@@ -448,7 +449,9 @@ def discover_approved_archive() -> Path:
         raise ValueError("private captures directory unavailable")
     candidates = []
     entries = list(captures.iterdir())
-    if len(entries) > 32:
+    # Many unrelated historical captures are valid; bound metadata inspection
+    # without requiring cleanup of the operator's protected research files.
+    if len(entries) > MAX_CAPTURE_DIRS:
         raise ValueError("private capture inventory exceeds bound")
     for candidate in entries:
         if candidate.is_symlink() or not candidate.is_dir():
@@ -464,9 +467,13 @@ def discover_approved_archive() -> Path:
             continue
         if (type(manifest) is dict
                 and manifest.get("kind") == "p0-private-numbered-capture-inventory"
+                and type(manifest.get("capture_count")) is int
                 and manifest.get("capture_count") == 7
                 and manifest.get("capture_numbers") == list(range(1, 8))
-                and manifest.get("training_approved") is False):
+                and manifest.get("training_approved") is False
+                and manifest.get("human_phase_file_mapping_verified") is False
+                and type(manifest.get("captures")) is list
+                and len(manifest["captures"]) == 7):
             candidates.append(candidate)
     if len(candidates) != 1:
         raise ValueError("original archive not uniquely identified")
