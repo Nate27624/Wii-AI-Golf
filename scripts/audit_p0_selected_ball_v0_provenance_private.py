@@ -149,6 +149,92 @@ def source_window_report(archive: Path) -> dict:
         "training_approved": False,
     }
 
+
+# Scan only the exact published fn_80299890 body. The register is a
+# candidate control/mode argument, NOT a proven semantic switch.
+MODE_WINDOW = (0x80299890, 0x80299ACC)
+MODE_MR_PC = 0x802998AC
+MODE_CALLS = ((0x802998B4, 0x80298E70), (0x80299A18, 0x80297A00))
+MAX_MODE_REFERENCES = 12
+
+def is_mr(word: int, *, dest: int, source: int) -> bool:
+    """PowerPC mr alias: or rA,rS,rS (XO=444, Rc=0)."""
+    return (type(word) is int and 0 <= word <= 0xFFFFFFFF
+            and word >> 26 == 31 and (word >> 1) & 1023 == 444
+            and (word & 1) == 0 and (word >> 16) & 31 == dest
+            and (word >> 21) & 31 == source
+            and (word >> 11) & 31 == source)
+
+def mode_reference(pc: int, word: int) -> dict | None:
+    """Conservative candidate r30 operand, never complete PPC dataflow."""
+    op = word >> 26
+    if op in (14, 15, 32, 34, 36, 38, 40, 42, 44, 48, 50, 52, 54):
+        reg = (word >> 21) & 31
+        base = (word >> 16) & 31
+        if base == 30 or (reg == 30 and op in (14, 15, 32, 34, 40, 42)):
+            return {"pc": f"0x{pc:08X}", "op": op, "reg": reg,
+                    "base": base, "offset": signed16(word & 65535),
+                    "role": "possible_base_or_definition"}
+    elif op == 31:
+        rt, ra, rb = (word >> 21) & 31, (word >> 16) & 31, (word >> 11) & 31
+        if 30 in (rt, ra, rb):
+            return {"pc": f"0x{pc:08X}", "op": 31,
+                    "rt": rt, "ra": ra, "rb": rb,
+                    "xo": (word >> 1) & 1023, "role": "possible_xform_operand"}
+    elif op in (10, 11) and (word >> 16) & 31 == 30:
+        return {"pc": f"0x{pc:08X}", "op": op,
+                "comparison_register": 30, "role": "comparison_candidate"}
+    return None
+
+def mode_source_report(archive: Path) -> dict:
+    """Minimal JSON for LocalOps; SHA gates pre/post, no output clipping."""
+    original._check_archive(archive)
+    snapshots = []
+    with ExitStack() as stack:
+        for phase in PHASES:
+            mapped = []
+            for bank_index, size in enumerate(original.SIZE):
+                bank_path = original.src._file(
+                    archive, f"{phase}.{bank_index+1}.raw", size)
+                fd = stack.enter_context(bank_path.open("rb"))
+                mapped.append(stack.enter_context(
+                    mmap.mmap(fd.fileno(), 0, access=mmap.ACCESS_READ)))
+            rd = banks.TwoBankReader(*mapped)
+            snapshots.append(tuple(rd.u32(pc) for pc in range(*MODE_WINDOW, 4)))
+    if snapshots[0] != snapshots[1] or snapshots[0] != snapshots[2]:
+        raise ValueError("integrator source phases differ")
+    words = snapshots[0]
+    index = lambda pc: (pc - MODE_WINDOW[0]) // 4
+    if not is_mr(words[index(MODE_MR_PC)], dest=30, source=4):
+        raise ValueError("integrator entry mode save differs")
+    for pc, target in MODE_CALLS:
+        if direct_bl_target(pc, words[index(pc)]) != target:
+            raise ValueError("integrator call target differs")
+    uses = [
+        mode_reference(pc, words[index(pc)])
+        for pc in range(MODE_MR_PC+4, MODE_WINDOW[1], 4)
+    ]
+    uses = [u for u in uses if u is not None]
+    if len(uses) > MAX_MODE_REFERENCES:
+        raise ValueError("mode candidate use count exceeds output cap")
+    original._check_archive(archive)
+    report = {
+        "status": "SOURCE_R4_R30_OPERANDS_ONLY",
+        "original_14_bank_sha_pre_post": True,
+        "phase_1_5_7_integrator_body_equal": True,
+        "entry_r4_saved_to_r30": True,
+        "fixed_call_targets_pass": True,
+        "r30_candidate_uses": uses,
+        "r30_use_count": len(uses),
+        "r30_mode_semantics_verified": False,
+        "selected_ball_v0_verified": False,
+        "runtime_execution_verified": False,
+        "training_approved": False,
+    }
+    if len(json.dumps(report, separators=(",", ":"))) > 2200:
+        raise ValueError("research report would be clipped by LocalOps")
+    return report
+
 def discover_approved_archive() -> Path:
     """Find exactly one original seven-pair archive in the existing private root.
 
@@ -223,11 +309,12 @@ def verify_original_calls(archive: Path) -> dict:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--archive", type=Path, help="Optional existing private archive; LocalOps must use no arguments")
-    parser.add_argument("--study", choices=("calls", "integrator"), default="integrator")
+    parser.add_argument("--study", choices=("calls", "integrator", "mode"), default="mode")
     opts = parser.parse_args(argv)
     try:
         archive = opts.archive if opts.archive is not None else discover_approved_archive()
-        result = (source_window_report(archive) if opts.study == "integrator"
+        result = (mode_source_report(archive) if opts.study == "mode"
+                  else source_window_report(archive) if opts.study == "integrator"
                   else verify_original_calls(archive))
     except (ValueError, OSError, TypeError, KeyError, OverflowError):
         # Never display exception strings (private paths/native state).
