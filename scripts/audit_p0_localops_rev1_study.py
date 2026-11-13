@@ -277,6 +277,50 @@ def _lexical_consumers(windows: dict[tuple[int, int], bytes]) -> dict:
         }
     return result
 
+
+def _field_opcode_registers(windows: dict[tuple[int, int], bytes]) -> dict:
+    """Bounded lexical source-PC/GPR/FPR census, NOT a reaching-def proof.
+
+    D-form signed16: lfs, lfsu, stfs, stfsu.
+    Gekko DQ-form signed12: psq_l, psq_lu, psq_st, psq_stu.
+    Indexed operands, wider loads and aliases remain unresolved. Read only
+    original source windows after canonical 14-bank SHA validation.
+    """
+    lo, hi = SOURCE_WINDOWS[2]
+    data = windows[lo, hi]
+    if len(data) != hi - lo or len(data) % 4:
+        raise Abstain('FIELD_WINDOW_BOUNDS')
+    ops = {48:'lfs',49:'lfsu',52:'stfs',53:'stfsu',
+           56:'psq_l',57:'psq_lu',60:'psq_st',61:'psq_stu'}
+    records = []
+    for offset in range(0, len(data), 4):
+        word = struct.unpack_from('>I', data, offset)[0]
+        opcode = word >> 26
+        if opcode not in ops:
+            continue
+        disp_bits = 12 if opcode in (56,57,60,61) else 16
+        mask = (1 << disp_bits) - 1
+        displacement = word & mask
+        if displacement & (1 << (disp_bits-1)):
+            displacement -= (1 << disp_bits)
+        if displacement not in (0x1b0, 0x1b4, 0x1b8):
+            continue
+        # Source PC, signed lexical offset, mnemonic, base-GPR and FPR only.
+        # No RAM contents, original instruction words or heap addresses.
+        records.append([f'0x{lo + offset:08X}',f'{displacement:03X}',
+                        ops[opcode],(word >> 16)&31,(word >> 21)&31])
+        if len(records) > 40:
+            raise Abstain('FIELD_LEXICAL_COUNT_CAP')
+    counts = {f'{n:03X}':sum(row[1] == f'{n:03X}' for row in records)
+              for n in (0x1b0,0x1b4,0x1b8)}
+    return {'row_schema':['pc','field_offset_hex','opcode','base_gpr','fpr'],
+            'rows':records,
+            'counts_by_field':counts,
+            'receiver_alias_proven':False,
+            'same_shot_selected_ball_consumer_proven':False,
+            'indexed_accesses_not_classified':True}
+
+
 def _source_owners() -> bool:
     scripts_root = str(pathlib.Path(__file__).resolve().parent)
     if scripts_root not in sys.path:
@@ -300,15 +344,23 @@ def study(stage: str, checkout: pathlib.Path) -> dict:
               'original_bank_sha_verified':len(banks),
               'public_rev1_unit_source_verified':True,
               'training_approved':False, 'allowed_to_publish':False}
-    if stage == 'nonlinear':
+    if stage in ('nonlinear', 'field-registers'):
         phase_files = {p:path for p,size,path,sha in banks if size == MEM1_SIZE}
         views = [_read_windows(phase_files[p]) for p in (1,5,7)]
         if views[0] != views[1] or views[1] != views[2]:
             raise Abstain('PHASE_SOURCE_NOT_IDENTICAL')
         report['phase_1_5_7_source_windows_identical'] = True
         report['native_gate_summary'] = _source_gates(lambda pc:_word(views[0],pc))
-        report['lexical_calc_offset_census'] = _lexical_consumers(views[0])
-        report['status'] = 'NONLINEAR_SOURCE_PASS'
+        if stage == 'nonlinear':
+            report['lexical_calc_offset_census'] = _lexical_consumers(views[0])
+            report['status'] = 'NONLINEAR_SOURCE_PASS'
+        else:
+            report['field_opcode_registers'] = _field_opcode_registers(views[0])
+            report['status'] = 'FIELD_REGISTER_CENSUS_PASS'
+            # A complete machine-readable receipt must fit the installed
+            # LocalOps stdout budget; never publish a silently clipped report.
+            if len(json.dumps(report,separators=(',',':'))) > 1900:
+                raise Abstain('FIELD_RECEIPT_BUDGET')
         report['same_shot_native_ball_consumer_verified'] = False
         report['lexical_matches_are_receiver_proof'] = False
     # Independently recheck original 14 SHA values after all reads.
@@ -321,7 +373,7 @@ def study(stage: str, checkout: pathlib.Path) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--stage', required=True, choices=('preflight','nonlinear'))
+    parser.add_argument('--stage', required=True, choices=('preflight','nonlinear','field-registers'))
     args = parser.parse_args(argv)
     try:
         result = study(args.stage, pathlib.Path(__file__).resolve().parents[1])
