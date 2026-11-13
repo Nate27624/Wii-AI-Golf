@@ -18,6 +18,7 @@ SCHEMA = "localops-v2"
 PROJECT = "wii-golf"
 RESULT_MARKER = "LOCALOPS_RESULT_V2"
 APPROVAL_MARKER = "LOCALOPS_APPROVAL_REQUIRED_V2"
+FEEDBACK_MARKER = "LOCALOPS_OPERATOR_FEEDBACK_V2"
 NAME = re.compile(r"[a-z][a-z0-9_-]{0,49}\Z")
 BRANCH = re.compile(r"agent/[A-Za-z0-9][A-Za-z0-9._/-]{0,90}\Z")
 SHA40 = re.compile(r"[a-f0-9]{40}\Z")
@@ -38,7 +39,9 @@ RESEARCH_ARG = re.compile(
 def request(operation: str, *, task: str | None = None,
             subdir: str | None = None, branch: str | None = None,
             sha: str | None = None, script: str | None = None,
-            args: list[str] | None = None) -> tuple[str, str]:
+            args: list[str] | None = None,
+            intent: str | None = None,
+            expected_output: str | None = None) -> tuple[str, str]:
     """Return title + JSON body for ONE request; never execute any task.
 
     run_task always chooses a locally pre-registered named task. The title
@@ -101,6 +104,13 @@ def request(operation: str, *, task: str | None = None,
         params = {"branch": branch, "sha": sha}
     body = {"schema": SCHEMA, "project": PROJECT,
             "operation": operation, "params": params}
+    for key, value in (("intent", intent), ("expected_output", expected_output)):
+        if value is None:
+            continue
+        if (type(value) is not str or not 1 <= len(value) <= 180
+                or any(ord(c) < 32 or ord(c) == 127 for c in value)):
+            raise ValueError("Approval summary must be 1-180 printable characters")
+        body[key] = value
     return ISSUE_TITLE, json.dumps(body, separators=(",", ":"), sort_keys=True)
 
 
@@ -130,10 +140,30 @@ def parse_result_comment(comment_body: str, *, issue_number: int,
             or result["schema"] != SCHEMA
             or type(result["issue"]) is not int or result["issue"] != issue_number
             or result["operation"] != operation
-            or result["status"] not in ("success", "error")
+            or result["status"] not in ("success", "error", "declined")
             or not isinstance(result["result"], (dict, str))):
         return None
     return result
+
+
+def parse_operator_feedback(comment_body: str, *, issue_number: int) -> dict | None:
+    """Parse non-executable operator feedback after verifying issue/author."""
+    if (type(comment_body) is not str or len(comment_body) > 1500
+            or type(issue_number) is not int or issue_number < 1
+            or not comment_body.startswith(FEEDBACK_MARKER + "\n")):
+        return None
+    try:
+        item = json.loads(comment_body[len(FEEDBACK_MARKER) + 1:])
+    except (ValueError, TypeError):
+        return None
+    if (type(item) is not dict
+            or set(item) != {"issue", "decision", "feedback"}
+            or type(item["issue"]) is not int or item["issue"] != issue_number
+            or item["decision"] not in ("success", "error", "declined")
+            or type(item["feedback"]) is not str
+            or not 1 <= len(item["feedback"]) <= 1000):
+        return None
+    return item
 
 
 def approval_pending(comment_body: str) -> bool:

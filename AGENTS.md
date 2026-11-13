@@ -65,24 +65,34 @@ strict `[LOCALOPS-v2]` issue **only** in the separate PRIVATE
 `LOCALOPS_RESULT_V2` receipt. Never use the public source repo as a
 command mailbox or request the operator's token.
 
-The Windows agent executes only fixed, **locally registered** project
-tasks: read-only `git_status` and `list_files`, named `run_task`
-(e.g. `python_version`, `inspector_tests`, `viewer_tests`), or
-an exact-SHA `checkout_reviewed`. A registered task marked
-`approval=confirm` and every checkout must be approved on the
-operator's Windows console; GitHub comments do NOT authorize execution.
-There is **no arbitrary PowerShell command**, arbitrary remote script,
-Dolphin input, live shot, or permission to publish private evidence.
-The existing V2 role/CLAIM, `merging.md`, offline provenance and
-separate live-game authorizations remain in force.
+The Windows bridge supports harmless `git_status` and `list_files`,
+locally registered `run_task`, exact-SHA `checkout_reviewed`, and,
+**only after local opt-in**, bounded Git-tracked Python `run_research`
+scripts. The agent must never assume the operator has installed a
+particular LocalOps version or allowed a script based only on GitHub
+source. An unknown named task fails with `TASK_NOT_REGISTERED`.
 
-The operator has confirmed one successful v2 `git_status` request
-(private issue #3); this is not proof the watcher is currently running.
-Agents must verify the status of each new request, distinguish
-`LOCALOPS_APPROVAL_REQUIRED_V2` from `LOCALOPS_RESULT_V2`,
-and cite the actual issue/commit in a sanitized handoff. If private
-mailbox access is unavailable, abstain from local execution rather than
-submitting to a public repository.
+**New agent instruction (private LocalOps PR #18):** for each approval-
+requiring operation, provide a concise, honest optional `intent` and
+`expected_output` in the top-level JSON request so the operator can
+understand what will run and what it is meant to find. These strings
+are display-only, not execution parameters or verified evidence.
+The operator reviews pending issues with the local PowerShell
+`Invoke-LocalOps.ps1 -Review` queue and enters **Y/N**, with an
+optional text feedback prompt. Agents must read
+`LOCALOPS_APPROVAL_REQUIRED_V2`, terminal
+`LOCALOPS_RESULT_V2` (including `declined`), and optional
+`LOCALOPS_OPERATOR_FEEDBACK_V2` comments from the PRIVATE issue.
+Never retry a declined request to circumvent the operator. Feedback
+is advisory and must not bypass policy or authorization. See the
+[full request/receipt guide](docs/v2-localops-agent-guide.md).
+
+No arbitrary PowerShell command, unsandboxed unreviewed code approval,
+Dolphin input, live shot or private artifact publication is authorized
+by the bridge. All V2 roles, assignments, CLAIM/HANDOFF, provenance,
+privacy and separate live-game authorizations remain in force.
+The historical successful LocalOps `git_status` request establishes
+past bridge operation, not current watcher installation or readiness.
 
 ## Historical evidence and PR cleanup
 
