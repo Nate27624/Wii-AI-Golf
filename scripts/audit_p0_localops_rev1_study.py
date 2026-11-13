@@ -209,12 +209,13 @@ def _source_gates(read) -> dict:
         raise Abstain('NATIVE_HELPER_RETURN_GATE')
     for pc, offset in ((0x802B2ED4, 0x1b4), (0x802B2EF4, 0x1b0)):
         w = read(pc)
-        if (w >> 26) != 52 or (w & 0xffff) != offset:
+        if ((w >> 26) != 52 or (w & 0xffff) != offset
+                or ((w >> 16) & 31) != 31):
             raise Abstain('NATIVE_RESULT_STORE_GATE')
     first, last = SOURCE_WINDOWS[1]
     helper_calls = [pc for pc in range(first, last, 4)
                     if _branch(pc, read(pc)) == 0x802A3CF4]
-    if len(helper_calls) != 2:
+    if helper_calls != [0x802B2E54, 0x802B2EE0]:
         raise Abstain('NATIVE_NONLINEAR_CALL_GATE')
     return {'f_log_direct_calls': 2, 'f_exp_direct_calls': 1,
             'sin_fidx_call_gated': True,
@@ -223,22 +224,45 @@ def _source_gates(read) -> dict:
 
 
 def _lexical_consumers(windows: dict[tuple[int, int], bytes]) -> dict:
+    """Opcode-only field census; no object-base reaching definition.
+
+    PPC D-form lfs/stfs use signed16 offsets. Gekko paired-single
+    psq_l/psq_lu/psq_st/psq_stu use DQ-form signed12 offsets; W/I
+    quantization fields are not part of the displacement. Indexed
+    paired-single accesses cannot be attributed by immediate offset.
+    """
     lo, hi = SOURCE_WINDOWS[2]
     data = windows[lo, hi]
     result = {}
     for offset in (0x1b0, 0x1b4, 0x1b8):
-        rows = []
+        scalar, paired = [], []
         for ix in range(0, len(data), 4):
-            op = struct.unpack_from('>I', data, ix)[0]
-            if (op >> 26) in (48, 52) and (op & 0xffff) == offset:
-                rows.append((lo+ix, 'lfs' if (op >> 26) == 48 else 'stfs'))
+            word = struct.unpack_from('>I', data, ix)[0]
+            opcode = word >> 26
+            if opcode in (48, 52):
+                d = word & 0xffff
+                d = d - 0x10000 if d & 0x8000 else d
+                if d == offset:
+                    scalar.append((lo + ix, 'lfs' if opcode == 48 else 'stfs'))
+            elif opcode in (56, 57, 60, 61):
+                d = word & 0xfff
+                d = d - 0x1000 if d & 0x800 else d
+                if d == offset:
+                    paired.append((lo + ix, {
+                        56: 'psq_l', 57: 'psq_lu',
+                        60: 'psq_st', 61: 'psq_stu',
+                    }[opcode]))
         result[f'+0x{offset:03X}'] = {
-            'lexical_dform_count': len(rows),
-            'sample_pc_operation': [f'0x{pc:08X}:{op}' for pc, op in rows[:6]],
+            'lexical_dform_count': len(scalar),
+            'lexical_paired_single_dq_count': len(paired),
+            'sample_pc_operation': [f'0x{pc:08X}:{op}' for pc, op in scalar[:6]],
+            'sample_paired_single_pc_operation': [
+                f'0x{pc:08X}:{op}' for pc, op in paired[:6]
+            ],
+            'indexed_pair_accesses_unresolved': True,
             'receiver_proven': False,
         }
     return result
-
 
 def _source_owners() -> bool:
     scripts_root = str(pathlib.Path(__file__).resolve().parent)
