@@ -40,14 +40,17 @@ def evaluate():
     for label, x, z, half, transverse, expected_feature in tests:
         hit = fc.segment_hit((x, half, z), (x, -half, z), tri, radius)
         if expected_feature == "miss":
-            rows.append({"case": label, "hit": hit is not None})
+            rows.append({"case": label, "analytic_hit": False, "hit": hit is not None,
+                         "verdict": "AGREES" if hit is None else "FALSE_POSITIVE"})
             continue
         expected_t = (half - sqrt(radius * radius - transverse * transverse)) / (2 * half)
         if hit is None:
-            rows.append({"case": label, "hit": False})
+            rows.append({"case": label, "analytic_hit": True, "hit": False,
+                         "verdict": "FALSE_NEGATIVE"})
             continue
         t, center, surface, feature = hit
-        rows.append({"case": label, "hit": True, "feature": feature,
+        rows.append({"case": label, "analytic_hit": True, "hit": True,
+                     "verdict": "AGREES", "feature": feature,
                      "expected_feature": expected_feature,
                      "t_err": round(abs(t - expected_t), 10),
                      "surface_y_err": round(abs(surface[1]), 10),
@@ -56,9 +59,11 @@ def evaluate():
     # A point-face high-speed crossing is independent of the swept-radius model.
     point = fc.segment_hit((0.3, 1e6, 0.3), (0.3, -1e6, 0.3), tri, 0.)
     if point is None:
-        rows.append({"case": "fast_point", "hit": False})
+        rows.append({"case": "fast_point", "analytic_hit": True,
+                     "hit": False, "verdict": "FALSE_NEGATIVE"})
     else:
-        rows.append({"case": "fast_point", "hit": True, "feature": point[3],
+        rows.append({"case": "fast_point", "analytic_hit": True,
+                     "hit": True, "verdict": "AGREES", "feature": point[3],
                      "t_err": round(abs(point[0] - 0.5), 10)})
     # Compare time parameterization for a single straight segment vs two
     # collinear pieces, with identical numerical sample coordinate span.
@@ -75,12 +80,22 @@ def evaluate():
                  == "PROVISIONAL_FIRST_CONTACT",
                  "t_err": round(abs(single.get("contact_t", -1)
                                     - split.get("contact_t", -2)), 10)})
+    # Speed ladder exposes loss-of-precision thresholds without creating
+    # large output or presuming any guest-game scaling.
+    speed_ladder = []
+    for half in (2., 100., 10000., 100000., 1000000.):
+        hit = fc.segment_hit((1., half, -0.25),
+                             (1., -half, -0.25), tri, radius)
+        speed_ladder.append({"span": int(2 * half), "hit": hit is not None})
     if not all(isfinite(v) for row in rows for v in row.values()
                if type(v) is float):
         raise ValueError("NONFINITE_STUDY_OUTPUT")
     result = {"study": "P0_CCD_EDGE_VERTEX_ANALYTIC_V1",
               "classification": "SYNTHETIC_NOT_NATIVE",
-              "cases": rows, "native_kcol_parity": False,
+              "cases": rows, "speed_ladder": speed_ladder,
+              "detected_false_negative": any(
+                  x.get("verdict") == "FALSE_NEGATIVE" for x in rows),
+              "native_kcol_parity": False,
               "training_approved": False}
     if len(json.dumps(result, separators=(",", ":"))) > 2300:
         raise ValueError("OUTPUT_TOO_LARGE")
