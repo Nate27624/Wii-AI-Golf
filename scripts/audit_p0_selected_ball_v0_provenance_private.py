@@ -320,6 +320,120 @@ def alternative_initializer_report(archive: Path) -> dict:
         raise ValueError("alternative caller report exceeds receipt budget")
     return result
 
+
+# V0-5: exact source-bounded state handoff across launch and selected step.
+# Public ogws RSPE01_01 owner intervals:
+# fn_8029B43C [0x8029B43C,0x8029B554)
+# fn_8029B554 [0x8029B554,0x8029B57C)
+# fn_80299ACC [0x80299ACC,0x80299BE4)
+GATE_WINDOWS = {
+    "outer_selected_launch": (0x8029B450, 0x8029B478),
+    "selected_integrator": (0x8029B554, 0x8029B57C),
+    "state3_late_copy": (0x80299B68, 0x80299BD0),
+}
+GATE_BRANCH_SITES = {
+    "outer_flag_guard": ("outer_selected_launch", 0x8029B460),
+    "outer_state_ptr_guard": ("outer_selected_launch", 0x8029B46C),
+    "selected_flag_guard": ("selected_integrator", 0x8029B560),
+    "selected_state_ptr_guard": ("selected_integrator", 0x8029B56C),
+    "state3_late_copy_skip": ("state3_late_copy", 0x80299B74),
+}
+
+def dform_matches(word: int, op: int, reg: int, base: int, disp: int) -> bool:
+    """Exact PPC D-form operand gate, not semantic inference."""
+    return (type(word) is int and 0 <= word <= 0xFFFFFFFF
+            and word >> 26 == op and (word >> 21) & 31 == reg
+            and (word >> 16) & 31 == base and signed16(word & 65535) == disp)
+
+def relative_b_target(pc: int, word: int) -> int | None:
+    """Only unconditional relative PowerPC b, LK=0."""
+    if type(word) is not int or not 0 <= word <= 0xFFFFFFFF:
+        return None
+    if word >> 26 != 18 or (word & 3) != 0:
+        return None
+    disp = word & 0x03FFFFFC
+    if disp & 0x02000000:
+        disp -= 0x04000000
+    return (pc + disp) & 0xFFFFFFFF
+
+def state_gate_report(archive: Path) -> dict:
+    """Inspect conditional gate *shape*, never infer guest-time state."""
+    folders = original._check_archive(archive)
+    phases = []
+    with ExitStack() as stack:
+        for phase in PHASES:
+            mapped = []
+            for bank_index, size in enumerate(original.SIZE):
+                bank_path = original.src._file(
+                    folders[phase], f"{phase}.{bank_index + 1}.raw", size)
+                handle = stack.enter_context(bank_path.open("rb"))
+                mapped.append(stack.enter_context(
+                    mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_READ)))
+            rd = banks.TwoBankReader(*mapped)
+            phases.append({
+                name: tuple(rd.u32(pc) for pc in range(lo, hi, 4))
+                for name, (lo, hi) in GATE_WINDOWS.items()
+            })
+    if phases[0] != phases[1] or phases[0] != phases[2]:
+        raise ValueError("source gate code not identical across phases")
+    source = phases[0]
+    def word(name: str, pc: int) -> int:
+        lo, hi = GATE_WINDOWS[name]
+        if pc % 4 or not lo <= pc < hi:
+            raise ValueError("source gate PC out of bounds")
+        return source[name][(pc - lo) // 4]
+    expected_dforms = (
+        ("outer_selected_launch", 0x8029B450, 32, 4, 3, 0x6B4),
+        ("selected_integrator", 0x8029B554, 32, 3, 3, 0x6B4),
+        ("selected_integrator", 0x8029B558, 34, 0, 3, 0x5C),
+        ("selected_integrator", 0x8029B564, 32, 0, 3, 0x138),
+        ("selected_integrator", 0x8029B570, 14, 4, 0, 0),
+        ("state3_late_copy", 0x80299B68, 32, 3, 31, 0x138),
+        ("state3_late_copy", 0x80299B6C, 32, 0, 3, 0x1A4),
+        ("state3_late_copy", 0x80299B70, 11, 0, 0, 3),
+        ("state3_late_copy", 0x80299BC8, 14, 0, 0, 0),
+        ("state3_late_copy", 0x80299BCC, 36, 0, 31, 0x138),
+    )
+    for name, pc, op, reg, base, disp in expected_dforms:
+        if not dform_matches(word(name, pc), op, reg, base, disp):
+            raise ValueError("selected-state PPC operands changed")
+    if direct_bl_target(0x8029B474,
+                         word("outer_selected_launch", 0x8029B474)) != 0x80299ACC:
+        raise ValueError("selected launch call not qualified")
+    if relative_b_target(0x8029B574,
+                         word("selected_integrator", 0x8029B574)) != 0x80299890:
+        raise ValueError("selected integrator tail target changed")
+    branch_summary = {}
+    for label, (name, pc) in GATE_BRANCH_SITES.items():
+        row = decode_symbolic(pc, word(name, pc))
+        if row["kind"] != "bc" or row["lk"]:
+            raise ValueError("expected state guard not conditional branch")
+        branch_summary[label] = {
+            "pc": row["pc"], "bo": row["bo"], "bi": row["bi"],
+            "target": row["target"],
+        }
+    if branch_summary["state3_late_copy_skip"] != {
+        "pc": "0x80299B74", "bo": 4, "bi": 2, "target": "0x80299BD0"
+    }:
+        raise ValueError("state3 skip branch differs from original")
+    original._check_archive(archive)
+    result = {
+        "status": "SOURCE_SELECTED_STATE_GATES_ONLY",
+        "source_phase_1_5_7_equal": True,
+        "original_14_bank_sha_pre_post": True,
+        "outer_launch_selected_receiver_candidate": True,
+        "selected_integrator_mode_r4_zero": True,
+        "state3_late_copy_path_clears_incoming_0x138": True,
+        "branch_conditions": branch_summary,
+        "flag_polarity_proven": False,
+        "selected_v0_must_def_proven": False,
+        "guest_execution_verified": False,
+        "training_approved": False,
+    }
+    if len(json.dumps(result, separators=(",", ":"))) > 2200:
+        raise ValueError("gate report too large for private receipt")
+    return result
+
 def discover_approved_archive() -> Path:
     """Find exactly one original seven-pair archive in the existing private root.
 
@@ -393,11 +507,12 @@ def verify_original_calls(archive: Path) -> dict:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--archive", type=Path, help="Optional existing private archive; LocalOps must use no arguments")
-    parser.add_argument("--study", choices=("calls", "integrator", "mode", "alternative"), default="mode")
+    parser.add_argument("--study", choices=("calls", "integrator", "mode", "alternative", "gates"), default="mode")
     opts = parser.parse_args(argv)
     try:
         archive = opts.archive if opts.archive is not None else discover_approved_archive()
-        result = (alternative_initializer_report(archive) if opts.study == "alternative"
+        result = (state_gate_report(archive) if opts.study == "gates"
+                  else alternative_initializer_report(archive) if opts.study == "alternative"
                   else mode_source_report(archive) if opts.study == "mode"
                   else source_window_report(archive) if opts.study == "integrator"
                   else verify_original_calls(archive))
