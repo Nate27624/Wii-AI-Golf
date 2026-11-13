@@ -190,12 +190,22 @@ PowerShell session, with the background watcher still running:
 & "$env:LOCALAPPDATA\AgentLocalOps\Invoke-LocalOps.ps1" -Review
 ```
 
-This reviews pending requests in one queue with summary, command,
-arguments, Git HEAD and script hash. **Y** executes, **N** refuses
-without execution, and other input does nothing. The per-issue
-`-Approve <issue-number>` entrypoint still works with Y/N. The
-optional feedback prompt after Y/N accepts Enter to skip. Agents must
-not claim GitHub comments or model output constitute local approval.
+With the updated private LocalOps bridge (PR #25, merged commit
+`2ed1e7b17a0fe8bc4a739aa6c4e5f23c28ebe333`), the `-Review`
+console **continues polling every 12 seconds**, automatically presenting
+new pending requests without restarting the command. It shows a purpose,
+expected evidence, exact command/arguments, Git HEAD and script hash.
+**Y** executes, **N** declines, and another response skips that issue
+until the review console is restarted. Optional feedback follows Y/N.
+`-Approve <issue-number>` remains available for one issue.
+
+The interactive console stays in a separate PowerShell process from the
+noninteractive `-Watch` watcher and exits on Ctrl+C. The shared
+execution lock is **not held while waiting for human input or new issues**,
+allowing the normal watcher to continue receiving requests. The issue and
+research source are checked again when the operator decides. PR merges
+do not install a new watcher on the operator's PC. Agents must not claim
+GitHub comments or model output constitute local approval.
 
 The terminal result `LOCALOPS_RESULT_V2` may be `success`,
 `error`, or `declined`. A declined request is an explicit human
