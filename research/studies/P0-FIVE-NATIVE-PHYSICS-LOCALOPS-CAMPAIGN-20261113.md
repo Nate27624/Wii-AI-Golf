@@ -29,3 +29,19 @@ S000 must refresh roster rev46 pinned to stale main, allocate the new Study 4/5 
 ```
 
 **Do not send these templates until manager ownership and exact reviewed source checkout are confirmed.** Studies 1–3 are owned by existing agents, and their actual execution on private preserved evidence remains to be separately established. See [coordination request](https://github.com/Nate27624/Wii-AI-Golf/pull/320#issuecomment-6844077668).
+
+## Independent follow-on: NORMALIZER-GUARD-1 (not a sixth queued local job)
+
+**Why it matters:** Source-backed lift `L=(-vx*vy,vx²+vz²,-vz*vy)` and lateral `S=(vz,0,-vx)` are normalized on eligible nondegenerate paths, but the exact native compare, branch and zero-vector/near-zero threshold remain unknown. The existing provisional model's `EPS=1e-10` is a **Python simulator choice**, not a verified Wii guard. The finite force direction can reverse when horizontal velocity changes sign; implementing a guessed cutoff can make predicted flight diverge sharply.
+
+**New, nonoverlapping read-only script** `scripts/research_p0_native_normalizer_guards_private.py`: inspects bounded original-PC neighborhoods `0x80295F3C..0x80295FE0`, `0x80295FE0..0x8029605C`, `0x8029605C..0x80296120`, **as candidate windows, not asserted complete function ranges**. Decodes source PPC `fcmpu/fcmpo` FP register operands, `bc` conditional branch BO/BI/AA/LK and targets, and direct helper `bl` to candidate magnitude/scaling target. Original archive 14-bank SHA pre/post, phases 1/5/7 identical, public source unit check and baseline nonlinear gates are required before releasing a compact private receipt. Even if a compare/branch is observed, the script correctly retains `native_epsilon_or_exact_zero_proven=false`, `zero_branch_operand_proven=false`, and `same_selected_ball_receiver_verified=false`; a follow-on must track FPR reaching definitions and path eligibility to prove semantics.
+
+**Positive/negative offline controls:** tests reject noncompare XO instructions, signed/absolute misdecoded branch targets, altered source phase, truncated windows, output-cap overflow, and false promotion of FP compare syntax to native zero threshold. Separate cross-platform workflow verifies focused/full regression. No private source bytes, ROM, local paths, emulator, or training approved.
+
+**Approval/ownership:** S000 should explicitly allocate this additional source-study file separately from all existing assigned #415/#418 S002 work (or assign it to an existing compatible source owner). Do not queue it ahead of the **five** critical-path launch/flight/contact studies and do not execute it unless the exact dependent reviewed #454 branch is present in the shared clean Windows worktree, the operator individually approves checkout and run, and CI has passed.
+
+Optional exact private LocalOps request body *after all gates*:
+
+```json
+{"schema":"localops-v2","project":"wii-golf","operation":"run_research","params":{"script":"scripts/research_p0_native_normalizer_guards_private.py","args":[]},"intent":"Source-audit Rev1 lift and lateral FP comparison and branch candidates at native normalizers.","expected_output":"Fourteen-bank SHA/phase qualified compact PPC compare/branch evidence; normalization epsilon and selected Ball remain unproven."}
+```
