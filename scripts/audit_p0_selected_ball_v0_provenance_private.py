@@ -173,7 +173,7 @@ def mode_reference(pc: int, word: int) -> dict | None:
         if base == 30 or (reg == 30 and op in (14, 15, 32, 34, 40, 42)):
             return {"pc": f"0x{pc:08X}", "op": op, "reg": reg,
                     "base": base, "offset": signed16(word & 65535),
-                    "role": "possible_base_or_definition"}
+                    "role": "candidate_base_or_definition"}
     elif op == 31:
         rt, ra, rb = (word >> 21) & 31, (word >> 16) & 31, (word >> 11) & 31
         if 30 in (rt, ra, rb):
