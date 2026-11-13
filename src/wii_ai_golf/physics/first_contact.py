@@ -140,6 +140,36 @@ def closest_on_triangle(p: Vec, tri: Triangle) -> tuple[Vec,str]:
     return add(a,add(mul(ab,vb*inv),mul(ac,vc*inv))),"face"
 
 
+def _coplanar_point_entry(p: Vec, q: Vec, tri: Triangle, n: Vec):
+    """Clip a zero-radius, in-plane segment against convex triangle halfspaces.
+
+    This is generic TWO-SIDED geometry, not proof of Wii KCol coplanar rules.
+    """
+    direction = sub(q,p)
+    entering, leaving = 0., 1.
+    for a,b in ((tri.a,tri.b),(tri.b,tri.c),(tri.c,tri.a)):
+        edge = sub(b,a)
+        offset = dot(cross(edge,sub(p,a)),n)
+        rate = dot(cross(edge,direction),n)
+        if abs(rate) <= EPS:
+            if offset < -EPS:
+                return None
+            continue
+        t = -offset/rate
+        if rate > 0:
+            entering = max(entering,t)
+        else:
+            leaving = min(leaving,t)
+    if entering < -EPS or entering > 1+EPS or entering > leaving+EPS:
+        return None
+    fraction = max(0.,min(1.,entering))
+    center = add(p,mul(direction,fraction))
+    surface,feature = closest_on_triangle(center,tri)
+    if norm(sub(center,surface)) > 1e-7:
+        return None
+    return fraction,center,surface,feature
+
+
 def segment_hit(p: Vec, q: Vec, tri: Triangle, radius: float=0.) -> tuple[float,Vec,Vec,str] | None:
     """Two-sided generic straight-segment CCD: face, edge, vertex.
 
@@ -158,6 +188,8 @@ def segment_hit(p: Vec, q: Vec, tri: Triangle, radius: float=0.) -> tuple[float,
             if norm(sub(center,surface))<=radius+1e-7:
                 candidates.append((t,center,surface,feature))
     dist=dot(sub(p,tri.a),n); speed=dot(v,n)
+    if radius==0 and abs(dist)<=EPS and abs(speed)<=EPS:
+        return _coplanar_point_entry(p,q,tri,n)
     if abs(speed)>EPS:
         for signed in ((-1,1) if radius>0 else (0,)):
             t=(signed*radius-dist)/speed

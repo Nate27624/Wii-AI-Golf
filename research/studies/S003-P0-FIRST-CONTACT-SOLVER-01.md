@@ -54,3 +54,18 @@ provided, an explicit nonparallel spin axis is now mandatory: otherwise the
 model fails closed rather than silently zeroing these forces. The actual native
 spin-direction formula remains delegated to the S003 airborne owner.
 OBJ zero vertex indices are rejected; original private meshes remain local.
+
+
+## Coplanar point-center completeness and metamorphic controls
+
+The synthetic/Euclidean \`point_center\` reference now includes an explicitly
+**generic two-sided** zero-radius coplanar entry check. A trajectory lying in a
+triangle plane can enter through a finite edge or vertex without crossing that
+plane. A bounded convex halfspace clip provides its earliest in-plane entry;
+parallel misses and slightly off-plane tracks remain no-hit. This is **not**
+evidence of native KCol sidedness or that in-plane motion counts as a game hit.
+Exact start-on-surface remains a fail-closed initial-overlap error.
+
+Additional synthetic controls exercise split triangles, zero-length tracks,
+initial contact at the .5 source-*query* radius, and high-speed tunneling.
+The r=.5 KCol query remains route-specific, not the verified physical ball size.

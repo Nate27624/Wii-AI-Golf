@@ -200,5 +200,49 @@ class FirstContactTests(unittest.TestCase):
         result=fc.predict_contact_from_trajectory(samples,[ground()],assume_tree_free=True)
         self.assertEqual(result["status"],"NO_CONTACT_IN_HORIZON")
 
+
+    def test_coplanar_point_entry_edge(self):
+        tri=fc.Triangle((0,0,0),(2,0,0),(0,0,2))
+        hit=fc.segment_hit((-1,0,.5),(1,0,.5),tri,0)
+        self.assertAlmostEqual(hit[0],.5)
+        self.assertEqual(hit[1],(0,0,.5))
+        self.assertEqual(hit[2],(0,0,.5))
+        self.assertEqual(hit[3],"edge")
+
+    def test_coplanar_vertex_entry(self):
+        tri=fc.Triangle((0,0,0),(2,0,0),(0,0,2))
+        hit=fc.segment_hit((-1,0,0),(1,0,0),tri,0)
+        self.assertAlmostEqual(hit[0],.5)
+        self.assertEqual(hit[3],"vertex")
+
+    def test_coplanar_miss_and_near_plane_miss(self):
+        tri=fc.Triangle((0,0,0),(2,0,0),(0,0,2))
+        self.assertIsNone(fc.segment_hit((-1,0,-1),(1,0,-1),tri,0))
+        self.assertIsNone(fc.segment_hit((-1,1e-5,.5),(1,1e-5,.5),tri,0))
+
+    def test_coplanar_triangle_subdivision(self):
+        tri=fc.Triangle((0,0,0),(2,0,0),(0,0,2),face_id=42)
+        left=fc.Triangle((0,0,0),(1,0,0),(0,0,2),face_id=0)
+        right=fc.Triangle((1,0,0),(2,0,0),(0,0,2),face_id=1)
+        samples=[(0.,(-1,0,.5),(2,0,0)),(1.,(1,0,.5),(2,0,0))]
+        whole=fc.predict_contact_from_trajectory(samples,[tri],assume_tree_free=True)
+        split=fc.predict_contact_from_trajectory(samples,[right,left],assume_tree_free=True)
+        self.assertEqual(whole["status"],"PROVISIONAL_FIRST_CONTACT")
+        self.assertAlmostEqual(whole["contact_t"],.5)
+        self.assertAlmostEqual(split["contact_t"],whole["contact_t"])
+        self.assertEqual(split["surface_contact_xyz"],whole["surface_contact_xyz"])
+
+    def test_zero_length_segment_and_exact_radius_overlap(self):
+        tri=fc.Triangle((0,0,0),(2,0,0),(0,0,2))
+        self.assertIsNone(fc.segment_hit((-1,0,.5),(-1,0,.5),tri,0))
+        with self.assertRaises(ValueError):
+            fc.segment_hit((.3,.5,.3),(.3,-1,.3),tri,.5)
+
+    def test_high_speed_point_tunnel(self):
+        tri=fc.Triangle((0,0,0),(2,0,0),(0,0,2))
+        hit=fc.segment_hit((.3,1000000,.3),(.3,-1000000,.3),tri)
+        self.assertAlmostEqual(hit[0],.5)
+        self.assertEqual(hit[3],"face")
+
 if __name__=="__main__":
     unittest.main()
