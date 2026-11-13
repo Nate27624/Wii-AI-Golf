@@ -18,6 +18,11 @@ WINDOWS = {
         (0x802B8728, 0x802B8864),
         (0x80298FF0, 0x80299098),
     ),
+    "impact": (
+        (0x80299890, 0x80299ACC),  # integrator call order
+        (0x80297F60, 0x80297FB0),  # conditional damping neighborhood
+        (0x80298C98, 0x80298E70),  # collision/postprocessing candidate
+    ),
     "contact": (
         (0x802974B0, 0x8029792C),
         (0x8029F3A8, 0x8029F400),
@@ -25,6 +30,7 @@ WINDOWS = {
 }
 CALL_TARGETS = {
     "wind": (0x802B8728, 0x802A3894, 0x80298E70),
+    "impact": (0x80298E70, 0x80298C98, 0x80297A00),
     "contact": (0x802A39BC, 0x802A38E0, 0x802A39E0, 0x802A3DE4),
 }
 MAX_OUTPUT = 1900
@@ -46,7 +52,7 @@ def analyze_source(stage: str, windows: dict[tuple[int, int], bytes]) -> dict:
     """Bounded PPC lexical signals, NOT an object/receiver or CFG proof."""
     if stage not in WINDOWS:
         raise source.Abstain("UNSUPPORTED_STUDY")
-    calls, fields = [], []
+    calls, fields, conditional_sites, state_98_accesses = [], [], [], []
     for lo, hi in WINDOWS[stage]:
         block = windows[lo, hi]
         if len(block) != hi - lo or len(block) % 4:
@@ -58,16 +64,23 @@ def analyze_source(stage: str, windows: dict[tuple[int, int], bytes]) -> dict:
             if target in CALL_TARGETS[stage]:
                 calls.append((f"0x{pc:08X}", f"0x{target:08X}"))
             opcode = word >> 26
+            if stage == "impact" and opcode == 16 and 0x80297F60 <= pc < 0x80297FB0:
+                conditional_sites.append(f"0x{pc:08X}")
+            if stage == "impact" and opcode in (32, 34, 40, 36, 38, 44):
+                if signed16(word) == 0x98:
+                    state_98_accesses.append([f"0x{pc:08X}", opcode, (word >> 16)&31])
             if opcode in (48, 52):
                 displacement = signed16(word)
                 wanted = ({-20, -16, 0x30, 0x60, 0x84, 0x88, 0x8C}
                           if stage == "wind"
+                          else {0x78, 0x7C, 0x80, 0x84, 0x88, 0x8C, 0x98}
+                          if stage == "impact"
                           else {0x30, 0x4C, 0x60, 0x78, 0x7C, 0x80, 0x84, 0x88, 0x8C})
                 if displacement in wanted:
                     fields.append((f"0x{pc:08X}",
                                    "lfs" if opcode == 48 else "stfs",
                                    (word >> 16) & 31, displacement))
-    if len(calls) > 28 or len(fields) > 120:
+    if len(calls) > 28 or len(fields) > 120 or len(conditional_sites) > 20 or len(state_98_accesses) > 20:
         raise source.Abstain("RESULT_COUNT_CAP")
     observed = {int(target, 16) for _, target in calls}
     out = {
@@ -87,6 +100,13 @@ def analyze_source(stage: str, windows: dict[tuple[int, int], bytes]) -> dict:
     }
     if stage == "wind":
         out["wind_reaches_selected_ball_velocity"] = "UNKNOWN"
+    elif stage == "impact":
+        out["conditional_branch_pcs"] = conditional_sites
+        out["candidate_0x98_integer_accesses"] = state_98_accesses
+        out["damping_precontact_reachable"] = "UNKNOWN"
+        out["damping_selected_receiver"] = "UNKNOWN"
+        out["factor_98_predicate_proven"] = False
+        out["damping_frequency_per_step"] = "UNKNOWN"
     else:
         out["contact_response_order"] = "UNKNOWN"
         out["query_radius_is_ball_radius"] = "UNPROVEN"
@@ -110,6 +130,12 @@ def qualified_study(stage: str, checkout: Path) -> dict:
     if not (snapshots[0] == snapshots[1] == snapshots[2]):
         raise source.Abstain("SOURCE_CODE_PHASE_MISMATCH")
     source._source_gates(lambda pc: source._word(snapshots[0], pc))
+    if stage == "impact":
+        for pc, target in ((0x802998B4, 0x80298E70),
+                           (0x802998C0, 0x80298C98),
+                           (0x80299A18, 0x80297A00)):
+            if direct_bl(pc, source._word(snapshots[0], pc)) != target:
+                raise source.Abstain("IMPACT_INTEGRATOR_CALL_GATE")
     out = analyze_source(stage, snapshots[0])
     after = source._validate_banks(archive)
     if len(after) != 14 or tuple(x[3] for x in after) != tuple(x[3] for x in before):
