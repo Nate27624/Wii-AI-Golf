@@ -102,7 +102,7 @@ class PublicContractTests(unittest.TestCase):
                          "Original SHA and negative-control comparisons.")
         self.assertEqual(parsed["params"], {
             "script": "scripts/audit_motion_candidates.py", "args": []})
-        for bad in ("", "X"*181, "first\\nsecond"):
+        for bad in ("", "X"*181, "first\nsecond"):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 contract.request("git_status", intent=bad)
 
@@ -111,22 +111,22 @@ class PublicContractTests(unittest.TestCase):
             "schema": "localops-v2", "issue": 37,
             "operation": "run_research", "status": "declined",
             "result": {"code": "OPERATOR_DECLINED"}}
-        envelope = ("LOCALOPS_RESULT_V2\\n```json\\n"
-                    + json.dumps(result) + "\\n```")
+        envelope = ("LOCALOPS_RESULT_V2\n```json\n"
+                    + json.dumps(result) + "\n```")
         self.assertEqual(contract.parse_result_comment(
             envelope, issue_number=37, operation="run_research"), result)
         self.assertIsNone(contract.parse_result_comment(
             envelope, issue_number=38, operation="run_research"))
         feedback = {"issue": 37, "decision": "declined",
                     "feedback": "Please use a smaller audit."}
-        comment = ("LOCALOPS_OPERATOR_FEEDBACK_V2\\n"
+        comment = ("LOCALOPS_OPERATOR_FEEDBACK_V2\n"
                    + json.dumps(feedback))
         self.assertEqual(contract.parse_operator_feedback(
             comment, issue_number=37), feedback)
         self.assertIsNone(contract.parse_operator_feedback(
             comment, issue_number=38))
         self.assertIsNone(contract.parse_operator_feedback(
-            "LOCALOPS_OPERATOR_FEEDBACK_V2\\n{bad}", issue_number=37))
+            "LOCALOPS_OPERATOR_FEEDBACK_V2\n{bad}", issue_number=37))
 
     def test_exact_sha_only_for_checkout(self):
         sha = "b8cd643b93386d22d22ccc05169156ff2c59fe06"
