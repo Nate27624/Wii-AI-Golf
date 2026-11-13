@@ -175,5 +175,26 @@ class SourceHandoffControls(unittest.TestCase):
         self.assertEqual(audit.PHASES, (1, 5, 7))
 
 
+
+    def test_alternative_initializer_source_windows_are_complete_and_disjoint(self):
+        self.assertEqual(
+            audit.ALT_CALLER_FUNCTIONS["small_initializer_caller"],
+            (0x8029A1D0, 0x8029A204))
+        self.assertEqual(
+            audit.ALT_CALLER_FUNCTIONS["initializer_and_state_copy_caller"],
+            (0x8029A204, 0x8029A2D0))
+        self.assertEqual(len(audit.ALT_CALLS), 3)
+        for pc, target in audit.ALT_CALLS:
+            self.assertTrue(any(lo <= pc < hi
+                                for lo, hi in audit.ALT_CALLER_FUNCTIONS.values()))
+            instruction = (18 << 26) | ((target - pc) & 0x03FFFFFC) | 1
+            self.assertEqual(audit.direct_bl_target(pc, instruction), target)
+            self.assertIsNone(audit.direct_bl_target(pc, instruction & ~1))
+        source = inspect.getsource(audit.alternative_initializer_report)
+        self.assertIn("folders = original._check_archive(archive)", source)
+        self.assertIn("folders[phase]", source)
+        self.assertIn("receiver_must_definition", source)
+
+
 if __name__ == "__main__":
     unittest.main()
