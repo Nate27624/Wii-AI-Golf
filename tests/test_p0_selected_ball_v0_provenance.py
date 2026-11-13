@@ -1,7 +1,10 @@
 """Synthetic S002 controls; these never establish native game-time execution."""
 import importlib.util
 from pathlib import Path
+import tempfile
+import json
 import unittest
+from unittest.mock import patch
 
 PATH = (Path(__file__).resolve().parents[1] / "scripts" /
         "audit_p0_selected_ball_v0_provenance_private.py")
@@ -55,6 +58,47 @@ class SourceHandoffControls(unittest.TestCase):
         with self.assertRaises(ValueError):
             audit.symbolic_handoff(state3=1, flag1=None,
                  intermediate_returns=None, incoming_is_selected=None)
+
+
+    def test_archive_discovery_fails_closed_on_zero_or_multiple(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "Wii-AI-Golf-Data"
+            captures = root / "captures"
+            captures.mkdir(parents=True)
+            with patch.object(audit.original.src.selected, "DATA_ROOT", root):
+                with self.assertRaises(ValueError):
+                    audit.discover_approved_archive()
+                for index in (1, 2):
+                    candidate = captures / ("archive" + str(index))
+                    candidate.mkdir()
+                    marker = candidate / "manifest-PRIVATE.json"
+                    marker.write_text(json.dumps({
+                        "kind": "p0-private-numbered-capture-inventory",
+                        "capture_count": 7,
+                        "capture_numbers": list(range(1, 8)),
+                        "training_approved": False,
+                    }), encoding="utf-8")
+                    if index == 1:
+                        self.assertEqual(audit.discover_approved_archive(), candidate)
+                    else:
+                        with self.assertRaises(ValueError):
+                            audit.discover_approved_archive()
+
+    def test_archive_discovery_rejects_unqualified_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "Wii-AI-Golf-Data"
+            captures = root / "captures"
+            candidate = captures / "candidate"
+            candidate.mkdir(parents=True)
+            (candidate / "manifest-PRIVATE.json").write_text(json.dumps({
+                "kind": "p0-private-numbered-capture-inventory",
+                "capture_count": 7,
+                "capture_numbers": list(range(1, 8)),
+                "training_approved": True,
+            }), encoding="utf-8")
+            with patch.object(audit.original.src.selected, "DATA_ROOT", root):
+                with self.assertRaises(ValueError):
+                    audit.discover_approved_archive()
 
 if __name__ == "__main__":
     unittest.main()
