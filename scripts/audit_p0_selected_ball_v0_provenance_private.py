@@ -435,6 +435,102 @@ def state_gate_report(archive: Path) -> dict:
         raise ValueError("gate report too large for private receipt")
     return result
 
+
+# V0-7: distinguish static source call order from qualified speed freshness.
+# Unlike the V0-3 mode census, look at the direct +0x84 candidate sites in
+# the force and post-call refresh callees. Object/receiver dataflow is UNKNOWN.
+SPEED_WINDOW = (0x80299890, 0x80299ACC)
+SPEED_FUNCTIONS = {
+    "force_callee": (0x80298E70, 0x80299528),
+    "speed_refresh_callee": (0x80299528, 0x80299890),
+}
+SPEED_ORDER_CALLS = (
+    (0x802998B4, 0x80298E70),
+    (0x802998C0, 0x80298C98),
+    (0x80299A18, 0x80297A00),
+    (0x80299A20, 0x80299528),
+)
+SPEED_FIELD_OFFSET = 0x84
+SPEED_SAMPLE_LIMIT = 4
+
+def speed_field_dform_summary(start_pc: int, words: tuple[int, ...]) -> dict:
+    """A syntax-only census; offset coincidence is not receiver proof."""
+    rows = {"lfs": [], "stfs": []}
+    for i, word in enumerate(words):
+        op = word >> 26
+        if op in (48, 52) and signed16(word & 0xFFFF) == SPEED_FIELD_OFFSET:
+            label = "lfs" if op == 48 else "stfs"
+            rows[label].append({
+                "pc": f"0x{start_pc + 4*i:08X}",
+                "base_register": (word >> 16) & 31,
+            })
+    return {
+        "candidate_lfs_count": len(rows["lfs"]),
+        "candidate_stfs_count": len(rows["stfs"]),
+        "lfs_samples": rows["lfs"][:SPEED_SAMPLE_LIMIT],
+        "stfs_samples": rows["stfs"][:SPEED_SAMPLE_LIMIT],
+        "receiver_proven": False,
+    }
+
+def speed_freshness_source_report(archive: Path) -> dict:
+    """Native-source PC comparison, not same-shot or per-step order proof."""
+    folders = original._check_archive(archive)
+    snapshots = []
+    for phase in PHASES:
+        # Closing each phase before the next bounds open file handles.
+        with ExitStack() as stack:
+            mapped = []
+            for bank_index, size in enumerate(original.SIZE):
+                bank_path = original.src._file(
+                    folders[phase], f"{phase}.{bank_index + 1}.raw", size)
+                handle = stack.enter_context(bank_path.open("rb"))
+                mapped.append(stack.enter_context(
+                    mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_READ)))
+            rd = banks.TwoBankReader(*mapped)
+            snapshot = {
+                "entry": tuple(rd.u32(pc)
+                               for pc in range(*SPEED_WINDOW, 4)),
+                **{name: tuple(rd.u32(pc) for pc in range(lo, hi, 4))
+                   for name, (lo, hi) in SPEED_FUNCTIONS.items()},
+            }
+            snapshots.append(snapshot)
+    if snapshots[0] != snapshots[1] or snapshots[0] != snapshots[2]:
+        raise ValueError("source code drift across native phases")
+    entry = snapshots[0]["entry"]
+    for pc, target in SPEED_ORDER_CALLS:
+        index = (pc-SPEED_WINDOW[0]) // 4
+        if not SPEED_WINDOW[0] <= pc < SPEED_WINDOW[1]:
+            raise ValueError("integrator callsite outside published function")
+        if direct_bl_target(pc, entry[index]) != target:
+            raise ValueError("source branch target changed")
+    if not is_mr(entry[(MODE_MR_PC-SPEED_WINDOW[0])//4],
+                 dest=30, source=4):
+        raise ValueError("source r4 save gate mismatch")
+    callee_summaries = {
+        name: speed_field_dform_summary(SPEED_FUNCTIONS[name][0],
+                                       snapshots[0][name])
+        for name in SPEED_FUNCTIONS
+    }
+    original._check_archive(archive)
+    result = {
+        "status": "SOURCE_SPEED_FRESHNESS_CANDIDATES",
+        "original_14_bank_sha_pre_post": True,
+        "phase_1_5_7_bodies_identical": True,
+        "direct_call_targets_gated": 4,
+        "r4_to_r30_entry_gated": True,
+        "lexical_force_call_before_refresh_call": True,
+        "speed_field_offset": "+0x84",
+        "callee_candidate_sites": callee_summaries,
+        "same_path_and_receiver_verified": False,
+        "speed_scalar_freshness_verified": False,
+        "selected_pre_step_v0_verified": False,
+        "guest_execution_verified": False,
+        "training_approved": False,
+    }
+    if len(json.dumps(result, separators=(",", ":"))) > 2200:
+        raise ValueError("speed report exceeds LocalOps receipt budget")
+    return result
+
 def discover_approved_archive() -> Path:
     """Find exactly one original seven-pair archive in the existing private root.
 
@@ -514,11 +610,12 @@ def verify_original_calls(archive: Path) -> dict:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--archive", type=Path, help="Optional existing private archive; LocalOps must use no arguments")
-    parser.add_argument("--study", choices=("calls", "integrator", "mode", "alternative", "gates"), default="mode")
+    parser.add_argument("--study", choices=("calls", "integrator", "mode", "alternative", "gates", "speed"), default="mode")
     opts = parser.parse_args(argv)
     try:
         archive = opts.archive if opts.archive is not None else discover_approved_archive()
-        result = (state_gate_report(archive) if opts.study == "gates"
+        result = (speed_freshness_source_report(archive) if opts.study == "speed"
+                  else state_gate_report(archive) if opts.study == "gates"
                   else alternative_initializer_report(archive) if opts.study == "alternative"
                   else mode_source_report(archive) if opts.study == "mode"
                   else source_window_report(archive) if opts.study == "integrator"
