@@ -104,6 +104,30 @@ def signed16(value: int) -> int:
     return value - 65536 if value & 32768 else value
 
 
+def classify_native_constant(name: str, words: list[int]) -> float | str:
+    """Preserve phase-identical f32 words; allow only a negative-log infinity.
+
+    Source-derived constants are returned as scalars, never as raw native
+    words. IEEE special values are categorized by fixed safe labels.
+    """
+    import math
+    import struct
+
+    if len(words) != 3 or any(type(w) is not int or not 0 <= w <= 0xFFFFFFFF
+                              for w in words):
+        raise Abstain("BAD_CONSTANT_READ")
+    if words[0] != words[1] or words[0] != words[2]:
+        raise Abstain("ORIGINAL_CONSTANT_PHASE_MISMATCH")
+    value = struct.unpack(">f", words[0].to_bytes(4, "big"))[0]
+    if math.isnan(value):
+        raise Abstain("NAN_NATIVE_CONSTANT")
+    if math.isinf(value):
+        if name == "log_fallback" and value < 0:
+            return "-Infinity"
+        raise Abstain("UNEXPECTED_INFINITY_CONSTANT")
+    return value
+
+
 def symbolize(pc: int, word: int) -> dict:
     if not (SOURCE_UNIT[0] <= pc < SOURCE_UNIT[1]) or pc % 4:
         raise Abstain("OUT_OF_BOUNDS")
@@ -239,15 +263,8 @@ def research(segment: str) -> dict:
                     if not (SDA2_SOURCE_UNIT[0] <= addr
                             and addr + 4 <= SDA2_SOURCE_UNIT[1]):
                         raise Abstain("STATIC_SOURCE_SPLIT_MISMATCH")
-                    readings = [
-                        struct.unpack(">f", read(addr, i).to_bytes(4, "big"))[0]
-                        for i in range(3)
-                    ]
-                    if not all(math.isfinite(x) for x in readings):
-                        raise Abstain("NONFINITE_NATIVE_CONSTANT")
-                    if readings[0] != readings[1] or readings[0] != readings[2]:
-                        raise Abstain("ORIGINAL_CONSTANT_PHASE_MISMATCH")
-                    values[name] = readings[0]
+                    words = [read(addr, i) for i in range(3)]
+                    values[name] = classify_native_constant(name, words)
                 word = read(0x802A3D50)
                 if word >> 26 != 19 or (word >> 1) & 1023 != 449:
                     raise Abstain("CROR_NATIVE_OPCODE_MISMATCH")
