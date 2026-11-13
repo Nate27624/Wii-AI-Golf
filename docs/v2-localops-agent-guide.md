@@ -237,6 +237,38 @@ reviewed SHA. This checkout is **never automatic**. Do not request
 checkout merely to inspect the main GitHub tree when `fetch_file`
 or GitHub PR tools can answer without local writes.
 
+## Physics research error-handling and shared-checkout discipline
+
+Multiple agents use the **same operator-configured Windows project checkout**.
+A LocalOps `checkout_reviewed` request changes its HEAD for **every**
+agent. Do not queue concurrent checkouts to different public PR heads,
+and never assume a prior study's reviewed HEAD survived another agent's
+checkout. S000 coordinates one exact source revision at a time.
+For dependent studies, use this ordered sequence: choose one source
+branch/SHA, obtain the operator's local Y/N approval for its checkout,
+verify the exact successful receipt, then submit **one** dependent
+`run_research` and inspect its result before proposing another.
+Cancel or defer conflicting work through ordinary agent coordination;
+do not treat a pending approval as permission.
+
+| Result or symptom | Required response |
+| --- | --- |
+| `PROJECT_NOT_REGISTERED` | Operator's *local* config lacks that project ID. Stop submitting it. Project creation requires explicit operator-local policy change; never invent or auto-register a project. This diagnostic is available only on upgraded bridge versions. |
+| No `LOCALOPS_RESULT_V2` on a closed issue | Execution is **not established**. Do not infer a success, and do not create an identical retry. Verify why the issue was closed first. |
+| `TASK_NOT_REGISTERED`, `RESEARCH_PROFILE_DISABLED` or `RESEARCH_SCOPE_DENIED` | The requested capability is not locally authorized. Do not rename scripts or weaken limits to bypass policy. |
+| Script `DIAGNOSTIC_ABSTAIN` / `PRIVATE_HELPER_DISCOVERY` | A **script precondition failed**, not a negative native physics result. Report sanitized `MISSING` / `AMBIGUOUS` / qualified status, use one bounded preflight, and stop pending environment correction. |
+| Source path or manifest mismatch | Preserve archive SHA/Rev1, source-gate and original capture controls. An unrelated valid checkout does not prove the original data is available there. |
+| `status=declined` | Operator refused the request. Do not resubmit or disguise the same action without renewed explicit operator direction. |
+| Result succeeds with dynamic imports from another worktree | The Git HEAD / SHA in LocalOps receipts pins only the reviewed **top-level script**. Independently verify each executable imported helper's source identity and provenance; no automatic source/physics parity claims. |
+
+All failed-stage and result evidence belongs in the active agent's
+canonical CLAIM/HANDOFF, not repeated new issues. Preserve a single
+sanitized failure statement and proposed remedy. Prefer a source-only
+public review while waiting for any operator-dependent environment fix.
+Do not turn the optional Y/N console into a queue of redundant
+experiments, and never permit a script to weaken a provenance gate
+to get past an earlier abstention.
+
 ## Read the result via GitHub, not from guesswork
 
 After creating the request, retain its actual **issue number**.
