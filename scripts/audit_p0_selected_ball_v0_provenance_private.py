@@ -127,7 +127,7 @@ def verify_original_calls(archive: Path) -> dict:
     return {
         "status": "SOURCE_DIRECT_CALLS_ONLY",
         "original_archive_sha_pre_post": True,
-        "original_source_phases_1_5_7_identical": True,
+        "audited_call_words_phases_1_5_7_identical": True,
         "qualified_calls": [label for _, _, label in CALLS],
         "vector_offsets": ["+0x78", "+0x7C", "+0x80"],
         "receiver_must_definition_proven": False,
