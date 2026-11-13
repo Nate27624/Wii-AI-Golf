@@ -48,6 +48,25 @@ class ResearchMathHelperTests(unittest.TestCase):
             self.assertTrue(0 <= register < 32)
             self.assertEqual(offset % 4, 0)
 
+    def test_validates_source_identical_native_float(self):
+        words = [0x3F800000] * 3
+        self.assertEqual(helper.classify_native_constant("magnitude_threshold", words), 1.0)
+
+    def test_allows_only_log_fallback_negative_infinity(self):
+        self.assertEqual(helper.classify_native_constant("log_fallback",
+                             [0xFF800000] * 3), "-Infinity")
+        with self.assertRaises(helper.Abstain):
+            helper.classify_native_constant("exp_scale", [0xFF800000] * 3)
+        with self.assertRaises(helper.Abstain):
+            helper.classify_native_constant("log_fallback", [0x7F800000] * 3)
+        with self.assertRaises(helper.Abstain):
+            helper.classify_native_constant("log_fallback", [0x7FC00000] * 3)
+
+    def test_rejects_phase_mismatch_even_for_zero(self):
+        with self.assertRaises(helper.Abstain):
+            helper.classify_native_constant("log_fallback",
+                                            [0x00000000, 0x80000000, 0x00000000])
+
     def test_rejects_outside_public_unit(self):
         for pc in (helper.SOURCE_UNIT[0] - 4, helper.SOURCE_UNIT[1]):
             with self.assertRaises(helper.Abstain):
