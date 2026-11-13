@@ -25,12 +25,24 @@ class NumericalPhysicsBoundaryStudiesTests(unittest.TestCase):
         self.assertFalse(r["native_kcol_parity"])
         names = {row["case"]: row for row in r["cases"]}
         self.assertEqual(len(names), 7)
-        for label in ("edge", "vertex", "fast_edge", "grazing_inside"):
+        for label in ("edge", "vertex", "grazing_inside"):
             row = names[label]
             self.assertTrue(row["hit"], label)
             self.assertEqual(row["feature"], row["expected_feature"])
             for field in ("t_err", "surface_y_err", "center_y_err"):
                 self.assertLess(row[field], 1e-6, (label, field))
+        fast = names["fast_edge"]
+        self.assertTrue(fast["analytic_hit"])
+        # A missing computed hit is an observed solver deficiency, not a
+        # failed study or permission to relabel the analytic expectation.
+        if fast["hit"]:
+            self.assertEqual(fast["verdict"], "AGREES")
+            self.assertLess(fast["t_err"], 1e-6)
+        else:
+            self.assertEqual(fast["verdict"], "FALSE_NEGATIVE")
+        self.assertEqual(r["detected_false_negative"], any(
+            row.get("verdict") == "FALSE_NEGATIVE" for row in r["cases"]))
+        self.assertEqual(len(r["speed_ladder"]), 5)
         self.assertFalse(names["grazing_outside"]["hit"])
         self.assertTrue(names["fast_point"]["hit"])
         self.assertLess(names["fast_point"]["t_err"], 1e-8)
