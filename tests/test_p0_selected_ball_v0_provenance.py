@@ -1,5 +1,6 @@
 """Synthetic S002 controls; these never establish native game-time execution."""
 import importlib.util
+import inspect
 from pathlib import Path
 import tempfile
 import json
@@ -160,6 +161,19 @@ class SourceHandoffControls(unittest.TestCase):
         self.assertTrue(all(audit.MODE_WINDOW[0] <= pc < audit.MODE_WINDOW[1]
                             for pc, _ in audit.MODE_CALLS))
         self.assertEqual(audit.MAX_MODE_REFERENCES, 12)
+
+
+    def test_native_reader_uses_sha_qualified_per_phase_folders(self):
+        # Real original._check_archive returns {capture_number: directory},
+        # not the parent inventory directory.
+        for function in (audit.verify_original_calls,
+                         audit.source_window_report, audit.mode_source_report):
+            source = inspect.getsource(function)
+            self.assertIn("folders = original._check_archive(archive)", source)
+            self.assertIn("folders[phase]", source)
+            self.assertIn("original._check_archive(archive)", source)
+        self.assertEqual(audit.PHASES, (1, 5, 7))
+
 
 if __name__ == "__main__":
     unittest.main()
