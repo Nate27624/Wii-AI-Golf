@@ -27,6 +27,18 @@ CALLS = {
     "nonlinear_helper_2": (0x802B2EE0, 0x802A3CF4),
     "sine_helper": (0x802B2ECC, 0x8002F898),
 }
+# Exact native lfs sites in the public RPGolMathTrig.cpp text unit.
+# Native SDA2 constants belong to that same unit's public .sdata2 interval.
+CONSTANT_SITES = {
+    "zero_or_one_threshold": (0x802A3D18, 0, -14112),
+    "magnitude_threshold": (0x802A3D34, 0, -14100),
+    "log_fallback": (0x802A3D78, 31, -14096),
+    "numerator": (0x802A3D7C, 1, -14108),
+    "exp_scale": (0x802A3DA0, 0, -14092),
+}
+SDA2_SOURCE_UNIT = (0x804C4300, 0x804C4318)
+SDA2_ANCHOR_SCAN = (0x804C4388, 0x804C4CB8)
+SDA2_ANCHOR_DISP = -12892
 
 
 class Abstain(Exception):
@@ -169,7 +181,8 @@ def research(segment: str) -> dict:
             raise Abstain("ORIGINAL_GATE_FAILED")
         folders = original._check_archive(archive)
         stage = "ORIGINAL_SEGMENT_AND_CALLS"
-        lo, hi = SEGMENTS[segment]
+        lo, hi = (SEGMENTS[segment] if segment in SEGMENTS
+                  else (0x802A3CF4, SOURCE_UNIT[1]))
         if not (SOURCE_UNIT[0] <= lo < hi <= SOURCE_UNIT[1]):
             raise Abstain("SEGMENT_OUT_OF_BOUNDS")
         with ExitStack() as stack:
@@ -196,7 +209,55 @@ def research(segment: str) -> dict:
             if any(read(pc) != read(pc, i)
                    for pc in range(lo, hi, 4) for i in (1, 2)):
                 raise Abstain("ORIGINAL_PHASES_DIFFER")
-            rows = [symbolize(pc, read(pc)) for pc in range(lo, hi, 4)]
+            values = {}
+            cror = None
+            rows = []
+            if segment == "constants":
+                import struct
+                import math
+                # Confirm a unique previously source-qualified 0.992f SDA2
+                # anchor from the immutable original, not a guessed r2 base.
+                target = struct.pack(">f", 0.992)
+                anchor_candidates = []
+                for addr in range(*SDA2_ANCHOR_SCAN, 4):
+                    offset = addr - roster.MEM1_BASE
+                    if bytes(banks[0][offset:offset + 4]) == target:
+                        anchor_candidates.append(addr)
+                if len(anchor_candidates) != 1:
+                    raise Abstain("SDA2_ANCHOR_NOT_UNIQUE")
+                r2 = anchor_candidates[0] - SDA2_ANCHOR_DISP
+                for name, (pc, reg, disp) in CONSTANT_SITES.items():
+                    if any(
+                        (read(pc, i) >> 26 != 48
+                         or (read(pc, i) >> 21) & 31 != reg
+                         or (read(pc, i) >> 16) & 31 != 2
+                         or signed16(read(pc, i) & 65535) != disp)
+                        for i in range(3)
+                    ):
+                        raise Abstain("STATIC_LFS_SITE_MISMATCH")
+                    addr = r2 + disp
+                    if not (SDA2_SOURCE_UNIT[0] <= addr
+                            and addr + 4 <= SDA2_SOURCE_UNIT[1]):
+                        raise Abstain("STATIC_SOURCE_SPLIT_MISMATCH")
+                    readings = [
+                        struct.unpack(">f", read(addr, i).to_bytes(4, "big"))[0]
+                        for i in range(3)
+                    ]
+                    if not all(math.isfinite(x) for x in readings):
+                        raise Abstain("NONFINITE_NATIVE_CONSTANT")
+                    if readings[0] != readings[1] or readings[0] != readings[2]:
+                        raise Abstain("ORIGINAL_CONSTANT_PHASE_MISMATCH")
+                    values[name] = readings[0]
+                word = read(0x802A3D50)
+                if word >> 26 != 19 or (word >> 1) & 1023 != 449:
+                    raise Abstain("CROR_NATIVE_OPCODE_MISMATCH")
+                cror = {
+                    "bt": (word >> 21) & 31,
+                    "ba": (word >> 16) & 31,
+                    "bb": (word >> 11) & 31,
+                }
+            else:
+                rows = [symbolize(pc, read(pc)) for pc in range(lo, hi, 4)]
         stage = "ORIGINAL_POST_READ_SHA"
         original._check_archive(archive)
         return {
@@ -204,6 +265,8 @@ def research(segment: str) -> dict:
             "segment": segment, "source_unit": "RPGolMathTrig.cpp",
             "original_14_bank_verified": True, "phase_1_5_7_code_equal": True,
             "call_target_gates": gates, "symbolic_instructions": rows,
+            "source_unit_f32_constants": values,
+            "cror_0x802A3D50": cror,
             "raw_original_bytes_published": False, "exact_function_boundary_proven": False,
             "guest_execution_verified": False, "training_approved": False,
         }
@@ -219,7 +282,7 @@ def research(segment: str) -> dict:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--segment", choices=sorted(SEGMENTS), required=True)
+    parser.add_argument("--segment", choices=sorted(SEGMENTS) + ["constants"], required=True)
     args = parser.parse_args(argv)
     report = research(args.segment)
     print(json.dumps(report, separators=(",", ":")))
