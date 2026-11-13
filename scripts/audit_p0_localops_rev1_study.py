@@ -321,6 +321,75 @@ def _field_opcode_registers(windows: dict[tuple[int, int], bytes]) -> dict:
             'indexed_accesses_not_classified':True}
 
 
+
+def _triple_store_provenance(windows: dict[tuple[int, int], bytes]) -> dict:
+    """PPC source prefix and same-unit direct callers for three-field store.
+
+    Do not infer caller ordering, incoming f1 value or r3 receiver alias.
+    Function boundaries are published RSPE01 Rev1 symbols, not runtime trace.
+    """
+    entry, end, first_write = 0x802B499C, 0x802B4A14, 0x802B49C0
+    stores = ((0x802B49C0, 0x1b0),
+              (0x802B49C4, 0x1b4),
+              (0x802B49C8, 0x1b8))
+    for pc, off in stores:
+        word = _word(windows, pc)
+        if ((word >> 26) != 52 or ((word >> 21) & 31) != 1
+                or ((word >> 16) & 31) != 3
+                or (word & 0xffff) != off):
+            raise Abstain('TRIPLE_STORE_OPCODE_GATE')
+    if not (entry < first_write < end and (first_write-entry)//4 <= 12):
+        raise Abstain('TRIPLE_STORE_PUBLIC_FUNCTION_BOUNDS')
+    prefix = []
+    f1_candidate_defs = []
+    for pc in range(entry, first_write, 4):
+        word = _word(windows, pc)
+        op = word >> 26
+        dst, base = (word >> 21) & 31, (word >> 16) & 31
+        if op in (48, 49, 52, 53, 56, 57, 60, 61):
+            form = 'dq' if op in (56,57,60,61) else 'd'
+            dispmask = 0xfff if form == 'dq' else 0xffff
+            displacement = word & dispmask
+            if displacement & ((dispmask+1) >> 1):
+                displacement -= dispmask+1
+            mnemonic = {48:'lfs',49:'lfsu',52:'stfs',53:'stfsu',
+                        56:'psq_l',57:'psq_lu',60:'psq_st',
+                        61:'psq_stu'}[op]
+            prefix.append([f'0x{pc:08X}',mnemonic,dst,base,displacement])
+            if op in (48,49,56,57) and dst == 1:
+                f1_candidate_defs.append(f'0x{pc:08X}')
+        elif op == 63:
+            # FP major opcode: xo + target FPR only. Some instructions
+            # (e.g. comparisons) do not define a destination; avoid claims.
+            prefix.append([f'0x{pc:08X}','fp63',dst,(word >> 1)&0x3ff])
+            if dst == 1:
+                f1_candidate_defs.append(f'0x{pc:08X}')
+        elif op == 18:
+            prefix.append([f'0x{pc:08X}','bl_or_b',_branch(pc,word)])
+        else:
+            # Unknown opcode class, without native word or incidental bytes.
+            prefix.append([f'0x{pc:08X}',f'op{op}',dst,base])
+    lo, hi = SOURCE_WINDOWS[2]
+    source = windows[lo,hi]
+    callers = []
+    for idx in range(0,len(source),4):
+        pc = lo+idx
+        word = struct.unpack_from('>I',source,idx)[0]
+        if _branch(pc,word) == entry:
+            callers.append(f'0x{pc:08X}')
+            if len(callers)>12:
+                raise Abstain('TRIPLE_STORE_CALLER_COUNT_CAP')
+    return {'public_symbol':'fn_802B499C',
+            'public_interval':['0x802B499C','0x802B4A14'],
+            'validated_three_stfs_same_f1_r3':True,
+            'prior_prefix_opcode_operands':prefix,
+            'f1_internal_def_candidates_lexical_only':f1_candidate_defs,
+            'same_scene_direct_bl_callers':callers,
+            'external_or_indirect_callers_unresolved':True,
+            'f1_numeric_value_proven':False,
+            'r3_receiver_alias_proven':False}
+
+
 def _source_owners() -> bool:
     scripts_root = str(pathlib.Path(__file__).resolve().parent)
     if scripts_root not in sys.path:
@@ -344,7 +413,7 @@ def study(stage: str, checkout: pathlib.Path) -> dict:
               'original_bank_sha_verified':len(banks),
               'public_rev1_unit_source_verified':True,
               'training_approved':False, 'allowed_to_publish':False}
-    if stage in ('nonlinear', 'field-registers'):
+    if stage in ('nonlinear', 'field-registers', 'triple-store'):
         phase_files = {p:path for p,size,path,sha in banks if size == MEM1_SIZE}
         views = [_read_windows(phase_files[p]) for p in (1,5,7)]
         if views[0] != views[1] or views[1] != views[2]:
@@ -354,13 +423,18 @@ def study(stage: str, checkout: pathlib.Path) -> dict:
         if stage == 'nonlinear':
             report['lexical_calc_offset_census'] = _lexical_consumers(views[0])
             report['status'] = 'NONLINEAR_SOURCE_PASS'
-        else:
+        elif stage == 'field-registers':
             report['field_opcode_registers'] = _field_opcode_registers(views[0])
             report['status'] = 'FIELD_REGISTER_CENSUS_PASS'
             # A complete machine-readable receipt must fit the installed
             # LocalOps stdout budget; never publish a silently clipped report.
             if len(json.dumps(report,separators=(',',':'))) > 1900:
                 raise Abstain('FIELD_RECEIPT_BUDGET')
+        else:
+            report['triple_store'] = _triple_store_provenance(views[0])
+            report['status'] = 'TRIPLE_STORE_SOURCE_PASS'
+            if len(json.dumps(report,separators=(',',':'))) > 1900:
+                raise Abstain('TRIPLE_STORE_RECEIPT_BUDGET')
         report['same_shot_native_ball_consumer_verified'] = False
         report['lexical_matches_are_receiver_proof'] = False
     # Independently recheck original 14 SHA values after all reads.
@@ -373,7 +447,7 @@ def study(stage: str, checkout: pathlib.Path) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--stage', required=True, choices=('preflight','nonlinear','field-registers'))
+    parser.add_argument('--stage', required=True, choices=('preflight','nonlinear','field-registers','triple-store'))
     args = parser.parse_args(argv)
     try:
         result = study(args.stage, pathlib.Path(__file__).resolve().parents[1])
