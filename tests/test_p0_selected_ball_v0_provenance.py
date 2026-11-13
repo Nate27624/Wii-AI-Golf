@@ -13,6 +13,24 @@ spec = importlib.util.spec_from_file_location("s002_v0", PATH)
 audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
 
+
+def synthetic_seven_pair_descriptor(*, training_approved=False):
+    # Metadata-only fabricated shape. Never passes original SHA bank gates.
+    return {
+        "kind": "p0-private-numbered-capture-inventory",
+        "capture_count": 7,
+        "capture_numbers": list(range(1, 8)),
+        "human_phase_file_mapping_verified": False,
+        "training_approved": training_approved,
+        "captures": [
+            {"capture_number": i, "banks": [
+                {"file": f"{i}.1.raw", "bank": "MEM1"},
+                {"file": f"{i}.2.raw", "bank": "MEM2"},
+            ]}
+            for i in range(1, 8)
+        ],
+    }
+
 class SourceHandoffControls(unittest.TestCase):
     def test_source_bl_and_malformed_branch_negative_controls(self):
         for pc, target, label in audit.CALLS:
@@ -73,12 +91,7 @@ class SourceHandoffControls(unittest.TestCase):
                     candidate = captures / ("archive" + str(index))
                     candidate.mkdir()
                     marker = candidate / "manifest-PRIVATE.json"
-                    marker.write_text(json.dumps({
-                        "kind": "p0-private-numbered-capture-inventory",
-                        "capture_count": 7,
-                        "capture_numbers": list(range(1, 8)),
-                        "training_approved": False,
-                    }), encoding="utf-8")
+                    marker.write_text(json.dumps(synthetic_seven_pair_descriptor()), encoding="utf-8")
                     if index == 1:
                         self.assertEqual(audit.discover_approved_archive(), candidate)
                     else:
@@ -91,16 +104,30 @@ class SourceHandoffControls(unittest.TestCase):
             captures = root / "captures"
             candidate = captures / "candidate"
             candidate.mkdir(parents=True)
-            (candidate / "manifest-PRIVATE.json").write_text(json.dumps({
-                "kind": "p0-private-numbered-capture-inventory",
-                "capture_count": 7,
-                "capture_numbers": list(range(1, 8)),
-                "training_approved": True,
-            }), encoding="utf-8")
+            (candidate / "manifest-PRIVATE.json").write_text(json.dumps(synthetic_seven_pair_descriptor(training_approved=True)), encoding="utf-8")
             with patch.object(audit.original.src.selected, "DATA_ROOT", root):
                 with self.assertRaises(ValueError):
                     audit.discover_approved_archive()
 
+
+
+    def test_archive_discovery_skips_many_unrelated_histories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "Wii-AI-Golf-Data"
+            captures = root / "captures"
+            captures.mkdir(parents=True)
+            for i in range(60):
+                (captures / f"unrelated-{i:03d}").mkdir()
+            valid = captures / "reviewed-cohort"
+            valid.mkdir()
+            (valid / "manifest-PRIVATE.json").write_text(
+                json.dumps(synthetic_seven_pair_descriptor()), encoding="utf-8")
+            with patch.object(audit.original.src.selected, "DATA_ROOT", root):
+                self.assertEqual(audit.discover_approved_archive(), valid)
+                for i in range(61, audit.MAX_CAPTURE_DIRS + 1):
+                    (captures / f"unrelated-{i:03d}").mkdir()
+                with self.assertRaises(ValueError):
+                    audit.discover_approved_archive()
 
     def test_integrator_windows_within_published_function_bounds(self):
         published = {
