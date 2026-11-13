@@ -7,6 +7,8 @@ on:
       - 'scripts/research_p0_math_helper_boundary_ideal.py'
       - 'tests/test_research_p0_math_helpers_private.py'
       - 'tests/test_research_p0_math_helper_boundary_ideal.py'
+      - 'scripts/research_p0_sinfidx_deadzone_public.py'
+      - 'tests/test_research_p0_sinfidx_deadzone_public.py'
       - '.github/workflows/ci-s002-math-helper-offline.yml'
   workflow_dispatch:
 
@@ -31,5 +33,7 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_research_p0_math_helpers_private.py' -v
       - name: Focused idealized boundary synthetic tests
         run: python -m unittest discover -s tests -p 'test_research_p0_math_helper_boundary_ideal.py' -v
+      - name: Focused public sine LUT near-zero boundary tests
+        run: python -m unittest discover -s tests -p 'test_research_p0_sinfidx_deadzone_public.py' -v
       - name: Full offline regression
         run: python -m unittest discover -s tests -v
