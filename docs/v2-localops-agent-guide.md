@@ -101,6 +101,53 @@ For a new test/audit task, obtain operator review and update of the
 designing a broad `run_anything` task because that would erase the
 allowlist boundary.
 
+### Opt-in scoped research studies (only on upgraded LocalOps)
+
+The operator supports a **broader family of Python source-audit scripts**,
+provided scope is explicit. This requires the optional, independently
+reviewed [LocalOps research-profile change](
+https://github.com/Nate27624/Wii-AI-Golf-LocalOps/pull/15) to be installed
+on Windows **and** an operator-approved `research` profile in the LOCAL
+`config.json`. Merely merging the public code, creating a request, or
+having a previously working v2 bridge does not enable this operation.
+
+After installation, an assigned agent may request:
+
+```json
+{"schema":"localops-v2","project":"wii-golf","operation":"run_research","params":{"script":"scripts/audit_motion_candidates.py","args":[]}}
+```
+
+The local profile may permit all **Git-tracked** `scripts/audit_*.py` and
+`scripts/research_*.py` programs, with short, bounded simple CLI arguments,
+a fixed maximum runtime and bounded stdout/stderr. A script path must
+remain under one of the locally approved roots. The agent checks that the
+worktree has no tracked modifications, the origin matches the configured
+repository, and the requested script is a non-symlink tracked Python file.
+A result contains the exact Git HEAD and source SHA-256 for review.
+
+**Default:** a new script request yields
+`LOCALOPS_APPROVAL_REQUIRED_V2` until the Windows operator specifically
+approves that issue. The operator may configure unattended execution only
+for an individually reviewed **zero-argument script** at an explicitly
+pinned complete Git commit and script SHA-256. Any change to either, or
+supplying arguments, returns to local approval. The local profile can
+also remain disabled entirely.
+
+**Important:** This is *not* a sandbox. Even a source-checked Python
+script can read/write accessible local files, start child processes or
+reach the network. Agents must not use it to boot Dolphin, inject
+controllers, run unattended gameplay, upload private source assets,
+exfiltrate captures, or mark training approved. New experimental
+scripts should be proposed through a normal source PR with synthetic
+tests and a named manager assignment; auto-execution is not authorized
+simply because a PR exists or CI passes.
+
+Unknown fixed task names return `TASK_NOT_REGISTERED` with the upgraded
+agent; a disabled research profile returns
+`RESEARCH_PROFILE_DISABLED`. Older installed agent versions may still
+ignore such requests. Do not interpret an unacknowledged issue as a
+successful study.
+
 ### Fetch and switch to an exactly reviewed branch (local approval required)
 
 ```json
@@ -152,10 +199,11 @@ Once a named V2 agent has its scoped assignment and source/CI context:
 
 1. Read source and PR diffs through the GitHub connector first. Submit
    `git_status` if actual local checkout state matters.
-2. Use a registered, bounded `run_task` to exercise approved local
-   synthetic tests when that provides evidence GitHub CI cannot.
+2. Use a registered, bounded `run_task` for approved local tests; on an
+   upgraded bridge, use `run_research` only for an operator-approved
+   script profile and a source-verified, current repository revision.
    Ask for separate approval if required, then read the exact issue
-   result/exit status.
+   result/exit status, including script and commit provenance.
 3. For local work on a reviewed commit, use `checkout_reviewed`
    only with the exact reviewed remote HEAD, after operator approval.
    Never overwrite uncommitted work or use source branch names from a
