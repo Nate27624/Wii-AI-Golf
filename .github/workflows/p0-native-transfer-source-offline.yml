@@ -4,6 +4,7 @@ on:
     paths:
       - 'scripts/research_p0_native_transfer_sources_private.py'
       - 'scripts/research_p0_native_wind_transfer_private.py'
+      - 'scripts/research_p0_native_impact_damping_private.py'
       - 'scripts/research_p0_native_kcol_response_private.py'
       - 'tests/test_native_transfer_source_studies.py'
       - '.github/workflows/p0-native-transfer-source-offline.yml'
@@ -25,7 +26,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Syntax
-        run: python -m py_compile scripts/research_p0_native_transfer_sources_private.py scripts/research_p0_native_wind_transfer_private.py scripts/research_p0_native_kcol_response_private.py tests/test_native_transfer_source_studies.py
+        run: python -m py_compile scripts/research_p0_native_transfer_sources_private.py scripts/research_p0_native_wind_transfer_private.py scripts/research_p0_native_impact_damping_private.py scripts/research_p0_native_kcol_response_private.py tests/test_native_transfer_source_studies.py
       - name: Focused synthetic positive and negative controls
         run: python -I -m unittest discover -s tests -p test_native_transfer_source_studies.py -v
       - name: Install existing offline test dependency
