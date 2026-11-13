@@ -28,12 +28,17 @@ DENIED_PARTS = frozenset({
 })
 OPERATIONS = frozenset({
     "git_status", "list_files", "run_task", "checkout_reviewed",
+    "run_research",
 })
+RESEARCH_ARG = re.compile(
+    r"(?:--?[A-Za-z][A-Za-z0-9-]{0,31}(?:=[A-Za-z0-9_.:-]{1,64})?"
+    r"|[A-Za-z0-9_.:][A-Za-z0-9_.:-]{0,63})\Z")
 
 
 def request(operation: str, *, task: str | None = None,
             subdir: str | None = None, branch: str | None = None,
-            sha: str | None = None) -> tuple[str, str]:
+            sha: str | None = None, script: str | None = None,
+            args: list[str] | None = None) -> tuple[str, str]:
     """Return title + JSON body for ONE request; never execute any task.
 
     run_task always chooses a locally pre-registered named task. The title
@@ -42,12 +47,14 @@ def request(operation: str, *, task: str | None = None,
     if type(operation) is not str or operation not in OPERATIONS:
         raise ValueError("Unrecognized LocalOps operation")
     if operation == "git_status":
-        if any(x is not None for x in (task, subdir, branch, sha)):
+        if any(x is not None for x in (
+                task, subdir, branch, sha, script, args)):
             raise ValueError("git_status does not accept parameters")
         params = {}
     elif operation == "run_task":
         if (type(task) is not str or not NAME.fullmatch(task)
-                or any(x is not None for x in (subdir, branch, sha))):
+                or any(x is not None for x in (
+                    subdir, branch, sha, script, args))):
             raise ValueError("Only a registered task NAME is allowed")
         params = {"task": task}
     elif operation == "list_files":
@@ -56,15 +63,40 @@ def request(operation: str, *, task: str | None = None,
                 or "\\" in subdir or ":" in subdir
                 or any(not PATH_PART.fullmatch(part)
                        or part in DENIED_PARTS for part in subdir.split("/"))
-                or any(x is not None for x in (task, branch, sha))):
+                or any(x is not None for x in (
+                    task, branch, sha, script, args))):
             raise ValueError("Invalid relative project subdirectory")
         params = {"subdir": subdir}
+    elif operation == "run_research":
+        if (type(script) is not str or not 1 <= len(script) <= 180
+                or not script.endswith(".py")
+                or script.startswith(("/", "\\"))
+                or "\\" in script or ":" in script
+                or any(not PATH_PART.fullmatch(part)
+                       or part in DENIED_PARTS or part.startswith(".")
+                       for part in script.split("/"))
+                or "/" not in script
+                or any(x is not None for x in (task, subdir, branch, sha))):
+            raise ValueError("Invalid project-relative study script path")
+        if args is None:
+            args = []
+        if (type(args) is not list or len(args) > 12
+                or any(type(v) is not str
+                       or not RESEARCH_ARG.fullmatch(v)
+                       or ".." in v or "://" in v
+                       or v.lower().startswith((
+                           "-c", "--exec", "--eval", "--script",
+                           "--file", "--path", "--config",
+                           "--input", "--output", "--shell"))
+                       for v in args)):
+            raise ValueError("Research args must be bounded simple CLI tokens")
+        params = {"script": script, "args": args}
     else:  # checkout_reviewed
         if (type(branch) is not str or not BRANCH.fullmatch(branch)
                 or ".." in branch or "//" in branch
                 or branch.endswith(("/", "."))
                 or type(sha) is not str or not SHA40.fullmatch(sha)
-                or any(x is not None for x in (task, subdir))):
+                or any(x is not None for x in (task, subdir, script, args))):
             raise ValueError("An exact reviewed agent branch and SHA are required")
         params = {"branch": branch, "sha": sha}
     body = {"schema": SCHEMA, "project": PROJECT,
