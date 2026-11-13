@@ -90,6 +90,44 @@ class PublicContractTests(unittest.TestCase):
             contract.request(
                 "run_task", task="inspector_tests", args=["--phase=1"])
 
+    def test_approval_metadata_is_display_only_and_bounded(self):
+        title, body = contract.request(
+            "run_research", script="scripts/audit_motion_candidates.py",
+            intent="Inspect ball motion source hypothesis.",
+            expected_output="Original SHA and negative-control comparisons.")
+        self.assertEqual(title, "[LOCALOPS-v2]")
+        parsed = json.loads(body)
+        self.assertEqual(parsed["intent"], "Inspect ball motion source hypothesis.")
+        self.assertEqual(parsed["expected_output"],
+                         "Original SHA and negative-control comparisons.")
+        self.assertEqual(parsed["params"], {
+            "script": "scripts/audit_motion_candidates.py", "args": []})
+        for bad in ("", "X"*181, "first\\nsecond"):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                contract.request("git_status", intent=bad)
+
+    def test_operator_declined_receipt_and_optional_feedback(self):
+        result = {
+            "schema": "localops-v2", "issue": 37,
+            "operation": "run_research", "status": "declined",
+            "result": {"code": "OPERATOR_DECLINED"}}
+        envelope = ("LOCALOPS_RESULT_V2\\n```json\\n"
+                    + json.dumps(result) + "\\n```")
+        self.assertEqual(contract.parse_result_comment(
+            envelope, issue_number=37, operation="run_research"), result)
+        self.assertIsNone(contract.parse_result_comment(
+            envelope, issue_number=38, operation="run_research"))
+        feedback = {"issue": 37, "decision": "declined",
+                    "feedback": "Please use a smaller audit."}
+        comment = ("LOCALOPS_OPERATOR_FEEDBACK_V2\\n"
+                   + json.dumps(feedback))
+        self.assertEqual(contract.parse_operator_feedback(
+            comment, issue_number=37), feedback)
+        self.assertIsNone(contract.parse_operator_feedback(
+            comment, issue_number=38))
+        self.assertIsNone(contract.parse_operator_feedback(
+            "LOCALOPS_OPERATOR_FEEDBACK_V2\\n{bad}", issue_number=37))
+
     def test_exact_sha_only_for_checkout(self):
         sha = "b8cd643b93386d22d22ccc05169156ff2c59fe06"
         self.assert_request("checkout_reviewed", {
@@ -185,6 +223,7 @@ class PublicContractTests(unittest.TestCase):
             "Nate27624/Wii-AI-Golf-LocalOps",
             "git_status", "list_files", "run_task", "run_research",
             "checkout_reviewed", "source", "approval",
+            "LOCALOPS_OPERATOR_FEEDBACK_V2", "-Review",
         ):
             with self.subTest(necessary=necessary):
                 self.assertIn(necessary, guide)
