@@ -135,5 +135,31 @@ class SourceHandoffControls(unittest.TestCase):
         with self.assertRaises(ValueError):
             audit.decode_symbolic(0, -1)
 
+
+    def test_ppc_mr_r30_r4_exact_alias(self):
+        # or r30,r4,r4; synthetically construct the alias, no native bytes.
+        good = (31 << 26) | (4 << 21) | (30 << 16) | (4 << 11) | (444 << 1)
+        self.assertTrue(audit.is_mr(good, dest=30, source=4))
+        for altered in (good | 1, good ^ (1 << 21),
+                        good ^ (1 << 16), good ^ (1 << 11)):
+            self.assertFalse(audit.is_mr(altered, dest=30, source=4))
+
+    def test_mode_operand_candidates_are_cautiously_classified(self):
+        lbz = (34 << 26) | (5 << 21) | (30 << 16) | 0x138
+        c = audit.mode_reference(0x80299900, lbz)
+        self.assertEqual((c["base"], c["offset"]), (30, 0x138))
+        self.assertIn("candidate", c["role"])
+        cmpwi = (11 << 26) | (30 << 16) | 3
+        self.assertEqual(audit.mode_reference(0x80299904, cmpwi)
+                         ["comparison_register"], 30)
+        neutral = (34 << 26) | (5 << 21) | (29 << 16) | 0x138
+        self.assertIsNone(audit.mode_reference(0x80299908, neutral))
+
+    def test_mode_source_body_bounded_to_published_function(self):
+        self.assertEqual(audit.MODE_WINDOW, (0x80299890, 0x80299ACC))
+        self.assertTrue(all(audit.MODE_WINDOW[0] <= pc < audit.MODE_WINDOW[1]
+                            for pc, _ in audit.MODE_CALLS))
+        self.assertEqual(audit.MAX_MODE_REFERENCES, 12)
+
 if __name__ == "__main__":
     unittest.main()
