@@ -26,7 +26,8 @@ SOURCE_WINDOWS = ((0x802A3CF4, 0x802A3DE4),
                   (0x802B2E34, 0x802B2EF8),
                   (0x802A79F8, 0x802C7924))
 MAX_SIBLINGS = 80
-MAX_ARCHIVES = 30
+MAX_CAPTURE_DIRS_PER_ROOT = 512
+MAX_CAPTURE_DIRS_TOTAL = 768
 
 
 class Abstain(Exception):
@@ -99,6 +100,7 @@ def _find_candidates(checkout: pathlib.Path) -> tuple[tuple[pathlib.Path, str], 
     roots = [(parent / 'Wii-AI-Golf-Data', 'direct-sibling')]
     roots.extend((p / 'Wii-AI-Golf-Data', 'nested-sibling') for p in items)
     archives = []
+    inspected = 0
     for data, label in roots:
         if not data.is_dir() or data.is_symlink():
             continue
@@ -110,19 +112,30 @@ def _find_candidates(checkout: pathlib.Path) -> tuple[tuple[pathlib.Path, str], 
                            not p.is_symlink()), key=lambda x: x.name)
         except OSError:
             raise Abstain('CAPTURE_LISTING') from None
-        if len(subs) > MAX_ARCHIVES:
+        # The cap bounds metadata inspection, NOT the count of compatible
+        # source archives. Historical captures may contain many unrelated dirs.
+        if len(subs) > MAX_CAPTURE_DIRS_PER_ROOT:
+            raise Abstain('TOO_MANY_ARCHIVES')
+        inspected += len(subs)
+        if inspected > MAX_CAPTURE_DIRS_TOTAL:
             raise Abstain('TOO_MANY_ARCHIVES')
         for sub in subs:
             mf = sub / 'manifest-PRIVATE.json'
-            if not _regular(mf) or mf.stat().st_size > 65536:
+            if not _regular(mf):
                 continue
             try:
+                if mf.stat().st_size > 65536:
+                    continue
                 content = json.loads(mf.read_text(encoding='utf-8-sig'))
-            except (UnicodeError, ValueError, OSError):
+                # Do not consider a legacy or malformed manifest to be a
+                # qualifying capture cohort. All 14 bank SHA checks happen
+                # only after this unique metadata-only discovery step.
+                _manifest_descriptor(content)
+            except (Abstain, UnicodeError, ValueError, OSError):
                 continue
-            if isinstance(content, dict) and content.get('kind') == (
-                    'p0-private-numbered-capture-inventory'):
-                archives.append((sub, label))
+            archives.append((sub, label))
+            if len(archives) > 1:
+                raise Abstain('AMBIGUOUS_ARCHIVE')
     # No ambiguous or silently selected evidence cohorts.
     if len(archives) != 1:
         raise Abstain('NO_CANONICAL_ARCHIVE' if not archives else 'AMBIGUOUS_ARCHIVE')
