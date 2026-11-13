@@ -100,5 +100,40 @@ class SourceHandoffControls(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     audit.discover_approved_archive()
 
+
+    def test_integrator_windows_within_published_function_bounds(self):
+        published = {
+            "integrator_receiver_prefix": (0x80299890, 0x80299ACC),
+            "global_processing_call": (0x80299C70, 0x8029A038),
+            "selected_sim_entry": (0x8029B554, 0x8029B57C),
+        }
+        for name, (lo, hi) in audit.WINDOWS.items():
+            self.assertGreaterEqual(lo, published[name][0])
+            self.assertLessEqual(hi, published[name][1])
+            self.assertGreater(hi, lo)
+            self.assertEqual((hi-lo) % 4, 0)
+
+    def test_symbolic_ppc_operand_decoding(self):
+        # lwz r3, +0x6B4(r3) and stfs f7, +0x78(r29) are
+        # synthetic encodings, never native source attestations.
+        lwz = (32 << 26) | (3 << 21) | (3 << 16) | 0x6B4
+        w = audit.decode_symbolic(0x8029B554, lwz)
+        self.assertEqual((w["kind"], w["register"], w["base"], w["offset"]),
+                         ("lwz", 3, 3, 0x6B4))
+        stfs = (52 << 26) | (7 << 21) | (29 << 16) | 0x78
+        t = audit.decode_symbolic(0x8029A4BC, stfs)
+        self.assertEqual((t["kind"], t["base"], t["offset"]), ("stfs", 29, 0x78))
+        self.assertNotIn("word", t)
+
+    def test_symbolic_ppc_conditional_branch(self):
+        # bc BO=4 BI=2, branch +0x5c.
+        word = (16 << 26) | (4 << 21) | (2 << 16) | 0x5C
+        row = audit.decode_symbolic(0x80299B74, word)
+        self.assertEqual(row["kind"], "bc")
+        self.assertEqual(row["target"], "0x80299BD0")
+        self.assertEqual((row["bo"], row["bi"], row["lk"]), (4, 2, False))
+        with self.assertRaises(ValueError):
+            audit.decode_symbolic(0, -1)
+
 if __name__ == "__main__":
     unittest.main()
