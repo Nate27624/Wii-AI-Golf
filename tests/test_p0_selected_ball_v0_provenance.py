@@ -196,5 +196,48 @@ class SourceHandoffControls(unittest.TestCase):
         self.assertIn("receiver_must_definition", source)
 
 
+
+    def test_v0_5_selected_source_gate_intervals_are_in_published_functions(self):
+        owners = {
+            "outer_selected_launch": (0x8029B43C, 0x8029B554),
+            "selected_integrator": (0x8029B554, 0x8029B57C),
+            "state3_late_copy": (0x80299ACC, 0x80299BE4),
+        }
+        for name, (lo, hi) in audit.GATE_WINDOWS.items():
+            self.assertGreaterEqual(lo, owners[name][0])
+            self.assertLessEqual(hi, owners[name][1])
+            self.assertEqual(lo % 4, 0)
+            self.assertEqual(hi % 4, 0)
+        for name, pc in audit.GATE_BRANCH_SITES.values():
+            self.assertLessEqual(audit.GATE_WINDOWS[name][0], pc)
+            self.assertGreater(audit.GATE_WINDOWS[name][1], pc)
+
+    def test_v0_5_synthetic_branch_and_pointer_clear_gates(self):
+        # False data/receiver identity are NEVER accepted by this opcode test.
+        lwz = (32 << 26) | (3 << 21) | (31 << 16) | 0x138
+        self.assertTrue(audit.dform_matches(lwz, 32, 3, 31, 0x138))
+        self.assertFalse(audit.dform_matches(lwz, 32, 3, 3, 0x138))
+        self.assertFalse(audit.dform_matches(lwz | (1 << 21),
+                                            32, 3, 31, 0x138))
+        stw = (36 << 26) | (0 << 21) | (31 << 16) | 0x138
+        self.assertTrue(audit.dform_matches(stw, 36, 0, 31, 0x138))
+        self.assertFalse(audit.dform_matches(stw, 36, 1, 31, 0x138))
+        bc = (16 << 26) | (4 << 21) | (2 << 16) | 0x5C
+        result = audit.decode_symbolic(0x80299B74, bc)
+        self.assertEqual((result["kind"], result["bo"], result["bi"],
+                          result["target"]), ("bc", 4, 2, "0x80299BD0"))
+
+    def test_v0_5_synthetic_integrator_tail_negative_controls(self):
+        pc, target = 0x8029B574, 0x80299890
+        word = (18 << 26) | ((target-pc) & 0x03FFFFFC)
+        self.assertEqual(audit.relative_b_target(pc, word), target)
+        self.assertIsNone(audit.relative_b_target(pc, word | 1))
+        self.assertIsNone(audit.relative_b_target(pc, word | 2))
+        self.assertIsNone(audit.relative_b_target(pc, -1))
+        source = inspect.getsource(audit.state_gate_report)
+        self.assertIn("folders = original._check_archive(archive)", source)
+        self.assertIn("original._check_archive(archive)", source)
+        self.assertIn("selected_v0_must_def_proven", source)
+
 if __name__ == "__main__":
     unittest.main()
