@@ -1,0 +1,528 @@
+#!/usr/bin/env python3
+"""Read-only, bounded Rev1 source archive preflight and nonlinear PPC audit.
+
+For manually approved LocalOps `run_research`, with --stage=preflight or
+--stage=nonlinear. Scans ONLY known one/two-level sibling Data locations,
+verifies all 14 preserved bank SHA-256 values and identity BEFORE source reads,
+rechecks afterward, and emits only source PCs and sanitized status. Does not
+launch or connect to Dolphin, write files, disclose private paths/bytes, or
+claim executed shot/physics semantics. No dependency on environmental secrets.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import pathlib
+import re
+import struct
+import sys
+
+MEM1_BASE = 0x80000000
+MEM1_SIZE = 0x01800000
+MEM2_SIZE = 0x04000000
+PHASES = tuple(range(1, 8))
+SOURCE_WINDOWS = ((0x802A3CF4, 0x802A3DE4),
+                  (0x802B2E34, 0x802B2EF8),
+                  (0x802A79F8, 0x802C7924))
+SDA2_GOLF_SCENE = (0x804C4388, 0x804C4CB8)  # published Rev1 source split
+SDA2_R2_ANCHOR_DISP = -12892  # source-qualified 0.992f float in scene
+SDA2_F1_DISP = -13196
+SDA2_F0_DISP = -13192
+MAX_SIBLINGS = 80
+MAX_CAPTURE_DIRS_PER_ROOT = 512
+MAX_CAPTURE_DIRS_TOTAL = 768
+
+
+class Abstain(Exception):
+    """Do not interpolate private exception messages into public output."""
+    def __init__(self, code: str):
+        super().__init__('qualification incomplete')
+        self.code = code
+
+
+def _regular(path: pathlib.Path, size: int | None = None) -> bool:
+    try:
+        return (path.is_file() and not path.is_symlink() and
+                (size is None or path.stat().st_size == size))
+    except OSError:
+        return False
+
+
+def _manifest_descriptor(manifest: object) -> tuple[tuple[int, int, str, str], ...]:
+    """Validate manifest structure before opening private native banks."""
+    if (type(manifest) is not dict or
+            manifest.get('kind') != 'p0-private-numbered-capture-inventory' or
+            manifest.get('training_approved') is not False or
+            manifest.get('human_phase_file_mapping_verified') is not False or
+            type(manifest.get('capture_count')) is not int or
+            manifest['capture_count'] != 7 or
+            manifest.get('capture_numbers') != list(PHASES) or
+            type(manifest.get('captures')) is not list or
+            len(manifest['captures']) != 7):
+        raise Abstain('MANIFEST_IDENTITY')
+    result = []
+    found = set()
+    for item in manifest['captures']:
+        if type(item) is not dict:
+            raise Abstain('MANIFEST_ROWS')
+        phase = item.get('capture_number')
+        banks = item.get('banks')
+        if (type(phase) is not int or phase not in PHASES or phase in found or
+                type(banks) is not list or len(banks) != 2):
+            raise Abstain('MANIFEST_ROWS')
+        found.add(phase)
+        for i, (bank, size) in enumerate((('MEM1', MEM1_SIZE),
+                                          ('MEM2', MEM2_SIZE)), start=1):
+            row = banks[i - 1]
+            filename = f'{phase}.{i}.raw'
+            if (type(row) is not dict or row.get('file') != filename or
+                    row.get('bank') != bank or row.get('bytes') != size or
+                    row.get('copy_verified') is not True or
+                    type(row.get('sha256')) is not str or
+                    re.fullmatch(r'[0-9a-fA-F]{64}', row['sha256']) is None):
+                raise Abstain('MANIFEST_ROWS')
+            result.append((phase, size, filename, row['sha256'].lower()))
+    if found != set(PHASES):
+        raise Abstain('MANIFEST_ROWS')
+    return tuple(sorted(result))
+
+
+def _find_candidates(checkout: pathlib.Path) -> tuple[tuple[pathlib.Path, str], ...]:
+    """No broad disk walk. Only immediate checkout siblings and their children."""
+    parent = checkout.parent
+    if not parent.is_dir() or parent.is_symlink():
+        raise Abstain('CHECKOUT_ROOT')
+    try:
+        items = sorted((x for x in parent.iterdir() if x.is_dir() and
+                        not x.is_symlink() and not x.name.startswith('.')),
+                       key=lambda p: p.name.lower())
+    except OSError:
+        raise Abstain('CHECKOUT_ROOT') from None
+    if len(items) > MAX_SIBLINGS:
+        raise Abstain('TOO_MANY_SIBLINGS')
+    roots = [(parent / 'Wii-AI-Golf-Data', 'direct-sibling')]
+    roots.extend((p / 'Wii-AI-Golf-Data', 'nested-sibling') for p in items)
+    archives = []
+    inspected = 0
+    for data, label in roots:
+        if not data.is_dir() or data.is_symlink():
+            continue
+        captures = data / 'captures'
+        if not captures.is_dir() or captures.is_symlink():
+            continue
+        try:
+            subs = sorted((p for p in captures.iterdir() if p.is_dir() and
+                           not p.is_symlink()), key=lambda x: x.name)
+        except OSError:
+            raise Abstain('CAPTURE_LISTING') from None
+        # The cap bounds metadata inspection, NOT the count of compatible
+        # source archives. Historical captures may contain many unrelated dirs.
+        if len(subs) > MAX_CAPTURE_DIRS_PER_ROOT:
+            raise Abstain('TOO_MANY_ARCHIVES')
+        inspected += len(subs)
+        if inspected > MAX_CAPTURE_DIRS_TOTAL:
+            raise Abstain('TOO_MANY_ARCHIVES')
+        for sub in subs:
+            mf = sub / 'manifest-PRIVATE.json'
+            if not _regular(mf):
+                continue
+            try:
+                if mf.stat().st_size > 65536:
+                    continue
+                content = json.loads(mf.read_text(encoding='utf-8-sig'))
+                # Do not consider a legacy or malformed manifest to be a
+                # qualifying capture cohort. All 14 bank SHA checks happen
+                # only after this unique metadata-only discovery step.
+                _manifest_descriptor(content)
+            except (Abstain, UnicodeError, ValueError, OSError):
+                continue
+            archives.append((sub, label))
+            if len(archives) > 1:
+                raise Abstain('AMBIGUOUS_ARCHIVE')
+    # No ambiguous or silently selected evidence cohorts.
+    if len(archives) != 1:
+        raise Abstain('NO_CANONICAL_ARCHIVE' if not archives else 'AMBIGUOUS_ARCHIVE')
+    return tuple(archives)
+
+
+def _sha(path: pathlib.Path) -> str:
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        for block in iter(lambda: stream.read(1 << 20), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _validate_banks(archive: pathlib.Path) -> tuple[tuple[int, int, pathlib.Path, str], ...]:
+    mf = archive / 'manifest-PRIVATE.json'
+    if not _regular(mf) or mf.stat().st_size > 65536:
+        raise Abstain('MANIFEST_FILE')
+    try:
+        entries = _manifest_descriptor(json.loads(mf.read_text(encoding='utf-8-sig')))
+    except (ValueError, UnicodeError, OSError):
+        raise Abstain('MANIFEST_FILE') from None
+    banks = []
+    for phase, size, name, expected in entries:
+        path = archive / name
+        if not _regular(path, size):
+            raise Abstain('BANK_MISSING_OR_SIZE')
+        if _sha(path) != expected:
+            raise Abstain('ORIGINAL_SHA_MISMATCH')
+        banks.append((phase, size, path, expected))
+    # MEM1 captures should reflect the Rev1 game header, not merely length.
+    for phase, _size, path, _expected in banks:
+        if path.name != f'{phase}.1.raw':
+            continue
+        with path.open('rb') as stream:
+            head = stream.read(8)
+        if len(head) != 8 or head[:6] != b'RSPE01' or head[7] != 1:
+            raise Abstain('REV1_HEADER')
+    return tuple(banks)
+
+
+def _read_windows(mem1: pathlib.Path, windows=SOURCE_WINDOWS) -> dict[tuple[int, int], bytes]:
+    result = {}
+    with mem1.open('rb') as fh:
+        for begin, end in windows:
+            if not (MEM1_BASE <= begin < end <= MEM1_BASE + MEM1_SIZE and
+                    begin % 4 == 0 and end % 4 == 0):
+                raise Abstain('SOURCE_BOUNDS')
+            fh.seek(begin - MEM1_BASE)
+            data = fh.read(end - begin)
+            if len(data) != end - begin or not any(data):
+                raise Abstain('SOURCE_WINDOW_MISSING')
+            result[begin, end] = data
+    return result
+
+
+def _word(windows: dict[tuple[int, int], bytes], pc: int) -> int:
+    for (lo, hi), data in windows.items():
+        if lo <= pc < hi - 3:
+            return struct.unpack_from('>I', data, pc-lo)[0]
+    raise Abstain('SOURCE_PC_UNMAPPED')
+
+
+def _branch(pc: int, value: int) -> int | None:
+    if (value >> 26) != 18 or (value & 1) == 0:
+        return None
+    disp = value & 0x03fffffc
+    if disp & 0x02000000:
+        disp -= 0x04000000
+    return (disp if value & 2 else pc + disp) & 0xffffffff
+
+
+def _source_gates(read) -> dict:
+    calls = {
+        0x802A3D6C: 0x8002F7E8,  # NW4R FLog first
+        0x802A3D90: 0x8002F7E8,  # NW4R FLog second
+        0x802A3DA8: 0x8002F75C,  # NW4R FExp
+        0x802B2ECC: 0x8002F898,  # NW4R SinFIdx
+    }
+    if any(_branch(pc, read(pc)) != target for pc, target in calls.items()):
+        raise Abstain('NATIVE_CALL_GATE')
+    end = read(0x802A3DE0)
+    if (end >> 26) != 19 or (end >> 1) & 0x3ff != 16:
+        raise Abstain('NATIVE_HELPER_RETURN_GATE')
+    for pc, offset in ((0x802B2ED4, 0x1b4), (0x802B2EF4, 0x1b0)):
+        w = read(pc)
+        if ((w >> 26) != 52 or (w & 0xffff) != offset
+                or ((w >> 16) & 31) != 31):
+            raise Abstain('NATIVE_RESULT_STORE_GATE')
+    first, last = SOURCE_WINDOWS[1]
+    helper_calls = [pc for pc in range(first, last, 4)
+                    if _branch(pc, read(pc)) == 0x802A3CF4]
+    if helper_calls != [0x802B2E54, 0x802B2EE0]:
+        raise Abstain('NATIVE_NONLINEAR_CALL_GATE')
+    return {'f_log_direct_calls': 2, 'f_exp_direct_calls': 1,
+            'sin_fidx_call_gated': True,
+            'nonlinear_helper_call_pcs': [f'0x{pc:08X}' for pc in helper_calls],
+            'derived_scalar_stores_gated': ['+0x1B4', '+0x1B0']}
+
+
+def _lexical_consumers(windows: dict[tuple[int, int], bytes]) -> dict:
+    """Opcode-only field census; no object-base reaching definition.
+
+    PPC D-form lfs/stfs use signed16 offsets. Gekko paired-single
+    psq_l/psq_lu/psq_st/psq_stu use DQ-form signed12 offsets; W/I
+    quantization fields are not part of the displacement. Indexed
+    paired-single accesses cannot be attributed by immediate offset.
+    """
+    lo, hi = SOURCE_WINDOWS[2]
+    data = windows[lo, hi]
+    result = {}
+    for offset in (0x1b0, 0x1b4, 0x1b8):
+        scalar, paired = [], []
+        for ix in range(0, len(data), 4):
+            word = struct.unpack_from('>I', data, ix)[0]
+            opcode = word >> 26
+            if opcode in (48, 52):
+                d = word & 0xffff
+                d = d - 0x10000 if d & 0x8000 else d
+                if d == offset:
+                    scalar.append((lo + ix, 'lfs' if opcode == 48 else 'stfs'))
+            elif opcode in (56, 57, 60, 61):
+                d = word & 0xfff
+                d = d - 0x1000 if d & 0x800 else d
+                if d == offset:
+                    paired.append((lo + ix, {
+                        56: 'psq_l', 57: 'psq_lu',
+                        60: 'psq_st', 61: 'psq_stu',
+                    }[opcode]))
+        result[f'+0x{offset:03X}'] = {
+            'lexical_dform_count': len(scalar),
+            'lexical_paired_single_dq_count': len(paired),
+            'sample_pc_operation': [f'0x{pc:08X}:{op}' for pc, op in scalar[:6]],
+            'sample_paired_single_pc_operation': [
+                f'0x{pc:08X}:{op}' for pc, op in paired[:6]
+            ],
+            'indexed_pair_accesses_unresolved': True,
+            'receiver_proven': False,
+        }
+    return result
+
+
+def _field_opcode_registers(windows: dict[tuple[int, int], bytes]) -> dict:
+    """Bounded lexical source-PC/GPR/FPR census, NOT a reaching-def proof.
+
+    D-form signed16: lfs, lfsu, stfs, stfsu.
+    Gekko DQ-form signed12: psq_l, psq_lu, psq_st, psq_stu.
+    Indexed operands, wider loads and aliases remain unresolved. Read only
+    original source windows after canonical 14-bank SHA validation.
+    """
+    lo, hi = SOURCE_WINDOWS[2]
+    data = windows[lo, hi]
+    if len(data) != hi - lo or len(data) % 4:
+        raise Abstain('FIELD_WINDOW_BOUNDS')
+    ops = {48:'lfs',49:'lfsu',52:'stfs',53:'stfsu',
+           56:'psq_l',57:'psq_lu',60:'psq_st',61:'psq_stu'}
+    records = []
+    for offset in range(0, len(data), 4):
+        word = struct.unpack_from('>I', data, offset)[0]
+        opcode = word >> 26
+        if opcode not in ops:
+            continue
+        disp_bits = 12 if opcode in (56,57,60,61) else 16
+        mask = (1 << disp_bits) - 1
+        displacement = word & mask
+        if displacement & (1 << (disp_bits-1)):
+            displacement -= (1 << disp_bits)
+        if displacement not in (0x1b0, 0x1b4, 0x1b8):
+            continue
+        # Source PC, signed lexical offset, mnemonic, base-GPR and FPR only.
+        # No RAM contents, original instruction words or heap addresses.
+        records.append([f'0x{lo + offset:08X}',f'{displacement:03X}',
+                        ops[opcode],(word >> 16)&31,(word >> 21)&31])
+        if len(records) > 40:
+            raise Abstain('FIELD_LEXICAL_COUNT_CAP')
+    counts = {f'{n:03X}':sum(row[1] == f'{n:03X}' for row in records)
+              for n in (0x1b0,0x1b4,0x1b8)}
+    return {'row_schema':['pc','field_offset_hex','opcode','base_gpr','fpr'],
+            'rows':records,
+            'counts_by_field':counts,
+            'receiver_alias_proven':False,
+            'same_shot_selected_ball_consumer_proven':False,
+            'indexed_accesses_not_classified':True}
+
+
+
+def _triple_store_provenance(windows: dict[tuple[int, int], bytes]) -> dict:
+    """PPC source prefix and same-unit direct callers for three-field store.
+
+    Do not infer caller ordering, incoming f1 value or r3 receiver alias.
+    Function boundaries are published RSPE01 Rev1 symbols, not runtime trace.
+    """
+    entry, end, first_write = 0x802B499C, 0x802B4A14, 0x802B49C0
+    stores = ((0x802B49C0, 0x1b0),
+              (0x802B49C4, 0x1b4),
+              (0x802B49C8, 0x1b8))
+    for pc, off in stores:
+        word = _word(windows, pc)
+        if ((word >> 26) != 52 or ((word >> 21) & 31) != 1
+                or ((word >> 16) & 31) != 3
+                or (word & 0xffff) != off):
+            raise Abstain('TRIPLE_STORE_OPCODE_GATE')
+    if not (entry < first_write < end and (first_write-entry)//4 <= 12):
+        raise Abstain('TRIPLE_STORE_PUBLIC_FUNCTION_BOUNDS')
+    prefix = []
+    f1_candidate_defs = []
+    for pc in range(entry, first_write, 4):
+        word = _word(windows, pc)
+        op = word >> 26
+        dst, base = (word >> 21) & 31, (word >> 16) & 31
+        if op in (48, 49, 52, 53, 56, 57, 60, 61):
+            form = 'dq' if op in (56,57,60,61) else 'd'
+            dispmask = 0xfff if form == 'dq' else 0xffff
+            displacement = word & dispmask
+            if displacement & ((dispmask+1) >> 1):
+                displacement -= dispmask+1
+            mnemonic = {48:'lfs',49:'lfsu',52:'stfs',53:'stfsu',
+                        56:'psq_l',57:'psq_lu',60:'psq_st',
+                        61:'psq_stu'}[op]
+            prefix.append([f'0x{pc:08X}',mnemonic,dst,base,displacement])
+            if op in (48,49,56,57) and dst == 1:
+                f1_candidate_defs.append(f'0x{pc:08X}')
+        elif op == 63:
+            # FP major opcode: xo + target FPR only. Some instructions
+            # (e.g. comparisons) do not define a destination; avoid claims.
+            prefix.append([f'0x{pc:08X}','fp63',dst,(word >> 1)&0x3ff])
+            if dst == 1:
+                f1_candidate_defs.append(f'0x{pc:08X}')
+        elif op == 18:
+            prefix.append([f'0x{pc:08X}','bl_or_b',_branch(pc,word)])
+        else:
+            # Unknown opcode class, without native word or incidental bytes.
+            prefix.append([f'0x{pc:08X}',f'op{op}',dst,base])
+    lo, hi = SOURCE_WINDOWS[2]
+    source = windows[lo,hi]
+    callers = []
+    for idx in range(0,len(source),4):
+        pc = lo+idx
+        word = struct.unpack_from('>I',source,idx)[0]
+        if _branch(pc,word) == entry:
+            callers.append(f'0x{pc:08X}')
+            if len(callers)>12:
+                raise Abstain('TRIPLE_STORE_CALLER_COUNT_CAP')
+    return {'public_symbol':'fn_802B499C',
+            'public_interval':['0x802B499C','0x802B4A14'],
+            'validated_three_stfs_same_f1_r3':True,
+            'prior_prefix_opcode_operands':prefix,
+            'f1_internal_def_candidates_lexical_only':f1_candidate_defs,
+            'same_scene_direct_bl_callers':callers,
+            'external_or_indirect_callers_unresolved':True,
+            'f1_numeric_value_proven':False,
+            'r3_receiver_alias_proven':False}
+
+
+
+def _triple_sda2_constants(views: list[dict[tuple[int,int],bytes]],
+                           scene_sda2: list[bytes]) -> dict:
+    """Read two source-anchored .sdata2 floats, never raw words or addresses.
+
+    The anchor is the existing original-SHA-verified unique 0.992f scene
+    literal with published r2 displacement. It is NOT a guessed r2 pointer.
+    """
+    lo, hi = SDA2_GOLF_SCENE
+    if (len(views) != 3 or len(scene_sda2) != 3 or
+            any(len(b) != hi-lo for b in scene_sda2)):
+        raise Abstain('SDA2_SOURCE_WINDOW')
+    if not (scene_sda2[0] == scene_sda2[1] == scene_sda2[2]):
+        raise Abstain('SDA2_SOURCE_PHASES_DISAGREE')
+    for view in views:
+        for pc, fpr, disp in ((0x802B499C, 1, SDA2_F1_DISP),
+                              (0x802B49A4, 0, SDA2_F0_DISP)):
+            word = _word(view,pc)
+            displacement = word & 0xffff
+            if displacement & 0x8000:
+                displacement -= 0x10000
+            if (word >> 26 != 48 or (word >> 21) & 31 != fpr
+                    or (word >> 16) & 31 != 2
+                    or displacement != disp):
+                raise Abstain('SDA2_LFS_SOURCE_GATE')
+        _triple_store_provenance(view)  # verify all 3 immediate stfs f1/r3
+    anchor = struct.pack('>f',0.992)
+    original = scene_sda2[0]
+    matches = [lo+i for i in range(0,len(original)-3,4)
+               if original[i:i+4] == anchor]
+    if len(matches) != 1:
+        raise Abstain('SDA2_ANCHOR_NOT_UNIQUE')
+    r2 = matches[0] - SDA2_R2_ANCHOR_DISP
+    f1_addr, f0_addr = r2 + SDA2_F1_DISP, r2 + SDA2_F0_DISP
+    if not (lo <= f1_addr < f0_addr and f0_addr+4 <= hi):
+        raise Abstain('SDA2_CONSTANT_OUTSIDE_SCENE')
+    f1 = struct.unpack_from('>f',original,f1_addr-lo)[0]
+    f0 = struct.unpack_from('>f',original,f0_addr-lo)[0]
+    if not (-float('inf') < f1 < float('inf') and
+            -float('inf') < f0 < float('inf')):
+        raise Abstain('SDA2_NONFINITE_FLOAT')
+    return {'sda2_source_owner':'RPGolScene_unsplit.o',
+            'unique_0p992_anchor_and_r2_binding_verified':True,
+            'two_lfs_source_gates_verified':True,
+            'source_sda2_phases_1_5_7_identical':True,
+            'triple_field_common_f1_f32':f1,
+            'adjacent_f0_f32':f0,
+            'triple_field_value_is_zero':f1 == 0.0,
+            'function_runtime_execution_verified':False,
+            'selected_ball_same_receiver_verified':False}
+
+
+def _source_owners() -> bool:
+    scripts_root = str(pathlib.Path(__file__).resolve().parent)
+    if scripts_root not in sys.path:
+        sys.path.insert(0, scripts_root)
+    import audit_ball_xyz_source_callers_private as source
+    intervals = source.load_public_text_units()
+    expected = ((0x802A3CF4, 'RPGolMathTrig.cpp'),
+                (0x802B2ECC, 'RPGolScene_unsplit.o'),
+                (0x8002F898, 'math_triangular.cpp'))
+    return all(any(lo <= pc < hi and suffix in name for lo, hi, name in intervals)
+               for pc, suffix in expected)
+
+
+def study(stage: str, checkout: pathlib.Path) -> dict:
+    if not _source_owners():
+        raise Abstain('PUBLIC_REV1_UNIT_MAP')
+    ((archive, topology),) = _find_candidates(checkout)
+    banks = _validate_banks(archive)
+    report = {'status':'PREFLIGHT_PASS', 'stage':stage,
+              'archive_topology':topology,
+              'original_bank_sha_verified':len(banks),
+              'public_rev1_unit_source_verified':True,
+              'training_approved':False, 'allowed_to_publish':False}
+    if stage in ('nonlinear', 'field-registers', 'triple-store', 'triple-constants'):
+        phase_files = {p:path for p,size,path,sha in banks if size == MEM1_SIZE}
+        views = [_read_windows(phase_files[p]) for p in (1,5,7)]
+        if views[0] != views[1] or views[1] != views[2]:
+            raise Abstain('PHASE_SOURCE_NOT_IDENTICAL')
+        report['phase_1_5_7_source_windows_identical'] = True
+        report['native_gate_summary'] = _source_gates(lambda pc:_word(views[0],pc))
+        if stage == 'nonlinear':
+            report['lexical_calc_offset_census'] = _lexical_consumers(views[0])
+            report['status'] = 'NONLINEAR_SOURCE_PASS'
+        elif stage == 'field-registers':
+            report['field_opcode_registers'] = _field_opcode_registers(views[0])
+            report['status'] = 'FIELD_REGISTER_CENSUS_PASS'
+            # A complete machine-readable receipt must fit the installed
+            # LocalOps stdout budget; never publish a silently clipped report.
+            if len(json.dumps(report,separators=(',',':'))) > 1900:
+                raise Abstain('FIELD_RECEIPT_BUDGET')
+        elif stage == 'triple-store':
+            report['triple_store'] = _triple_store_provenance(views[0])
+            report['status'] = 'TRIPLE_STORE_SOURCE_PASS'
+            if len(json.dumps(report,separators=(',',':'))) > 1900:
+                raise Abstain('TRIPLE_STORE_RECEIPT_BUDGET')
+        else:
+            scene_data = [_read_windows(phase_files[p],
+                          windows=(SDA2_GOLF_SCENE,))[SDA2_GOLF_SCENE]
+                          for p in (1,5,7)]
+            report['triple_sda2'] = _triple_sda2_constants(views,scene_data)
+            report['status'] = 'TRIPLE_CONSTANTS_SOURCE_PASS'
+            if len(json.dumps(report,separators=(',',':'))) > 1700:
+                raise Abstain('TRIPLE_CONSTANTS_RECEIPT_BUDGET')
+        report['same_shot_native_ball_consumer_verified'] = False
+        report['lexical_matches_are_receiver_proof'] = False
+    # Independently recheck original 14 SHA values after all reads.
+    second = _validate_banks(archive)
+    if len(second) != 14 or tuple(x[3] for x in second) != tuple(x[3] for x in banks):
+        raise Abstain('POST_SOURCE_SHA_GATE')
+    report['original_sha_post_verified'] = True
+    return report
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--stage', required=True, choices=('preflight','nonlinear','field-registers','triple-store','triple-constants'))
+    args = parser.parse_args(argv)
+    try:
+        result = study(args.stage, pathlib.Path(__file__).resolve().parents[1])
+    except (Abstain, OSError, ValueError, KeyError, TypeError,
+            UnicodeError, struct.error) as exc:
+        code = exc.code if type(exc) is Abstain else 'UNQUALIFIED_PRIVATE_SOURCE'
+        result = {'status':'ABSTAIN', 'stage':args.stage,'reason_code':code,
+                  'training_approved':False, 'allowed_to_publish':False}
+    print(json.dumps(result, sort_keys=True, separators=(',',':')))
+    return 0 if result['status'] != 'ABSTAIN' else 2
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
