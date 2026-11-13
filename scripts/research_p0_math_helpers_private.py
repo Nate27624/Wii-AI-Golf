@@ -105,10 +105,10 @@ def signed16(value: int) -> int:
 
 
 def classify_native_constant(name: str, words: list[int]) -> float | str:
-    """Preserve phase-identical f32 words; allow only a negative-log infinity.
+    """Preserve phase-identical native f32 words and classify IEEE specials.
 
-    Source-derived constants are returned as scalars, never as raw native
-    words. IEEE special values are categorized by fixed safe labels.
+    Source-derived constants are returned as scalars or fixed IEEE class
+    labels, never as raw native words, addresses, or unquoted NaN JSON.
     """
     import math
     import struct
@@ -119,12 +119,13 @@ def classify_native_constant(name: str, words: list[int]) -> float | str:
     if words[0] != words[1] or words[0] != words[2]:
         raise Abstain("ORIGINAL_CONSTANT_PHASE_MISMATCH")
     value = struct.unpack(">f", words[0].to_bytes(4, "big"))[0]
+    # IEEE-754 specials are valid *source data*. Emit fixed categories,
+    # never Python JSON NaN/Infinity numeric tokens or private raw words.
+    # Their *math meaning* and reachability remain unresolved.
     if math.isnan(value):
-        raise Abstain("NAN_NATIVE_CONSTANT")
+        return "F32_NAN"
     if math.isinf(value):
-        if name == "log_fallback" and value < 0:
-            return "-Infinity"
-        raise Abstain("UNEXPECTED_INFINITY_CONSTANT")
+        return "F32_NEG_INF" if value < 0 else "F32_POS_INF"
     return value
 
 
