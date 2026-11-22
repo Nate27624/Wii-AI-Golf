@@ -124,6 +124,8 @@ def _roots(a: float, b: float, c: float) -> list[float]:
         raise ValueError("unresolvable quadratic discriminant")
     if disc < 0:
         return []
+    if disc == 0:
+        return [-b/(2*a)]
     root = sqrt(disc)
     q = -0.5*(b + copysign(root, b))
     if q == 0:
