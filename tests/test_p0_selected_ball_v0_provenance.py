@@ -310,3 +310,51 @@ class SourceHandoffControls(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_unknown_state3_cannot_be_silently_treated_as_late_copy(self):
+        row = audit.symbolic_handoff(
+            state3=None, flag1=True, intermediate_returns=True,
+            incoming_is_selected=True)
+        self.assertNotIn("candidate_copy_incoming_to_global", row["steps"])
+        self.assertIn("later_copy_reachability_unproven", row["steps"])
+        self.assertEqual(row["scalar_0x8c_input"], "not_proven")
+        self.assertFalse(row["selected_ball_v0_verified"])
+
+    def test_first_post_step_trace_is_not_unique_launch_v0(self):
+        # Synthetic host-f32 identifiability counterexample; no native receiver,
+        # actual first-frame, force law or launch speed is inferred.
+        import struct
+
+        def f32(value):
+            return struct.unpack(">f", struct.pack(">f", float(value)))[0]
+
+        d = f32(0.999000013)
+
+        def step(position, velocity, acceleration):
+            u = tuple(f32(f32(velocity[i]) + f32(acceleration[i]))
+                      for i in range(3))
+            next_position = tuple(f32(f32(position[i]) + u[i])
+                                  for i in range(3))
+            next_velocity = tuple(f32(d * u[i]) for i in range(3))
+            return next_position, next_velocity
+
+        initial_position = (1.0, 2.0, 3.0)
+        # Both produce exactly equal first updated velocity and position
+        # despite different pre-force v0 and compensating unknown first force.
+        v0_a = (0.25, 0.125, 0.0625)
+        first_force_a = (0.0, -0.0078125, 0.0)
+        v0_b = (0.265625, 0.1171875, 0.06640625)
+        first_force_b = (-0.015625, 0.0, -0.00390625)
+        self.assertNotEqual(v0_a, v0_b)
+        state_a = step(initial_position, v0_a, first_force_a)
+        state_b = step(initial_position, v0_b, first_force_b)
+        self.assertEqual(state_a, state_b)
+
+        shared_later_force = (0.0, -0.00390625, 0.0)
+        for _ in range(50):
+            state_a = step(*state_a, shared_later_force)
+            state_b = step(*state_b, shared_later_force)
+            self.assertEqual(state_a, state_b)
+        self.assertFalse(audit.symbolic_handoff(
+            state3=True, flag1=True, intermediate_returns=True,
+            incoming_is_selected=True)["selected_ball_v0_verified"])
