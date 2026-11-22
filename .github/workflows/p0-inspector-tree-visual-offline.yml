@@ -1,0 +1,74 @@
+name: P0 Inspector Tree Visual Layer — Offline
+
+on:
+  push:
+    branches:
+      - agent/issue-431-inspector-tree-visual-layer-20261110
+  pull_request:
+    paths:
+      - 'src/wii_ai_golf/inspector/tree_positions.py'
+      - 'src/wii_ai_golf/inspector/tree_render.py'
+      - 'src/wii_ai_golf/inspector/asset_preferences.py'
+      - 'src/wii_ai_golf/inspector/gui.py'
+      - 'tests/test_p0_memory_inspector_tree_*.py'
+      - 'tests/test_p0_memory_inspector_asset_preferences.py'
+      - 'tests/test_p0_inspector_tree_unified.py'
+      - 'tests/test_p0_inspector_visual_fallback_regression.py'
+      - 'scripts/diagnose_inspector_visual_loading.py'
+      - 'src/wii_ai_golf/inspector/asset_preferences.py'
+      - 'src/wii_ai_golf/inspector/gui.py'
+      - 'tests/test_p0_inspector_source_alignment_audit.py'
+      - 'src/wii_ai_golf/inspector/scene_alignment_audit.py'
+      - 'scripts/p0_inspect_course_alignment_private.py'
+      - 'src/wii_ai_golf/inspector/unified_source_view.py'
+      - 'src/wii_ai_golf/inspector/textured_preview.py'
+      - '.github/workflows/p0-inspector-tree-visual-offline.yml'
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install inspector optional visual dependencies
+        run: python -m pip install -e ".[visual]"
+      - name: Focused private tree source loader and 3D illustrations
+        run: python -m unittest discover -s tests -p "test_p0_memory_inspector_tree_*.py" -v
+      - name: Focused private asset preference restoration and safety
+        run: python -m unittest discover -s tests -p test_p0_memory_inspector_asset_preferences.py -v
+      - name: Validate private source bootstrap PowerShell parses (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path (Get-Location) 'scripts/bootstrap_inspector_private_trees.ps1'),
+            [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -ne 0) { throw "Tree bootstrap PowerShell has parse errors: $errors" }
+      - name: Synthetic private JSON move outside Git checkout (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & .\scripts\bootstrap_inspector_private_trees.ps1 -SelfTest
+      - name: Unified original UV/KCL + source-94 tree overlay
+        run: python -m unittest discover -s tests -p test_p0_inspector_tree_unified.py -v
+      - name: Source DAE scene-graph + read-only tee/pin alignment audit tests
+        run: python -m unittest discover -s tests -p test_p0_inspector_source_alignment_audit.py -v
+      - name: Original visual auto-load, fallback and continuous navigation regressions
+        run: python -m unittest discover -s tests -p test_p0_inspector_visual_fallback_regression.py -v
+      - name: Source material scale calibration with independent holdout
+        run: python -m unittest discover -s tests -p test_p0_inspector_material_alignment.py -v
+      - name: Original Collada bind-shape scale read-only audit tests
+        run: python -m unittest discover -s tests -p test_p0_inspector_controller_scale_audit.py -v
+      - name: Source KCL-only mode, separate camera and visible Both failure regressions
+        run: python -m unittest discover -s tests -p test_p0_inspector_source_only_collision_modes.py -v
+      - name: Full offline regression
+        run: python -m unittest discover -s tests -v

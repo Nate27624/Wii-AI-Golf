@@ -1,122 +1,746 @@
-"""Optional separate Tk scene preview for original user-extracted UV visual models.
+"""Tk source-UV viewport, embedded in the inspector or a standalone window.
 
-A second window avoids running texture rasterization on each live Felk read.
-It does NOT alter the native game, source-aligned KCL, or main inspector plot.
+Expensive full-source CPU raster runs on ONE cancellable worker. Tk widgets
+and PhotoImage are exclusively updated on the main UI thread. Source models,
+game memory, original collision OBJ and PNGs are NEVER modified.
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
+import time
 import tkinter as tk
 from tkinter import ttk
 
-from .navigation import pan_by, wheel_steps, zoom_at_cursor
-from .texture_render import prepare_textures, render_preview
+from .navigation import wheel_steps
+from .scene_camera import (
+    fit_camera, frame_playable_camera, look_in_place, orbit, pan, dolly,
+    move_continuous)
+from .unified_source_view import (
+    prepare_comparison_kcl, prepare_source_only_kcl, draw_comparison,
+    draw_tree_comparison, overlay_summary)
+from .material_alignment import (
+    derive_material_alignment, MaterialAlignmentError)
+from .texture_render import PreviewCancelled, prepare_textures, render_preview
+from .texture_sampling import build_rgba_mips
+from .fast_texture_render import (
+    accelerated_available, prepare_fast_scene, render_fast)
 from .visual_model import PrivateVisualModel, VisualAssetError
 
 
 class TexturedPreviewWindow:
-    def __init__(self, parent: tk.Misc, model: PrivateVisualModel):
-        # Decode/verify before creating a window so failures are handled by
-        # the inspector's existing error dialog and do not leave blank UI.
+    def __init__(self, parent: tk.Misc, model: PrivateVisualModel,
+                 *, embedded: bool = False):
+        # Confirm source-bound PNG bytes before creating the viewport.
         self.textures = prepare_textures(model)
         self.model = model
-        self.top = tk.Toplevel(parent)
-        self.top.title("Wii Golf · PRIVATE game visual model / UV texture preview")
-        self.top.geometry("1040x720")
-        self.top.minsize(480,360)
-        self.zoom = 1.0
-        self.pan = (0., 0.)
-        self.yaw, self.pitch = 0.65, 0.48
-        self.drag_origin: tuple[int,int] | None = None
+        # Original texture PNG admission is unchanged. Pack source triangles
+        # and texels once; compiled C-level rendering then reuses this data.
+        self.fast_scene = (prepare_fast_scene(model, self.textures)
+                           if accelerated_available() else None)
+        self.fast_active = self.fast_scene is not None
+        # Generated once in memory; preview mips are NOT original Wii TEX0 banks.
+        self.texture_mips = (
+            None if self.fast_active else
+            {name:build_rgba_mips(arr) for name,arr in self.textures.items()})
+        self.embedded = embedded
+        self.top = ttk.Frame(parent) if embedded else tk.Toplevel(parent)
+        if embedded:
+            self.top.pack(fill="both", expand=True)
+        else:
+            self.top.title("Wii Golf · PRIVATE source visual model")
+            self.top.geometry("1040x720")
+            self.top.minsize(480, 360)
+
+        self.full_camera = fit_camera(model.vertices)
+        self.home_camera = frame_playable_camera(model)
+        self.camera = self.home_camera
+        self.comparison_kcl = None
+        self.source_collision_kcl = None
+        self._source_terrain = None
+        self._visual_camera_before_collision = None
+        self._collision_camera = None
+        self._overlay_decline_reason = None
+        # Source-authored Collada scene node matrices are now applied. No extra
+        # guessed yaw is authoritative; rotations remain visual trials.
+        self.display_rotation = tk.IntVar(value=0)
+        self.tree_overlay = ()
+        self.tree_overlay_visible = True
+        self.tree_illustrations = True
+        self.tree_labels = False
+        self.mode = tk.StringVar(value="Textures")
+        # A manual bounding-box x-ray is possible for inspection only,
+        # NEVER the automatic behavior when source registration fails.
+        self.manual_overlay_trial = tk.BooleanVar(value=False)
+        self.filtered_texture = tk.BooleanVar(value=True)
+        self.comparison_status = tk.StringVar(
+            value="KCL: none loaded · texture source coordinates unverified.")
+        self.drag_origin: tuple[int, int] | None = None
         self.drag_button: int | None = None
+        # Held-key state drives monotonic-time camera motion at ~60Hz.
+        # OS keyboard repeat events do NOT determine motion speed.
+        self._held_keys: set[str] = set()
+        self._pending_key_releases: dict[str, str] = {}
+        self._nav_timer = None
+        self._last_nav_tick = 0.0
+        self._last_nav_render = 0.0
+        self._shift_held = False
         self.image_ref = None
         self._pending = None
-        head = ttk.Frame(self.top,padding=8)
+        self._poll_id = None
+        self._closed = False
+        self._request_version = 0
+        self._queued = None
+        self._render_future = None
+        self._cancel_render = None
+        self._executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="WiiGolfPrivateUV")
+
+        head = ttk.Frame(self.top, padding=(6, 4))
         head.pack(fill="x")
-        ttk.Label(head,text=f"PRIVATE visual mesh: {model.source_name} · {len(model.faces):,} UV triangles · {len(model.textures)} PNG texture(s)",font=("Segoe UI",12,"bold")).pack(anchor="w")
-        ttk.Label(head,text="Original-file preview only · NOT KCL collision/physics · Wii lighting/shaders & model-to-world transform UNVERIFIED",wraplength=990).pack(anchor="w")
-        controls=ttk.Frame(self.top,padding=(8,2))
+        ttk.Label(
+            head,
+            text=f"Source visual: {model.source_name} · "
+                 f"{len(model.faces):,} triangles · {len(model.textures)} original PNGs",
+            font=("Segoe UI", 10, "bold"),
+        ).pack(anchor="w")
+        scene_warning = getattr(model, "source_scene_warning", None)
+        if scene_warning:
+            ttk.Label(
+                head, text=scene_warning,
+                foreground="#c84820", wraplength=820,
+            ).pack(anchor="w")
+        else:
+            ttk.Label(
+                head,
+                text="Collada-authored scene transforms applied where supported; "
+                     "KCL/tee/pin native mapping UNVERIFIED · shaders approximate",
+                wraplength=820,
+            ).pack(anchor="w")
+        if model.skipped_source_faces:
+            ttk.Label(
+                head,
+                text=f"{model.skipped_source_faces:,} source faces omitted: "
+                     "untextured effect lacks original diffuse appearance.",
+                wraplength=820,
+            ).pack(anchor="w")
+
+        controls = ttk.Frame(self.top, padding=(6, 3))
         controls.pack(fill="x")
-        ttk.Button(controls,text="Frame visual model (F)",command=self.frame).pack(side="left")
-        ttk.Label(controls,text="Scroll: cursor zoom · Middle drag: pan · Left/right drag: orbit · F: frame",padding=(10,0)).pack(side="left")
-        self.canvas = tk.Canvas(self.top, background="#13202e",highlightthickness=0)
-        self.canvas.pack(fill="both",expand=True,padx=8,pady=8)
-        self.canvas.bind("<Configure>",lambda e:self.schedule())
-        for button in (1,2,3):
-            self.canvas.bind(f"<ButtonPress-{button}>",self.drag_start)
-            self.canvas.bind(f"<B{button}-Motion>",self.drag_move)
-            self.canvas.bind(f"<ButtonRelease-{button}>",self.drag_end)
-        self.canvas.bind("<MouseWheel>",self.wheel)
-        self.canvas.bind("<Button-4>",self.wheel)
-        self.canvas.bind("<Button-5>",self.wheel)
-        self.canvas.bind("<KeyPress-f>",self.frame)
-        self.canvas.bind("<KeyPress-F>",self.frame)
-        self.status = tk.StringVar(value="Preparing texture preview (no Dolphin/guest access)")
-        ttk.Label(self.top,textvariable=self.status,padding=(8,0)).pack(fill="x")
-        self.top.protocol("WM_DELETE_WINDOW",self.close)
+        ttk.Button(controls, text="Frame course (F)",
+                   command=self.frame).pack(side="left")
+        ttk.Button(controls, text="Frame whole scene (Shift+F)",
+                   command=self.frame_all).pack(side="left", padx=(3, 8))
+        for label in ("Textures", "Collision", "Both"):
+            ttk.Radiobutton(
+                controls, text=label, value=label, variable=self.mode,
+                command=self._mode_changed).pack(side="left", padx=(1, 3))
+        filter_controls = ttk.Frame(self.top, padding=(6, 2))
+        filter_controls.pack(fill="x")
+        ttk.Checkbutton(
+            filter_controls, text="Smooth grass/terrain textures (preview filtering)",
+            variable=self.filtered_texture, command=self.schedule,
+        ).pack(side="left")
+        ttk.Label(
+            filter_controls,
+            text="Mipmapped bilinear sampling · toggle off to inspect original TEX0 texels",
+        ).pack(side="left", padx=9)
+        orientation_controls = ttk.Frame(self.top, padding=(6, 2))
+        orientation_controls.pack(fill="x")
+        ttk.Label(
+            orientation_controls,
+            text="KCL + tree display yaw (UNVERIFIED):",
+        ).pack(side="left")
+        for angle in (0, 90, 180, 270):
+            ttk.Radiobutton(
+                orientation_controls, text=f"{angle}°", value=angle,
+                variable=self.display_rotation, command=self.set_display_rotation,
+            ).pack(side="left", padx=(4, 1))
+        ttk.Checkbutton(
+            orientation_controls,
+            text="Allow unverified x-ray trial (may be WRONG SIZE)",
+            variable=self.manual_overlay_trial,
+            command=self._toggle_manual_overlay,
+        ).pack(side="left", padx=8)
+        ttk.Label(
+            orientation_controls,
+            text=("INCOMPLETE SOURCE GRAPH: measured scale is required for automatic Both"
+                  if scene_warning else
+                  "DAE authored matrices applied · yaw is only a display trial"),
+        ).pack(side="left", padx=8)
+        ttk.Label(
+            controls,
+            text="RMB look · LMB orbit · MMB pan · arrows move forward/back/left/right · "
+                 "RMB+WASD/QE fly · wheel dolly · Shift faster",
+            wraplength=670,
+        ).pack(side="left", padx=8)
+
+        # These details MUST be visible when mode is unavailable. The old
+        # status label was BELOW the canvas and clipped by window height.
+        ttk.Label(
+            self.top, textvariable=self.comparison_status,
+            foreground="#c84820", wraplength=1000,
+            padding=(8, 2),
+        ).pack(fill="x")
+        self.canvas = tk.Canvas(self.top, background="#13202e",
+                                takefocus=1, highlightthickness=0, height=460)
+        self.canvas.pack(fill="both", expand=True, padx=6, pady=(2, 6))
+        self.canvas.bind("<Configure>", lambda event: self.schedule())
+        for button in (1, 2, 3):
+            self.canvas.bind(f"<ButtonPress-{button}>", self.drag_start)
+            self.canvas.bind(f"<B{button}-Motion>", self.drag_move)
+            self.canvas.bind(f"<ButtonRelease-{button}>", self.drag_end)
+        self.canvas.bind("<MouseWheel>", self.wheel)
+        self.canvas.bind("<Button-4>", self.wheel)
+        self.canvas.bind("<Button-5>", self.wheel)
+        self.canvas.bind("<KeyPress>", self.key_move)
+        self.canvas.bind("<KeyRelease>", self.key_release)
+        self.canvas.bind("<FocusOut>", self.focus_lost)
+
+        self.camera_status = tk.StringVar()
+        ttk.Label(self.top, textvariable=self.camera_status,
+                  wraplength=820, padding=(8, 1)).pack(fill="x")
+        self._update_camera_status()
+        self.status = tk.StringVar(
+            value=("Preparing compiled original UV renderer "
+                   "(first frame warms the JIT cache once)"
+                   if self.fast_active else
+                   "Slow fallback UV renderer: install Numba for fast navigation"))
+        ttk.Label(self.top, textvariable=self.status,
+                  padding=(8, 0)).pack(fill="x")
+        if not embedded:
+            self.top.protocol("WM_DELETE_WINDOW", self.close)
+        self._poll_id = self.top.after(
+            16 if self.fast_active else 40, self._poll_completed)
         self.schedule()
 
-    def schedule(self):
+    def schedule(self, *, navigation: bool = False):
+        """Request a frame: nav ticks coalesce without starving the renderer.
+
+        Holding keys may cause more pose updates than the CPU can render.
+        Don't cancel every in-flight native frame, or NONE will ever display.
+        """
+        if self._closed:
+            return
+        self._update_camera_status()
+        self._request_version += 1
+        if not navigation and self._cancel_render is not None:
+            self._cancel_render.set()
         if self._pending is not None:
-            try:self.top.after_cancel(self._pending)
-            except tk.TclError:pass
-        self._pending = self.top.after(70,self.draw)
+            try:
+                self.top.after_cancel(self._pending)
+            except tk.TclError:
+                pass
+        self._pending = self.top.after(
+            0 if navigation else (24 if self.fast_active else 85),
+            self._request_full_render)
+
+    def _update_camera_status(self):
+        cam = self.camera
+        self.camera_status.set(
+            f"Camera EYE (source local): X={cam.position[0]:.3f}, "
+            f"Y={cam.position[1]:.3f}, Z={cam.position[2]:.3f} "
+            f"· yaw={cam.yaw:.3f}, pitch={cam.pitch:.3f} "
+            "· RMB turn must NOT change eye X/Y/Z")
+
+    def _request_full_render(self):
+        self._pending = None
+        if self._closed:
+            return
+        width = min(1280, self.canvas.winfo_width())
+        height = min(800, self.canvas.winfo_height())
+        if width < 16 or height < 16:
+            return
+        # Interactive navigation moves the eye at 60Hz, independent of
+        # render throughput. Avoid full-resolution UV + mip filtering during
+        # motion (especially without Numba). Restore full resolution and
+        # smooth filtering immediately after release. Never stride-drop
+        # original model faces or alter native UVs/vertices.
+        interactive = (
+            getattr(self, "drag_button", None) is not None or
+            bool(getattr(self, "_held_keys", ())))
+        if interactive:
+            ratio = .68 if self.fast_active else .40
+            width = max(16, int(width * ratio))
+            height = max(16, int(height * ratio))
+        mode = self.mode.get() if hasattr(self, "mode") else "Textures"
+        kcl = (getattr(self, "source_collision_kcl", None)
+               if mode == "Collision" else
+               getattr(self, "comparison_kcl", None))
+        if mode == "Both" and kcl is None:
+            # Even a direct programmatic tk variable change may not create
+            # a misleading Both without source registration.
+            mode = "Textures"
+        self._queued = (self._request_version, width, height,
+                        self.camera, mode, kcl)
+        self._queued_tree_snapshot = (
+            getattr(self, "tree_overlay", ()),
+            getattr(self, "tree_overlay_visible", True),
+            getattr(self, "tree_illustrations", True),
+            getattr(self, "tree_labels", False))
+        filter_var = getattr(self, "filtered_texture", None)
+        self._queued_texture_filter = (
+            bool(filter_var.get()) if filter_var is not None else False
+        ) and not interactive
+        self.status.set(
+            f"Rendering all {len(self.model.faces):,} native UV triangles "
+            "(" + ("compiled CPU" if self.fast_active else "slow NumPy fallback") + ")")
+        self._start_latest()
+
+    def _start_latest(self):
+        if self._closed or self._render_future is not None or self._queued is None:
+            return
+        version, width, height, camera, mode, kcl = self._queued
+        tree_points, tree_visible, tree_illustrations, tree_labels = getattr(
+            self, "_queued_tree_snapshot", ((), True, True, False))
+        self._queued = None
+        self._queued_tree_snapshot = None
+        filtered = getattr(self, "_queued_texture_filter", False)
+        self._queued_texture_filter = None
+        cancel = Event()
+        self._cancel_render = cancel
+        future = self._executor.submit(
+            self._render_frame, width, height, camera, cancel.is_set,
+            mode, kcl, tree_points, tree_visible, tree_illustrations,
+            tree_labels, filtered)
+        self._render_future = (version, camera, future)
+
+    def _render_frame(self, width, height, camera, cancelled,
+                      mode="Textures", collision=None, tree_points=(),
+                       tree_visible=True, tree_illustrations=True,
+                       tree_labels=False, filtered=False):
+        """Worker-only: one source-local camera, no Tk operations or writes."""
+        if cancelled():
+            raise PreviewCancelled()
+        started = time.perf_counter()
+        if mode == "Collision" and collision is not None:
+            from PIL import Image
+            image, drawn = Image.new("RGB", (width, height), (19, 32, 46)), 0
+        elif self.fast_scene is not None:
+            image, drawn = render_fast(
+                self.fast_scene, width, height, camera, filtered=filtered)
+        else:
+            image, drawn = render_preview(
+                self.model, width, height, camera=camera,
+                textures=self.textures, cancelled=cancelled,
+                filtered=filtered, mipmaps=getattr(self,"texture_mips",None))
+        if cancelled():
+            raise PreviewCancelled()
+        if collision is not None and mode in {"Collision", "Both"}:
+            image = draw_comparison(image, collision, camera, mode=mode)
+            if tree_visible and tree_points:
+                image = draw_tree_comparison(
+                    image, collision, camera, tree_points,
+                    illustrations=tree_illustrations, labels=tree_labels)
+        if cancelled():
+            raise PreviewCancelled()
+        return image, drawn, (time.perf_counter()-started)*1000.
+
+    def _poll_completed(self):
+        if self._closed:
+            return
+        active = self._render_future
+        if active is not None and active[2].done():
+            version, camera, future = active
+            self._render_future = None
+            self._cancel_render = None
+            try:
+                image, drawn, render_ms = future.result()
+                if (version == self._request_version
+                        or bool(getattr(self, "_held_keys", ()))
+                        or getattr(self, "drag_button", None) is not None):
+                    # During continuous navigation, show completed poses even
+                    # if a newer one is queued. Otherwise slow rendering could
+                    # starve the visible canvas until the key is released.
+                    from PIL import ImageTk
+                    # Interactive half-resolution frames reduce raster cost.
+                    # Scale the presentation ONLY, never omit source triangles.
+                    target = (min(1280, self.canvas.winfo_width()),
+                              min(800, self.canvas.winfo_height()))
+                    if image.size != target and min(target) >= 16:
+                        from PIL import Image
+                        image = image.resize(target, Image.Resampling.BILINEAR)
+                    self.image_ref = ImageTk.PhotoImage(image, master=self.canvas)
+                    self.canvas.delete("all")
+                    self.canvas.create_image(0, 0, image=self.image_ref,
+                                             anchor="nw")
+                    engine = ("compiled CPU" if self.fast_active
+                              else "slow NumPy CPU")
+                    self.status.set(
+                        f"{drawn:,} visible / {len(self.model.faces):,} "
+                        f"source triangles · {render_ms:.0f} ms {engine} "
+                        "· one canvas · KCL registration display-only, UNVERIFIED")
+            except PreviewCancelled:
+                pass
+            except (VisualAssetError, OSError, ValueError,
+                    ImportError, RuntimeError) as exc:
+                if version == self._request_version:
+                    self.status.set(f"Source texture preview unavailable: {exc}")
+            if self._queued is not None:
+                self._start_latest()
+        if not self._closed:
+            self._poll_id = self.top.after(
+                16 if self.fast_active else 40, self._poll_completed)
 
     def draw(self):
-        self._pending = None
-        width=min(1280,self.canvas.winfo_width())
-        height=min(800,self.canvas.winfo_height())
-        if width<16 or height<16:
-            return
-        try:
-            from PIL import ImageTk
-            image,drawn=render_preview(self.model,width,height,yaw=self.yaw,pitch=self.pitch,
-                                       zoom=self.zoom,pan=self.pan,textures=self.textures)
-            self.image_ref=ImageTk.PhotoImage(image,master=self.canvas)
-            self.canvas.delete("all")
-            self.canvas.create_image(0,0,image=self.image_ref,anchor="nw")
-            self.status.set(f"{drawn:,} UV-textured faces shown (bounded 4,000 max) · {self.zoom:.2f}× zoom · visual/world alignment unverified")
-        except (VisualAssetError, OSError, ValueError, ImportError) as exc:
-            self.status.set(f"Textured visual preview unavailable: {exc}")
+        self.schedule()
 
-    def drag_start(self,event):
-        self.drag_origin=(event.x,event.y)
-        self.drag_button=getattr(event,"num",1)
+    def drag_start(self, event):
+        self.drag_origin = (event.x, event.y)
+        self.drag_button = getattr(event, "num", 1)
         self.canvas.focus_set()
 
-    def drag_move(self,event):
+    def drag_move(self, event):
         if self.drag_origin is None:
             return
-        dx,dy=event.x-self.drag_origin[0],event.y-self.drag_origin[1]
-        if self.drag_button==2:
-            self.pan=pan_by(self.pan,dx,dy)
+        dx = event.x - self.drag_origin[0]
+        dy = event.y - self.drag_origin[1]
+        if self.drag_button == 3:
+            self.camera = look_in_place(self.camera, dx, dy)
+        elif self.drag_button == 2:
+            self.camera = pan(self.camera, dx, dy,
+                              max(16, self.canvas.winfo_height()))
+        elif self.drag_button == 1:
+            self.camera = orbit(self.camera, dx, dy)
         else:
-            self.yaw += dx*0.01
-            self.pitch=max(-1.4,min(1.4,self.pitch+dy*.01))
-        self.drag_origin=(event.x,event.y)
-        self.schedule()
-
-    def drag_end(self,event):
-        if self.drag_button==getattr(event,"num",None):
-            self.drag_origin=None
-            self.drag_button=None
-
-    def wheel(self,event):
-        n=wheel_steps(getattr(event,"delta",None),getattr(event,"num",None))
-        if not n:
             return
-        viewport=(max(16,self.canvas.winfo_width()),max(16,self.canvas.winfo_height()))
-        self.zoom,self.pan=zoom_at_cursor(self.zoom,self.pan,(event.x,event.y),viewport,n)
-        self.canvas.focus_set()
+        self.drag_origin = (event.x, event.y)
+        # Mouse look/orbit must not discard every in-flight native frame.
+        # Display progressive completed poses while continuously dragging.
+        self.schedule(navigation=True)
+
+    def drag_end(self, event):
+        if self.drag_button == getattr(event, "num", None):
+            self.drag_origin = None
+            self.drag_button = None
+            # Fly keys are valid ONLY while RMB is held; arrows still work.
+            for key in ("w", "a", "s", "d", "q", "e"):
+                self._held_keys.discard(key)
+                handle = self._pending_key_releases.pop(key, None)
+                if handle is not None:
+                    try:
+                        self.top.after_cancel(handle)
+                    except tk.TclError:
+                        pass
+            if not self._held_keys and self._nav_timer is not None:
+                self._stop_navigation()
+            else:
+                self.schedule()
+
+    def wheel(self, event):
+        n = wheel_steps(getattr(event, "delta", None),
+                        getattr(event, "num", None))
+        if n:
+            self.camera = dolly(self.camera, n)
+            self.canvas.focus_set()
+            self.schedule()
+
+    def key_move(self, event):
+        """Start smooth navigation; key repeat must not cause discrete jumps."""
+        key = getattr(event, "keysym", "").lower()
+        shifted = bool(getattr(event, "state", 0) & 0x0001)
+        if key in {"shift_l", "shift_r"}:
+            self._shift_held = True
+            return None
+        if key == "f":
+            if shifted:
+                self.frame_all()
+            else:
+                self.frame()
+            return "break"
+        arrows = {"up", "down", "left", "right"}
+        fly = {"w", "a", "s", "d", "q", "e"}
+        if key not in arrows and not (key in fly and self.drag_button == 3):
+            return None
+        self._shift_held = shifted or self._shift_held
+        pending = self._pending_key_releases.pop(key, None)
+        if pending is not None:
+            try:
+                self.top.after_cancel(pending)
+            except tk.TclError:
+                pass
+        self._held_keys.add(key)
+        if self._nav_timer is None:
+            self._last_nav_tick = time.perf_counter()
+            self._last_nav_render = 0.
+            self._nav_timer = self.top.after(16, self._navigation_tick)
+        return "break"
+
+    def key_release(self, event):
+        """Debounce Windows/Linux auto-repeat KeyRelease/KeyPress pairs."""
+        key = getattr(event, "keysym", "").lower()
+        if key in {"shift_l", "shift_r"}:
+            self._shift_held = False
+            return None
+        if key not in self._held_keys:
+            return None
+        existing = self._pending_key_releases.pop(key, None)
+        if existing is not None:
+            try:
+                self.top.after_cancel(existing)
+            except tk.TclError:
+                pass
+        self._pending_key_releases[key] = self.top.after(
+            45, lambda held_key=key: self._finish_key_release(held_key))
+        return "break"
+
+    def _finish_key_release(self, key):
+        self._pending_key_releases.pop(key, None)
+        self._held_keys.discard(key)
+        if not self._held_keys:
+            self._stop_navigation()
+
+    def _navigation_tick(self):
+        """Apply time-proportional velocity even with NO key-repeat events."""
+        self._nav_timer = None
+        if self._closed or not self._held_keys:
+            return
+        now = time.perf_counter()
+        dt = max(0., min(.05, now - self._last_nav_tick))
+        self._last_nav_tick = now
+        previous = self.camera
+        self.camera = move_continuous(
+            self.camera, self._held_keys, dt,
+            right_mouse=self.drag_button == 3, fast=self._shift_held)
+        if self.camera != previous and now - self._last_nav_render >= .035:
+            self._last_nav_render = now
+            self.schedule(navigation=True)
+        self._nav_timer = self.top.after(16, self._navigation_tick)
+
+    def _stop_navigation(self):
+        if self._nav_timer is not None:
+            try:
+                self.top.after_cancel(self._nav_timer)
+            except tk.TclError:
+                pass
+            self._nav_timer = None
+        if not self._closed:
+            # One final exact full-pixel source render after the key stops.
+            self.schedule()
+
+    def focus_lost(self, event=None):
+        """Never keep flying when user Alt+Tabs or clicks another control."""
+        for handle in self._pending_key_releases.values():
+            try:
+                self.top.after_cancel(handle)
+            except tk.TclError:
+                pass
+        self._pending_key_releases.clear()
+        self._held_keys.clear()
+        self._shift_held = False
+        self._stop_navigation()
+
+
+    def frame(self, event=None):
+        view_mode = getattr(self, "mode", None)
+        if (view_mode is not None and view_mode.get() == "Collision" and
+                getattr(self, "source_collision_kcl", None) is not None):
+            self.camera = fit_camera(self.source_collision_kcl.vertices)
+        else:
+            self.camera = self.home_camera
         self.schedule()
 
-    def frame(self,event=None):
-        self.zoom=1.
-        self.pan=(0.,0.)
+    def frame_all(self, event=None):
+        view_mode = getattr(self, "mode", None)
+        if (view_mode is not None and view_mode.get() == "Collision" and
+                getattr(self, "source_collision_kcl", None) is not None):
+            self.camera = fit_camera(self.source_collision_kcl.vertices)
+        else:
+            self.camera = self.full_camera
+        self.schedule()
+
+    def _source_comparison(self, terrain, yaw: int):
+        """Return a display-mapping and reason, never fake native alignment.
+
+        Most importantly, GEOMETRY-ONLY Collada imports can have a huge
+        background and missing controller transforms. Whole-model bounding
+        boxes DO NOT establish the KCL/tree scale. A source-material fit
+        must pass independent surface and holdout checks before auto-overlay.
+        """
+        warning = getattr(self.model, "source_scene_warning", None)
+        incomplete = isinstance(warning, str) and bool(warning)
+        if yaw == 0:
+            try:
+                fitted = derive_material_alignment(terrain, self.model)
+            except MaterialAlignmentError as exc:
+                if incomplete:
+                    reason = (
+                        "KCL/TREES AUTO-OVERLAY DECLINED: " + str(exc) +
+                        ". No guessed KCL scale applied to incomplete DAE.")
+                    self._overlay_decline_reason = reason
+                    opt = getattr(self, "manual_overlay_trial", None)
+                    if opt is None or not opt.get():
+                        return None, reason + (
+                            " Select Collision for exact source XYZ, or "
+                            "allow an UNVERIFIED x-ray trial to compare.")
+                    mapped = prepare_comparison_kcl(
+                        terrain, self.model, rotation_degrees=yaw)
+                    return mapped, (
+                        "MANUAL UNVERIFIED BOUNDS-FIT TRIAL: " + reason +
+                        " " + overlay_summary(mapped))
+            else:
+                self._overlay_decline_reason = None
+                mapped = prepare_comparison_kcl(
+                    terrain, self.model, material_alignment=fitted)
+                return mapped, overlay_summary(mapped)
+        # Explicit nonzero dial remains an UNVERIFIED, user-selected
+        # experiment; never apply the old bounds-fit automatically when an
+        # original Collada controller/scene mapping is incomplete.
+        mapped = prepare_comparison_kcl(
+            terrain, self.model, rotation_degrees=yaw)
+        status = overlay_summary(mapped)
+        if incomplete:
+            status = (
+                "MANUAL BOUNDS-FIT TRIAL ONLY — SCALE NOT VERIFIED · " +
+                status)
+        return mapped, status
+
+    def _mode_changed(self):
+        """Three honest modes: original art, source-only KCL, checked Both.
+
+        Collision operates in original KCL XYZ with its OWN camera fit.
+        Textures/Both operate in original visual-DAE coordinates. Switching
+        between them preserves both independent camera positions instead
+        of forcing an unverified model registration.
+        """
+        choice = self.mode.get()
+        if choice not in ("Textures", "Collision", "Both"):
+            self.mode.set("Textures")
+            choice = "Textures"
+        if choice == "Collision":
+            source = getattr(self, "source_collision_kcl", None)
+            if source is None:
+                self.mode.set("Textures")
+                self.comparison_status.set(
+                    "Collision unavailable: no PRIVATE source KCL OBJ loaded.")
+            else:
+                if getattr(self, "_visual_camera_before_collision", None) is None:
+                    self._visual_camera_before_collision = self.camera
+                if getattr(self, "_collision_camera", None) is None:
+                    self._collision_camera = fit_camera(source.vertices)
+                self.camera = self._collision_camera
+                self.comparison_status.set(
+                    "COLLISION SOURCE-ONLY: original KCL XYZ, 1:1, NO "
+                    "visual-model scaling or world registration. Source tree "
+                    "bases share this exact coordinate frame.")
+        else:
+            former = getattr(self, "_visual_camera_before_collision", None)
+            if former is not None:
+                self._collision_camera = self.camera
+                self.camera = former
+                self._visual_camera_before_collision = None
+            if choice == "Both":
+                if getattr(self, "comparison_kcl", None) is None:
+                    self.mode.set("Textures")
+                    why = getattr(self, "_overlay_decline_reason", None)
+                    self.comparison_status.set(
+                        "BOTH UNAVAILABLE: collision/texture alignment failed "
+                        "independent source checks. " +
+                        (why or "No accepted source-world fit.") +
+                        " Choose Collision for native source XYZ (visible "
+                        "with a separate camera), or opt into the explicitly "
+                        "UNVERIFIED x-ray trial.")
+                else:
+                    self.comparison_status.set(
+                        overlay_summary(self.comparison_kcl))
+            elif getattr(self, "comparison_kcl", None) is None:
+                why = getattr(self, "_overlay_decline_reason", None)
+                if why:
+                    self.comparison_status.set(
+                        "TEXTURES ONLY; cyan KCL hidden until aligned. " +
+                        why + " Select Collision for the exact source KCL.")
+        self.schedule()
+
+    def _toggle_manual_overlay(self):
+        """Explicit opt-in for visible unregistered KCL/94-tree x-rays."""
+        if getattr(self, "_source_terrain", None) is not None:
+            angle = getattr(self, "display_rotation", None)
+            yaw = angle.get() if angle is not None else 0
+            mapped, reason = self._source_comparison(self._source_terrain, yaw)
+            self.comparison_kcl = mapped
+            self.comparison_status.set(reason)
+            if (self.mode.get() != "Collision" and mapped is not None and
+                    self.manual_overlay_trial.get()):
+                self.mode.set("Both")
+            elif self.mode.get() == "Both" and mapped is None:
+                self.mode.set("Textures")
+        self.schedule()
+
+    def set_display_rotation(self, degrees=None):
+        """Choose measured source display-fit or an explicitly guessed yaw."""
+        angle = getattr(self, "display_rotation", None)
+        value = degrees if degrees is not None else (
+            angle.get() if angle is not None else 0)
+        if type(value) is not int or value not in (0, 90, 180, 270):
+            raise ValueError("KCL comparison yaw must be 0, 90, 180, or 270")
+        if degrees is not None and angle is not None:
+            angle.set(value)
+        terrain = getattr(self, "_source_terrain", None)
+        if terrain is not None:
+            mapped, status = self._source_comparison(terrain, value)
+            self.comparison_kcl = mapped
+            if mapped is None and self.mode.get() == "Both":
+                self.mode.set("Textures")
+            if self.mode.get() != "Collision":
+                self.comparison_status.set(status)
+        self.schedule()
+
+    def set_collision_terrain(self, terrain):
+        """Source-labeled material fit; decline missing controller scale."""
+        if terrain is None:
+            self._source_terrain = None
+            self.source_collision_kcl = None
+            self._collision_camera = None
+            self.comparison_kcl = None
+            self._overlay_decline_reason = None
+            self.mode.set("Textures")
+            self.comparison_status.set(
+                "KCL not loaded · no original collision/visual alignment claim.")
+        else:
+            angle = getattr(self, "display_rotation", None)
+            value = angle.get() if angle is not None else 0
+            source = prepare_source_only_kcl(terrain)
+            mapped, status = self._source_comparison(terrain, value)
+            self._source_terrain = terrain
+            self.source_collision_kcl = source
+            self._collision_camera = fit_camera(source.vertices)
+            self.comparison_kcl = mapped
+            # Preserve the operator's active Collision inspection; all
+            # automatic overlay decisions affect Both only.
+            if self.mode.get() != "Collision":
+                self.mode.set("Both" if mapped is not None else "Textures")
+            self.comparison_status.set(status)
+        self.schedule()
+
+    def set_tree_overlay(self, points, *, visible: bool, illustrations: bool,
+                         labels: bool):
+        """Only strict-loader positions; visual/KCL fit remains display-only."""
+        from .tree_positions import SOURCE_TREE_COUNT
+        points = tuple(points)
+        if points and len(points) != SOURCE_TREE_COUNT:
+            raise ValueError("Tree overlay requires exactly 94 source bases")
+        self.tree_overlay = points
+        self.tree_overlay_visible = bool(visible)
+        self.tree_illustrations = bool(illustrations)
+        self.tree_labels = bool(labels)
         self.schedule()
 
     def close(self):
-        if self._pending is not None:
-            try:self.top.after_cancel(self._pending)
-            except tk.TclError:pass
-        self.image_ref=None
+        if self._closed:
+            return
+        self._closed = True
+        if self._cancel_render is not None:
+            self._cancel_render.set()
+        for handle in (self._pending, self._poll_id, self._nav_timer,
+                       *self._pending_key_releases.values()):
+            if handle is not None:
+                try:
+                    self.top.after_cancel(handle)
+                except tk.TclError:
+                    pass
+        self._held_keys.clear()
+        self._pending_key_releases.clear()
+        self._nav_timer = None
+        self._executor.shutdown(wait=False, cancel_futures=True)
+        self.image_ref = None
         self.top.destroy()

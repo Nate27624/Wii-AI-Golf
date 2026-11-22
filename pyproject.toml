@@ -12,6 +12,7 @@ dependencies = []
 [project.optional-dependencies]
 bayes = ["numpy>=1.24"]
 visual = ["Pillow>=10.2", "numpy>=1.24"]
+visual-fast = ["Pillow>=10.2", "numpy>=1.24", "numba>=0.68.1,<0.69"]
 
 [project.scripts]
 wii-golf = "wii_ai_golf.cli:main"

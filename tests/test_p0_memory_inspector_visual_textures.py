@@ -1,6 +1,7 @@
 """Synthetic UV/texture preview falsification tests; NEVER use original game assets."""
 from __future__ import annotations
 import base64
+from dataclasses import replace
 import hashlib
 from pathlib import Path
 import sys
@@ -10,7 +11,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src'))
 from wii_ai_golf.inspector.visual_model import (VisualAssetError, load_private_visual_model)
-from wii_ai_golf.inspector.texture_render import render_preview, prepare_textures
+from wii_ai_golf.inspector.texture_render import (
+    MAX_PREVIEW_FACES, PreviewCancelled, render_preview, prepare_textures)
 
 # Tiny public-domain test PNG bytes (not Wii content), generated from a 1x1
 # synthetic pixel. For rendering tests generate a 4x4 checker with Pillow.
@@ -132,24 +134,187 @@ class VisualAssetTests(unittest.TestCase):
             render_preview(model,10000,10000,textures=textures)
 
 
+    def test_preview_mouse_requests_do_not_render_on_ui_thread(self):
+        from concurrent.futures import Future
+        from unittest.mock import Mock, patch
+        from wii_ai_golf.inspector.textured_preview import TexturedPreviewWindow
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest('Pillow optional renderer unavailable')
+
+        # Synthetic Tk objects. No real Tk display, Dolphin, network or
+        # original course art required to verify asynchronous camera behavior.
+        win = object.__new__(TexturedPreviewWindow)
+        win.top = Mock()
+        win.top.after.return_value = 'after-token'
+        win.canvas = Mock()
+        win.canvas.winfo_width.return_value = 360
+        win.canvas.winfo_height.return_value = 240
+        win.status = Mock()
+        win.camera_status = Mock()
+        win._held_keys = set()
+        win._pending_key_releases = {}
+        win._nav_timer = None
+        win._shift_held = False
+        win.model = Mock()
+        win.model.faces = [None] * 9
+        win.textures = {}
+        win.fast_scene = None
+        win.fast_active = False
+        from wii_ai_golf.inspector.scene_camera import fit_camera, look_in_place
+        win.camera = fit_camera(((0., 0., 0.), (5., 5., 0.)))
+        win.home_camera = win.camera
+        win._closed = False
+        win._pending = None
+        win._poll_id = None
+        win._request_version = 0
+        win._queued = None
+        win._render_future = None
+        win._cancel_render = None
+        win.image_ref = None
+
+        first = Future()
+        second = Future()
+        win._executor = Mock()
+        win._executor.submit.side_effect = [first, second]
+
+        win.schedule()
+        win._request_full_render()
+        self.assertIs(win._render_future[2], first)
+        self.assertTrue(win._cancel_render.is_set() is False)
+        self.assertEqual(win._executor.submit.call_count, 1)
+
+        # The new request invalidates the running frame but does NOT queue
+        # a second worker job until the cancelled first one completes.
+        win.camera = look_in_place(win.camera, 22, -8)
+        win.schedule()
+        self.assertTrue(win._cancel_render.is_set())
+        win._request_full_render()
+        self.assertEqual(win._executor.submit.call_count, 1)
+        first.set_exception(PreviewCancelled())
+        win._poll_completed()
+        self.assertIs(win._render_future[2], second)
+        self.assertEqual(win._executor.submit.call_count, 2)
+
+        frame = Image.new('RGB', (360, 240), (30, 180, 70))
+        second.set_result((frame, 9, 12.3))
+        with patch('PIL.ImageTk.PhotoImage', return_value='fake-photo'):
+            win._poll_completed()
+        win.canvas.create_image.assert_called_once()
+        self.assertEqual(win.image_ref, 'fake-photo')
+        self.assertIn('9', win.status.set.call_args[0][0])
+        win.close()
+        win._executor.shutdown.assert_called_once_with(
+            wait=False, cancel_futures=True)
+        win.top.destroy.assert_called_once()
+
+    def test_source_face_cap_never_stride_drops_original_triangles(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest('Optional Pillow/NumPy unavailable')
+        self.assertGreaterEqual(MAX_PREVIEW_FACES, 100_000)
+        Image.new('RGBA', (4, 4), (15, 160, 80, 255)).save(self.png)
+        model = load_private_visual_model(self.obj)
+        multi = replace(model, faces=model.faces * 7)
+        with self.assertRaisesRegex(VisualAssetError, 'full-face preview budget'):
+            render_preview(multi, 128, 128, max_faces=4)
+        with self.assertRaises(PreviewCancelled):
+            render_preview(multi, 128, 128, cancelled=lambda: True)
+
+    def test_renders_complete_quad_with_no_stride_dither(self):
+        try:
+            from PIL import Image
+            import numpy as np
+        except ImportError:
+            self.skipTest('Optional Pillow/NumPy unavailable')
+        Image.new('RGBA', (4, 4), (20, 210, 90, 255)).save(self.png)
+        self.obj.write_text(
+            OBJ.replace('v 0 10 0', 'v 0 10 0\nv 10 10 0')
+               .replace('vt 0 1', 'vt 0 1\nvt 1 1')
+               .replace('f 1/1 2/2 3/3', 'f 1/1 2/2 4/4 3/3'),
+            encoding='utf-8')
+        model = load_private_visual_model(self.obj)
+        image, count = render_preview(model, 180, 180, yaw=0., pitch=0.)
+        self.assertEqual(count, 2)
+        arr = np.asarray(image)
+        covered = ((arr[:, :, 0] == 20) &
+                   (arr[:, :, 1] == 210) &
+                   (arr[:, :, 2] == 90))
+        self.assertGreater(int(covered.sum()), 13_000)
+
+    def test_large_model_processes_every_source_face_even_after_4000(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest('Optional Pillow/NumPy unavailable')
+        Image.new('RGBA', (4, 4), (0, 200, 0, 255)).save(self.png)
+        model = load_private_visual_model(self.obj)
+        # Unused far-away vertex makes repeated triangle subpixel, keeping
+        # the 4501-face full coverage gate inexpensive in CI.
+        multi = replace(model,
+                        vertices=model.vertices + ((10000., 10000., 0.),),
+                        faces=model.faces * 4501)
+        checks = [0]
+        def not_cancelled():
+            checks[0] += 1
+            return False
+        render_preview(multi, 48, 48, yaw=0., pitch=0.,
+                       cancelled=not_cancelled)
+        self.assertGreaterEqual(checks[0], 141)
+
+    def test_untextured_dae_material_uses_only_explicit_original_kd(self):
+        # A real DAE has 12 materials, but only 11 texture slots. Never
+        # fabricate a PNG for untextured M_Kiwa_Black. Use exported MTL Kd.
+        self.obj.write_text(OBJ.replace('usemtl grass', 'usemtl M_Kiwa_Black'))
+        self.mtl.write_text(MTL + 'newmtl M_Kiwa_Black\nKd 0.2 0.4 0.6\n')
+        model = load_private_visual_model(self.obj)
+        self.assertEqual(model.solid_colors['M_Kiwa_Black'], (51, 102, 153))
+        self.assertNotIn('M_Kiwa_Black', model.textures)
+        try:
+            import numpy as np
+            from PIL import Image
+        except ImportError:
+            self.skipTest('Optional Pillow/NumPy unavailable')
+        preview, drawn = render_preview(model, 180, 180, yaw=0., pitch=0.)
+        self.assertEqual(drawn, 1)
+        arr = np.asarray(preview)
+        self.assertTrue(((arr[:, :, 0] == 51) &
+                         (arr[:, :, 1] == 102) &
+                         (arr[:, :, 2] == 153)).any())
+
+    def test_untextured_material_cannot_invent_or_accept_invalid_kd(self):
+        self.obj.write_text(OBJ.replace('usemtl grass', 'usemtl M_Kiwa_Black'))
+        for material in ('newmtl M_Kiwa_Black\n',
+                         'newmtl M_Kiwa_Black\nKd NaN 0 0\n',
+                         'newmtl M_Kiwa_Black\nKd 1.2 0 0\n',
+                         'newmtl M_Kiwa_Black\nKd 0 0\n'):
+            with self.subTest(material=material):
+                self.mtl.write_text(MTL + material)
+                with self.assertRaises(VisualAssetError):
+                    load_private_visual_model(self.obj)
+
     def test_inspector_texture_button_is_explicit_and_does_not_touch_dolphin(self):
         try:
             from wii_ai_golf.inspector.gui import Inspector
         except ImportError:
             self.skipTest('Original inspector GUI not in isolated local stage')
         from unittest.mock import patch
+        from unittest.mock import Mock
         inspector = object.__new__(Inspector)
         inspector.root = object()
-        with patch('wii_ai_golf.inspector.gui.filedialog.askopenfilename', return_value=str(self.obj)) as picker, \
-             patch('wii_ai_golf.inspector.gui.load_private_visual_model') as load, \
-             patch('wii_ai_golf.inspector.textured_preview.TexturedPreviewWindow') as preview:
+        inspector.load_visual_path = Mock(return_value=True)
+        with patch('wii_ai_golf.inspector.gui.filedialog.askopenfilename',
+                   return_value=str(self.obj)) as picker:
             Inspector.open_textured_model(inspector)
             picker.assert_called_once()
-            load.assert_called_once_with(str(self.obj))
-            preview.assert_called_once_with(inspector.root, load.return_value)
-        with patch('wii_ai_golf.inspector.gui.filedialog.askopenfilename', return_value='') as picker, \
-             patch('wii_ai_golf.inspector.gui.load_private_visual_model') as load:
+            inspector.load_visual_path.assert_called_once_with(
+                str(self.obj), show_dialog=True)
+        inspector.load_visual_path.reset_mock()
+        with patch('wii_ai_golf.inspector.gui.filedialog.askopenfilename',
+                   return_value=''):
             Inspector.open_textured_model(inspector)
-            load.assert_not_called()
+            inspector.load_visual_path.assert_not_called()
 
 if __name__=='__main__':unittest.main()
