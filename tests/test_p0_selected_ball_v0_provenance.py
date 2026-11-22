@@ -70,6 +70,11 @@ class SourceHandoffControls(unittest.TestCase):
         for identity in (True, False, None):
             row = audit.symbolic_handoff(state3=True, flag1=None,
                  intermediate_returns=True, incoming_is_selected=identity)
+            self.assertEqual(row["selected_receiver_identity_assumed"], identity)
+            self.assertFalse(row["selected_receiver_identity_known"])
+            self.assertIsNone(row["selected_pre_step_v0_xyz"])
+            self.assertFalse(row["first_eligible_guest_step_verified"])
+            self.assertFalse(row["post_step_velocity_is_launch_v0_verified"])
             self.assertFalse(row["selected_ball_v0_verified"])
             self.assertFalse(row["training_approved"])
 
