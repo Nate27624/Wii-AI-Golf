@@ -134,17 +134,21 @@ class AirborneTrace:
 
 
 def source_direction_candidate(velocity: Vec, guard_assumption: float,
-                               precision: Precision = "host_f32") -> tuple[Vec, Vec]:
-    """Return (lift, side) unit vectors, or abstain at unknown native guard.
+                               precision: Precision = "host_f32", *,
+                               require_lift: bool = True,
+                               require_side: bool = True) -> tuple[Vec, Vec]:
+    """Return required (lift, side) unit directions; unused terms become zero.
 
-    S=(vz,0,-vx), L=(-vx*vy,vx^2+vz^2,-vz*vy). The original source normalizes
-    nondegenerate directions, but the native zero/epsilon predicate is UNKNOWN.
-    This explicitly caller-supplied guard does not claim to recover it.
+    S=(vz,0,-vx), L=(-vx*vy,vx^2+vz^2,-vz*vy). Their native zero/epsilon
+    predicates are UNKNOWN. An inactive term must not force normalization of
+    its vanishing direction (e.g. vy=0: |L|=horizontal_speed**2 while
+    |S|=horizontal_speed). This skip is a candidate, NOT a native CFG proof.
     """
     v = _xyz(velocity, "velocity")
     guard = _scalar(guard_assumption, "normalizer_guard_assumption")
-    if guard < 0 or precision not in ("host_f32", "binary64"):
-        raise ValueError("invalid normalizer guard or precision")
+    if (guard < 0 or precision not in ("host_f32", "binary64")
+            or type(require_lift) is not bool or type(require_side) is not bool):
+        raise ValueError("invalid normalizer guard, precision or required terms")
     vx, vy, vz = (_round(x, precision) for x in v)
     side = (vz, 0.0, -vx)
     lift = (_round(-vx * vy, precision),
@@ -152,11 +156,14 @@ def source_direction_candidate(velocity: Vec, guard_assumption: float,
             _round(-vz * vy, precision))
 
     directions: list[Vec] = []
-    for raw in (lift, side):
+    for raw, required in ((lift, require_lift), (side, require_side)):
+        if not required:
+            directions.append((0.0, 0.0, 0.0))
+            continue
         length = math.hypot(*raw)
         if not math.isfinite(length) or length <= guard:
             raise UnverifiedNormalizerBranch(
-                "ABSTAIN_UNVERIFIED_NORMALIZER_BRANCH: exact or near-vertical vector"
+                "ABSTAIN_UNVERIFIED_NORMALIZER_BRANCH: required force direction"
             )
         directions.append(tuple(_round(x / length, precision) for x in raw))
     return directions[0], directions[1]
@@ -166,7 +173,9 @@ def _spin_force(velocity: Vec, speed: float, lift: float, side: float,
                 guard: float, precision: Precision) -> Vec:
     if speed == 0 or (lift == 0 and side == 0):
         return (0.0, 0.0, 0.0)
-    lift_hat, side_hat = source_direction_candidate(velocity, guard, precision)
+    lift_hat, side_hat = source_direction_candidate(
+        velocity, guard, precision,
+        require_lift=(lift != 0), require_side=(side != 0))
     lift_gain = _round(_round(SOURCE_LIFT_GAIN_CANDIDATE, precision)
                        * _round(speed, precision), precision)
     lift_gain = _round(lift_gain * _round(lift, precision), precision)
