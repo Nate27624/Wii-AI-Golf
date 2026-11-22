@@ -288,3 +288,29 @@ hole-source association and native rendered-frame equivalence are NOT yet
 verified; no raw game textures or meshes are committed. Complete requirements,
 private path rules and extraction handoff: [P0 private original game visual
 textures](p0-private-visual-textures.md). Training remains false.
+
+
+## Live selected club (operator-confirmed Rev1 mapping)
+
+The inspector now displays **CLUB DRIVER / IRON / WEDGE / PUTTER** and the observed integer index as a separate read-only status below the A-button indicator. It reads this only while connected LIVE to the **existing** Felk bridge in the source-gated **RSPE01 US Rev1 Golf mode 4**. Offline replay, stale data, unsupported/custom sampler or invalid source reads display **CLUB UNKNOWN**. Changing the displayed club never sends inputs.
+
+**Provenance.** Operator's 2026-11-11 source-qualified Hitting-the-Green experiment: B0 Wedge=2, idle Wedge=2, manual Up Iron=1, manual Down Wedge=2, aim-only Wedge=2; two passes verified Driver=0 / Iron=1 / Wedge=2 / Putter=3, plus 4/4 held-out club predictions revealed after each read. The uninterrupted-source resume audit and private SHA artifacts live outside Git. Up/Down game code calls `fn_802A9BC8` with 0/1 and bounds a 32-bit field at `+0x1C` in its selected object. The **distinct** global pointer slot is `0x804BF900` (public Rev1 `.sbss`), and its dereferenced object `+0x1C` holds the live club index. `0x804BF8D0` is PlayerManager, **not** the selector; PlayerManager `+0x1C` was experimentally falsified as the club variable. Original live investigation draft PR #412 includes the full source trace, synthetic tests and unmodified private capture references.
+
+**Read-only implementation.** The existing batched `fast.packet` source check extends its already bounded MEM1 static-root read to include `0x804BF900` only when explicitly collecting the live club. The source owner must be a qualified, aligned **MEM2** guest pointer distinct from PlayerManager; index must be an exact integer 0..3. Bracket reads of index and the global pointer across the existing source-identity epoch check. If the pointer changes, index changes during the window, or the value is invalid, it becomes UNKNOWN without contaminating the independent ball/A display. Extra **two** bounded `memory.read_bytes` RPC calls are needed on a valid pointer; no full memory scan, no memory writes, no new connection, no file output. The main live sampler remains opt-in and its RPC allowlist still permits **only** memory reads and frame counts.
+
+**Status boundary.** These are operator-confirmed *club labels* in the tested Rev1 Hitting-the-Green scene, not a guarantee in other games/revisions/modes or a native CPU r13 register-read proof. The inspector is never a training approval authority: `training_approved=false`. Physics/aim calibration, A/button behavior and 3D terrain are unchanged. The UI must show UNKNOWN if the live sample is stale, disconnected, malformed, or no longer source-qualified.
+
+Tests: `python -m unittest discover -s tests -p test_p0_memory_inspector_club.py -v` and existing fast/live/inspector suites. The synthetic tests cover all club IDs, invalid/moving pointers, rejected PlayerManager alias, non-atomic index movement, custom/offline UNKNOWN and the read-only bridge contract.
+
+
+## Restored detailed collision mesh, shading and separate original UV texture preview
+
+The P0 inspector previously reduced the 2,498-triangle user-extracted KCL collision OBJ to **600 triangles when live** and **1,200 during replay**. That dropped many drawable faces and created apparent surface gaps. The extended inspector now draws **all 2,498 source-original triangles** by default (bounded `MAX_DRAW_FACES=4096`, never invents additional geometry). `All triangles` can be turned off for the earlier lower-cost sampled preview. `Focus tee/flag` is off by default; enabling it may intentionally display fewer triangles near source-qualified landmarks. Status explicitly says `COMPLETE` or `PARTIAL PREVIEW / FOCUS`.
+
+`Solid terrain` is enabled by default and uses light directional shading with face sorting; it is only a Tk painter's-order visualization, **not** game lighting, GPU depth test or a true textured visual model. `Triangle edges` and `Point labels` are independently toggled. The separate `Load source colors` button accepts only a SHA-bound private `*-PRIVATE.json` sidecar whose original KCL per-face attributes and OBJ SHA match the loaded mesh; no KCL attribute ID is inferred from geometry, grass color, slope or club. Labels are overlay-only, never modify the OBJ or source RAM.
+
+**Original Wii game textures are separate from KCL collision triangles.** The existing `Preview PRIVATE game textures` button opens a separate visual-asset preview for a user-extracted **UV-bearing OBJ + matching MTL + PNG** set; there is no valid source-backed UV mapping from the KCL collision mesh to game textures. The preview cannot create or extract copyrighted original game models or assets automatically. The UV preview remains an optional read-only local window and does not affect live Felk read rate or the selected-club indicator.
+
+The advanced controls were reconstructed from the previously separate `agent/terrain-original-textures-inspector-20261110` / `agent/terrain-solid-material-ui-20261030` research branches, then integrated **surgically** into the selected-club draft PR #426. The unified implementation retains the later mainline pan/zoom, explicit startup path, A indicator and validated live club labels.
+
+Synthetic tests cover rendering all 2,498 faces (previous preview 833 for 2,498 at a 1,200-face stride cap), solid/wireframe/edges, mislabeled/invalid source files, SHA-bound colors, and independent texture preview. Neither collision labels nor original textures authorize power/flight/physics training: `training_approved=false`.

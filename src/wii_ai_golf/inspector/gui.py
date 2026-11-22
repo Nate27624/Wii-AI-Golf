@@ -15,7 +15,9 @@ from .replay import AIM, BALL, CACHE, Replay, Sample, float_hypothesis, load_rep
 from .live import LiveSampler
 from .a_reference import discover_reference
 from .a_live import LiveAIndicator
-from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE
+from .terrain import TerrainError, TerrainMesh, load_private_obj, surface_style, SURFACE_STYLE, MAX_DRAW_FACES
+from .terrain_solid import back_to_front, shaded_hex
+from .terrain_labels import apply_private_surface_labels
 from .navigation import pan_by, wheel_steps, zoom_at_cursor
 from .startup import StartupError, occupied_bridge, powershell_command, runtime_checkout
 from .visual_model import VisualAssetError, load_private_visual_model
@@ -98,10 +100,16 @@ class Inspector:
         self.aim_baseline_mode = "assumed first packet"
         self.a_indicator = LiveAIndicator(None)
         self.a_status = tk.StringVar(value="A UNKNOWN")
+        self.club_status = tk.StringVar(value="CLUB UNKNOWN")
         self.terrain_mesh: TerrainMesh | None = None
         self.terrain_visible = tk.BooleanVar(value=True)
-        self.terrain_focus = tk.BooleanVar(value=True)
+        self.terrain_focus = tk.BooleanVar(value=False)
+        self.terrain_full_detail = tk.BooleanVar(value=True)
+        self.terrain_solid = tk.BooleanVar(value=True)
+        self.terrain_edges = tk.BooleanVar(value=False)
+        self.terrain_point_labels = tk.BooleanVar(value=False)
         self.terrain_colors = tk.BooleanVar(value=True)
+        self.surface_label_status = tk.StringVar(value="Surface colors: load original PRIVATE KCL labels to classify faces.")
         self.terrain_status = tk.StringVar(value="Terrain: select a locally exported PRIVATE collision OBJ to display.")
         self.a_reason = tk.StringVar(value="Connect LIVE with A released; 2 stable samples initialize candidate")
         self.baseline: float | None = None
@@ -152,6 +160,12 @@ class Inspector:
         ttk.Label(a_panel, textvariable=self.a_status, font=("Segoe UI", 17, "bold")).pack(side="left")
         ttk.Label(a_panel, text="  Candidate only · start with A RELEASED · press after two baseline samples",
                   foreground="#566171").pack(side="left")
+        club_panel = ttk.Frame(head)
+        club_panel.pack(fill="x", pady=(0, 4))
+        ttk.Label(club_panel, textvariable=self.club_status,
+                  font=("Segoe UI", 17, "bold")).pack(side="left")
+        ttk.Label(club_panel, text="  Rev1 live verified index · read-only · offline UNKNOWN · training not approved",
+                  foreground="#566171").pack(side="left")
 
         main = ttk.PanedWindow(self.root, orient="horizontal")
         main.pack(fill="both", expand=True, padx=10)
@@ -190,11 +204,21 @@ class Inspector:
         mesh_actions = ttk.Frame(center)
         mesh_actions.pack(fill="x", pady=3)
         ttk.Button(mesh_actions, text="Load PRIVATE terrain OBJ", command=self.load_terrain).pack(side="left")
+        ttk.Button(mesh_actions, text="Load source colors", command=self.load_terrain_labels).pack(side="left", padx=4)
         ttk.Button(mesh_actions, text="Clear terrain", command=self.clear_terrain).pack(side="left", padx=4)
-        ttk.Checkbutton(mesh_actions, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
-        ttk.Checkbutton(mesh_actions, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
-        ttk.Checkbutton(mesh_actions, text="Color source surface IDs", variable=self.terrain_colors, command=self.draw_path).pack(side="left")
+        quality = ttk.Frame(center)
+        quality.pack(fill="x", pady=2)
+        ttk.Checkbutton(quality, text="Show", variable=self.terrain_visible, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(quality, text="Solid terrain", variable=self.terrain_solid, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(quality, text="All triangles", variable=self.terrain_full_detail, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(quality, text="Triangle edges", variable=self.terrain_edges, command=self.draw_path).pack(side="left")
+        overlays = ttk.Frame(center)
+        overlays.pack(fill="x", pady=2)
+        ttk.Checkbutton(overlays, text="Focus tee/flag", variable=self.terrain_focus, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(overlays, text="Color source surface IDs", variable=self.terrain_colors, command=self.draw_path).pack(side="left")
+        ttk.Checkbutton(overlays, text="Point labels", variable=self.terrain_point_labels, command=self.draw_path).pack(side="left")
         ttk.Label(center, textvariable=self.terrain_status, wraplength=650).pack(anchor="w")
+        ttk.Label(center, textvariable=self.surface_label_status, wraplength=650).pack(anchor="w")
         source_legend = ttk.Frame(center)
         source_legend.pack(fill="x")
         for label, color in (SURFACE_STYLE[v] for v in (0x0001,0x0002,0x0003,0x0006,0x0007,0x0009)):
@@ -247,26 +271,70 @@ class Inspector:
             messagebox.showerror("Private visual texture preview declined", str(exc), parent=self.root)
 
     def load_terrain(self) -> None:
-        """User opt-in: load only local private OBJ, never read live RAM for terrain."""
+        """Operator-selected private collision mesh only; never guest RAM."""
         filename = filedialog.askopenfilename(
             title="Select local source-coordinate private KCL collision OBJ",
             filetypes=[("Wavefront OBJ", "*.obj")])
-        if not filename:
-            return
+        if filename:
+            self.load_terrain_path(filename, show_dialog=True)
+
+    def load_terrain_path(self, filename: str, *, show_dialog: bool = False) -> bool:
+        """Source-checked OBJ, without changing any existing live club reader."""
         try:
             mesh = load_private_obj(filename)
         except (TerrainError, OSError) as exc:
-            messagebox.showerror("Private terrain declined", str(exc))
-            return
+            if show_dialog:
+                messagebox.showerror("Private terrain declined", str(exc))
+            self.terrain_status.set("Terrain: private OBJ declined by path/format verification.")
+            return False
         self.terrain_mesh = mesh
+        if hasattr(self, "surface_label_status"):
+            self.surface_label_status.set("Surface colors: no original KCL labels loaded (neutral shading only).")
         self.terrain_visible.set(True)
         self.terrain_status.set(
             f"PRIVATE collision OBJ: {len(mesh.faces)} candidate triangles, SHA {mesh.sha256[:12]}… "
             "· visual alignment/active collision UNVERIFIED")
         self.draw_path()
+        return True
+
+    def load_terrain_labels(self) -> None:
+        """Operator opt-in: source color data stays beside the private OBJ."""
+        filename = filedialog.askopenfilename(
+            title="Select SHA-bound PRIVATE KCL source surface labels",
+            filetypes=[("Private source label JSON", "*.json")])
+        if filename:
+            self.load_terrain_labels_path(filename, show_dialog=True)
+
+    def load_terrain_labels_path(self, filename: str, *, show_dialog: bool = False) -> bool:
+        """Color only the loaded OBJ by its matching source SHA; no writes."""
+        mesh = self.terrain_mesh
+        if mesh is None:
+            self.surface_label_status.set("Surface colors: load the private terrain OBJ first.")
+            return False
+        try:
+            labeled = apply_private_surface_labels(mesh, filename)
+        except TerrainError as exc:
+            if show_dialog:
+                messagebox.showerror("Private source colors declined", str(exc))
+            self.surface_label_status.set(f"Source colors: rejected — {exc}")
+            return False
+        except OSError:
+            if show_dialog:
+                messagebox.showerror("Private source colors declined",
+                                     "Local labels could not be read safely.")
+            self.surface_label_status.set("Source colors: rejected — local file read error")
+            return False
+        self.terrain_mesh = labeled
+        self.surface_label_status.set(
+            f"Source colors: {len(labeled.faces)} original KCL per-face IDs linked by OBJ SHA "
+            "· candidate visual categories, not physics")
+        self.draw_path()
+        return True
 
     def clear_terrain(self) -> None:
         self.terrain_mesh = None
+        if hasattr(self, "surface_label_status"):
+            self.surface_label_status.set("Surface colors: no original KCL labels loaded.")
         self.terrain_status.set("Terrain: no private OBJ loaded.")
         self.draw_path()
 
@@ -295,6 +363,7 @@ class Inspector:
         self.aim_baseline_source = None
         self.a_indicator = LiveAIndicator(None)
         self.a_status.set("A UNKNOWN")
+        self.club_status.set("CLUB UNKNOWN")
         self.phase_list.delete(0, "end")
         self.phases: list[tuple[str, int]] = []
         for i, sample in enumerate(replay.samples):
@@ -422,6 +491,7 @@ class Inspector:
         self.baseline = None
         self.aim_baseline_source = None
         self.a_status.set("A UNKNOWN")
+        self.club_status.set("CLUB UNKNOWN")
         self.a_reason.set("Connecting; first two samples assume A is RELEASED")
         self.replay = None
         self.phases = []
@@ -434,6 +504,7 @@ class Inspector:
         worker.start()
 
     def disconnect_live(self, silent: bool = False) -> None:
+        self.club_status.set("CLUB UNKNOWN")
         if self.live_worker is not None:
             self.live_worker.stop()
             if not silent:
@@ -455,6 +526,9 @@ class Inspector:
                     self.slider.configure(to=max(1, len(self.live_buffer) - 1))
                     self.show(len(self.live_buffer) - 1)
                     self.process_a_sample(event)
+                    self.club_status.set(
+                        f"CLUB {event.club_label}  ·  index {event.club_index}"
+                        if event.club_index is not None else "CLUB UNKNOWN")
                     self.status.set(f"LIVE READ-ONLY · {self.live_location} · {self.live_rate:.2f} samples/s "
                                     f"· read {event.read_duration_ms:.0f} ms / {event.rpc_calls} RPCs "
                                     "· source checked · training_approved=false")
@@ -462,6 +536,7 @@ class Inspector:
                     self.status.set("LIVE FAILED: " + event.reason + " Existing sample trace frozen. Check RSPE01 Rev1 and bridge.")
                     self.live_last = None
                     self.a_status.set("A UNKNOWN")
+                    self.club_status.set("CLUB UNKNOWN")
                     self.a_reason.set("bridge disconnected, stale, or error")
                     self.draw_a_overlay()
                     self.a_indicator.clear()
@@ -469,6 +544,7 @@ class Inspector:
                     self.status.set("LIVE DISCONNECTED. Existing sample trace retained; no background retries.")
                     self.live_last = None
                     self.a_status.set("A UNKNOWN")
+                    self.club_status.set("CLUB UNKNOWN")
                     self.a_reason.set("bridge disconnected, stale, or error")
                     self.draw_a_overlay()
                     self.a_indicator.clear()
@@ -476,6 +552,7 @@ class Inspector:
                 age = time.monotonic() - self.live_last
                 if age > 3.0:
                     self.a_status.set("A UNKNOWN")
+                    self.club_status.set("CLUB UNKNOWN")
                     self.a_reason.set("bridge disconnected, stale, or error")
                     self.draw_a_overlay()
                     self.a_indicator.clear()
@@ -641,19 +718,24 @@ class Inspector:
         focusing = getattr(self, "terrain_focus", None)
         if (mesh is not None and (showing is None or showing.get())
                 and current.source_qualified and bool(current.source_digest)):
-            # Rendering bound; under live load use <= 600 faces to minimize
-            # UI work per sample. All 2498 triangles remain in the private OBJ.
+            # Operator's 2,498 KCL triangles were never missing in the OBJ:
+            # old inspector drew only 600 live / 1,200 replay. Default to
+            # complete faces (bounded 4,096). Fast preview is opt-in.
             live_mode = bool(self.live_worker is not None and self.live_last is not None)
-            limit = 600 if live_mode else 1200
+            detail = getattr(self, "terrain_full_detail", None)
+            full = detail is None or detail.get()
+            limit = min(len(mesh.faces), MAX_DRAW_FACES) if full else (
+                600 if live_mode else 1200)
             colored_faces = mesh.drawing_colored_faces(
                 tuple(landmarks.values()), focused=(focusing is None or focusing.get()), limit=limit)
             terrain_faces = tuple(face for face, _ in colored_faces)
             if hasattr(self, "terrain_status"):
                 labeled = sum(n for code,n in mesh.material_counts().items() if code is not None)
+                mode = "COMPLETE" if len(terrain_faces)==len(mesh.faces) else "PARTIAL PREVIEW / FOCUS"
                 self.terrain_status.set(
-                    f"PRIVATE collision wireframe: {len(terrain_faces)}/{len(mesh.faces)} "
+                    f"PRIVATE terrain: {len(terrain_faces)}/{len(mesh.faces)} "
                     f"triangles drawn · {labeled}/{len(mesh.faces)} source-ID labeled · "
-                    "alignment/active collision UNVERIFIED")
+                    f"{mode} · alignment/active collision UNVERIFIED")
         elif mesh is not None and hasattr(self, "terrain_status"):
             self.terrain_status.set("Terrain HIDDEN — Show disabled or source qualification unavailable")
         # Plot bounds include the selected collision candidate; do NOT transform
@@ -679,14 +761,30 @@ class Inspector:
             u, v = project(p, self.yaw, self.pitch)
             return width / 2 + pan_x + (u - cx) * scale * camera_zoom, height / 2 + pan_y - (v - cy) * scale * camera_zoom
         canvas.create_text(12, 12, text="Rotatable 3D source-coordinate projection · unknown units", anchor="nw", fill="#bacbe1")
-        # Behind source-qualified ball, tee, pin and screen-anchored A text.
-        for face, source_attr in colored_faces:
+        point_opt = getattr(self, "terrain_point_labels", None)
+        show_point_labels = point_opt is None or point_opt.get()
+        # Painter's-order filled triangles (not true Z buffer). No KCL UV
+        # texture hypothesis: visual UV OBJ/MTL/PNG remains a separate preview.
+        solid_opt = getattr(self, "terrain_solid", None)
+        edges_opt = getattr(self, "terrain_edges", None)
+        palette = getattr(self, "terrain_colors", None)
+        solid = solid_opt is not None and solid_opt.get()
+        edges = edges_opt is None or edges_opt.get()
+        use_colors = palette is None or palette.get()
+        for face, source_attr in back_to_front(colored_faces, self.yaw, self.pitch):
             xy_face = [xy(v) for v in face]
-            palette = getattr(self, "terrain_colors", None)
-            use_colors = palette is None or palette.get()
-            color = surface_style(source_attr)[1] if use_colors else "#3c7366"
-            canvas.create_line(*xy_face[0], *xy_face[1], *xy_face[2], *xy_face[0],
-                               fill=color, width=1, tags=("terrain_collision_candidate",))
+            flat = tuple(c for p in xy_face for c in p)
+            color = surface_style(source_attr)[1] if use_colors else "#536778"
+            if solid:
+                canvas.create_polygon(
+                    *flat, fill=shaded_hex(color, face),
+                    outline=color if edges else "",
+                    width=1 if edges else 0,
+                    tags=("terrain_collision_candidate", "terrain_solid_face"))
+            elif edges:
+                canvas.create_line(
+                    *flat, *xy_face[0], fill=color, width=1,
+                    tags=("terrain_collision_candidate", "terrain_wire_edge"))
         # Recenter per displayed prefix; do not imply screen-space projection or verified spatial units.
         for sequence, color in ((path, "#f1f6ff"), (caches, "#f5b942")):
             previous = None
@@ -705,13 +803,15 @@ class Inspector:
             canvas.create_line(*start, *tip, fill="#e39bff", width=3,
                                dash=(8, 5), arrow=tk.LAST, arrowshape=(10, 12, 4),
                                tags=("aim_hypothesis",))
-            canvas.create_text(tip[0] + 7, tip[1] - 10, text="AIM? (flag ref + Δ0x3C)",
-                               anchor="sw", fill="#e39bff", tags=("aim_hypothesis",))
+            if show_point_labels:
+                canvas.create_text(tip[0] + 7, tip[1] - 10, text="AIM? (flag ref + Δ0x3C)",
+                                   anchor="sw", fill="#e39bff", tags=("aim_hypothesis",))
         for name, color in ((BALL, "#f1f6ff"), (CACHE, "#f5b942")):
             position = current.vec(name)
             if position is not None:
                 x, y = xy(position)
-                canvas.create_text(x + 8, y - 12, anchor="w", text=("ball +0x30" if name == BALL else "cache +0xCC"), fill=color)
+                if show_point_labels:
+                    canvas.create_text(x + 8, y - 12, anchor="w", text=("ball +0x30" if name == BALL else "cache +0xCC"), fill=color)
         # Draw the flag LAST, over ball/cache trails: the pin should remain
         # unmistakable even when a cache value exactly equals the pin candidate.
         if TEE in landmarks:
@@ -719,8 +819,9 @@ class Inspector:
             canvas.create_polygon(x, y - 8, x + 8, y, x, y + 8, x - 8, y,
                                   fill="#59d47d", outline="#173a23", width=1,
                                   tags=("tee_candidate",))
-            canvas.create_text(x + 11, y + 11, anchor="nw", text="TEE (candidate)",
-                               fill="#59d47d", tags=("tee_candidate",))
+            if show_point_labels:
+                canvas.create_text(x + 11, y + 11, anchor="nw", text="TEE (candidate)",
+                                   fill="#59d47d", tags=("tee_candidate",))
         if PIN in landmarks:
             x, y = xy(landmarks[PIN])
             canvas.create_line(x, y + 13, x, y - 14, fill="#44d7ef", width=3,
@@ -730,8 +831,9 @@ class Inspector:
                                   tags=("pin_candidate",))
             canvas.create_oval(x - 3, y + 10, x + 3, y + 16,
                                fill="#44d7ef", outline="", tags=("pin_candidate",))
-            canvas.create_text(x + 23, y - 14, anchor="nw", text="PIN / FLAG (candidate)",
-                               fill="#44d7ef", tags=("pin_candidate",))
+            if show_point_labels:
+                canvas.create_text(x + 23, y - 14, anchor="nw", text="PIN / FLAG (candidate)",
+                                   fill="#44d7ef", tags=("pin_candidate",))
         canvas.create_text(12, height - 15, text="Wheel: zoom at cursor · Middle drag: pan · Left/right drag: orbit · F: frame · Source units unknown", anchor="sw", fill="#bacbe1")
         # Overlay is intentionally last in Tk's display list, so trajectory
         # geometry cannot conceal the user-requested A text.
