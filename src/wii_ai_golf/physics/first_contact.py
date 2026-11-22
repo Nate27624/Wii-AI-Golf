@@ -7,7 +7,7 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import dataclass
-from math import isfinite, sqrt
+from math import copysign, isfinite, sqrt
 from pathlib import Path
 from typing import Iterable
 
@@ -110,13 +110,64 @@ def _inside(p: Vec, tri: Triangle, n: Vec) -> bool:
 
 
 def _roots(a: float, b: float, c: float) -> list[float]:
-    if abs(a)<EPS:
-        return [-c/b] if abs(b)>EPS else []
-    disc=b*b-4*a*c
-    if disc < -EPS:
+    """Legacy scalar quadratic helper; never invent a tangent for disc < 0.
+
+    The swept edge/vertex geometry uses _conditioned_sweep_roots instead:
+    an expanded discriminant is not reliable for high-speed CCD.
+    """
+    if not all(isfinite(v) for v in (a, b, c)):
+        raise ValueError("nonfinite quadratic coefficients")
+    if a == 0:
+        return [-c/b] if b != 0 else []
+    disc = b*b - 4*a*c
+    if not isfinite(disc):
+        raise ValueError("unresolvable quadratic discriminant")
+    if disc < 0:
         return []
-    d=sqrt(max(0.,disc))
-    return sorted(((-b-d)/(2*a),(-b+d)/(2*a)))
+    if disc == 0:
+        return [-b/(2*a)]
+    root = sqrt(disc)
+    q = -0.5*(b + copysign(root, b))
+    if q == 0:
+        return [-b/(2*a)]
+    return sorted((q/a, c/q))
+
+
+def _conditioned_sweep_roots(w0: Vec, wv: Vec, radius: float) -> list[tuple[float, bool, bool]]:
+    """Closest-approach roots for a cylinder/sphere, not b²-4ac.
+
+    Each result contains (fraction, is_first_entry, first_entry_collapsed).
+    Negative nearest-distance margins are genuine misses, not approximate
+    tangencies. The caller must check feature domains and *reconstructed*
+    boundary position; root time precision is not equivalent to XYZ precision.
+    """
+    a = dot(wv, wv)
+    if not isfinite(a):
+        raise ValueError("unresolvable CCD speed squared")
+    if a == 0:
+        return []
+    numerator = dot(w0, wv)
+    if not isfinite(numerator):
+        raise ValueError("unresolvable CCD closest approach")
+    mid = -numerator/a
+    if not isfinite(mid):
+        raise ValueError("unresolvable CCD closest-approach fraction")
+    closest = add(w0, mul(wv, mid))
+    if not all(isfinite(v) for v in closest):
+        raise ValueError("unresolvable CCD closest position")
+    d2 = dot(closest, closest)
+    r2 = radius*radius
+    if not all(isfinite(v) for v in (d2, r2)) or r2 == 0:
+        raise ValueError("unresolvable CCD squared radius/distance")
+    if d2 > r2:
+        return []
+    half_width = sqrt((r2-d2)/a)
+    entry, exit_ = mid-half_width, mid+half_width
+    if not all(isfinite(v) for v in (entry, exit_)):
+        raise ValueError("unresolvable CCD entry fraction")
+    if half_width == 0:
+        return [(mid, True, False)]  # exact mathematical tangent
+    return [(entry, True, entry == mid), (exit_, False, False)]
 
 
 def closest_on_triangle(p: Vec, tri: Triangle) -> tuple[Vec,str]:
@@ -180,12 +231,29 @@ def segment_hit(p: Vec, q: Vec, tri: Triangle, radius: float=0.) -> tuple[float,
     if not isfinite(radius) or radius<0: raise ValueError("invalid radius")
     if norm(sub(p,closest_on_triangle(p,tri)[0])) <= radius+1e-9:
         raise ValueError("initial overlap/contact; entry time unknown")
-    v=sub(q,p); n=unit(cross(sub(tri.b,tri.a),sub(tri.c,tri.a)))
+    v=sub(q,p)
+    if not all(isfinite(x) for x in v):
+        raise ValueError("unresolvable CCD segment displacement")
+    n=unit(cross(sub(tri.b,tri.a),sub(tri.c,tri.a)))
     candidates=[]
-    def take(t:float,surface:Vec,feature:str) -> None:
+    unresolved_entries=[]
+    def take(t:float,surface:Vec,feature:str, *,
+             radial_boundary:bool=False, entry:bool=False,
+             collapsed:bool=False) -> None:
         if -1e-9<=t<=1+1e-9:
             t=max(0.,min(1.,t)); center=add(p,mul(v,t))
-            if norm(sub(center,surface))<=radius+1e-7:
+            if not all(isfinite(x) for x in center):
+                raise ValueError("unresolvable CCD reconstructed center")
+            gap=norm(sub(center,surface))
+            if not isfinite(gap):
+                raise ValueError("unresolvable CCD boundary distance")
+            # A reconstructed sphere entry must be *on* the surface, not
+            # merely somewhere inside a widened acceptance cylinder.
+            if radial_boundary and (collapsed or abs(gap-radius)>1e-7):
+                if entry:
+                    unresolved_entries.append(t)
+                return
+            if gap<=radius+1e-7:
                 candidates.append((t,center,surface,feature))
     dist=dot(sub(p,tri.a),n); speed=dot(v,n)
     if radius==0 and abs(dist)<=EPS and abs(speed)<=EPS:
@@ -201,15 +269,23 @@ def segment_hit(p: Vec, q: Vec, tri: Triangle, radius: float=0.) -> tuple[float,
             e=sub(b,a); ee=dot(e,e)
             along0=dot(sub(p,a),e)/ee; alongv=dot(v,e)/ee
             w0=sub(sub(p,a),mul(e,along0)); wv=sub(v,mul(e,alongv))
-            for t in _roots(dot(wv,wv),2*dot(w0,wv),dot(w0,w0)-radius*radius):
+            for t,entry,collapsed in _conditioned_sweep_roots(w0,wv,radius):
                 along=along0+t*alongv
-                if 0<=t<=1 and 0<along<1: take(t,add(a,mul(e,along)),"edge")
+                if 0<=t<=1 and 0<along<1:
+                    take(t,add(a,mul(e,along)),"edge",
+                         radial_boundary=True,entry=entry,collapsed=collapsed)
         for corner in (tri.a,tri.b,tri.c):
             w=sub(p,corner)
-            for t in _roots(dot(v,v),2*dot(w,v),dot(w,w)-radius*radius):
-                if 0<=t<=1: take(t,corner,"vertex")
-    if not candidates: return None
-    return min(candidates,key=lambda h:(h[0],{"face":0,"edge":1,"vertex":2}[h[3]]))
+            for t,entry,collapsed in _conditioned_sweep_roots(w,v,radius):
+                if 0<=t<=1:
+                    take(t,corner,"vertex",radial_boundary=True,
+                         entry=entry,collapsed=collapsed)
+    best=min(candidates,key=lambda h:(h[0],{"face":0,"edge":1,"vertex":2}[h[3]])) if candidates else None
+    # No ABI-compatible binary64 fraction can describe the earliest surface
+    # entry in this case. Never replace it with the (later) cylinder exit.
+    if unresolved_entries and (best is None or min(unresolved_entries)<=best[0]):
+        raise ValueError("numerical first-entry XYZ unresolvable at binary64 time")
+    return best
 
 
 def read_obj(path: str | Path,max_faces:int=200000) -> list[Triangle]:
