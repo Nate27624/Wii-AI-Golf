@@ -1,5 +1,8 @@
 """Synthetic regression only; never evidence of native Wii trajectory parity."""
 import importlib.util
+from decimal import Decimal
+import math
+import struct
 from pathlib import Path
 import sys
 import tempfile
@@ -243,6 +246,112 @@ class FirstContactTests(unittest.TestCase):
         hit=fc.segment_hit((.3,1000000,.3),(.3,-1000000,.3),tri)
         self.assertAlmostEqual(hit[0],.5)
         self.assertEqual(hit[3],"face")
+
+
+    def test_decimal_oracle_fast_edge_and_vertex_first_entry(self):
+        # Independent high-precision oracle merged in #478; not a duplicate
+        # floating-point implementation of the solver's quadratic.
+        oracle_path=FILE.parents[3]/"scripts/research_p0_ccd_precision_oracle_v2.py"
+        spec_oracle=importlib.util.spec_from_file_location("s003_decimal_ccd_oracle",oracle_path)
+        oracle=importlib.util.module_from_spec(spec_oracle)
+        sys.modules[spec_oracle.name]=oracle
+        spec_oracle.loader.exec_module(oracle)
+        tri=fc.Triangle((0,0,0),(2,0,0),(0,0,2))
+        for fixture,x,z in (("edge",1.,-.25),("vertex",-.1,-.1)):
+            for halfspan in (2,100,10000,100000,1000000,100000000):
+                with self.subTest(fixture=fixture,halfspan=halfspan):
+                    truth=oracle.analytic_vertical(fixture,str(halfspan),str(-halfspan))
+                    self.assertEqual(truth["status"],"HIT")
+                    got=fc.segment_hit((x,halfspan,z),(x,-halfspan,z),tri,.5)
+                    self.assertIsNotNone(got)
+                    self.assertEqual(got[3],fixture)
+                    expected_center=[float(Decimal(v)) for v in truth["first_center_xyz_decimal"]]
+                    expected_surface=[float(Decimal(v)) for v in truth["surface_xyz_decimal"]]
+                    for i in range(3):
+                        self.assertLessEqual(abs(got[1][i]-expected_center[i]),1e-7)
+                        self.assertLessEqual(abs(got[2][i]-expected_surface[i]),1e-8)
+                    self.assertLessEqual(abs(got[0]-float(Decimal(truth["t_decimal"]))),
+                                         2*math.ulp(got[0]))
+
+    def test_binary64_first_entry_unrepresentable_abstains(self):
+        tri=fc.Triangle((0,0,0),(2,0,0),(0,0,2))
+        for x,z in ((1.,-.25),(-.1,-.1)):
+            for halfspan in (1e10,1e14,1e16):
+                with self.subTest(x=x,halfspan=halfspan):
+                    with self.assertRaisesRegex(ValueError,"numerical first-entry"):
+                        fc.segment_hit((x,halfspan,z),(x,-halfspan,z),tri,.5)
+
+    def test_f32_outside_never_phantom_and_split_path(self):
+        tri=fc.Triangle((0,0,0),(2,0,0),(0,0,2))
+        one_ulp_outside=struct.unpack(">f",bytes.fromhex("bf000001"))[0]
+        self.assertLess(one_ulp_outside,-.5)
+        for halfspan in (.001,.01,.1,1.,2.,100000.):
+            with self.subTest(span=halfspan):
+                self.assertIsNone(fc.segment_hit((1.,halfspan,one_ulp_outside),
+                                                 (1.,-halfspan,one_ulp_outside),tri,.5))
+        for parts in (1,2,4,10,20):
+            ys=[struct.unpack(">f",struct.pack(">f",.1-.2*i/parts))[0]
+                for i in range(parts+1)]
+            for start,end in zip(ys,ys[1:]):
+                with self.subTest(parts=parts,start=start,end=end):
+                    self.assertIsNone(fc.segment_hit((1.,start,one_ulp_outside),
+                                                     (1.,end,one_ulp_outside),tri,.5))
+
+    def test_conditioned_true_tangent_and_near_inside(self):
+        tri=fc.Triangle((0,0,0),(2,0,0),(0,0,2))
+        for height in (.01,.1):
+            tangent=fc.segment_hit((1.,height,-.5),(1.,-height,-.5),tri,.5)
+            self.assertIsNotNone(tangent)
+            self.assertEqual(tangent[3],"edge")
+            self.assertAlmostEqual(tangent[0],.5,places=12)
+            self.assertAlmostEqual(tangent[1][1],0.,places=12)
+        near=fc.segment_hit((1.,.01,-.4999),(1.,-.01,-.4999),tri,.5)
+        self.assertIsNotNone(near)
+        self.assertEqual(near[3],"edge")
+        self.assertGreater(near[1][1],0)
+        self.assertAlmostEqual(math.dist(near[1],near[2]),.5,places=8)
+        self.assertIsNone(fc.segment_hit((-.4,.1,-.4),(-.4,-.1,-.4),tri,.5))
+
+    def test_ccd_translation_winding_reversal(self):
+        tri=fc.Triangle((0,0,0),(2,0,0),(0,0,2))
+        delta=(10000.,250.,-30000.)
+        shifted=fc.Triangle(*(fc.add(v,delta) for v in (tri.a,tri.b,tri.c)))
+        for triangle,shift in ((tri,(0.,0.,0.)),
+                               (fc.Triangle(tri.c,tri.b,tri.a),(0.,0.,0.)),
+                               (shifted,delta)):
+            for sign in (1.,-1.):
+                p=fc.add((1.,sign*100000.,-.25),shift)
+                q=fc.add((1.,-sign*100000.,-.25),shift)
+                with self.subTest(shift=shift,sign=sign,face=triangle.face_id):
+                    hit=fc.segment_hit(p,q,triangle,.5)
+                    self.assertIsNotNone(hit)
+                    self.assertEqual(hit[3],"edge")
+                    self.assertAlmostEqual(hit[1][1]-shift[1],
+                                           sign*math.sqrt(3)/4,places=7)
+
+    def test_quadratic_negative_discriminant_is_not_tangent(self):
+        # Old _roots would clamp discriminants in (-EPS,0) and fake contact.
+        self.assertEqual(fc._roots(.0004,0.,6e-8),[])
+        self.assertEqual(fc._roots(1.,-1.,.25),[.5])
+        with self.assertRaises(ValueError):
+            fc._roots(float("inf"),2.,3.)
+
+    def test_trajectory_ccd_regression_preserves_safety_gates(self):
+        tri=fc.Triangle((0,0,0),(2,0,0),(0,0,2))
+        samples=[(0.,(1.,1000000.,-.25),(0.,-2000000.,0.)),
+                 (1.,(1.,-1000000.,-.25),(0.,-2000000.,0.))]
+        result=fc.predict_contact_from_trajectory(samples,[tri],
+                            contact_mode="swept_kcol_query_0p5",assume_tree_free=True)
+        self.assertEqual(result["status"],"PROVISIONAL_FIRST_CONTACT")
+        self.assertEqual(result["contact_feature"],"edge")
+        self.assertAlmostEqual(result["ball_center_xyz"][1],math.sqrt(3)/4,places=7)
+        self.assertFalse(result["native_game_parity_verified"])
+        self.assertFalse(result["training_approved"])
+
+    def test_huge_derived_displacement_abstains(self):
+        tri=fc.Triangle((0,0,0),(2,0,0),(0,0,2))
+        with self.assertRaises(ValueError):
+            fc.segment_hit((1.,1e308,-.25),(1.,-1e308,-.25),tri,.5)
 
 if __name__=="__main__":
     unittest.main()
