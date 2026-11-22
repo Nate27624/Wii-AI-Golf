@@ -59,7 +59,12 @@ def symbolic_handoff(*, state3: bool | None, flag1: bool | None,
     return {
         "steps": steps,
         "scalar_0x8c_input": scalar,
-        "selected_receiver_identity_known": incoming_is_selected is True,
+        # Caller-supplied symbolic predicates are never source/native proof.
+        "selected_receiver_identity_assumed": incoming_is_selected,
+        "selected_receiver_identity_known": False,
+        "selected_pre_step_v0_xyz": None,
+        "first_eligible_guest_step_verified": False,
+        "post_step_velocity_is_launch_v0_verified": False,
         "selected_ball_v0_verified": False,
         "runtime_execution_verified": False,
         "training_approved": False,
