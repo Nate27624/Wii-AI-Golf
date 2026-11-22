@@ -69,3 +69,69 @@ Exact start-on-surface remains a fail-closed initial-overlap error.
 Additional synthetic controls exercise split triangles, zero-length tracks,
 initial contact at the .5 source-*query* radius, and high-speed tunneling.
 The r=.5 KCol query remains route-specific, not the verified physical ball size.
+
+
+## CCD numerical repair — 2026-11-22 (S000 roster rev54, canonical #467 / #474)
+
+Scope: the original solver owner `S003-first-contact-solver-20261111-a` was reactivated for
+`S003-P0-FIRST-CONTACT-CCD-NUMERICAL-REPAIR-20261122-A`, preserving this document,
+`src/wii_ai_golf/physics/first_contact.py`, and `tests/test_first_contact_solver.py`
+as its three exclusive production paths. Assignment:
+https://github.com/Nate27624/Wii-AI-Golf/pull/320#issuecomment-7078036834 .
+No S002/M1/M2/Decimal-oracle/source-private paths are changed.
+
+**Numerical defect and remedy.** The original edge/vertex radius-sweep
+quadratics formed `b*b - 4*a*c` using huge, nearly cancelling terms; the
+subsequent fixed residual gate rejected actual high-speed entries. At low
+speed the old `disc >= -1e-10` rule converted negative discriminants
+into phantom tangencies, notably at a single representable binary32 step
+outside the hypothesized 0.5-radius cylinder. The repair evaluates the
+closest approach to each *edge cylinder* and *vertex sphere* and computes
+entry/exit offsets from the nonnegative squared-distance margin, with
+finite-value gates. Negative margins **remain misses** rather than being
+clamped into tangencies. Edge-interior projection, candidate time bounds,
+face/vertex competition and original initial-contact abstention remain
+explicit. The legacy scalar `_roots` helper also rejects negative
+discriminants without an absolute-negative tolerance.
+
+**Critical output representation limit.** Stable roots are insufficient
+when binary64 normalized `t` is too coarse to reconstruct the earliest
+surface-contact XYZ. At extreme half-spans (e.g. 1e10, 1e14, 1e16),
+a mathematically valid entry can produce `p + t*(q-p)` too deep inside
+the sphere or at the closest approach; at 1e16 the entry can round
+entirely to `t_closest=0.5`. The solver now rejects such boundary
+candidates using the absolute **two-sided** radial residual
+`abs(distance(center,surface)-radius) <= 1e-7` and checks
+`entry == closest_t` when the true offset is nonzero. An unresolved
+possible earliest entry that precedes any reliable candidate raises
+`ValueError("numerical first-entry XYZ unresolvable at binary64 time")`.
+It must **not** be downgraded to a `NO_CONTACT_IN_HORIZON`, converted to
+a deep-penetration hit, or replaced by the later exit. This is a
+conservative fail-closed signal, preserving existing public return
+shapes. Callers that need a distinct structured numerical abstention
+status can safely map the exception only after a separately reviewed
+shared-interface change. No global collision radius or tolerance was
+widened.
+
+**Independent acceptance controls.** Merged PR #478 supplies the
+100-digit Decimal *analytical* vertical AB-edge/A-vertex ground truth
+(`scripts/research_p0_ccd_precision_oracle_v2.py`), independent of
+production quadratic roots. Merged PR #469 supplies research-only
+nearest-approach-conditioned edge candidates, not alternate production
+geometry. Tests in the existing solver test file use #478 for expected
+earliest center, terrain surface and time in the H=2..1e8 ladders,
+including vertex and winding reversal. Separate controls cover
+near-inside, exact tangent, 1-f32-ULP outside misses at short/long and
+1/2/4/10/20-piece paths, start contact, large-translation symmetry,
+far-too-large displacement and unchanged provisional training/privacy
+flags. Root conditioning is host numerical geometry, **not** a Wii native
+KCol implementation or a proof of radius, one-sidedness, selected shot,
+game clock, launch velocity, physical contact, bounce or roll.
+
+**Limits.** A hard 1e-7 reconstructed radial residual is a consciously
+bounded *geometric precision acceptance test*, not a native physical
+tolerance. It may conservatively abstain on valid under-resolved
+grazes or large geometric offsets, and is not a substitute for a
+higher-precision output representation or exact native collision
+contract. Initial overlap remains exceptional. Terrain-only,
+provisional and training-false evidence gates remain enforced.
