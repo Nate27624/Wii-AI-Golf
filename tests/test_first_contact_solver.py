@@ -353,5 +353,58 @@ class FirstContactTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             fc.segment_hit((1.,1e308,-.25),(1.,-1e308,-.25),tri,.5)
 
+
+    def test_face_first_entry_true_original_plane_and_winding(self):
+        # The contact surface must be on the actual triangle plane, not a
+        # parallel pseudo-plane manufactured from a rounded center.
+        tri=fc.Triangle((0,0,0),(4,0,0),(0,0,4))
+        for winding in ((tri.a,tri.b,tri.c),(tri.c,tri.b,tri.a)):
+            face=fc.Triangle(*winding)
+            for height in (100.,1000000.,100000000000000.):
+                for sign in (-1.,1.):
+                    with self.subTest(winding=winding,height=height,sign=sign):
+                        p=(1.,sign*height,1.)
+                        q=(1.,-sign*height,1.)
+                        hit=fc.segment_hit(p,q,face,.5)
+                        self.assertIsNotNone(hit)
+                        self.assertEqual(hit[3],"face")
+                        self.assertAlmostEqual(hit[0],(height-.5)/(2*height))
+                        self.assertEqual(hit[2],(1.,0.,1.))
+                        self.assertEqual(hit[1],(1.,sign*.5,1.))
+                        self.assertAlmostEqual(math.dist(hit[1],hit[2]),.5)
+
+    def test_face_high_h_unrepresentable_time_abstains(self):
+        # Decimal closed form: entry center_y=+/-0.5; at H>=5e15 the
+        # binary64 normalized fraction can round to 0.5 (center_y=0).
+        # Old face branch accepted an off-plane pseudo-surface y=+/-0.5.
+        tri=fc.Triangle((0,0,0),(4,0,0),(0,0,4))
+        for winding in ((tri.a,tri.b,tri.c),(tri.c,tri.b,tri.a)):
+            face=fc.Triangle(*winding)
+            for height in (1e16,1e17):
+                for sign in (-1.,1.):
+                    with self.subTest(winding=winding,height=height,sign=sign):
+                        with self.assertRaisesRegex(ValueError,"numerical first-entry"):
+                            fc.segment_hit((1.,sign*height,1.),
+                                           (1.,-sign*height,1.),face,.5)
+
+    def test_face_high_h_trajectory_abstains_without_fabricated_hit(self):
+        tri=fc.Triangle((0,0,0),(4,0,0),(0,0,4))
+        samples=[(0.,(1.,1e16,1.),(0.,-2e16,0.)),
+                 (1.,(1.,-1e16,1.),(0.,-2e16,0.))]
+        with self.assertRaisesRegex(ValueError,"numerical first-entry"):
+            fc.predict_contact_from_trajectory(
+                samples,[tri],contact_mode="swept_kcol_query_0p5",
+                assume_tree_free=True)
+
+    def test_face_plane_miss_and_point_mode_compatibility(self):
+        tri=fc.Triangle((0,0,0),(4,0,0),(0,0,4))
+        for height in (100.,1e16):
+            self.assertIsNone(fc.segment_hit((3.,height,3.),(3.,-height,3.),tri,.5))
+        point=fc.segment_hit((1.,100.,1.),(1.,-100.,1.),tri)
+        self.assertIsNotNone(point)
+        self.assertEqual(point[3],"face")
+        self.assertEqual(point[1],(1.,0.,1.))
+        self.assertEqual(point[2],(1.,0.,1.))
+
 if __name__=="__main__":
     unittest.main()

@@ -135,3 +135,47 @@ grazes or large geometric offsets, and is not a substitute for a
 higher-precision output representation or exact native collision
 contract. Initial overlap remains exceptional. Terrain-only,
 provisional and training-false evidence gates remain enforced.
+
+
+## Corrective face first-entry precision hotfix — 2026-11-22 (S000 roster rev58)
+
+After prior PR #480 merged (squash SHA `8b7b40599e6f7b7114c50f288b5e13921e7218a9`),
+an independent actionable review identified an **unresolved face-only** binary64
+first-entry defect. The #480 merge-ready claim of no actionable review
+objection was incorrect; the all-green prior tests omitted this case. This
+same owner received a *separate* manager-assigned corrective hotfix
+`S003-P0-CCD-FACE-FIRST-ENTRY-PRECISION-HOTFIX-20261122-B`,
+[S000 roster rev58](https://github.com/Nate27624/Wii-AI-Golf/pull/320#issuecomment-7078209520),
+canonical issue #467.
+
+**Falsifier:** triangle A=(0,0,0), B=(4,0,0), C=(0,0,4); face-interior
+x=z=1, query radius r=0.5, vertical sweep y=+1e16 to -1e16. Exact first
+center has y=+0.5 and contact surface y=0. The old face candidate computed
+fraction `t=(signed*r-dist)/speed`, rounded to binary64 `t=0.5`, then
+constructed both a wrong center y=0 and a **fabricated off-plane surface**
+y=-0.5 using `center-n*signed*r`. This made the radius residual a tautology;
+the old `_inside` halfspace test did not enforce original triangle-plane
+membership, and the edge/vertex-only #480 resolution gate did not apply.
+
+**Correction:** reproject a candidate center onto the *actual* triangle
+plane with `plane_gap=dot(center-tri.a, n)` and
+`surface=center-n*plane_gap` before any face-region test.
+For swept sphere faces, compare signed `plane_gap` to the intended
+`signed*radius` and pass the candidate through existing radial-boundary
+validation. If its reconstructed time/XYZ cannot produce a real first
+entry on that original plane, record an unresolved entry and raise the
+existing fail-closed `ValueError` when it could preempt the earliest
+accepted hit. An invented parallel plane can no longer establish contact.
+For point-center mode, projection still preserves original face/plane
+intersection semantics. The prior 1e-7 validation envelope is **not
+widened**, and the query radius is never promoted to physical ball size.
+
+**Focused new controls:** actual center/surface at ordinary H=100 and 1e6
+and still representable H=1e14, both winding orders and both directions,
+extreme H=1e16/1e17 numerical abstention (no deep-penetration face hit),
+trajectory-wrapper fail-closed propagation, face-region misses and
+point-center compatibility. Recheck all #480 edge/vertex Decimal and
+#474 1-f32-ULP outside negatives on exact-head Windows and Ubuntu CI.
+This remains generic synthetic two-sided CCD; native KCol parity,
+selected-ball shot identity, physical radius, collision sidedness,
+game physics clock and training eligibility remain unverified.

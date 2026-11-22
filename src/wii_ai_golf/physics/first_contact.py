@@ -262,8 +262,27 @@ def segment_hit(p: Vec, q: Vec, tri: Triangle, radius: float=0.) -> tuple[float,
         for signed in ((-1,1) if radius>0 else (0,)):
             t=(signed*radius-dist)/speed
             if 0<=t<=1:
-                center=add(p,mul(v,t));surface=sub(center,mul(n,signed*radius))
-                if _inside(surface,tri,n): take(t,surface,"face")
+                center=add(p,mul(v,t))
+                # The reconstructed center can differ from the ideal face
+                # entry even when the *computed* time is in [0, 1]. Project
+                # onto the ORIGINAL triangle plane, not an invented plane
+                # offset by signed*radius from a numerically wrong center.
+                plane_gap=dot(sub(center,tri.a),n)
+                if not isfinite(plane_gap):
+                    raise ValueError("unresolvable CCD face plane distance")
+                surface=sub(center,mul(n,plane_gap))
+                if not all(isfinite(x) for x in surface):
+                    raise ValueError("unresolvable CCD face surface")
+                if _inside(surface,tri,n):
+                    # A face first-entry center must be on the intended
+                    # *signed* radius side of the original plane. The
+                    # absolute-radius check in take() alone cannot detect
+                    # wrong-sided or deep-penetration reconstructed centers.
+                    if radius>0 and abs(plane_gap-signed*radius)>1e-7:
+                        unresolved_entries.append(t)
+                    else:
+                        take(t,surface,"face",radial_boundary=radius>0,
+                             entry=radius>0)
     if radius>0:
         for a,b in ((tri.a,tri.b),(tri.b,tri.c),(tri.c,tri.a)):
             e=sub(b,a); ee=dot(e,e)
