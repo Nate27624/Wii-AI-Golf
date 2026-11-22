@@ -93,6 +93,64 @@ class SyntheticParityTests(unittest.TestCase):
         self.assertEqual(ans["residuals"][3]["position_l2"], 0.125)
         self.assertEqual(ans["residuals"][-1]["position_l2"], 0.)
 
+    def test_endpoint_aliased_launch_and_force_diverge_earlier(self):
+        # Canonical M1 zero-spin order: u=v+a; p+=u; v=d*u.
+        # A single terminal endpoint cannot identify both v0 and a.
+        steps = 100
+        damping = 0.999000013
+        acceleration_delta = 0.001
+        a_steps = (1.0 - damping**steps) / (1.0 - damping)
+        b_steps = (steps - damping * a_steps) / (1.0 - damping)
+        other_v0 = 0.1 - (b_steps / a_steps) * acceleration_delta
+        primary = sample_trajectory(
+            (0., 5., 0.), (0., 0.1, 0.),
+            FlightParameters((0., -0.004, 0.), damping, "binary64"), steps=steps)
+        alternative = sample_trajectory(
+            (0., 5., 0.), (0., other_v0, 0.),
+            FlightParameters((0., -0.003, 0.), damping, "binary64"), steps=steps)
+        # Position-only references isolate the earliest *position* divergence;
+        # optional genuine velocity samples correctly identify step-zero v0.
+        without_velocity = [replace(row, velocity_xyz=None)
+                            for row in reference(alternative)]
+        answer = run(primary, without_velocity, position_atol=1e-10)
+        self.check(answer, "ELIGIBLE_SYNTHETIC_COMPARISON")
+        self.assertEqual(answer["velocity_comparison"], "UNKNOWN")
+        self.assertEqual(answer["first_divergent_step"], 1)
+        self.assertLess(answer["residuals"][-1]["position_l2"], 1e-10)
+        self.assertGreater(answer["residuals"][50]["position_l2"], 1.2)
+        self.assertEqual(answer["compared_steps"], 101)
+        with_velocity = run(primary, reference(alternative))
+        self.check(with_velocity, "ELIGIBLE_SYNTHETIC_COMPARISON")
+        self.assertEqual(with_velocity["first_divergent_step"], 0)
+        self.assertEqual(with_velocity["velocity_comparison"], "COMPLETE")
+
+    def test_reference_count_is_bounded_before_provenance_traversal(self):
+        class NeverRead:
+            def __getattribute__(self, name):
+                raise AssertionError("oversized input was traversed")
+
+        # A single invalid member should not be visited if the length already
+        # makes the reference sequence ineligible for comparison.
+        for too_many in ([NeverRead()] * 10002, (NeverRead(),) * 10002):
+            with self.subTest(kind=type(too_many).__name__):
+                with self.assertRaisesRegex(ValueError, "bounded nonempty"):
+                    run(refs=too_many)
+        with self.assertRaisesRegex(ValueError, "bounded nonempty"):
+            run(refs=[])
+
+    def test_reference_exact_max_count_is_accepted(self):
+        # 10,000 M1 steps plus the preintegration sample zero is the maximum.
+        m = sample_trajectory((0., 0., 0.), (0., 0., 0.),
+                              FlightParameters((0., 0., 0.), 1., "binary64"),
+                              steps=10000)
+        refs = tuple(reference(m))
+        self.assertEqual(len(refs), 10001)
+        answer = run(m, refs)
+        self.check(answer, "ELIGIBLE_SYNTHETIC_COMPARISON")
+        self.assertEqual(answer["compared_steps"], 10001)
+        self.assertEqual(answer["reference_count"], 10001)
+        self.assertIsNone(answer["first_divergent_step"])
+
     def test_wrong_force_update_order_reports_step_one(self):
         m = trace()
         refs = reference(m)
