@@ -251,7 +251,7 @@ class FirstContactTests(unittest.TestCase):
     def test_decimal_oracle_fast_edge_and_vertex_first_entry(self):
         # Independent high-precision oracle merged in #478; not a duplicate
         # floating-point implementation of the solver's quadratic.
-        oracle_path=FILE.parents[1]/"scripts/research_p0_ccd_precision_oracle_v2.py"
+        oracle_path=FILE.parents[3]/"scripts/research_p0_ccd_precision_oracle_v2.py"
         spec_oracle=importlib.util.spec_from_file_location("s003_decimal_ccd_oracle",oracle_path)
         oracle=importlib.util.module_from_spec(spec_oracle)
         sys.modules[spec_oracle.name]=oracle
