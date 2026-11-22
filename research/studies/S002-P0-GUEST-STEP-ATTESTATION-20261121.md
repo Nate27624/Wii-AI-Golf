@@ -63,6 +63,19 @@ bridge RPC success or host callbacks cannot substitute. S001/S002 must first
 establish a permitted producer with independent source and runtime evidence;
 any live Dolphin or private archive study needs *new operator authorization*.
 
+## CLI exit status is not native-attestation status
+
+The optional stdin-only JSON CLI uses **exit 0 only for**
+`SYNTHETIC_CONTRACT_PASS` (fixture logic, **never** a native witness),
+**exit 1** for source/receiver/clock/identity abstentions **and** for
+`CANDIDATE_REQUIRES_EXTERNAL_PROOF` (consistent but independently
+unverified sanitized claims), and **exit 2** for malformed/rejected input.
+Consumers must read the JSON `status` and
+`verified_native_guest_step_count`; no process exit code, including 0,
+certifies guest timing. This differs intentionally from the independent
+coordinate-basis #477 consumer: neither exit-0 success category constitutes
+native physics parity. There is no direct M2 adapter or live input.
+
 ## Acceptance tests and commands
 
 `python -m unittest discover -s tests -p test_p0_guest_step_attestation.py -v`  
