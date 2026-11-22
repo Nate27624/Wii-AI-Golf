@@ -238,8 +238,11 @@ def compare_airborne(
         return _report("ABSTAIN_UNVERIFIED_CLOCK_OR_IDENTITY")
     if evidence.basis_status not in ("SYNTHETIC_BASIS", "CONDITIONALLY_CONSISTENT"):
         return _report("ABSTAIN_UNVERIFIED_COORDINATE_BASIS")
-    if not isinstance(reference_samples, (list, tuple)):
-        raise ValueError("reference samples must be bounded list or tuple")
+    # Reject oversized input *before* traversing any reference provenance.
+    # _sample_rows repeats this limit for defense in depth after the gate.
+    if (type(reference_samples) not in (list, tuple)
+            or not 1 <= len(reference_samples) <= _MAX_SAMPLES):
+        raise ValueError("bounded nonempty reference sample sequence required")
     for entry in reference_samples:
         if not isinstance(entry, ReferenceSample):
             raise ValueError("typed reference samples only")
