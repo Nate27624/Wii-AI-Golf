@@ -192,6 +192,36 @@ class AttestationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 gate.evaluate(doc)
 
+    def test_stdin_cli_valid_abstentions_and_candidate_are_nonzero(self):
+        script = Path(__file__).resolve().parents[1] / "scripts" / (
+            "review_p0_guest_step_attestation.py")
+        for mutation, expected in (
+            (lambda doc: doc["events"][1].update(receiver="source_global_ball"),
+             "ABSTAIN_WRONG_BALL_RECEIVER"),
+            (lambda doc: doc["events"][1].pop("executed_guest_pc"),
+             "ABSTAIN_MISSING_EXECUTED_PC"),
+            (lambda doc: doc["qualifiers"].update(
+                source_selected_receiver_qualified=False),
+             "ABSTAIN_SOURCE_PROVENANCE"),
+        ):
+            with self.subTest(expected=expected):
+                doc = fixture()
+                mutation(doc)
+                result = subprocess.run([sys.executable, str(script)],
+                                        input=json.dumps(doc), capture_output=True,
+                                        text=True)
+                self.assertEqual(result.returncode, 1)
+                data = json.loads(result.stdout)
+                self.assertEqual(data["status"], expected)
+                self.assertIsNone(data["verified_native_guest_step_count"])
+                self.assertFalse(data["native_game_parity_verified"])
+        result = subprocess.run([sys.executable, str(script)],
+                                input=json.dumps(fixture("sanitized")),
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(json.loads(result.stdout)["status"],
+                         "CANDIDATE_REQUIRES_EXTERNAL_PROOF")
+
     def test_stdin_cli_synthetic_and_safe_error(self):
         script = Path(__file__).resolve().parents[1] / "scripts" / (
             "review_p0_guest_step_attestation.py")
