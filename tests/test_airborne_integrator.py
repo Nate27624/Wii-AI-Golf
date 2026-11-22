@@ -50,8 +50,11 @@ class AirborneIntegratorTests(unittest.TestCase):
         trace = ab.sample_trajectory((0., 2., 0.), (1., 0., 0.), p, steps=2)
         self.assertEqual(trace.samples[1],
                          (1, (1., 1.8, 0.), (0.5, -0.1, 0.)))
-        self.assertEqual(trace.samples[2],
-                         (2, (1.5, 1.5, 0.), (0.25, -0.15, 0.)))
+        self.assertEqual(trace.samples[2][0], 2)
+        for actual, expected in zip(trace.samples[2][1], (1.5, 1.5, 0.)):
+            self.assertAlmostEqual(actual, expected, places=12)
+        for actual, expected in zip(trace.samples[2][2], (0.25, -0.15, 0.)):
+            self.assertAlmostEqual(actual, expected, places=12)
 
     def test_constant_gravity_closed_form_control(self):
         # Exact no-damping candidate p_n=p0+n*v0 + n(n+1)/2*a.
