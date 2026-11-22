@@ -138,6 +138,43 @@ class AirborneIntegratorTests(unittest.TestCase):
         self.assertEqual(a.samples[1], b.samples[1])
         self.assertNotEqual(a.samples[-1], b.samples[-1])
 
+    def test_inactive_lift_does_not_block_valid_lateral_candidate(self):
+        # With vy=0, |L|=vx**2 while |S|=|vx|. For vx=1e-5,
+        # an assumed guard of 1e-8 rejects L but not S. A lateral-only
+        # force must not unnecessarily normalize the inactive lift basis.
+        v = (1e-5, 0., 0.)
+        with self.assertRaises(ab.UnverifiedNormalizerBranch):
+            ab.source_direction_candidate(v, 1e-8, "binary64")
+
+        lift_dir, side_dir = ab.source_direction_candidate(
+            v, 1e-8, "binary64",
+            require_lift=False, require_side=True)
+        self.assertEqual(lift_dir, (0., 0., 0.))
+        self.assertEqual(side_dir, (0., 0., -1.))
+
+        side_only = ab.SourceSpinCandidate(
+            speed_like=1., lift=0., lateral=1.,
+            normalizer_guard_assumption=1e-8)
+        trace = ab.sample_trajectory(
+            (0., 2., 0.), v, settings(spin=side_only), steps=1)
+        self.assertAlmostEqual(trace.samples[1][1][2], -0.001, places=12)
+
+        # A required, genuinely unqualified lift remains fail-closed.
+        lift_only = ab.SourceSpinCandidate(
+            speed_like=1., lift=1., lateral=0.,
+            normalizer_guard_assumption=1e-8)
+        with self.assertRaises(ab.UnverifiedNormalizerBranch):
+            ab.sample_trajectory((0., 2., 0.), v,
+                                 settings(spin=lift_only), steps=1)
+
+    def test_selected_normalization_flags_are_strict_booleans(self):
+        with self.assertRaises(ValueError):
+            ab.source_direction_candidate(
+                (1., 1., 0.), 0., "binary64", require_lift=1)
+        with self.assertRaises(ValueError):
+            ab.source_direction_candidate(
+                (1., 1., 0.), 0., "binary64", require_side=None)
+
     def test_unknown_zero_vector_branch_abstains_in_flight(self):
         spin = ab.SourceSpinCandidate(speed_like=1., lift=1., lateral=1.,
                                       normalizer_guard_assumption=1e-7)
