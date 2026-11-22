@@ -1,0 +1,38 @@
+name: P0 source-only swing-magnitude upstream microaudit
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/p0_calc_magnitude_upstream_private.py'
+      - 'tests/test_p0_calc_magnitude_upstream.py'
+      - 'research/studies/S002-P0-CALC-MAGNITUDE-UPSTREAM-01.md'
+      - '.github/workflows/p0-calc-magnitude-upstream-offline.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Exact Windows operator isolated Python synthetic source audit tests
+        run: python -I -m unittest discover -s tests -p test_p0_calc_magnitude_upstream.py -v
+      - name: Missing private source must ABSTAIN without Dolphin
+        shell: bash
+        run: |
+          set +e
+          python -I scripts/p0_calc_magnitude_upstream_private.py --archive DOES_NOT_EXIST > source-audit-preflight.txt
+          code=$?
+          test "$code" -eq 2
+          grep '"status": "ABSTAIN"' source-audit-preflight.txt
+      - name: Full offline regression (no native banks)
+        run: python -m unittest discover -s tests -v
