@@ -179,8 +179,12 @@ def main():
         except (UnicodeError, json.JSONDecodeError, TypeError, ValueError):
             result = _answer("ABSTAIN_INVALID_INPUT")
     print(json.dumps(result, sort_keys=True))
-    return 0 if result["status"] not in (
-        "ABSTAIN_INVALID_INPUT",) else 2
+    # Exit status is fail-closed for callers that neglect JSON status:
+    # 0=synthetic-only validation; 1=no qualified proof; 2=invalid JSON.
+    # Even exit 0 is NEVER a verified native Wii physics step.
+    if result["status"] == "SYNTHETIC_CONTRACT_PASS":
+        return 0
+    return 2 if result["status"] == "ABSTAIN_INVALID_INPUT" else 1
 
 
 if __name__ == "__main__":
