@@ -138,9 +138,9 @@ class Receipt:
 
 
 def validate_envelope(value):
-    check(type(value) is dict and set(value) == {"schema", "state", "receipts", "artifacts"},
+    check(type(value) is dict and set(value) == {"schema", "state", "receipts", "artifacts", "publications"},
           "invalid ledger envelope")
-    check(type(value["schema"]) is int and value["schema"] == 2, "ledger schema")
+    check(type(value["schema"]) is int and value["schema"] == 3, "ledger schema")
     model.validate(value["state"])
     receipts = value["receipts"]
     check(type(receipts) is dict, "receipt map")
@@ -168,13 +168,99 @@ def validate_envelope(value):
             raise StoreError("invalid artifact journal record") from exc
         check(record["revision"] == receipts[operation]["revision"],
               "artifact receipt revision")
+    validate_publications(value)
     check(len(canonical(value)) <= MAX_LEDGER, "ledger capacity; stop for reviewed compaction")
     return value
 
 
-def fingerprint(base, next_state, artifact=None):
+_PUBLICATION_REF = re.compile(r"orchestration/v3-publication-test-[a-z0-9][a-z0-9-]{0,63}")
+
+
+def pending_publication(envelope):
+    pending = [key for key, row in envelope["publications"].items()
+               if row["resolution"] is None]
+    check(len(pending) <= 1, "multiple unresolved publication intents")
+    return pending[0] if pending else None
+
+
+def validate_publications(envelope):
+    """Validate immutable intent and terminal receipt links; no source IO."""
+    rows = envelope["publications"]
+    check(type(rows) is dict, "publication journal")
+    receipts, artifacts = envelope["receipts"], envelope["artifacts"]
+    seen_artifacts, seen_resolutions = set(), set()
+    for key, row in rows.items():
+        check(key in receipts and key not in artifacts, "publication intent receipt")
+        check(type(row) is dict and set(row) == {"artifact", "target", "resolution"},
+              "publication row")
+        artifact = row["artifact"]
+        check(isinstance(artifact, str) and artifact in artifacts
+              and artifact not in seen_artifacts, "publication artifact")
+        seen_artifacts.add(artifact)
+        check(isinstance(row["target"], str) and _PUBLICATION_REF.fullmatch(row["target"]),
+              "publication target must be disposable")
+        revision = receipts[key]["revision"]
+        check(revision > receipts[artifact]["revision"], "intent must follow acceptance")
+        resolution = row["resolution"]
+        if resolution is None:
+            check(revision == envelope["state"]["revision"], "mutation after unresolved intent")
+            continue
+        check(type(resolution) is dict and set(resolution) == {"operation", "observed_head"},
+              "publication resolution")
+        op = resolution["operation"]
+        check(isinstance(op, str) and op in receipts and op not in artifacts
+              and op not in rows and op not in seen_resolutions
+              and receipts[op]["revision"] == revision + 1, "publication resolution receipt")
+        seen_resolutions.add(op)
+        check(sha(resolution["observed_head"]) in (artifacts[artifact]["base"],
+              artifacts[artifact]["head"]), "unknown publication outcome")
+    pending_publication(envelope)
+
+
+def publication_transition(current, next_state, operation, publication):
+    """Trusted host only. Reserve ledger until a settled outcome is verified.
+
+    No source writes here. The future broker must independently verify
+    settlement, including absence of in-flight IO, before resolution.
+    """
+    pending = pending_publication(current)
+    rows = copy.deepcopy(current["publications"])
+    if publication is None:
+        check(pending is None, "publication unresolved; queue frozen")
+        return rows
+    check(type(publication) is dict, "publication mutation")
+    expected = model.sweep(current["state"], next_state["clock"])
+    expected["revision"] = current["state"]["revision"] + 1
+    check(next_state == expected, "publication transition must only sweep")
+    if set(publication) == {"artifact", "target"}:
+        check(pending is None, "publication unresolved; queue frozen")
+        key = publication["artifact"]
+        check(isinstance(key, str) and key in current["artifacts"]
+              and all(row["artifact"] != key for row in rows.values()),
+              "artifact already used or missing")
+        artifact = current["artifacts"][key]
+        task, run_id, fence = (artifact[k] for k in ("task", "run_id", "fence"))
+        model.active(next_state, task, run_id, fence)
+        check(artifact["goal_sha"] == next_state["oversight"]["goal_sha"]
+              and next_state["tasks"][task]["checkpoint"]["head"] == artifact["head"],
+              "artifact no longer current")
+        rows[operation] = {**publication, "resolution": None}
+    elif set(publication) == {"intent", "observed_head"}:
+        check(pending is not None and publication["intent"] == pending,
+              "no matching unresolved intent")
+        artifact = current["artifacts"][rows[pending]["artifact"]]
+        check(sha(publication["observed_head"]) in (artifact["base"], artifact["head"]),
+              "ambiguous publication outcome; queue remains frozen")
+        rows[pending]["resolution"] = {"operation": operation,
+                                       "observed_head": publication["observed_head"]}
+    else:
+        raise StoreError("invalid publication mutation")
+    return rows
+
+
+def fingerprint(base, next_state, artifact=None, publication=None):
     return hashlib.sha256(canonical({"parent": sha(base), "state": next_state,
-                                      "artifact": artifact})).hexdigest()
+                                      "artifact": artifact, "publication": publication})).hexdigest()
 
 
 class GitHubStore:
@@ -338,12 +424,12 @@ class GitHubStore:
               and type(tree.get("tree")) is list, "bootstrap tree")
         check(not any(isinstance(e, dict) and e.get("path") == LEDGER
                       for e in tree["tree"]), "already initialized")
-        envelope = {"schema": 2, "state": copy.deepcopy(initial_state),
+        envelope = {"schema": 3, "state": copy.deepcopy(initial_state),
                     "receipts": {operation: {"digest": digest, "revision": 0}},
-                    "artifacts": {}}
+                    "artifacts": {}, "publications": {}}
         return self._advance(current, self._candidate(current, envelope), operation, digest)
 
-    def publish(self, expected, next_state, operation, *, artifact=None):
+    def publish(self, expected, next_state, operation, *, artifact=None, publication=None):
         """Persist one authorized model transition; the broker must validate it.
 
         Repeating the exact operation against its original snapshot returns
@@ -368,7 +454,8 @@ class GitHubStore:
                   and artifact["goal_sha"] == next_state["oversight"]["goal_sha"]
                   and next_state["tasks"][task]["checkpoint"]["head"] == artifact["head"],
                   "artifact not bound to proposed checkpoint")
-        digest = fingerprint(expected.head, next_state, artifact)
+        check(artifact is None or publication is None, "separate artifact and publication operations")
+        digest = fingerprint(expected.head, next_state, artifact, publication)
         current = self.read()
         prior = self._record(current, operation, digest, True)
         if prior is not None:
@@ -376,7 +463,9 @@ class GitHubStore:
         if current.head != expected.head:
             raise Conflict("stale snapshot; reread and recompute")
         check(current.envelope == expected.envelope, "snapshot payload mismatch")
+        rows = publication_transition(current.envelope, next_state, operation, publication)
         envelope = copy.deepcopy(current.envelope)
+        envelope["publications"] = rows
         envelope["state"] = copy.deepcopy(next_state)
         envelope["receipts"][operation] = {"digest": digest,
                                              "revision": next_state["revision"]}
