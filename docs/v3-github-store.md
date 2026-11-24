@@ -19,7 +19,11 @@ and, in the schema-2 envelope integrated by the broker PR, an immutable
 artifact journal. Artifact admission is atomically bound to the same
 receipt and state revision; its manifest is included in the digest.
 Historical artifacts survive checkpoint overwrite and lease expiry.
-Schema 1 is not auto-upgraded; production state does not yet exist.
+The schema-3 publication phase also stores a durable intent/outcome journal.
+An unresolved intent freezes all subsequent new transitions except its
+matching resolution; the receipt digest includes the publication mutation.
+Schema 1/2 are not auto-upgraded; use a fresh test ref. Production state
+does not yet exist.
 The ledger is canonical ASCII JSON, with duplicate keys rejected, and
 a verified Git SHA-1 blob. A pinned read fetches ref, immutable commit,
 tree and blob, and checks the exact identity and structure. Receipts
