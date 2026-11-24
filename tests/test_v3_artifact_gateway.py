@@ -228,5 +228,101 @@ class GatewayBrokerTests(unittest.TestCase):
             self.req("a", "wrong", "accept_artifact", proposal)
 
 
+    def publication(self):
+        proposal = self.proposal()
+        accepted = self.req("a", "artifact", "accept_artifact", proposal)
+        payload = {k: proposal[k] for k in ("task", "run_id", "fence")}
+        payload.update(artifact=accepted["operation"],
+                       target="orchestration/v3-publication-test-unit")
+        return payload
+
+    def maintenance(self, observer):
+        credentials = b.Credentials([
+            (b.token_digest("s" * 40), b.Principal("sweeper", frozenset(), False, True))
+        ])
+        return b.Broker(self.store, credentials, clock=lambda: self.now,
+                        publication_observer=observer)
+
+    def test_publication_intent_freezes_all_mutations_and_replay(self):
+        payload = self.publication()
+        result = self.req("a", "prepare", "prepare_publication", payload)
+        key = result["operation"]
+        self.assertFalse(result["source_promoted"])
+        self.assertEqual(self.store.read().envelope["publications"][key],
+                         result["publication"])
+        self.assertEqual(self.broker.status(self.tokens["b"])["eligible"], [])
+        count = self.api.patch_count
+        self.assertTrue(self.req("a", "prepare", "prepare_publication", payload)["replayed"])
+        for action, body in (("acquire", {}), ("renew", {k: payload[k] for k in
+                             ("task", "run_id", "fence")}),
+                             ("prepare_publication", payload),
+                             ("resolve_publication", {"intent": key})):
+            with self.assertRaises(b.AdmissionError):
+                self.req("a", "new-" + action, action, body)
+        snap = self.store.read()
+        proposed = model.sweep(snap.state, self.now + 1)
+        with self.assertRaises(storage.StoreError):
+            self.store.publish(snap, proposed, "bypass")
+        self.assertEqual(self.api.patch_count, count)
+
+    def test_only_settled_outcome_resolves_even_after_expiry(self):
+        payload = self.publication()
+        key = self.req("a", "prepare", "prepare_publication", payload)["operation"]
+        self.now = 121
+        body = {"intent": key}
+        for observation in (None, "9" * 40):
+            with self.assertRaises(b.AdmissionError):
+                self.maintenance(lambda *args: observation).request(
+                    "s" * 40, "resolve", "resolve_publication", body)
+        self.assertEqual(storage.pending_publication(self.store.read().envelope), key)
+        m = self.maintenance(lambda row, record: record["head"])
+        result = m.request("s" * 40, "resolve", "resolve_publication", body)
+        snap = self.store.read()
+        self.assertIsNone(storage.pending_publication(snap.envelope))
+        self.assertEqual(snap.envelope["publications"][key]["resolution"],
+                         {"operation": result["operation"], "observed_head": HEAD_CODE})
+        self.assertEqual(snap.state["tasks"]["a"]["status"], "OPEN")
+        count = self.api.patch_count
+        self.assertTrue(m.request("s" * 40, "resolve", "resolve_publication", body)["replayed"])
+        self.assertEqual(self.api.patch_count, count)
+
+    def test_wrong_owner_target_and_expiry_deny_intent(self):
+        payload = self.publication()
+        count = self.api.patch_count
+        with self.assertRaises(b.AdmissionError):
+            self.req("b", "stolen", "prepare_publication", payload)
+        with self.assertRaises(b.AdmissionError):
+            self.req("a", "production", "prepare_publication", {**payload, "target": "main"})
+        self.now = 121
+        with self.assertRaises(model.LeaseError):
+            self.req("a", "expired", "prepare_publication", payload)
+        self.assertEqual(self.api.patch_count, count)
+
+    def test_settled_base_is_not_a_retry_grant(self):
+        payload = self.publication()
+        key = self.req("a", "prepare", "prepare_publication", payload)["operation"]
+        self.maintenance(lambda row, record: record["base"]).request(
+            "s" * 40, "resolve", "resolve_publication", {"intent": key})
+        with self.assertRaises(storage.StoreError):
+            self.req("a", "second-attempt", "prepare_publication", payload)
+        snap = self.store.read()
+        tampered = copy.deepcopy(snap.envelope)
+        tampered["publications"][key]["resolution"]["observed_head"] = "9" * 40
+        with self.assertRaises(storage.StoreError):
+            storage.validate_envelope(tampered)
+
+    def test_review_denial_and_expiry_during_publication_review(self):
+        payload = self.publication()
+        self.allow = False
+        with self.assertRaises(b.AdmissionError):
+            self.req("a", "denied", "prepare_publication", payload)
+        def slow(*args):
+            self.now = 121
+            return True
+        other = b.Broker(self.store, self.credentials, clock=lambda: self.now, reviewer=slow)
+        with self.assertRaises(model.LeaseError):
+            other.request(self.tokens["a"], "late", "prepare_publication", payload)
+        self.assertEqual(self.store.read().envelope["publications"], {})
+
 if __name__ == "__main__":
     unittest.main()
