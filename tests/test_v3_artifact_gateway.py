@@ -2,6 +2,7 @@
 import copy
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -323,6 +324,29 @@ class GatewayBrokerTests(unittest.TestCase):
         with self.assertRaises(model.LeaseError):
             other.request(self.tokens["a"], "late", "prepare_publication", payload)
         self.assertEqual(self.store.read().envelope["publications"], {})
+
+    def test_publication_requires_settlement_headroom(self):
+        payload = self.publication()
+        snap = self.store.read()
+        count = self.api.patch_count
+        # Make the reserve larger than the remaining bytes without making
+        # the current valid snapshot unreadable.
+        used = len(storage.canonical(snap.envelope))
+        with patch.object(storage, "MAX_LEDGER", used + storage.SETTLEMENT_RESERVE):
+            with self.assertRaisesRegex(storage.StoreError, "settlement reserve"):
+                self.req("a", "prepare", "prepare_publication", payload)
+            self.assertEqual(self.store.read().head, snap.head)
+            self.assertEqual(self.api.patch_count, count)
+        key = self.req("a", "prepare", "prepare_publication", payload)["operation"]
+        pending = self.store.read()
+        used = len(storage.canonical(pending.envelope))
+        self.now = 121
+        with patch.object(storage, "MAX_LEDGER", used + storage.SETTLEMENT_RESERVE):
+            self.maintenance(lambda row, record: record["head"]).request(
+                "s" * 40, "resolve", "resolve_publication", {"intent": key})
+            self.assertIsNone(storage.pending_publication(self.store.read().envelope))
+            self.assertEqual(self.store.read().state["tasks"]["a"]["status"], "OPEN")
+
 
 if __name__ == "__main__":
     unittest.main()
