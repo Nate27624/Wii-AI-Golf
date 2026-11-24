@@ -5,6 +5,7 @@ import hashlib
 import sys
 import threading
 import unittest
+from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -213,6 +214,41 @@ class StoreTests(unittest.TestCase):
         invalid["receipts"].clear()
         with self.assertRaises(store.StoreError):
             store.validate_envelope(invalid)
+
+    def test_capacity_thresholds_are_exact_and_read_only(self):
+        used = len(store.canonical(self.snap.envelope))
+        count = self.api.patch_count
+        for cap, expected in ((used * 2 + 2048, "normal"),
+                              (max(used, used * 100 // 80), "warning"),
+                              (used, "critical")):
+            # Reserve may independently elevate a warning to critical.
+            with patch.object(store, "MAX_LEDGER", cap), patch.object(store, "SETTLEMENT_RESERVE", 0):
+                report = store.capacity_report(self.snap)
+                self.assertEqual(report["level"], expected)
+                self.assertEqual(report["used_bytes"], used)
+                self.assertEqual(report["remaining_bytes"], cap - used)
+                self.assertEqual(report["receipt_count"], 1)
+                self.assertEqual(report["head"], self.snap.head)
+        self.assertEqual(self.api.patch_count, count)
+
+    def test_capacity_exhaustion_preserves_tip_and_receipt_replay(self):
+        proposal = self.advance()
+        receipt = self.store.publish(self.snap, proposal, "one")
+        pinned = self.store.read()
+        used = len(store.canonical(pinned.envelope))
+        count = self.api.patch_count
+        renewed = model.renew(pinned.state, "a", "run1", 1, 2)
+        with patch.object(store, "MAX_LEDGER", used):
+            self.assertEqual(store.capacity_report(pinned)["level"], "critical")
+            with self.assertRaisesRegex(store.StoreError, "ledger capacity"):
+                self.store.publish(pinned, renewed, "two")
+            self.assertEqual(self.store.read().head, pinned.head)
+            replay = self.store.publish(self.snap, proposal, "one")
+            self.assertTrue(replay.replayed)
+            self.assertEqual(replay.digest, receipt.digest)
+            self.assertEqual(self.api.patch_count, count)
+        self.store.publish(pinned, renewed, "two")
+        self.assertEqual(self.store.read().state, renewed)
 
 
 if __name__ == "__main__":
