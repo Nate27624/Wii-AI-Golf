@@ -109,12 +109,14 @@ class Broker:
     caller to reread/retry; uncertain writes require receipt reconciliation.
     The host must serialize this broker with any future external effects.
     """
-    def __init__(self, store, credentials, *, clock=None, reviewer=None, inspector=None):
+    def __init__(self, store, credentials, *, clock=None, reviewer=None, inspector=None,
+                 publication_observer=None):
         self._store = store
         self._credentials = credentials
         self._clock = clock if clock is not None else lambda: int(time.time())
         self._reviewer = reviewer
         self._inspector = inspector
+        self._publication_observer = publication_observer
         self._lock = threading.RLock()
 
     def _now(self, snapshot):
@@ -135,9 +137,12 @@ class Broker:
             snap = self._store.read()
             now = self._now(snap)
             effective = model.sweep(snap.state, now)
+            pending = storage.pending_publication(snap.envelope)
             return {"head": snap.head, "durable_revision": snap.state["revision"],
                     "effective_at": now, "state": effective,
-                    "eligible": self._candidates(effective, principal, now),
+                    "eligible": [] if pending else self._candidates(effective, principal, now),
+                    "publication_pending": pending,
+                    "publications": copy.deepcopy(snap.envelope["publications"]),
                     "manager_authorized": principal.manager,
                     "accepted_artifacts": copy.deepcopy(snap.envelope["artifacts"])}
 
@@ -179,13 +184,17 @@ class Broker:
             require(op in snapshot.envelope["artifacts"], "artifact acceptance missing")
             result["artifact"] = copy.deepcopy(snapshot.envelope["artifacts"][op])
             result["source_promoted"] = False
+        if action == "prepare_publication":
+            result["publication"] = copy.deepcopy(snapshot.envelope["publications"][op])
+            result["source_promoted"] = False
         return result
 
     def request(self, token, request_id, action, payload):
         """Authenticate, validate, transition and persist metadata; never source IO."""
         principal = self._credentials.authenticate(token)
         model.ident(request_id)
-        require(action in ("acquire", "renew", "finish", "manager_pass", "sweep", "accept_artifact"),
+        require(action in ("acquire", "renew", "finish", "manager_pass", "sweep", "accept_artifact",
+                           "prepare_publication", "resolve_publication"),
                 "unknown operation")
         require(type(payload) is dict, "invalid request")
         # Snapshot input prevents callback or caller mutation during admission.
@@ -201,9 +210,53 @@ class Broker:
                 # A receipt is historical, not a fresh grant. Authentication
                 # still applies; replay does not renew an expired lease.
                 return self._response(snap, principal, request_id, action, op, True, now)
+            pending = storage.pending_publication(snap.envelope)
+            require(pending is None or action == "resolve_publication",
+                    "unresolved publication; queue frozen")
             artifact = None
+            publication = None
             changes = None
-            if action == "acquire":
+            if action == "prepare_publication":
+                fields(payload, ("task", "run_id", "fence", "artifact", "target"))
+                task, run_id, fence = self._owned(current, principal, payload)
+                model.active(model.sweep(current, now), task, run_id, fence)
+                key = payload["artifact"]
+                require(isinstance(key, str) and key in snap.envelope["artifacts"],
+                        "accepted artifact required")
+                record = snap.envelope["artifacts"][key]
+                require((record["task"], record["run_id"], record["fence"]) ==
+                        (task, run_id, fence), "artifact belongs to another lease")
+                require(isinstance(payload["target"], str) and
+                        storage._PUBLICATION_REF.fullmatch(payload["target"]),
+                        "disposable publication target required")
+                self._review(principal, action,
+                             {**payload, "record": copy.deepcopy(record)}, snap)
+                after = self._now(snap)
+                require(after >= now, "broker clock rollback during publication review")
+                now = after
+                proposed = model.sweep(current, now)
+                model.active(proposed, task, run_id, fence)
+                publication = {"artifact": key, "target": payload["target"]}
+            elif action == "resolve_publication":
+                fields(payload, ("intent",))
+                require(principal.maintenance and pending is not None and
+                        payload["intent"] == pending, "publication reconciliation not authorized")
+                require(self._publication_observer is not None, "settled observation unavailable")
+                row = snap.envelope["publications"][pending]
+                record = snap.envelope["artifacts"][row["artifact"]]
+                # The trusted host, not the worker, must establish that no
+                # request remains in flight and observe the exact target ref.
+                observed = self._publication_observer(copy.deepcopy(row),
+                                                       copy.deepcopy(record))
+                require(isinstance(observed, str) and
+                        observed in (record["base"], record["head"]),
+                        "ambiguous publication outcome")
+                after = self._now(snap)
+                require(after >= now, "broker clock rollback during reconciliation")
+                now = after
+                proposed = model.sweep(current, now)
+                publication = {"intent": pending, "observed_head": observed}
+            elif action == "acquire":
                 fields(payload, ())
                 effective = model.sweep(current, now)
                 require(not any(rid.startswith(run_prefix(principal)) and
@@ -282,7 +335,8 @@ class Broker:
             if action == "accept_artifact":
                 artifact = gateway.make_record(proposed, task, run_id, fence, now,
                                                payload["base"], payload["head"], changes)
-            receipt = self._store.publish(snap, proposed, op, artifact=artifact)
+            receipt = self._store.publish(snap, proposed, op, artifact=artifact,
+                                          publication=publication)
             try:
                 observed = self._store.read()
                 require(observed.envelope["receipts"].get(op, {}).get("digest") == receipt.digest,
