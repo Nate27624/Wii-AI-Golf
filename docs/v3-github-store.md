@@ -61,7 +61,31 @@ against transport failure, counter exhaustion or future schema changes.
 Revisit it when the schema changes. Ordinary mutations still fail closed
 at the hard limit; exact receipt replays and reads remain available.
 
-**Proposed next schema; not implemented or authorized for production.**
+**Offline conversion oracle implemented; next persisted schema not yet implemented.**
+The archive_snapshot and restore_archive helpers partition older receipt
+records and terminal runs into immutable canonical JSON pages, up to 64
+records each, sorted by key and addressed by SHA-256. Active runs, recent
+receipts, all task fences and checkpoints, holds, goals, artifacts and
+publication outcomes remain in the hot manifest. Pending publication
+prevents conversion. The manifest binds the source head and the SHA-256
+of the complete original envelope. Restore requires an independently
+trusted manifest digest and source head; it verifies every page, exact
+membership, page bounds, duplicates and canonical partition, reconstructs
+and validates schema 3, then checks the original envelope digest. Tests
+exercise multiple pages, expired-run fencing, replay retention, corruption,
+missing pages, mismatched identity and no authoritative ref mutation.
+
+This is a lossless conversion and integrity oracle, not a storage
+migration: GitHubStore still accepts schema 3 only. Full restoration is
+bounded by the original 2 MiB schema-3 cap, the manifest's page list grows,
+and all pages are hydrated for validation. No indexed cold lookup,
+persistent archive manifest commit, task event indexing, or ongoing
+hot-state transitions against archived history are implemented.
+Exact replay remains handled by the existing schema-3 store. A future
+implementation must preserve the same oracle semantics without requiring
+full hydration for each transition.
+
+**Proposed persisted next schema; not authorized for production.**
 A permanently growing full snapshot cannot support indefinite operation.
 Use an immutable, content-addressed archive/index rooted in the same
 single-parent state-ref commit, with bounded hot state and separate indexed
