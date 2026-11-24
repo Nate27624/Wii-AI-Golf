@@ -329,3 +329,48 @@ capacity and history each pin their own snapshot; never assume different
 requests refer to the same head. Read-v2 status still fails closed during
 a pending intent and its capacity route remains unavailable. Production
 deployment and compatible private LocalOps client acceptance are still gates.
+
+
+## Staged host-only disposable publication dispatch
+
+The hot broker's explicit host method
+`dispatch_publication(maintenance_token, pending_intent, executor)` is
+not a worker request action or an HTTP route. It requires the exact pending
+committed root, an active original fence, unchanged goal and checkpoint,
+complete reinspection of the immutable direct-child proposal, and a fresh
+trusted semantic review (including exact-head CI, privacy and source policy).
+It checks the committed root and lease again before and after the durable
+dispatch reservation. The queue remains frozen after dispatch, even when the
+transport reports success. Expiry or error after marker consumption does not
+permit another send. A separate independently settled observation is required.
+
+`PublicationExecutor` binds the disposable queue and source repository.
+Its host callbacks must enforce an atomic, durable, permanently consumed
+marker keyed by repository/queue/intent, and an exact-old source-ref update.
+A marker binds the immutable queue head, disposable target, base, proposed
+head and manifest digest; a conflicting binding cannot create a new marker.
+Marker uncertainty stops before the send. An ambiguous send is not retried
+and exposes no transport output. The marker must survive process restarts.
+This is an injected host capability, NOT a deployed marker backend.
+
+`exact_push_arguments` produces a one-ref Git push argument vector using
+an explicit expected-old lease, not a REST read followed by PATCH.
+The prior immutable inspection proves the head is a direct child of base:
+no non-fast-forward source rewrite is authorized. Only the configured
+GitHub repository and disposable target are eligible. The host must use a
+trusted isolated Git object store and configuration, prohibit arbitrary
+credentials/remotes/hooks and unreviewed content, verify the exact parent
+and GitHub identity, and control the transport. A timeout or an up-to-date
+reply is not proof of settlement. Never interpret an old-base read while
+a send may still be in flight as a settled non-application.
+
+The broker serializes these operations within one instance; cross-process
+exclusivity between marker, dispatch and observer is a mandatory deployment
+gate. The marker cannot by itself establish that a send is no longer in
+flight. The observer must prove that independently before resolution.
+No runtime wiring or host credential provisioning is provided here.
+Tests cover unauthorized dispatch, changed manifests, denied review, expired
+fences, restart with a consumed marker, ambiguous effects and an actual
+offline disposable bare Git repository (successful exact-old update,
+competing sibling and deleted-target refusal). No live GitHub source push,
+production ref, automatic executor or merge endpoint is introduced.
