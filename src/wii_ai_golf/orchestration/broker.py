@@ -44,6 +44,7 @@ class Principal:
     roles: frozenset
     manager: bool = False
     maintenance: bool = False
+    read_only: bool = False
 
 
 class Credentials:
@@ -64,7 +65,10 @@ class Credentials:
             require(type(principal.roles) is frozenset and
                     principal.roles <= model.ROLES and
                     type(principal.manager) is bool and type(principal.maintenance) is bool
-                    and (not principal.manager or "S000" in principal.roles),
+                    and type(principal.read_only) is bool
+                    and (not principal.manager or "S000" in principal.roles)
+                    and (not principal.read_only or (not principal.roles and
+                         not principal.manager and not principal.maintenance)),
                     "invalid principal roles")
             require(principal.identity not in identities and hashed not in hashes,
                     "duplicate credential or principal")
@@ -128,31 +132,34 @@ class Broker:
         return sorted(principal.roles)
 
     def _candidates(self, current, principal, now):
+        if principal.read_only:
+            return []
         return [k for k in model.dispatch_candidates(current, self._roles(principal), now)
                 if k != model.MANAGER or principal.manager]
 
     def status(self, token):
         principal = self._credentials.authenticate(token)
-        with self._lock:
-            snap = self._store.read()
-            now = self._now(snap)
-            effective = model.sweep(snap.state, now)
-            pending = storage.pending_publication(snap.envelope)
-            return {"head": snap.head, "durable_revision": snap.state["revision"],
-                    "effective_at": now, "state": effective,
-                    "eligible": [] if pending else self._candidates(effective, principal, now),
-                    "task_order": sorted(effective["tasks"], key=lambda k: (
-                        k != model.MANAGER, effective["tasks"][k]["priority"], k)),
-                    "publication_pending": pending,
-                    "publications": copy.deepcopy(snap.envelope["publications"]),
-                    "manager_authorized": principal.manager,
-                    "accepted_artifacts": copy.deepcopy(snap.envelope["artifacts"])}
+        # A read pins an immutable commit and never grants a lease.
+        # Do not serialize potentially slow GitHub reads with worker heartbeats.
+        snap = self._store.read()
+        now = self._now(snap)
+        effective = model.sweep(snap.state, now)
+        pending = storage.pending_publication(snap.envelope)
+        return {"head": snap.head, "durable_revision": snap.state["revision"],
+                "effective_at": now, "state": effective,
+                "eligible": [] if pending else self._candidates(effective, principal, now),
+                "task_order": sorted(effective["tasks"], key=lambda k: (
+                    k != model.MANAGER, effective["tasks"][k]["priority"], k)),
+                "publication_pending": pending,
+                "publications": copy.deepcopy(snap.envelope["publications"]),
+                "manager_authorized": principal.manager,
+                "accepted_artifacts": copy.deepcopy(snap.envelope["artifacts"])}
 
     def task_history(self, token, task, *, limit=20, cursor=None):
         """Authenticated read-only view for the single LocalOps interface."""
         self._credentials.authenticate(token)
-        with self._lock:
-            return self._store.task_history(task, limit=limit, cursor=cursor)
+        # History pins its own tip; concurrent appends cannot change its ancestors.
+        return self._store.task_history(task, limit=limit, cursor=cursor)
 
     def _owned(self, current, principal, payload):
         task, run_id, fence = (payload[k] for k in ("task", "run_id", "fence"))
@@ -200,6 +207,7 @@ class Broker:
     def request(self, token, request_id, action, payload):
         """Authenticate, validate, transition and persist metadata; never source IO."""
         principal = self._credentials.authenticate(token)
+        require(not principal.read_only, "read-only principal cannot mutate")
         model.ident(request_id)
         require(action in ("acquire", "renew", "finish", "manager_pass", "sweep", "accept_artifact",
                            "prepare_publication", "resolve_publication"),
