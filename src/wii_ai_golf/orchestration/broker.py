@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 from . import state as model
 from . import github_store as storage
+from . import artifact_gateway as gateway
 
 
 class AdmissionError(ValueError):
@@ -108,11 +109,12 @@ class Broker:
     caller to reread/retry; uncertain writes require receipt reconciliation.
     The host must serialize this broker with any future external effects.
     """
-    def __init__(self, store, credentials, *, clock=None, reviewer=None):
+    def __init__(self, store, credentials, *, clock=None, reviewer=None, inspector=None):
         self._store = store
         self._credentials = credentials
         self._clock = clock if clock is not None else lambda: int(time.time())
         self._reviewer = reviewer
+        self._inspector = inspector
         self._lock = threading.RLock()
 
     def _now(self, snapshot):
@@ -136,7 +138,8 @@ class Broker:
             return {"head": snap.head, "durable_revision": snap.state["revision"],
                     "effective_at": now, "state": effective,
                     "eligible": self._candidates(effective, principal, now),
-                    "manager_authorized": principal.manager}
+                    "manager_authorized": principal.manager,
+                    "accepted_artifacts": copy.deepcopy(snap.envelope["artifacts"])}
 
     def _owned(self, current, principal, payload):
         task, run_id, fence = (payload[k] for k in ("task", "run_id", "fence"))
@@ -172,13 +175,17 @@ class Broker:
             result["lease"] = {"task": run["task"], "run_id": run_id,
                                "fence": run["fence"], "expires": run["expires"],
                                "active": run["status"] == "IN_PROGRESS" and role_allowed and manager_allowed}
+        if action == "accept_artifact":
+            require(op in snapshot.envelope["artifacts"], "artifact acceptance missing")
+            result["artifact"] = copy.deepcopy(snapshot.envelope["artifacts"][op])
+            result["source_promoted"] = False
         return result
 
     def request(self, token, request_id, action, payload):
         """Authenticate, validate, transition and persist metadata; never source IO."""
         principal = self._credentials.authenticate(token)
         model.ident(request_id)
-        require(action in ("acquire", "renew", "finish", "manager_pass", "sweep"),
+        require(action in ("acquire", "renew", "finish", "manager_pass", "sweep", "accept_artifact"),
                 "unknown operation")
         require(type(payload) is dict, "invalid request")
         # Snapshot input prevents callback or caller mutation during admission.
@@ -194,6 +201,8 @@ class Broker:
                 # A receipt is historical, not a fresh grant. Authentication
                 # still applies; replay does not renew an expired lease.
                 return self._response(snap, principal, request_id, action, op, True, now)
+            artifact = None
+            changes = None
             if action == "acquire":
                 fields(payload, ())
                 effective = model.sweep(current, now)
@@ -217,6 +226,8 @@ class Broker:
                     fields(payload, ("task", "run_id", "fence"), ("progress",))
                 elif action == "finish":
                     fields(payload, ("task", "run_id", "fence", "outcome", "progress"))
+                elif action == "accept_artifact":
+                    fields(payload, ("task", "run_id", "fence", "base", "head", "progress"))
                 else:
                     fields(payload, ("task", "run_id", "fence", "observed_revision",
                                      "progress"), ("priorities", "additions", "retire"))
@@ -225,14 +236,34 @@ class Broker:
                 if action == "manager_pass":
                     require(principal.manager and task == model.MANAGER,
                             "manager not authorized")
+                review_payload = payload
+                if action == "accept_artifact":
+                    require(task != model.MANAGER and self._inspector is not None,
+                            "artifact inspection unavailable or unauthorized")
+                    storage.sha(payload["base"])
+                    storage.sha(payload["head"])
+                    model.checkpoint(payload["progress"])
+                    require(payload["progress"]["head"] == payload["head"],
+                            "checkpoint must pin proposed artifact")
+                    # The host, never the worker, provides the complete manifest.
+                    changes = copy.deepcopy(self._inspector.inspect(payload["base"], payload["head"]))
+                    gateway.validate_manifest(changes, current["tasks"][task]["paths"])
+                    after_inspection = self._now(snap)
+                    require(after_inspection >= now, "broker clock rollback during inspection")
+                    now = after_inspection
+                    model.active(model.sweep(current, now), task, run_id, fence)
+                    review_payload = {**payload, "changes": changes,
+                                      "manifest_digest": gateway.manifest_digest(
+                                          payload["base"], payload["head"], changes),
+                                      "goal_sha": current["oversight"]["goal_sha"]}
                 if "progress" in payload:
                     model.checkpoint(payload["progress"])
-                    self._review(principal, action, payload, snap)
+                    self._review(principal, action, review_payload, snap)
                     # Recheck trusted time after potentially slow review.
                     after_review = self._now(snap)
                     require(after_review >= now, "broker clock rollback during review")
                     now = after_review
-                if action == "renew":
+                if action in ("renew", "accept_artifact"):
                     proposed = model.renew(current, task, run_id, fence, now,
                                            payload.get("progress"))
                 elif action == "finish":
@@ -248,7 +279,10 @@ class Broker:
             if proposed == current:
                 proposed["revision"] += 1
             model.validate(proposed)
-            receipt = self._store.publish(snap, proposed, op)
+            if action == "accept_artifact":
+                artifact = gateway.make_record(proposed, task, run_id, fence, now,
+                                               payload["base"], payload["head"], changes)
+            receipt = self._store.publish(snap, proposed, op, artifact=artifact)
             try:
                 observed = self._store.read()
                 require(observed.envelope["receipts"].get(op, {}).get("digest") == receipt.digest,
