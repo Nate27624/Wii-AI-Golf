@@ -132,6 +132,25 @@ def preview(roster, *, goal_sha):
             {"value", "sha256", "comment_id", "comment_url", "reservation_count"},
             "invalid parsed roster")
     value = roster["value"]
+    # Parsing returns a mutable dict; never accept a source rewritten between
+    # validation and preview merely because it still carries the old digest.
+    try:
+        canonical = json.dumps(value, sort_keys=True, separators=(",", ":"),
+                               ensure_ascii=True, allow_nan=False).encode("ascii")
+    except (TypeError, ValueError, OverflowError, RecursionError) as exc:
+        raise ShadowError("invalid parsed roster") from exc
+    require(hashlib.sha256(canonical).hexdigest() == roster["sha256"],
+            "roster modified after source validation")
+    source_id = roster["comment_id"]
+    require(type(source_id) is int and source_id > 0 and
+            roster["comment_url"] == (
+                "https://github.com/Nate27624/Wii-AI-Golf/"
+                "pull/320#issuecomment-" + str(source_id)),
+            "roster source metadata modified")
+    require(type(roster["reservation_count"]) is int and
+            roster["reservation_count"] ==
+            sum(len(row["owned_paths"]) for row in value["assignments"]),
+            "roster reservation count modified")
     require(type(goal_sha) is str and SHA.fullmatch(goal_sha),
             "verified operator goal commit required")
     require(type(roster["sha256"]) is str and
