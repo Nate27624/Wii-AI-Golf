@@ -32,7 +32,7 @@ def digest(value):
 
 def token_digest(token):
     require(isinstance(token, str) and 32 <= len(token) <= 512 and
-            token.isascii() and not any(c.isspace() for c in token),
+            token.isascii() and all(33 <= ord(c) <= 126 for c in token),
             "authentication failed")
     return hashlib.sha256(token.encode("ascii")).hexdigest()
 
@@ -164,11 +164,14 @@ class Broker:
                   "replayed": replayed}
         if action == "acquire":
             run_id = run_for(principal, request_id)
-            run = model.sweep(snapshot.state, now)["runs"].get(run_id)
+            effective = model.sweep(snapshot.state, now)
+            run = effective["runs"].get(run_id)
             require(run is not None, "acquisition receipt missing run")
+            role_allowed = effective["tasks"][run["task"]]["role"] in principal.roles
+            manager_allowed = run["task"] != model.MANAGER or principal.manager
             result["lease"] = {"task": run["task"], "run_id": run_id,
                                "fence": run["fence"], "expires": run["expires"],
-                               "active": run["status"] == "IN_PROGRESS"}
+                               "active": run["status"] == "IN_PROGRESS" and role_allowed and manager_allowed}
         return result
 
     def request(self, token, request_id, action, payload):
@@ -226,7 +229,9 @@ class Broker:
                     model.checkpoint(payload["progress"])
                     self._review(principal, action, payload, snap)
                     # Recheck trusted time after potentially slow review.
-                    now = self._now(snap)
+                    after_review = self._now(snap)
+                    require(after_review >= now, "broker clock rollback during review")
+                    now = after_review
                 if action == "renew":
                     proposed = model.renew(current, task, run_id, fence, now,
                                            payload.get("progress"))
@@ -244,8 +249,11 @@ class Broker:
                 proposed["revision"] += 1
             model.validate(proposed)
             receipt = self._store.publish(snap, proposed, op)
-            observed = self._store.read()
-            require(observed.envelope["receipts"].get(op, {}).get("digest") == receipt.digest,
-                    "published receipt missing; reconcile before retry")
-            return self._response(observed, principal, request_id, action, op,
-                                  receipt.replayed, self._now(observed))
+            try:
+                observed = self._store.read()
+                require(observed.envelope["receipts"].get(op, {}).get("digest") == receipt.digest,
+                        "published receipt missing; reconcile before retry")
+                return self._response(observed, principal, request_id, action, op,
+                                      receipt.replayed, self._now(observed))
+            except (storage.StoreError, model.LeaseError, AdmissionError):
+                raise storage.UncertainWrite("published response unavailable; reconcile receipt") from None
