@@ -18,9 +18,17 @@ def task(paths, resources=(), deps=(), priority=0, role="S000"):
                        "Offline test", "Synthetic acceptance", progress())
 
 
+GOAL = "b" * 40
+
+
+def queue(tasks, holds=None):
+    return v3.initial({v3.MANAGER: task([], [v3.MANAGER_RESOURCE]), **tasks},
+                      holds, goal_sha=GOAL)
+
+
 class LeaseTests(unittest.TestCase):
     def setUp(self):
-        self.s = v3.initial({
+        self.s = queue({
             "a": task(["src/alpha.py"], ["cpu"]),
             "b": task(["src/ALPHA.py"]),
             "c": task(["src/beta.py"], ["cpu"]),
@@ -109,16 +117,16 @@ class LeaseTests(unittest.TestCase):
             self.assertIn("b", v3.candidates(s, "S000", 999))
 
     def test_legacy_hold_prefix_and_order(self):
-        s = v3.initial(self.s["tasks"], {"legacy": {"paths": ["SRC"], "resources": []}})
-        self.assertEqual(v3.candidates(s, "S000", 1), ["d"])
-        self.assertEqual(v3.candidates(self.s, "S000", 1), ["a", "b", "c", "d"])
+        s = v3.initial(self.s["tasks"], {"legacy": {"paths": ["SRC"], "resources": []}}, goal_sha=GOAL)
+        self.assertEqual(v3.candidates(s, "S000", 1), [v3.MANAGER, "d"])
+        self.assertEqual(v3.candidates(self.s, "S000", 1), [v3.MANAGER, "a", "b", "c", "d"])
         self.assertEqual(v3.candidates(s, "S002", 1), ["f"])
 
     def test_path_rejects_windows_alias_and_traversal(self):
         for bad in ("../foo", "a/../foo", "C:/x", "/foo", "a\\b",
                     "a//b", "a/CON.txt", "a/thing.", ".git/config", "a/b c"):
             with self.subTest(bad=bad), self.assertRaises(v3.LeaseError):
-                v3.initial({"bad": task([bad])})
+                queue({"bad": task([bad])})
         self.assertTrue(v3.overlap("Src", "src/a.py"))
         self.assertFalse(v3.overlap("src/a", "src/ab"))
 
@@ -145,6 +153,87 @@ class LeaseTests(unittest.TestCase):
             with self.assertRaises(v3.LeaseError):
                 v3.renew(s, "a", "run1", token, now)
         self.assertEqual(s["tasks"]["a"]["checkpoint"], progress())
+
+
+    def test_manager_singleton_scope_and_goal_pin(self):
+        for change in (
+            lambda s: s["tasks"].pop(v3.MANAGER),
+            lambda s: s["tasks"][v3.MANAGER].update(status="CLOSED"),
+            lambda s: s["tasks"][v3.MANAGER].update(role="S002"),
+            lambda s: s["tasks"]["a"].update(resources=["WORK-QUEUE-METADATA"]),
+            lambda s: s["tasks"]["a"].update(dependencies=[v3.MANAGER]),
+            lambda s: s["oversight"].update(goal_sha="bad"),
+        ):
+            s = copy.deepcopy(self.s)
+            change(s)
+            with self.assertRaises(v3.LeaseError):
+                v3.validate(s)
+
+    def test_manager_first_concurrent_and_no_spin(self):
+        s = self.s
+        self.assertEqual(v3.dispatch_candidates(s, ["S000", "S002"], 1)[0], v3.MANAGER)
+        s, m = v3.acquire(s, v3.MANAGER, "mgr", "S000", 1)
+        s, f = v3.acquire(s, "a", "worker", "S000", 2)
+        self.assertNotIn(v3.MANAGER, v3.candidates(s, "S000", 2))
+        s = v3.manager_pass(s, "mgr", m, 3, s["revision"], progress("reviewed"))
+        self.assertEqual(s["tasks"][v3.MANAGER]["status"], "OPEN")
+        self.assertNotIn(v3.MANAGER, v3.candidates(s, "S000", 3))
+        self.assertEqual(s["oversight"]["goal_sha"], GOAL)
+        s = v3.finish(s, "a", "worker", f, 4, "CLOSED", progress())
+        self.assertEqual(v3.candidates(s, "S000", 4)[0], v3.MANAGER)
+
+    def test_manager_expires_while_specialist_runs(self):
+        s, m = v3.acquire(self.s, v3.MANAGER, "mgr", "S000", 1)
+        s, f = v3.acquire(s, "a", "worker", "S000", 2)
+        s = v3.renew(s, "a", "worker", f, 100)
+        s = v3.sweep(s, 121)
+        self.assertEqual(s["tasks"]["a"]["status"], "IN_PROGRESS")
+        self.assertEqual(v3.candidates(s, "S000", 121)[0], v3.MANAGER)
+        s, g = v3.acquire(s, v3.MANAGER, "mgr2", "S000", 121)
+        self.assertEqual(g, m + 1)
+        with self.assertRaises(v3.LeaseError):
+            v3.manager_pass(s, "mgr", m, 122, s["revision"], progress())
+
+    def test_manager_cadence_and_no_terminal_close(self):
+        s, m = v3.acquire(self.s, v3.MANAGER, "mgr", "S000", 1)
+        with self.assertRaises(v3.LeaseError):
+            v3.finish(s, v3.MANAGER, "mgr", m, 2, "CLOSED", progress())
+        s = v3.manager_pass(s, "mgr", m, 2, s["revision"], progress())
+        self.assertNotIn(v3.MANAGER, v3.candidates(s, "S000", 301))
+        self.assertEqual(v3.candidates(s, "S000", 302)[0], v3.MANAGER)
+
+    def test_manager_mutations_atomic_and_fenced(self):
+        s, f = v3.acquire(self.s, "a", "worker", "S000", 1)
+        s, m = v3.acquire(s, v3.MANAGER, "mgr", "S000", 2)
+        before = copy.deepcopy(s)
+        for args in (
+            {"priorities": {"a": 3}},
+            {"retire": [v3.MANAGER]},
+            {"additions": {v3.MANAGER: task(["new"])}},
+            {"priorities": {"d": 2}, "additions": {"new": task(["../bad"])}},
+        ):
+            with self.assertRaises(v3.LeaseError):
+                v3.manager_pass(s, "mgr", m, 3, s["revision"], progress(), **args)
+            self.assertEqual(s, before)
+        with self.assertRaises(v3.LeaseError):
+            v3.manager_pass(s, "worker", f, 3, s["revision"], progress())
+        with self.assertRaises(v3.LeaseError):
+            v3.manager_pass(s, "mgr", m, 3, s["revision"] - 1, progress())
+        q = v3.manager_pass(s, "mgr", m, 3, s["revision"], progress(),
+                            priorities={"d": 7}, retire=["b"],
+                            additions={"new": task(["new/file.py"])})
+        self.assertEqual(q["tasks"]["d"]["priority"], 7)
+        self.assertEqual(q["tasks"]["b"]["status"], "PARKED")
+        self.assertEqual(q["tasks"]["new"]["status"], "OPEN")
+        self.assertEqual(q["tasks"]["a"], s["tasks"]["a"])
+        with self.assertRaises(v3.LeaseError):
+            v3.manager_pass(q, "mgr", m, 4, q["revision"], progress())
+
+    def test_named_resource_case_alias(self):
+        s = queue({"x": task(["x"], ["CPU"]), "y": task(["y"], ["cpu"])})
+        s, _ = v3.acquire(s, "x", "run1", "S000", 1)
+        with self.assertRaises(v3.LeaseError):
+            v3.acquire(s, "y", "run2", "S000", 2)
 
 
 if __name__ == "__main__":
