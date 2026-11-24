@@ -1,0 +1,251 @@
+"""Work Queue metadata admission, not a deployed service or artifact gateway.
+
+The host owns the credential registry, clock, GitHub store and review callback.
+Workers never receive those capabilities. All operations are explicit; no
+background execution, source publication or operator approval is implied.
+"""
+from __future__ import annotations
+
+import copy
+import hashlib
+import hmac
+import threading
+import time
+from dataclasses import dataclass
+
+from . import state as model
+from . import github_store as storage
+
+
+class AdmissionError(ValueError):
+    pass
+
+
+def require(ok, message):
+    if not ok:
+        raise AdmissionError(message)
+
+
+def digest(value):
+    return hashlib.sha256(storage.canonical(value)).hexdigest()
+
+
+def token_digest(token):
+    require(isinstance(token, str) and 32 <= len(token) <= 512 and
+            token.isascii() and not any(c.isspace() for c in token),
+            "authentication failed")
+    return hashlib.sha256(token.encode("ascii")).hexdigest()
+
+
+@dataclass(frozen=True)
+class Principal:
+    identity: str
+    roles: frozenset
+    manager: bool = False
+    maintenance: bool = False
+
+
+class Credentials:
+    """Host-created registry of hashes of high-entropy, per-worker credentials.
+
+    The host must not reuse identities for unrelated workers, nor expose the
+    registry, tokens or its GitHub credential. Hashes are not password KDFs.
+    """
+    def __init__(self, rows):
+        self._rows = []
+        identities = set()
+        hashes = set()
+        for hashed, principal in rows:
+            require(isinstance(hashed, str) and len(hashed) == 64 and
+                    all(c in "0123456789abcdef" for c in hashed), "credential hash")
+            require(isinstance(principal, Principal), "principal")
+            model.ident(principal.identity)
+            require(type(principal.roles) is frozenset and
+                    principal.roles <= model.ROLES and
+                    type(principal.manager) is bool and type(principal.maintenance) is bool
+                    and (not principal.manager or "S000" in principal.roles),
+                    "invalid principal roles")
+            require(principal.identity not in identities and hashed not in hashes,
+                    "duplicate credential or principal")
+            identities.add(principal.identity)
+            hashes.add(hashed)
+            self._rows.append((hashed, principal))
+
+    def authenticate(self, token):
+        hashed = token_digest(token)
+        found = None
+        for candidate, principal in self._rows:
+            if hmac.compare_digest(candidate, hashed):
+                found = principal
+        require(found is not None, "authentication failed")
+        return found
+
+
+def run_prefix(principal):
+    return "run-" + digest(["principal", principal.identity])[:32] + "-"
+
+
+def run_for(principal, request_id):
+    return run_prefix(principal) + digest(["acquire", request_id])
+
+
+def operation_for(principal, request_id, action, payload):
+    # Full payload digest, with a separate durable key prefix for detecting
+    # conflicting request-ID reuse. IDs fit the model's 128-character bound.
+    prefix = "op-" + digest([principal.identity, request_id])[:32] + "-"
+    return prefix, prefix + digest([action, payload])
+
+
+def fields(payload, required, optional=()):
+    require(type(payload) is dict and set(required) <= set(payload)
+            and set(payload) <= set(required) | set(optional), "invalid request fields")
+
+
+class Broker:
+    """Host-side, synchronous metadata broker with a private store capability.
+
+    A request does at most one store publication. Conflicts require the
+    caller to reread/retry; uncertain writes require receipt reconciliation.
+    The host must serialize this broker with any future external effects.
+    """
+    def __init__(self, store, credentials, *, clock=None, reviewer=None):
+        self._store = store
+        self._credentials = credentials
+        self._clock = clock if clock is not None else lambda: int(time.time())
+        self._reviewer = reviewer
+        self._lock = threading.RLock()
+
+    def _now(self, snapshot):
+        now = model.integer(self._clock(), "trusted broker clock")
+        require(now >= snapshot.state["clock"], "broker clock rollback")
+        return now
+
+    def _roles(self, principal):
+        return sorted(principal.roles)
+
+    def _candidates(self, current, principal, now):
+        return [k for k in model.dispatch_candidates(current, self._roles(principal), now)
+                if k != model.MANAGER or principal.manager]
+
+    def status(self, token):
+        principal = self._credentials.authenticate(token)
+        with self._lock:
+            snap = self._store.read()
+            now = self._now(snap)
+            effective = model.sweep(snap.state, now)
+            return {"head": snap.head, "durable_revision": snap.state["revision"],
+                    "effective_at": now, "state": effective,
+                    "eligible": self._candidates(effective, principal, now),
+                    "manager_authorized": principal.manager}
+
+    def _owned(self, current, principal, payload):
+        task, run_id, fence = (payload[k] for k in ("task", "run_id", "fence"))
+        model.ident(task)
+        model.ident(run_id)
+        model.integer(fence, "fence")
+        require(run_id.startswith(run_prefix(principal)), "not your execution run")
+        require(task in current["tasks"], "unknown task")
+        require(current["tasks"][task]["role"] in principal.roles,
+                "role not authorized")
+        require(task != model.MANAGER or principal.manager, "manager not authorized")
+        return task, run_id, fence
+
+    def _review(self, principal, action, payload, snapshot):
+        # Structural validation is not semantic privacy or provenance review.
+        # Deployment must provide a trusted, fail-closed verifier. Never let a
+        # worker supply or bypass it. Review receives copies, not credentials.
+        require(self._reviewer is not None, "checkpoint review unavailable")
+        require(self._reviewer(principal, action, copy.deepcopy(payload),
+                               snapshot.state) is True, "checkpoint review denied")
+
+    def _response(self, snapshot, principal, request_id, action, op, replayed, now):
+        row = snapshot.envelope["receipts"][op]
+        result = {"operation": op, "revision": row["revision"], "head": snapshot.head,
+                  "replayed": replayed}
+        if action == "acquire":
+            run_id = run_for(principal, request_id)
+            run = model.sweep(snapshot.state, now)["runs"].get(run_id)
+            require(run is not None, "acquisition receipt missing run")
+            result["lease"] = {"task": run["task"], "run_id": run_id,
+                               "fence": run["fence"], "expires": run["expires"],
+                               "active": run["status"] == "IN_PROGRESS"}
+        return result
+
+    def request(self, token, request_id, action, payload):
+        """Authenticate, validate, transition and persist metadata; never source IO."""
+        principal = self._credentials.authenticate(token)
+        model.ident(request_id)
+        require(action in ("acquire", "renew", "finish", "manager_pass", "sweep"),
+                "unknown operation")
+        require(type(payload) is dict, "invalid request")
+        # Snapshot input prevents callback or caller mutation during admission.
+        payload = copy.deepcopy(payload)
+        prefix, op = operation_for(principal, request_id, action, payload)
+        with self._lock:
+            snap = self._store.read()
+            current = snap.state
+            now = self._now(snap)
+            matches = [key for key in snap.envelope["receipts"] if key.startswith(prefix)]
+            if matches:
+                require(matches == [op], "request ID reused with different payload")
+                # A receipt is historical, not a fresh grant. Authentication
+                # still applies; replay does not renew an expired lease.
+                return self._response(snap, principal, request_id, action, op, True, now)
+            if action == "acquire":
+                fields(payload, ())
+                effective = model.sweep(current, now)
+                require(not any(rid.startswith(run_prefix(principal)) and
+                                run["status"] == "IN_PROGRESS"
+                                for rid, run in effective["runs"].items()),
+                        "worker already holds a lease")
+                candidates = self._candidates(effective, principal, now)
+                if not candidates:
+                    return {"idle": True, "head": snap.head,
+                            "durable_revision": current["revision"]}
+                task = candidates[0]
+                proposed, _ = model.acquire(current, task, run_for(principal, request_id),
+                                             current["tasks"][task]["role"], now)
+            elif action == "sweep":
+                fields(payload, ())
+                require(principal.maintenance, "maintenance not authorized")
+                proposed = model.sweep(current, now)
+            else:
+                if action == "renew":
+                    fields(payload, ("task", "run_id", "fence"), ("progress",))
+                elif action == "finish":
+                    fields(payload, ("task", "run_id", "fence", "outcome", "progress"))
+                else:
+                    fields(payload, ("task", "run_id", "fence", "observed_revision",
+                                     "progress"), ("priorities", "additions", "retire"))
+                task, run_id, fence = self._owned(current, principal, payload)
+                model.active(model.sweep(current, now), task, run_id, fence)
+                if action == "manager_pass":
+                    require(principal.manager and task == model.MANAGER,
+                            "manager not authorized")
+                if "progress" in payload:
+                    model.checkpoint(payload["progress"])
+                    self._review(principal, action, payload, snap)
+                    # Recheck trusted time after potentially slow review.
+                    now = self._now(snap)
+                if action == "renew":
+                    proposed = model.renew(current, task, run_id, fence, now,
+                                           payload.get("progress"))
+                elif action == "finish":
+                    proposed = model.finish(current, task, run_id, fence, now,
+                                            payload["outcome"], payload["progress"])
+                else:
+                    proposed = model.manager_pass(
+                        current, run_id, fence, now, payload["observed_revision"],
+                        payload["progress"], priorities=payload.get("priorities"),
+                        additions=payload.get("additions"), retire=payload.get("retire"))
+            # A same-second heartbeat/sweep may be a model no-op. Persist one
+            # operation receipt anyway so retries remain unambiguous.
+            if proposed == current:
+                proposed["revision"] += 1
+            model.validate(proposed)
+            receipt = self._store.publish(snap, proposed, op)
+            observed = self._store.read()
+            require(observed.envelope["receipts"].get(op, {}).get("digest") == receipt.digest,
+                    "published receipt missing; reconcile before retry")
+            return self._response(observed, principal, request_id, action, op,
+                                  receipt.replayed, self._now(observed))
