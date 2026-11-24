@@ -885,7 +885,8 @@ class GitHubStore:
         tree = self._api("GET", "trees/" + tree_sha)
         check(tree.get("sha") == tree_sha and tree.get("truncated") is False
               and type(tree.get("tree")) is list, "bootstrap tree")
-        check(not any(isinstance(e, dict) and e.get("path") == LEDGER
+        check(not any(isinstance(e, dict) and e.get("path") in
+                      (LEDGER, "archive-root.json", "archive.json")
                       for e in tree["tree"]), "already initialized")
         envelope = {"schema": 3, "state": copy.deepcopy(initial_state),
                     "receipts": {operation: {"digest": digest, "revision": 0}},
