@@ -141,10 +141,18 @@ class Broker:
             return {"head": snap.head, "durable_revision": snap.state["revision"],
                     "effective_at": now, "state": effective,
                     "eligible": [] if pending else self._candidates(effective, principal, now),
+                    "task_order": sorted(effective["tasks"], key=lambda k: (
+                        k != model.MANAGER, effective["tasks"][k]["priority"], k)),
                     "publication_pending": pending,
                     "publications": copy.deepcopy(snap.envelope["publications"]),
                     "manager_authorized": principal.manager,
                     "accepted_artifacts": copy.deepcopy(snap.envelope["artifacts"])}
+
+    def task_history(self, token, task, *, limit=20, cursor=None):
+        """Authenticated read-only view for the single LocalOps interface."""
+        self._credentials.authenticate(token)
+        with self._lock:
+            return self._store.task_history(task, limit=limit, cursor=cursor)
 
     def _owned(self, current, principal, payload):
         task, run_id, fence = (payload[k] for k in ("task", "run_id", "fence"))
