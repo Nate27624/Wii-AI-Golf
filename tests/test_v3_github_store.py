@@ -250,6 +250,83 @@ class StoreTests(unittest.TestCase):
         self.store.publish(pinned, renewed, "two")
         self.assertEqual(self.store.read().state, renewed)
 
+    def test_archive_roundtrip_preserves_replay_and_fences(self):
+        first = self.advance()
+        receipt = self.store.publish(self.snap, first, "first")
+        old = self.store.read()
+        expired = model.sweep(old.state, 121)
+        self.store.publish(old, expired, "expire")
+        before = self.store.read()
+        acquired, _ = model.acquire(before.state, "a", "run2", "S000", 122)
+        self.store.publish(before, acquired, "second")
+        for now in range(123, 190):
+            tip = self.store.read()
+            renewed = model.renew(tip.state, "a", "run2", 2, now)
+            self.store.publish(tip, renewed, "heartbeat-" + str(now))
+        tip = self.store.read()
+        manifest, pages = store.archive_snapshot(tip, recent_receipts=2)
+        pin = store.archive_digest(store.canonical(manifest))
+        self.assertGreaterEqual(len(pages), 3)
+        self.assertEqual(len(manifest["hot"]["receipts"]), 2)
+        self.assertNotIn("run1", manifest["hot"]["state"]["runs"])
+        self.assertIn("run2", manifest["hot"]["state"]["runs"])
+        restored = store.restore_archive(manifest, pages,
+                                         expected_digest=pin, expected_head=tip.head)
+        self.assertEqual(restored, tip)
+        self.assertEqual(restored.envelope["receipts"]["first"]["digest"], receipt.digest)
+        self.assertEqual(restored.state["tasks"]["a"]["fence"], 2)
+        with self.assertRaises(model.LeaseError):
+            model.renew(restored.state, "a", "run1", 1, 190)
+        self.assertEqual(model.renew(restored.state, "a", "run2", 2, 190),
+                         model.renew(tip.state, "a", "run2", 2, 190))
+        count = self.api.patch_count
+        self.assertTrue(self.store.publish(self.snap, first, "first").replayed)
+        self.assertEqual(self.api.patch_count, count)
+        self.assertEqual(store.archive_snapshot(tip, recent_receipts=2), (manifest, pages))
+
+    def test_archive_rejects_missing_corrupt_or_unpinned_data(self):
+        self.store.publish(self.snap, self.advance(), "first")
+        tip = self.store.read()
+        manifest, pages = store.archive_snapshot(tip, recent_receipts=1)
+        pin = store.archive_digest(store.canonical(manifest))
+        key = next(iter(pages))
+        for broken in ({}, {**pages, key: b"{}"}, {**pages, "f" * 64: b"{}"}):
+            with self.assertRaises(store.StoreError):
+                store.restore_archive(manifest, broken, expected_digest=pin,
+                                      expected_head=tip.head)
+        with self.assertRaises(store.StoreError):
+            store.restore_archive(manifest, pages, expected_digest=pin,
+                                  expected_head=BASE)
+        tampered = copy.deepcopy(manifest)
+        tampered["hot"]["state"]["tasks"]["a"]["priority"] += 1
+        with self.assertRaises(store.StoreError):
+            store.restore_archive(tampered, pages, expected_digest=pin,
+                                  expected_head=tip.head)
+        with self.assertRaises(store.StoreError):
+            store.restore_archive(tampered, pages,
+                                  expected_digest=store.archive_digest(store.canonical(tampered)),
+                                  expected_head=tip.head)
+        # Even with a new pin, noncanonical placement is rejected.
+        duplicate = copy.deepcopy(manifest)
+        duplicate["pages"].append(duplicate["pages"][0])
+        with self.assertRaises(store.StoreError):
+            store.restore_archive(duplicate, pages,
+                                  expected_digest=store.archive_digest(store.canonical(duplicate)),
+                                  expected_head=tip.head)
+
+    def test_archive_no_old_records_and_no_ref_mutation(self):
+        count = self.api.patch_count
+        manifest, pages = store.archive_snapshot(self.snap)
+        self.assertEqual(pages, {})
+        self.assertEqual(store.restore_archive(
+            manifest, pages, expected_digest=store.archive_digest(store.canonical(manifest)),
+            expected_head=self.snap.head), self.snap)
+        self.assertEqual(self.api.patch_count, count)
+        self.assertEqual(self.store.read().head, self.snap.head)
+        for bad in (0, True, 1025):
+            with self.assertRaises(store.StoreError):
+                store.archive_snapshot(self.snap, recent_receipts=bad)
+
 
 if __name__ == "__main__":
     unittest.main()
