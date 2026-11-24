@@ -209,6 +209,13 @@ class StoreTests(unittest.TestCase):
         self.assertTrue(self.store.publish(self.snap, self.advance(), "one").replayed)
         self.assertEqual(api.patch_count, 2)
 
+    def test_schema_three_rejects_unanchored_hot_state(self):
+        invalid = copy.deepcopy(self.snap.envelope)
+        invalid["state"], _ = model.hot_projection(invalid["state"])
+        with self.assertRaisesRegex(store.StoreError, "full-history model"):
+            store.validate_envelope(invalid)
+        self.assertEqual(self.api.patch_count, 1)
+
     def test_receipt_history_tamper(self):
         invalid = copy.deepcopy(self.snap.envelope)
         invalid["receipts"].clear()
