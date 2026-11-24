@@ -1062,7 +1062,10 @@ class GitHubStore:
         result = {}
         for row in obj["tree"]:
             check(type(row) is dict and type(row.get("path")) is str
-                  and row["path"] not in result, "duplicate hot tree entry")
+                  and row["path"] not in result
+                  and (row["path"] in {"node.json", "hot.json", "index"}
+                       or len(row["path"]) == 1 and row["path"] in "0123456789abcdef"),
+                  "invalid or duplicate hot tree entry")
             check((row.get("mode"), row.get("type")) in
                   (("100644", "blob"), ("040000", "tree")), "invalid hot tree mode")
             result[row["path"]] = {"path": row["path"], "mode": row["mode"],
@@ -1147,6 +1150,10 @@ class GitHubStore:
         obj = self._api("POST", "commits", {"message": "V3 disposable hot transition",
                                             "tree": tree, "parents": [parent]})
         candidate = sha(obj.get("sha"))
+        check(isinstance(obj.get("tree"), dict) and obj["tree"].get("sha") == tree
+              and isinstance(obj.get("parents"), list) and len(obj["parents"]) == 1
+              and isinstance(obj["parents"][0], dict)
+              and obj["parents"][0].get("sha") == parent, "hot candidate identity")
         observed = self._hot_at(candidate)
         check(observed.manifest == manifest and observed.root_tree == root
               and observed.operation == operation, "hot candidate readback mismatch")
