@@ -197,3 +197,25 @@ network, credential, installation or production state-ref test is
 performed by this adapter. Synthetic regressions cover project/principal
 isolation before store IO, invalid routes/queries, read-only status/history/
 capacity and expiry preview, byte-bounded and sanitized failure responses.
+
+
+## Disposable persistent hot-root admission
+
+The host may explicitly instantiate the same `Broker` with `hot=True` only
+after initializing a disposable test ref through `GitHubStore.initialize_hot`.
+There is no automatic format detection or fallback. Authentication, trusted
+clock, lease/fence checks, manager authorization and checkpoint review remain
+the same as for the full ledger. Supported actions are acquire, renew, finish,
+manager_pass and maintenance sweep. Receipt/request/run lookups are bound to
+one immutable hot root; the store commits the authorized proposal with
+non-forced CAS. A fresh broker can replay an old acquisition from its terminal
+run record, without granting an expired or released lease. A conflicting
+request ID fails closed.
+
+This is not a production mode. Artifact acceptance, publication reservation and
+settlement are rejected before mutation. The existing LocalOps schema-2
+status/capacity/history wire deliberately rejects hot mode; no silent partial
+history or schema downgrade. Permanent task history, artifact/publication
+indexes, compatible compact wire, deployment and activation remain gates.
+Full-ledger mode continues unchanged. FakeGit regressions exercise the actual
+broker/store combination, not a remote ref or deployed service.
