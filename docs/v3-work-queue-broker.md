@@ -155,3 +155,45 @@ Focused tests use simulated credentials, clock, review and GitHub
 transport. Green CI demonstrates the offline contract only, not
 production authentication, timing, credential isolation or gateway
 enforcement.
+
+
+## Staged project-bound LocalOps read endpoint (wire v1)
+
+The existing private LocalOps console remains the sole human CLI. The
+`OperatorReadEndpoint(project, broker)` adapter accepts only exact GET
+targets and one Authorization: Bearer credential, returning HTTP status,
+fixed response headers and canonical JSON bytes. One host-configured
+project maps to one trusted broker and independently provisioned project
+credential registry; the caller cannot choose a repository or ref. A
+worker/manager/maintenance credential is rejected even if it could use
+the internal broker status method. Foreign projects, invalid/duplicate
+query parameters, unrecognized routes and non-GET verbs are rejected
+before state IO. This is an offline request handler, not a deployed server
+or TLS/credential provisioning system.
+
+Routes: `/v3/projects/{project}/status`, `/capacity`, and
+`/tasks/{task}/history?limit=1..50&cursor=integer` under that project
+prefix. The status projection exposes only the fields consumed by the
+existing LocalOps view: effective/durable revision and time, manager-first
+task ordering, task IDs/status/role/priority/thread/dependencies, checkpoint
+head/evidence references, active lease metadata, oversight and publication
+freeze. Task objective, paths, free-form checkpoint text, historical runs
+and artifact records are omitted. History preserves event identity and
+only the fields needed by the renderer. Capacity retains the existing
+committed capacity report. The adapter bounds encoded output to 8 MiB,
+returns sanitized errors and no-store headers, and never calls a
+mutation operation. Internal broker status/history remain unchanged.
+
+**Staging limitation:** this wire accepts full-state model version 2 only
+and retains the integer revision cursor with the 500-revision history
+window. It is intentionally not a production solution for the new indexed
+hot state. Do not relabel compact state as version 2 or expose this endpoint
+as cutover-ready. Replace with a jointly reviewed versioned compact
+projection and pinned per-task cursor, then run actual cross-repository
+client/adapter compatibility tests. The host must enforce TLS, header and
+request limits, reject duplicate Authorization headers, keep logs
+credential-free and isolate project-specific registries. No actual
+network, credential, installation or production state-ref test is
+performed by this adapter. Synthetic regressions cover project/principal
+isolation before store IO, invalid routes/queries, read-only status/history/
+capacity and expiry preview, byte-bounded and sanitized failure responses.
