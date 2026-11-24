@@ -160,5 +160,42 @@ class BrokerTests(unittest.TestCase):
                            {**a, "outcome": "CLOSED", "progress": progress()})
 
 
+    def test_manager_always_displayed_first_and_history_is_durable(self):
+        m = self.lease("m", "manager")
+        a = self.lease("a", "alpha")
+        self.assertEqual(self.broker.status(self.tokens["a"])["task_order"][0], model.MANAGER)
+        self.assertNotIn(model.MANAGER, self.broker.status(self.tokens["a"])["eligible"])
+        self.now = 2
+        self.req("a", "renew", "renew", a)
+        self.req("a", "renew", "renew", a)
+        self.now = 122
+        self.assertEqual(self.broker.status(self.tokens["m"])["task_order"][0], model.MANAGER)
+        self.req("s", "sweep", "sweep")
+        count = self.api.patch_count
+        events = self.broker.task_history(self.tokens["m"], a["task"])["events"]
+        kinds = [x["kind"] for x in events]
+        for kind in ("created", "claimed", "renewed", "expired"):
+            self.assertEqual(kinds.count(kind), 1)
+        self.assertEqual(self.api.patch_count, count)
+        self.assertTrue(all(x["task"] == a["task"] for x in events))
+        with self.assertRaises(b.AdmissionError):
+            self.broker.task_history("x" * 40, a["task"])
+
+    def test_history_pagination_and_invalid_cursor(self):
+        a = self.lease("a", "alpha")
+        self.now = 2
+        self.req("a", "renew", "renew", a)
+        first = self.broker.task_history(self.tokens["m"], a["task"], limit=1)
+        self.assertEqual(first["next_cursor"], 1)
+        second = self.broker.task_history(self.tokens["m"], a["task"], limit=1,
+                                          cursor=first["next_cursor"])
+        self.assertEqual(second["next_cursor"], 0)
+        third = self.broker.task_history(self.tokens["m"], a["task"], limit=1, cursor=0)
+        self.assertIsNone(third["next_cursor"])
+        self.assertEqual([x["kind"] for x in third["events"]], ["created"])
+        with self.assertRaises(storage.StoreError):
+            self.broker.task_history(self.tokens["m"], a["task"], cursor=999)
+
+
 if __name__ == "__main__":
     unittest.main()
