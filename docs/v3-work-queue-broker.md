@@ -219,3 +219,54 @@ history or schema downgrade. Permanent task history, artifact/publication
 indexes, compatible compact wire, deployment and activation remain gates.
 Full-ledger mode continues unchanged. FakeGit regressions exercise the actual
 broker/store combination, not a remote ref or deployed service.
+
+
+## Staged LocalOps read-v2 contract (persistent hot history)
+
+Routes: GET /v3/projects/{project}/read-v2/status and
+GET /v3/projects/{project}/read-v2/tasks/{task}/history?limit=20[&cursor=...].
+The same authenticated read-only principal and fixed project binding apply.
+Successful JSON responses carry wire_version=2 (not the storage version).
+Legacy routes are unchanged and fail closed on hot mode.
+
+Status contains wire_version, head, durable_revision, effective_at, eligible
+(always [] for the operator), task_order (manager first), manager_authorized
+(always false for operator read), publication_supported=false, and state.
+State contains version=3, revision, clock, oversight, tasks and runs. Task
+entries retain the legacy allowlist: role, status, priority, thread,
+dependencies, run, fence and checkpoint {head,evidence}. Runs contain only
+active task references with task, status, fence, heartbeat, expires.
+The publication_pending and publications fields are absent, not empty healthy
+values. GET .../read-v2/capacity returns 503 {"error":"capacity unavailable"}
+until its hot capacity contract is implemented.
+
+History response keys: wire_version, task, head (pinned commit), event_count
+(total at pin), events, next_cursor (opaque string or null).
+Events are in descending contiguous per-task sequence order, each with task,
+sequence (1-based), kind, revision, operation, clock, source_commit
+(original full-ledger SHA during backfill; null for newly indexed events),
+and data using the legacy per-kind allowlist. Hot events identify the
+committed transition by revision and operation, not by a circular self-SHA.
+Kinds: created, task_changed, claimed, renewed, expired, released,
+oversight_changed. No artifact/publication event claims until integrated.
+A page contains at most limit events (1–50); a known task has at least one
+creation event. No revision-window or empty-page traversal.
+
+The cursor is a host-generated, URL-safe, HMAC-SHA256 authenticated opaque
+token, at most 1601 ASCII characters, matching
+[A-Za-z0-9_-]{1,1536}[.][0-9a-f]{64}. Pass it unchanged; never decode or
+manufacture it in LocalOps. It pins project, repository, branch, task,
+immutable snapshot, event count, next sequence and expiry. The host must
+provision a separate persistent high-entropy key (32–128 bytes), never
+included in source or worker credentials. A cursor expires 3600 seconds
+after issuance (not extended by paging). Invalid signature, wrong binding
+or expired cursor returns 409 {"error":"refresh history"}; restart without
+cursor to obtain the latest pin. Malformed route/query returns 400 or 404,
+unknown task 404, missing key/unavailable store 503. The authenticated
+snapshot pin is checked before any cursor-selected Git commit lookup.
+Concurrent appends do not alter the pinned page or remove older events.
+No production host or credentials have been provisioned.
+
+The earlier staging-only read wire remains available on full-ledger mode.
+The new read-v2 route is explicitly separate and must be integrated and
+tested with the private LocalOps client before activation.
