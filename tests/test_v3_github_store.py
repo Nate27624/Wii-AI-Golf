@@ -602,6 +602,22 @@ class PersistentHotTests(unittest.TestCase):
             lambda state, exists: model.acquire(state, task, run, "S000", 1,
                                                 cold_run_exists=exists)[0])
 
+    def test_tree_hash_matches_real_git(self):
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            def git(*args, data=None):
+                return subprocess.run(["git", "-C", directory, *args], input=data,
+                                      capture_output=True, check=True, timeout=10).stdout.strip()
+            git("init", "--bare", "--object-format=sha1", "-q")
+            blob = git("hash-object", "-w", "--stdin", data=b"synthetic").decode()
+            leaf = git("mktree", data=("100644 blob " + blob + "\tnode.json\n").encode()).decode()
+            entries = [{"path": "node.json", "mode": "100644", "type": "blob", "sha": blob},
+                       {"path": "a", "mode": "040000", "type": "tree", "sha": leaf}]
+            parent = git("mktree", data=("100644 blob " + blob + "\tnode.json\n" +
+                                        "040000 tree " + leaf + "\ta\n").encode()).decode()
+            self.assertEqual(store.GitHubStore._hot_tree_sha(entries), parent)
+
     def test_hot_commit_reachable_reopen_and_terminal_receipt(self):
         root = self.initialize()
         self.assertEqual(root.manifest["state"]["revision"], 1)
