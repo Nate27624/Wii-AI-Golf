@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import re
+from dataclasses import dataclass
 
 from . import state as model
 from . import github_store as storage
@@ -192,3 +193,105 @@ class GitHubTreeInspector:
             entry(change["before"])
             entry(change["after"])
         return result
+
+
+@dataclass(frozen=True)
+class PublicationCommand:
+    """Host-issued immutable dispatch binding, not a worker request or grant."""
+    repository: str
+    queue_branch: str
+    queue_head: str
+    intent: str
+    target: str
+    base: str
+    head: str
+    manifest_digest: str
+
+    def __post_init__(self):
+        require(type(self.repository) is str and storage._REPO.fullmatch(self.repository)
+                and all(p not in (".", "..") for p in self.repository.split("/")),
+                "invalid dispatch repository")
+        require(type(self.queue_branch) is str and storage._TEST_REF.fullmatch(self.queue_branch),
+                "dispatch queue must be disposable")
+        require(type(self.target) is str and storage._PUBLICATION_REF.fullmatch(self.target),
+                "dispatch target must be disposable")
+        model.ident(self.intent)
+        storage.sha(self.queue_head)
+        require(storage.sha(self.base) != storage.sha(self.head), "identical dispatch base/head")
+        require(type(self.manifest_digest) is str and storage._DIGEST.fullmatch(self.manifest_digest),
+                "invalid dispatch manifest digest")
+
+    @property
+    def key(self):
+        # Deliberately excludes the changing payload: conflicting use of a
+        # project/queue/intent cannot create a second dispatch marker.
+        return hashlib.sha256(storage.canonical(
+            [self.repository, self.queue_branch, self.intent])).hexdigest()
+
+    @property
+    def binding(self):
+        return hashlib.sha256(storage.canonical(
+            [self.key, self.queue_head, self.target, self.base, self.head,
+             self.manifest_digest])).hexdigest()
+
+
+class DispatchUncertain(ArtifactError):
+    """No automatic retry or settlement; host must reconcile the effect."""
+
+
+class PublicationExecutor:
+    """Host-only capability seam; no credentials or executable worker input.
+
+    reserve_once(key, binding) must durably consume one unique key before
+    returning True, including across process restarts. False or an exception
+    must never trigger a send. A consumed marker is never reset or reused.
+    send_exact(command) must use an exact expected-old ref CAS, not a REST
+    GET followed by a PATCH. Return/exception is NOT a settlement witness.
+    Both callbacks and the observer must share the host's exclusive effect
+    coordination boundary; this class does not provide that durable lock.
+    """
+    def __init__(self, repository, queue_branch, reserve_once, send_exact):
+        require(type(repository) is str and storage._REPO.fullmatch(repository)
+                and all(p not in (".", "..") for p in repository.split("/"))
+                and type(queue_branch) is str and storage._TEST_REF.fullmatch(queue_branch)
+                and callable(reserve_once) and callable(send_exact), "invalid host executor")
+        self.repository = repository
+        self.queue_branch = queue_branch
+        self._reserve_once = reserve_once
+        self._send_exact = send_exact
+
+    def reserve(self, command):
+        require(isinstance(command, PublicationCommand)
+                and (command.repository, command.queue_branch) ==
+                (self.repository, self.queue_branch), "executor project mismatch")
+        try:
+            admitted = self._reserve_once(command.key, command.binding)
+        except Exception:
+            raise DispatchUncertain("dispatch marker uncertain; do not retry") from None
+        require(admitted is True, "dispatch marker already consumed or unavailable")
+
+    def send(self, command):
+        # No automatic retry, no return-value interpretation, no exposed
+        # command output. Only independently verified settlement may unfreeze.
+        try:
+            self._send_exact(command)
+        except Exception:
+            raise DispatchUncertain("dispatch outcome uncertain; do not retry") from None
+
+
+def exact_push_arguments(command):
+    """Build an exact-old Git receive-pack request for a trusted host clone.
+
+    The inspector must already have proved head is a direct child of base.
+    The explicit lease protects against a changed/deleted target. An
+    already-up-to-date result does not establish who applied the effect.
+    Only the fixed GitHub repository and disposable target are selectable;
+    the host must isolate credentials, Git configuration and transport.
+    No invocation, shell, credential or output is part of this helper.
+    """
+    require(isinstance(command, PublicationCommand), "publication command required")
+    ref = "refs/heads/" + command.target
+    return ["push", "--porcelain", "--no-verify", "--no-follow-tags",
+            "--recurse-submodules=no", "--force-with-lease=" + ref + ":" + command.base,
+            "--", "https://github.com/" + command.repository + ".git",
+            command.head + ":" + ref]
