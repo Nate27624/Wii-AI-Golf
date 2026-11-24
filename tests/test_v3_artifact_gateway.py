@@ -1,6 +1,8 @@
 """Synthetic immutable artifact admission tests; no real repository writes."""
 import copy
 import sys
+import subprocess
+import tempfile
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -51,6 +53,57 @@ class TreeFixture:
         assert path.startswith("/repos/owner/repo/git/")
         self.reads.append(path)
         return copy.deepcopy(self.objects[path.split("/git/", 1)[1]])
+
+
+class ExactPushTests(unittest.TestCase):
+    def test_git_receive_pack_exact_old_ref_in_disposable_local_fixture(self):
+        # Actual local Git protocol, never a network or production ref.
+        # Replace only the host's fixed remote with a temporary bare repository.
+        with tempfile.TemporaryDirectory() as d:
+            work, remote = Path(d) / "work", Path(d) / "remote.git"
+            def git(*args, cwd=None, check=True):
+                return subprocess.run(["git", *map(str, args)], cwd=cwd,
+                                      capture_output=True, text=True, check=check)
+            git("init", "-q", work)
+            git("init", "-q", "--bare", remote)
+            def commit(message):
+                git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                    "commit", "-q", "--allow-empty", "-m", message, cwd=work)
+                return git("rev-parse", "HEAD", cwd=work).stdout.strip()
+            base = commit("base")
+            head = commit("child")
+            tree = git("rev-parse", base + "^{tree}", cwd=work).stdout.strip()
+            sibling = git("-c", "user.name=Fixture", "-c",
+                          "user.email=fixture@example.invalid",
+                          "commit-tree", tree, "-p", base, "-m", "sibling", cwd=work).stdout.strip()
+            target = "orchestration/v3-publication-test-unit"
+            ref = "refs/heads/" + target
+            cmd = g.PublicationCommand("owner/repo", BRANCH, BASE, "test-intent",
+                                       target, base, head, "a" * 64)
+            args = g.exact_push_arguments(cmd)
+            self.assertEqual(args[-2], "https://github.com/owner/repo.git")
+            self.assertEqual(args[-1], head + ":" + ref)
+            self.assertIn("--force-with-lease=" + ref + ":" + base, args)
+            args[-2] = str(remote)
+            def observed():
+                return git("--git-dir=" + str(remote), "rev-parse", ref).stdout.strip()
+            git("push", "-q", remote, base + ":" + ref, cwd=work)
+            self.assertEqual(git(*args, cwd=work, check=False).returncode, 0)
+            self.assertEqual(observed(), head)
+            # Seed sibling in the disposable bare repository, then move target
+            # locally to simulate a competing writer. The exact lease must fail.
+            git("push", "-q", remote, sibling + ":refs/heads/fixture-sibling", cwd=work)
+            git("--git-dir=" + str(remote), "update-ref", ref, sibling)
+            self.assertNotEqual(git(*args, cwd=work, check=False).returncode, 0)
+            self.assertEqual(observed(), sibling)
+            git("--git-dir=" + str(remote), "update-ref", "-d", ref)
+            self.assertNotEqual(git(*args, cwd=work, check=False).returncode, 0)
+            self.assertNotEqual(git("--git-dir=" + str(remote), "show-ref", "--verify",
+                                    ref, check=False).returncode, 0)
+            for target in ("main", "orchestration/v3-state", "refs/heads/main"):
+                with self.assertRaises(g.ArtifactError):
+                    g.PublicationCommand("owner/repo", BRANCH, BASE, "test-intent",
+                                         target, base, head, "a" * 64)
 
 
 class InspectorTests(unittest.TestCase):
