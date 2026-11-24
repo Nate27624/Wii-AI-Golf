@@ -177,3 +177,50 @@ restricted credential/gateway enforcement remain separate gates.
 
 No production state branch, background process, automatic dispatcher
 or V3 cutover is created by this code. V2 remains authoritative.
+
+
+## Incremental hot-state index prototype
+
+IncrementalIndex uses immutable SHA-256-addressed radix nodes and copies
+only the affected key path on insertion. Exact lookup and insertion are
+bounded by the 64-hex-character key hash width (at most 65 node reads
+or writes per key); the root is constant size. A missing referenced
+node is an error, while an authenticated absent branch proves absence.
+Leaf identity and placement are checked, and conflicting immutable
+values or full hash collisions fail closed. Old roots remain unchanged.
+The object backend must provide immutable, durable writes and reads
+against an independently verified root. Arbitrary caller-supplied
+roots cannot establish trustworthy nonmembership.
+
+Receipt IDs, broker request-identity prefixes, and closed-run IDs
+occupy separate namespaces. The request prefix is stored as an exact
+key mapping to the original operation ID, so conflicting payload
+reuse does not require a prefix scan. indexed_hot_projection imports
+all receipts and terminal runs from the validated full-history oracle.
+indexed_hot_transition takes a trusted host transition callback,
+reconciles exact receipt replay first, checks the request identity,
+supplies cold run-ID membership to the pure model, and emits one
+proposed hot manifest with the updated index root and receipt. A
+replayed receipt changes neither manifest nor index. The callback
+must enforce the authorized transition, clock and fences; this helper
+is not a broker. A failed proposal can leave unreachable objects but
+cannot change its prior manifest.
+
+Synthetic tests exercise 300 indexed keys, bounded IO, immutable
+historical roots, missing/corrupted nodes, and 30 acquire/finish cycles
+against the full-history oracle with replay and stale-ID rejection.
+The initial conversion currently refuses any artifact or publication
+records; their immutable provenance and outcomes require separate
+index namespaces and validation. Task event indexing, archived
+terminal response construction, and manager/operator transport are
+not implemented by this helper.
+
+This is still a pure proposal/object-backend prototype. No authoritative
+Git tree or ref currently commits its root. A persisted next-schema
+implementation must make the hot manifest, reachable index objects and
+receipt authoritative together by one non-forced CAS, validate the
+migration from a trusted source, reconcile uncertain responses and
+protect prior roots. Repeated Git API calls along a path also need
+measured latency/quota and a bounded read/write strategy before
+deployment; the node-count bound alone is not a timing guarantee.
+Existing schema-3 production writes remain disabled.
