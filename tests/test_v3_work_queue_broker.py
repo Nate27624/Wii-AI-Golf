@@ -1,5 +1,7 @@
 """Offline Work Queue broker admission tests; no real credentials or source writes."""
 import copy
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import sys
 import unittest
 from pathlib import Path
@@ -19,12 +21,13 @@ class BrokerTests(unittest.TestCase):
         self.now = 1
         self.allow_review = True
         self.reviews = []
-        self.tokens = {k: k * 40 for k in ("m", "a", "b", "s")}
+        self.tokens = {k: k * 40 for k in ("m", "a", "b", "s", "r")}
         self.credentials = b.Credentials([
             (b.token_digest(self.tokens["m"]), b.Principal("manager", frozenset({"S000"}), True)),
             (b.token_digest(self.tokens["a"]), b.Principal("alpha", frozenset({"S000"}))),
             (b.token_digest(self.tokens["b"]), b.Principal("beta", frozenset({"S000"}))),
             (b.token_digest(self.tokens["s"]), b.Principal("sweeper", frozenset(), False, True)),
+            (b.token_digest(self.tokens["r"]), b.Principal("operator-read", frozenset(), read_only=True)),
         ])
         def review(principal, action, payload, current):
             self.reviews.append((principal.identity, action))
@@ -195,6 +198,62 @@ class BrokerTests(unittest.TestCase):
         self.assertEqual([x["kind"] for x in third["events"]], ["created"])
         with self.assertRaises(storage.StoreError):
             self.broker.task_history(self.tokens["m"], a["task"], cursor=999)
+
+    def test_read_only_principal_cannot_dispatch_or_mutate(self):
+        a = self.lease("a", "alpha")
+        count = self.api.patch_count
+        view = self.broker.status(self.tokens["r"])
+        self.assertEqual(view["eligible"], [])
+        self.assertFalse(view["manager_authorized"])
+        self.assertIn(a["task"], view["state"]["tasks"])
+        self.assertTrue(self.broker.task_history(self.tokens["r"], a["task"])["events"])
+        for action in ("acquire", "renew", "finish", "manager_pass", "sweep",
+                       "accept_artifact", "prepare_publication", "resolve_publication"):
+            with self.subTest(action=action):
+                with self.assertRaisesRegex(b.AdmissionError, "read-only"):
+                    self.req("r", "denied", action, {})
+        self.assertEqual(count, self.api.patch_count)
+        for principal in (
+            b.Principal("bad", frozenset({"S000"}), read_only=True),
+            b.Principal("bad", frozenset(), maintenance=True, read_only=True),
+            b.Principal("bad", frozenset({"S000"}), manager=True, read_only=True),
+        ):
+            with self.assertRaises(b.AdmissionError):
+                b.Credentials([(b.token_digest("z" * 40), principal)])
+
+    def test_slow_history_does_not_block_heartbeat(self):
+        a = self.lease("a", "alpha")
+        old_head = self.store.read().head
+        entered, release = threading.Event(), threading.Event()
+        original = self.store._api
+
+        def delay_history(method, endpoint, payload=None):
+            # Suspend only the history thread after it pins its immutable tip.
+            if (threading.current_thread().name.startswith("history-reader")
+                    and method == "GET" and endpoint == "commits/" + old_head):
+                if not entered.is_set():
+                    entered.set()
+                    if not release.wait(timeout=10):
+                        raise AssertionError("history release not signaled")
+            return original(method, endpoint, payload)
+
+        self.store._api = delay_history
+        with ThreadPoolExecutor(max_workers=1, thread_name_prefix="history-reader") as reader:
+            with ThreadPoolExecutor(max_workers=1) as writer:
+                history = reader.submit(self.broker.task_history, self.tokens["r"], a["task"])
+                try:
+                    self.assertTrue(entered.wait(timeout=5))
+                    self.now = 2
+                    heartbeat = writer.submit(self.req, "a", "heartbeat", "renew", a)
+                    receipt = heartbeat.result(timeout=5)
+                    self.assertNotEqual(receipt["head"], old_head)
+                finally:
+                    release.set()
+                result = history.result(timeout=5)
+        self.assertEqual(result["head"], old_head)
+        self.assertNotIn("renewed", [event["kind"] for event in result["events"]])
+        latest = self.broker.task_history(self.tokens["r"], a["task"])
+        self.assertIn("renewed", [event["kind"] for event in latest["events"]])
 
 
 if __name__ == "__main__":
