@@ -465,6 +465,69 @@ class HotBrokerTests(unittest.TestCase):
             self.assertEqual(json.loads(body), {"error": "response unavailable"})
         self.assertEqual(self.api.patch_count, patches)
 
+    def test_read_v2_pinned_history_across_append_restart_and_tamper(self):
+        key = b"k" * 32
+        self.broker = b.Broker(self.store, self.credentials, hot=True,
+                               clock=lambda: self.now, history_cursor_key=key)
+        endpoint = b.OperatorReadEndpoint("wii-golf", self.broker)
+        auth = "Bearer " + self.tokens["r"]
+        prefix = "/v3/projects/wii-golf/read-v2"
+        a = self.claim("a", "claim")
+        path = prefix + "/tasks/" + a["task"] + "/history"
+        code, _, body = endpoint.handle("GET", path + "?limit=1", auth)
+        self.assertEqual(code, 200)
+        first = json.loads(body)
+        self.assertEqual(first["wire_version"], 2)
+        self.assertEqual(first["events"][0]["kind"], "claimed")
+        cursor = first["next_cursor"]
+        self.assertIsInstance(cursor, str)
+        self.now = 2
+        self.req("a", "heartbeat", "renew", a)
+        fresh = storage.GitHubStore(self.api, "owner/repo", BRANCH)
+        other = b.Broker(fresh, self.credentials, hot=True, clock=lambda: self.now,
+                         history_cursor_key=key)
+        endpoint = b.OperatorReadEndpoint("wii-golf", other)
+        code, _, body = endpoint.handle("GET", path + "?limit=50&cursor=" + cursor, auth)
+        self.assertEqual(code, 200)
+        rest = json.loads(body)
+        self.assertEqual(rest["head"], first["head"])
+        self.assertEqual(rest["event_count"], first["event_count"])
+        self.assertEqual([e["sequence"] for e in first["events"] + rest["events"]],
+                         list(range(first["event_count"], 0, -1)))
+        self.assertIsNone(rest["next_cursor"])
+        code, _, body = endpoint.handle("GET", path, auth)
+        self.assertEqual(code, 200)
+        self.assertGreater(json.loads(body)["event_count"], first["event_count"])
+        tampered = cursor[:-1] + ("0" if cursor[-1] != "0" else "1")
+        self.assertEqual(endpoint.handle("GET", path + "?cursor=" + tampered, auth)[0], 409)
+        self.assertEqual(endpoint.handle("GET", prefix + "/tasks/b/history?cursor=" + cursor,
+                                         auth)[0], 409)
+        other_project = b.OperatorReadEndpoint("other", other)
+        self.assertEqual(other_project.handle("GET",
+                         "/v3/projects/other/read-v2/tasks/" + a["task"] +
+                         "/history?cursor=" + cursor, auth)[0], 409)
+        self.now = 3601
+        self.assertEqual(endpoint.handle("GET", path + "?cursor=" + cursor, auth)[0], 409)
+        self.assertEqual(endpoint.handle("GET", path, auth)[0], 200)
+        self.assertEqual(endpoint.handle("GET", path, "Bearer " + self.tokens["a"])[0], 403)
+
+    def test_read_v2_status_explicitly_unavailable_capacity_and_publication(self):
+        endpoint = b.OperatorReadEndpoint("wii-golf", self.broker)
+        auth = "Bearer " + self.tokens["r"]
+        prefix = "/v3/projects/wii-golf/read-v2"
+        count = self.api.patch_count
+        code, _, body = endpoint.handle("GET", prefix + "/status", auth)
+        self.assertEqual(code, 200)
+        status = json.loads(body)
+        self.assertEqual(status["wire_version"], 2)
+        self.assertEqual(status["state"]["version"], 3)
+        self.assertEqual(status["task_order"][0], model.MANAGER)
+        self.assertFalse(status["publication_supported"])
+        self.assertNotIn("publication_pending", status)
+        self.assertEqual(endpoint.handle("GET", prefix + "/capacity", auth)[0], 503)
+        self.assertEqual(endpoint.handle("GET", prefix + "/tasks/a/history", auth)[0], 503)
+        self.assertEqual(self.api.patch_count, count)
+
     def test_lost_response_replay_is_pinned_and_does_not_regrant(self):
         self.api.lose_response = True
         first = self.req("a", "claim", "acquire")
