@@ -195,6 +195,11 @@ class Broker:
         require(not self._hot, "hot capacity wire unavailable")
         return storage.capacity_report(self._store.read())
 
+    def hot_capacity(self, token):
+        principal = self._credentials.authenticate(token)
+        require(principal.read_only and self._hot, "hot operator capacity unavailable")
+        return storage.hot_capacity_report(self._store.read_hot())
+
     def task_history(self, token, task, *, limit=20, cursor=None):
         """Authenticated read-only view for the single LocalOps interface."""
         self._credentials.authenticate(token)
@@ -529,7 +534,7 @@ def _read_subset(row, keys):
     return {key: row[key] for key in keys}
 
 
-def _operator_status(view, *, hot=False):
+def _operator_status(view, *, hot=False, wire_version=2):
     """Explicit allowlist matching the corresponding LocalOps wire."""
     state = view["state"]
     require(state["version"] == (3 if hot else 2), "unsupported read wire source version")
@@ -554,7 +559,11 @@ def _operator_status(view, *, hot=False):
     pending = view["publication_pending"]
     result["publications"] = {} if pending is None else {
         pending: {"resolution": view["publications"][pending]["resolution"]}}
-    if hot:
+    if hot and wire_version == 3:
+        result["wire_version"] = 3
+        result["publication_supported"] = True
+        result["queue_frozen"] = pending is not None
+    elif hot:
         # Existing read-v2 clients do not understand a pending intent.
         # Fail closed instead of presenting an unfrozen queue.
         require(pending is None, "publication freeze; compatible read wire required")
@@ -566,7 +575,7 @@ def _operator_status(view, *, hot=False):
     return result
 
 
-def _operator_history(page, *, hot=False):
+def _operator_history(page, *, hot=False, wire_version=2):
     """Preserve the committed event identity, omit unrelated record contents."""
     rows = []
     for event in page["events"]:
@@ -597,7 +606,7 @@ def _operator_history(page, *, hot=False):
         rows.append(row)
     result = {**_read_subset(page, ("task", "head", "next_cursor")), "events": rows}
     if hot:
-        result["wire_version"] = 2
+        result["wire_version"] = wire_version
         result["event_count"] = page["event_count"]
     return result
 
@@ -655,8 +664,10 @@ class OperatorReadEndpoint:
             return error(404, "not found")
         route = target[len(self._prefix):]
         try:
+            if route.startswith("/read-v3/"):
+                return self._hot_route(route[len("/read-v3"):], token, wire_version=3)
             if route.startswith("/read-v2/"):
-                return self._hot_route(route[len("/read-v2"):], token)
+                return self._hot_route(route[len("/read-v2"):], token, wire_version=2)
             if len(target) > 512:
                 return error(400, "invalid request")
             if route == "/status":
@@ -693,13 +704,16 @@ class OperatorReadEndpoint:
         except Exception:
             return error(503, "response unavailable")
 
-    def _hot_route(self, route, token):
+    def _hot_route(self, route, token, *, wire_version):
         error = lambda status, message: self._reply(status, {"error": message})
         if not self._broker._hot:
             return error(503, "response unavailable")
         if route == "/status":
-            return self._reply(200, _operator_status(self._broker.status(token), hot=True))
+            return self._reply(200, _operator_status(self._broker.status(token), hot=True,
+                                                    wire_version=wire_version))
         if route == "/capacity":
+            if wire_version == 3:
+                return self._reply(200, self._broker.hot_capacity(token))
             return error(503, "capacity unavailable")
         path, mark, query = route.partition("?")
         parts = path.split("/")
@@ -720,4 +734,4 @@ class OperatorReadEndpoint:
             return error(400, "invalid query")
         page = self._broker.hot_history(token, self._project, parts[2],
                                         limit=limit, cursor=values.get("cursor"))
-        return self._reply(200, _operator_history(page, hot=True))
+        return self._reply(200, _operator_history(page, hot=True, wire_version=wire_version))
