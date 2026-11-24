@@ -253,6 +253,11 @@ class GatewayBrokerTests(unittest.TestCase):
                          result["publication"])
         self.assertEqual(self.broker.status(self.tokens["b"])["eligible"], [])
         count = self.api.patch_count
+        with self.assertRaisesRegex(storage.StoreError, "unresolved publication"):
+            storage.archive_snapshot(self.store.read())
+        with self.assertRaisesRegex(storage.StoreError, "unresolved publication"):
+            self.store.stage_archive(self.store.read())
+        self.assertEqual(self.api.patch_count, count)
         self.assertTrue(self.req("a", "prepare", "prepare_publication", payload)["replayed"])
         for action, body in (("acquire", {}), ("renew", {k: payload[k] for k in
                              ("task", "run_id", "fence")}),
