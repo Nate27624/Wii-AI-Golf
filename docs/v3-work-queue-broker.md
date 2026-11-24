@@ -82,12 +82,49 @@ acceptance survives later checkpoints, expiry and release; a replay
 returns the receipt, not fresh authorization. Accepted artifacts are
 visible in status. The source_promoted flag is always false.
 
-The ledger envelope is schema 2 after this change. There is no production
-ledger or automatic schema-1 upgrade; explicitly initialize a new
+The artifact admission phase used ledger schema 2; the publication intent phase below uses schema 3. There is no production
+ledger or automatic schema-1/2 upgrade; explicitly initialize a new
 disposable test ref for integration tests. This phase does not provide
 an upload channel for untrusted workers or a source-ref promotion/merge
 operation. The host must stage immutable proposal objects through a
 separately authorized mechanism and preserve their reachability.
+
+## Durable publication reservation (schema 3)
+
+The authenticated current owner of an accepted artifact may request
+`prepare_publication` with task, run, fence, artifact receipt and a
+disposable `orchestration/v3-publication-test-*` target. Host semantic
+review must independently pin the target base and goal, verify exact
+accepted contents and policy, and recheck the lease after review. The
+store checks that the artifact still belongs to the active run and
+matches its current checkpoint and goal. Only a single intent is allowed.
+The reservation and its receipt are written atomically with the queue.
+An acceptance receipt can be used for only one publication intent.
+
+While a reservation is unresolved, **all new queue mutations freeze**,
+including acquire, heartbeat, manager pass and maintenance sweep.
+Read-only status reports no eligible tasks and identifies the pending
+intent. Exact historical receipt replays do not write or issue new
+authority. The freeze lives in the store as well as the broker; an
+ordinary transition cannot bypass it. Lease time still elapses; the
+resolution transition sweeps expiry before resuming dispatch.
+
+Only an authenticated maintenance principal can request
+`resolve_publication` with the pending intent ID. The host-owned
+observer must establish a **settled** external result, including proof
+that no earlier request remains in flight; simply seeing the old ref
+during an ambiguous network operation is insufficient. Exact accepted
+head means applied; exact base means not applied; any other or missing
+observation leaves the queue frozen. The worker cannot supply the
+observed SHA. Resolution is journaled once with a separate receipt.
+An exact retry is read-only, and a settled not-applied outcome is not
+permission to repeat the same intent. The pending record is not a grant
+to perform an external write, and the broker exposes no source-write
+method. A deployed executor must establish exclusive credential control,
+durable exactly-once dispatch or conservative manual recovery, and
+revalidate authorization before sending a write. The observer here is
+only a host callback contract, not a deployed settlement verifier.
+Use a fresh disposable schema-3 ledger; no production upgrade is implied.
 
 ## Unimplemented deployment boundaries
 
