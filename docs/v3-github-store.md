@@ -44,6 +44,51 @@ and stop for reconciliation. A receipt's observed_head is the ref
 at reconciliation, not necessarily the commit that originally recorded
 the operation; revision and digest identify the original transition.
 
+## Capacity visibility and pre-cutover archival contract
+
+The authenticated broker exposes a separate read-only capacity(token) view
+so existing LocalOps status/history responses remain unchanged. It reports
+the pinned head/revision, canonical byte count, limit, free bytes, receipt
+and run counts, pending-publication flag and settlement reserve. Warning
+starts at 75% utilization and critical at 90% or less than 1024 free bytes.
+These are operational alerts, not a grant to discard data or mutate state.
+New publication intents must fit while retaining 1024 bytes for settlement.
+Schema 3 settlement adds one receipt (bounded operation ID, digest and
+revision), one resolution (operation ID and observed SHA), and bounded
+numeric clock/revision/epoch changes; expiry only shortens task/run strings
+in aggregate. The reserve is conservative for this schema, not a guarantee
+against transport failure, counter exhaustion or future schema changes.
+Revisit it when the schema changes. Ordinary mutations still fail closed
+at the hard limit; exact receipt replays and reads remain available.
+
+**Proposed next schema; not implemented or authorized for production.**
+A permanently growing full snapshot cannot support indefinite operation.
+Use an immutable, content-addressed archive/index rooted in the same
+single-parent state-ref commit, with bounded hot state and separate indexed
+receipt, terminal-run and task-event records. Preserve permanent task IDs,
+current fences, active runs, legacy holds, current checkpoints, goal pins,
+publication outcomes and durable request-ID tombstones. Archive lookup
+must establish exact membership and digest, not infer absence from a
+cache miss or a bounded history window. A closed run's archived receipt
+must remain replayable without granting renewed authority. No unresolved
+publication may be compacted. Atomic ref promotion must bind the new
+manifest, archived records and hot state; a partial upload may leave
+unreachable objects but must never advance authoritative state.
+
+Before implementation, specify schema version and lookup bounds, exact
+archive integrity rules, stable project-bound history cursors and replay
+semantics; redesign model.validate's contiguous fence/run checks and
+validate_envelope's contiguous receipt checks together, not independently.
+Require offline tests with many workers and renewals, archive boundary
+crossing, lost response, concurrent sibling compaction, stale fence and
+request-ID reuse, corrupted/missing archives, pending intent refusal and
+old history pagination. Reopen from the committed manifest and compare
+against the uncompressed oracle. Test rollback/read compatibility and
+real disposable-ref CAS before any migration. Archive data must remain
+reachable and sanitized; neither deleting Git history nor resetting the
+state ref is an acceptable capacity recovery strategy. Until this gate
+passes, the bounded schema-3 ledger is staging only.
+
 ## Security boundary
 
 The standard-library REST transport uses only api.github.com, no
