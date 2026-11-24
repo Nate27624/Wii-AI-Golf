@@ -400,7 +400,7 @@ class ArchiveIndex:
 
 # Immutable path-copy radix index prototype. Root digest must be independently
 # trusted; an arbitrary self-authenticated root cannot prove nonmembership.
-_INDEX_KINDS = ("receipt", "request", "run", "event")
+_INDEX_KINDS = ("receipt", "request", "run", "event", "artifact", "intent", "artifact-intent", "resolution")
 _REQUEST_OP = re.compile(r"(op-[0-9a-f]{32}-)[0-9a-f]{64}")
 
 
@@ -520,7 +520,7 @@ class IncrementalIndex:
 
 # The count map is bounded by the permanent task population, not transitions.
 # Old prototype roots have no history and are deliberately not upgraded in place.
-HOT_HISTORY_FORMAT = "indexed-hot-history-2"
+HOT_HISTORY_FORMAT = "indexed-hot-history-3"
 MAX_HISTORY_BACKFILL = 500
 
 
@@ -533,8 +533,10 @@ def event_key(task, sequence):
 def history_manifest(manifest):
     check(type(manifest) is dict, "hot manifest")
     if manifest.get("format") == HOT_HISTORY_FORMAT:
-        check(set(manifest) == {"format", "source_head", "state", "root", "event_counts"},
+        check(set(manifest) == {"format", "source_head", "state", "root", "event_counts", "pending_intent"},
               "hot history manifest")
+        if manifest["pending_intent"] is not None:
+            model.ident(manifest["pending_intent"])
         counts = manifest["event_counts"]
         check(type(counts) is dict and set(counts) == set(manifest["state"]["tasks"]),
               "task event count coverage")
@@ -546,7 +548,8 @@ def history_manifest(manifest):
     return manifest
 
 
-def append_task_events(index, root, counts, before, after, operation, source_commit=None):
+def append_task_events(index, root, counts, before, after, operation, source_commit=None,
+                       journal_events=()):
     """Index a transition before run compaction. No circular commit-SHA claim."""
     counts = dict(counts)
     model.ident(operation)
@@ -578,6 +581,8 @@ def append_task_events(index, root, counts, before, after, operation, source_com
                     ("expired" if run["outcome"] == "EXPIRED" else "released")
                     if run["status"] == "CLOSED" else "renewed")
             emit(run["task"], kind, {"run_id": run_id, "run": run})
+    for task, kind, data in journal_events:
+        emit(task, kind, data)
     if before["oversight"] != after["oversight"]:
         emit(model.MANAGER, "oversight_changed", after["oversight"])
     return root, counts
@@ -605,7 +610,8 @@ def indexed_hot_projection(snapshot, index):
             "state": hot, "root": root}
 
 
-def indexed_hot_transition(manifest, index, operation, digest, transition):
+def indexed_hot_transition(manifest, index, operation, digest, transition, *,
+                           artifact=None, publication=None):
     """Pure host-only proposal; callback must implement an authorized action.
 
     The trusted caller supplies a previously verified manifest and commits
@@ -630,6 +636,12 @@ def indexed_hot_transition(manifest, index, operation, digest, transition):
         check(receipt["digest"] == digest, "operation ID reused with different payload")
         return copy.deepcopy(manifest), copy.deepcopy(receipt), True
     check(callable(transition), "hot transition callback required")
+    check(artifact is None or publication is None, "separate artifact and publication operations")
+    check(manifest["format"] == HOT_HISTORY_FORMAT or (artifact is None and publication is None),
+          "journal requires current hot format")
+    pending = manifest.get("pending_intent")
+    check(pending is None or (type(publication) is dict and
+          set(publication) == {"intent", "observed_head"}), "publication unresolved; queue frozen")
     proposed = transition(copy.deepcopy(state),
                           lambda key: index.get(root, "run", key) is not None)
     model.validate(proposed)
@@ -639,6 +651,10 @@ def indexed_hot_transition(manifest, index, operation, digest, transition):
           and all(v == 0 for k, v in proposed["archived_fences"].items()
                   if k not in state["archived_fences"]),
           "invalid hot transition revision or archive floors")
+    journal_events = []
+    if manifest["format"] == HOT_HISTORY_FORMAT:
+        root, pending, journal_events = hot_journal_transition(
+            manifest, index, operation, proposed, artifact, publication)
     hot, cold = model.compact_hot(proposed)
     for key, row in sorted(cold.items()):
         check(index.get(root, "run", key) is None, "archived run already exists")
@@ -646,8 +662,10 @@ def indexed_hot_transition(manifest, index, operation, digest, transition):
     result = {**manifest, "state": hot}
     if manifest["format"] == HOT_HISTORY_FORMAT:
         root, counts = append_task_events(index, root, manifest["event_counts"],
-                                          state, proposed, operation)
+                                          state, proposed, operation,
+                                          journal_events=journal_events)
         result["event_counts"] = counts
+        result["pending_intent"] = pending
     receipt = {"revision": hot["revision"], "digest": digest}
     root = index.record_receipt(root, operation, receipt)
     result["root"] = root
@@ -738,6 +756,97 @@ def publication_transition(current, next_state, operation, publication):
     else:
         raise StoreError("invalid publication mutation")
     return rows
+
+
+def hot_publication(index, root, intent):
+    """Join immutable intent and separate settlement without rewriting either."""
+    row = index.get(root, "intent", intent)
+    if row is None:
+        return None
+    check(set(row) == {"artifact", "target"}
+          and isinstance(row["artifact"], str)
+          and isinstance(row["target"], str) and _PUBLICATION_REF.fullmatch(row["target"]),
+          "invalid indexed publication intent")
+    artifact = index.get(root, "artifact", row["artifact"])
+    receipt = index.get(root, "receipt", intent)
+    acceptance = index.get(root, "receipt", row["artifact"])
+    check(artifact is not None and receipt is not None and acceptance is not None
+          and artifact["revision"] == acceptance["revision"] < receipt["revision"]
+          and index.get(root, "artifact-intent", row["artifact"]) == {"intent": intent},
+          "invalid indexed publication links")
+    settlement = index.get(root, "resolution", intent)
+    if settlement is not None:
+        check(set(settlement) == {"operation", "observed_head"},
+              "invalid indexed settlement")
+        resolved = index.get(root, "receipt", settlement["operation"])
+        check(resolved is not None and resolved["revision"] == receipt["revision"] + 1
+              and sha(settlement["observed_head"]) in (artifact["base"], artifact["head"]),
+              "invalid indexed settlement links")
+    return {**row, "resolution": settlement}
+
+
+def hot_journal_transition(manifest, index, operation, proposed, artifact, publication):
+    """Immutable metadata only, no source promotion or external effect."""
+    from . import artifact_gateway as gateway
+    root, pending = manifest["root"], manifest["pending_intent"]
+    events = []
+    if artifact is not None:
+        gateway.validate_record(artifact, proposed)
+        task, run_id, fence = (artifact[k] for k in ("task", "run_id", "fence"))
+        model.active(proposed, task, run_id, fence)
+        check(artifact["revision"] == proposed["revision"]
+              and artifact["admitted_at"] == proposed["clock"]
+              and artifact["goal_sha"] == proposed["oversight"]["goal_sha"]
+              and proposed["tasks"][task]["checkpoint"]["head"] == artifact["head"],
+              "artifact not bound to proposed checkpoint")
+        root = index.put(root, "artifact", operation, artifact)
+        events.append((task, "artifact_accepted", artifact))
+    if publication is None:
+        check(pending is None, "publication unresolved; queue frozen")
+        return root, pending, events
+    check(type(publication) is dict, "publication mutation")
+    expected = model.sweep(manifest["state"], proposed["clock"])
+    expected["revision"] = manifest["state"]["revision"] + 1
+    check(proposed == expected, "publication transition must only sweep")
+    if set(publication) == {"artifact", "target"}:
+        key = publication["artifact"]
+        model.ident(key)
+        record = index.get(root, "artifact", key)
+        receipt = index.get(root, "receipt", key)
+        check(pending is None and record is not None and receipt is not None
+              and record["revision"] == receipt["revision"]
+              and index.get(root, "artifact-intent", key) is None,
+              "artifact already used or missing")
+        check(isinstance(publication["target"], str)
+              and _PUBLICATION_REF.fullmatch(publication["target"]),
+              "publication target must be disposable")
+        gateway.validate_record(record, proposed)
+        task, run_id, fence = (record[k] for k in ("task", "run_id", "fence"))
+        model.active(proposed, task, run_id, fence)
+        check(record["goal_sha"] == proposed["oversight"]["goal_sha"]
+              and proposed["tasks"][task]["checkpoint"]["head"] == record["head"],
+              "artifact no longer current")
+        root = index.put(root, "intent", operation, publication)
+        root = index.put(root, "artifact-intent", key, {"intent": operation})
+        pending = operation
+        events.append((task, "publication_intent", {"intent": operation,
+                       **publication, "resolution": None}))
+    elif set(publication) == {"intent", "observed_head"}:
+        check(pending is not None and publication["intent"] == pending,
+              "no matching unresolved intent")
+        row = hot_publication(index, root, pending)
+        check(row is not None and row["resolution"] is None, "intent already resolved")
+        record = index.get(root, "artifact", row["artifact"])
+        check(sha(publication["observed_head"]) in (record["base"], record["head"]),
+              "ambiguous publication outcome; queue remains frozen")
+        resolution = {"operation": operation, "observed_head": publication["observed_head"]}
+        root = index.put(root, "resolution", pending, resolution)
+        events.append((record["task"], "publication_resolved",
+                       {"intent": pending, **row, "resolution": resolution}))
+        pending = None
+    else:
+        raise StoreError("invalid publication mutation")
+    return root, pending, events
 
 
 def fingerprint(base, next_state, artifact=None, publication=None):
@@ -1201,6 +1310,11 @@ class GitHubStore:
         check(type(row) is dict and set(row) == {"revision", "digest"}
               and row["revision"] == manifest["state"]["revision"], "hot root receipt")
         index._digest(row["digest"])
+        pending = manifest["pending_intent"]
+        if pending is not None:
+            intent = hot_publication(index, manifest["root"], pending)
+            check(pending == operation and intent is not None and intent["resolution"] is None,
+                  "invalid unresolved hot intent")
         return HotSnapshot(head, manifest, root_tree, operation)
 
     def read_hot(self):
@@ -1288,13 +1402,24 @@ class GitHubStore:
                                               operation, snap.head)
             before = after
         result = {**manifest, "format": HOT_HISTORY_FORMAT, "root": root,
-                  "event_counts": counts}
+                  "event_counts": counts, "pending_intent": None}
         return history_manifest(result)
+
+    def hot_publication_at(self, snap, intent):
+        self._writable()
+        check(isinstance(snap, HotSnapshot), "hot snapshot required")
+        index = GitTreeIndex(self, snap.manifest["root"], snap.root_tree)
+        return hot_publication(index, snap.manifest["root"], intent)
 
     def _hot_candidate(self, parent, manifest, index, operation):
         root = index.tree_for(manifest["root"])
         raw = canonical({"manifest": manifest, "parent": parent, "operation": operation,
                          "repository": self.prefix, "branch": self.branch})
+        if manifest["pending_intent"] is not None:
+            # Conservative headroom for worst-case expiry/settlement count and
+            # clock growth. The index nodes are individually bounded.
+            reserve = 2048 + 64 * len(manifest["state"]["tasks"])
+            check(len(raw) + reserve <= MAX_LEDGER, "hot settlement reserve")
         tree = self._put_hot_tree([
             {"path": "hot.json", "mode": "100644", "type": "blob",
              "sha": self._put_archive_blob(raw)},
@@ -1387,7 +1512,8 @@ class GitHubStore:
         candidate = self._hot_candidate(current, manifest, index, operation)
         return self._advance_hot(current, candidate, operation, digest)
 
-    def publish_hot(self, expected, operation, digest, transition):
+    def publish_hot(self, expected, operation, digest, transition, *,
+                    artifact=None, publication=None):
         """Persist an authorized pure hot transition or return exact receipt.
 
         Host-only disposable integration; the caller must authorize the
@@ -1410,7 +1536,8 @@ class GitHubStore:
         if current != expected:
             raise Conflict("stale hot snapshot; reread and recompute")
         manifest, _, replayed = indexed_hot_transition(
-            current.manifest, index, operation, digest, transition)
+            current.manifest, index, operation, digest, transition,
+            artifact=artifact, publication=publication)
         check(not replayed, "unexpected hot replay")
         candidate = self._hot_candidate(current.head, manifest, index, operation)
         return self._advance_hot(current.head, candidate, operation, digest)
