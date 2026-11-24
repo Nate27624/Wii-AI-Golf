@@ -9,6 +9,9 @@ import copy
 import re
 
 LEASE_SECONDS = 120
+MANAGER = "S000-MANAGER"
+MANAGER_RESOURCE = "work-queue-metadata"
+REVIEW_SECONDS = 300
 ROLES = {"S000", "S001", "S002", "S003", "S004", "S005"}
 STATES = {"OPEN", "IN_PROGRESS", "BLOCKED", "PARKED", "CLOSED"}
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
@@ -82,13 +85,13 @@ def checkpoint(value):
 
 
 def resources_conflict(a, b):
-    return (bool(set(a["resources"]) & set(b["resources"])) or
+    return (bool({r.lower() for r in a["resources"]} & {r.lower() for r in b["resources"]}) or
             any(overlap(p, q) for p in a["paths"] for q in b["paths"]))
 
 
 def scope(value):
     unique_list(value["paths"], path)
-    unique_list(value["resources"], ident)
+    unique_list(value["resources"], lambda v: ident(v).lower())
     require(value["paths"] or value["resources"], "empty scope")
 
 
@@ -102,12 +105,25 @@ def new_task(role, priority, paths, resources, dependencies, thread, objective,
 
 
 def validate(state):
-    fields(state, ("version", "revision", "clock", "tasks", "runs", "holds"))
-    require(type(state["version"]) is int and state["version"] == 1, "version")
+    fields(state, ("version", "revision", "clock", "tasks", "runs", "holds", "oversight"))
+    require(type(state["version"]) is int and state["version"] == 2, "version")
     integer(state["revision"], "revision")
     integer(state["clock"], "clock")
     tasks, runs, holds = state["tasks"], state["runs"], state["holds"]
     require(all(type(x) is dict for x in (tasks, runs, holds)), "invalid maps")
+    o = state["oversight"]
+    fields(o, ("goal_sha", "epoch", "reviewed_epoch", "reviewed_at"))
+    require(isinstance(o["goal_sha"], str) and _SHA.fullmatch(o["goal_sha"]),
+            "immutable operator goal SHA required")
+    integer(o["epoch"], "review epoch")
+    require(o["reviewed_epoch"] is None or
+            integer(o["reviewed_epoch"], "reviewed epoch") <= o["epoch"],
+            "reviewed epoch")
+    require((o["reviewed_at"] is None) == (o["reviewed_epoch"] is None),
+            "incomplete review")
+    if o["reviewed_at"] is not None:
+        require(integer(o["reviewed_at"], "review time") <= state["clock"], "future review")
+    require(MANAGER in tasks, "permanent manager missing")
     active = []
     for key, t in tasks.items():
         ident(key)
@@ -126,6 +142,15 @@ def validate(state):
         text(t["objective"])
         text(t["acceptance"])
         checkpoint(t["checkpoint"])
+        if key == MANAGER:
+            require(t["role"] == "S000" and t["priority"] == 0 and
+                    t["paths"] == [] and t["resources"] == [MANAGER_RESOURCE] and
+                    t["dependencies"] == [] and t["status"] in
+                    ("OPEN", "IN_PROGRESS", "BLOCKED"), "invalid permanent manager")
+        else:
+            require(MANAGER not in t["dependencies"] and
+                    MANAGER_RESOURCE not in {r.lower() for r in t["resources"]},
+                    "reserved manager scope/dependency")
         require(isinstance(t["status"], str) and t["status"] in STATES, "status")
         if t["status"] == "IN_PROGRESS":
             ident(t["run"])
@@ -164,6 +189,9 @@ def validate(state):
             require(isinstance(run["outcome"], str) and
                     run["outcome"] in {"EXPIRED", "OPEN", "BLOCKED", "PARKED", "CLOSED"},
                     "invalid outcome")
+            if run["task"] == MANAGER:
+                require(run["outcome"] in ("EXPIRED", "OPEN", "BLOCKED"),
+                        "invalid manager outcome")
             if run["outcome"] == "EXPIRED":
                 require(run["receipt"] is None and run["expires"] <= state["clock"],
                         "invalid expiration")
@@ -179,16 +207,21 @@ def validate(state):
         ident(key)
         fields(hold, ("paths", "resources"))
         scope(hold)
+        require(MANAGER_RESOURCE not in {r.lower() for r in hold["resources"]},
+                "legacy hold cannot reserve manager metadata")
     for i, (_, t) in enumerate(active):
         require(not any(resources_conflict(t, h) for h in holds.values()), "legacy hold")
         require(not any(resources_conflict(t, u) for _, u in active[:i]), "active overlap")
     return state
 
 
-def initial(tasks, holds=None, now=0):
-    state = {"version": 1, "revision": 0, "clock": now,
+def initial(tasks, holds=None, now=0, *, goal_sha):
+    """Bootstrap requires an explicit permanent manager and operator goal pin."""
+    state = {"version": 2, "revision": 0, "clock": now,
              "tasks": copy.deepcopy(tasks), "runs": {},
-             "holds": copy.deepcopy({} if holds is None else holds)}
+             "holds": copy.deepcopy({} if holds is None else holds),
+             "oversight": {"goal_sha": goal_sha, "epoch": 0,
+                           "reviewed_epoch": None, "reviewed_at": None}}
     return validate(state)
 
 
@@ -206,6 +239,7 @@ def prepare(state, now):
                 run["outcome"] = "EXPIRED"
                 t["run"] = None
                 t["status"] = "OPEN"
+                s["oversight"]["epoch"] += 1
     return s
 
 
@@ -229,11 +263,25 @@ def eligible(s, key, role):
                         for u in s["tasks"].values()))
 
 
+def manager_due(s):
+    o = s["oversight"]
+    return (o["reviewed_epoch"] != o["epoch"] or o["reviewed_at"] is None
+            or s["clock"] - o["reviewed_at"] >= REVIEW_SECONDS)
+
+
+def dispatch_candidates(state, roles, now):
+    """All eligible roles, manager first when due; no loop on unchanged review."""
+    roles = unique_list(roles, ident)
+    require(all(r in ROLES for r in roles), "role")
+    s = prepare(state, now)
+    keys = [k for k, t in s["tasks"].items() if t["role"] in roles
+            and eligible(s, k, t["role"]) and (k != MANAGER or manager_due(s))]
+    return sorted(keys, key=lambda k: (k != MANAGER, s["tasks"][k]["priority"], k))
+
+
 def candidates(state, role, now):
     require(isinstance(role, str) and role in ROLES, "role")
-    s = prepare(state, now)
-    return sorted((k for k in s["tasks"] if eligible(s, k, role)),
-                  key=lambda k: (s["tasks"][k]["priority"], k))
+    return dispatch_candidates(state, [role], now)
 
 
 def acquire(state, task, run_id, role, now):
@@ -250,6 +298,8 @@ def acquire(state, task, run_id, role, now):
                 "run ID already consumed")
         return commit(state, s), old["fence"]
     require(eligible(s, task, role), "task unavailable")
+    if task == MANAGER:
+        require(manager_due(s), "manager review not due")
     t["fence"] += 1
     t["run"] = run_id
     t["status"] = "IN_PROGRESS"
@@ -284,6 +334,8 @@ def renew(state, task, run_id, fence, now, progress=None):
 
 
 def finish(state, task, run_id, fence, now, outcome, progress):
+    require(task != MANAGER or outcome == "BLOCKED",
+            "manager must finish via manager_pass or explicitly block")
     """Atomic terminal receipt and release. Exact terminal retries are no-ops."""
     require(isinstance(outcome, str) and outcome in {"OPEN", "BLOCKED", "PARKED", "CLOSED"},
             "invalid finish outcome")
@@ -308,4 +360,60 @@ def finish(state, task, run_id, fence, now, outcome, progress):
     run["status"] = "CLOSED"
     run["outcome"] = outcome
     run["receipt"] = copy.deepcopy(progress)
+    s["oversight"]["epoch"] += 1
     return commit(state, s)
+
+
+def manager_pass(state, run_id, fence, now, observed_revision, progress,
+                 *, priorities=None, additions=None, retire=None):
+    """Fenced atomic review + bounded queue mutations + release.
+
+    Broker authenticates manager and supplies trusted time. The review must
+    use the exact observed revision; concurrent changes require rereading.
+    Goal changes and operator approval are intentionally not worker actions.
+    """
+    integer(observed_revision, "observed revision")
+    checkpoint(progress)
+    validate(state)
+    integer(now, "broker clock")
+    require(now >= state["clock"], "clock rollback")
+    priorities = {} if priorities is None else priorities
+    additions = {} if additions is None else additions
+    retire = [] if retire is None else retire
+    require(type(priorities) is dict and type(additions) is dict, "queue mutation maps")
+    retire = unique_list(retire, ident)
+    # A retry cannot silently repeat manager mutations. Broker reconciles the
+    # committed review receipt after uncertain delivery; retry against latest
+    # state is rejected rather than applying a second pass.
+    require(observed_revision == state["revision"], "review snapshot changed")
+    s = prepare(state, now)
+    require(s["oversight"]["epoch"] == state["oversight"]["epoch"],
+            "expired runs changed review snapshot; reconcile first")
+    t, run = active(s, MANAGER, run_id, fence)
+    for key, value in priorities.items():
+        ident(key)
+        require(key != MANAGER and key in s["tasks"] and
+                s["tasks"][key]["status"] == "OPEN", "priority target not open")
+        s["tasks"][key]["priority"] = integer(value, "priority")
+    for key, value in additions.items():
+        ident(key)
+        require(key not in s["tasks"] and key != MANAGER, "task already exists")
+        require(type(value) is dict and value.get("status") == "OPEN"
+                and value.get("run") is None and type(value.get("fence")) is int
+                and value["fence"] == 0, "new task must be open and unused")
+        s["tasks"][key] = copy.deepcopy(value)
+    for key in retire:
+        require(key != MANAGER and key in s["tasks"] and
+                s["tasks"][key]["status"] == "OPEN", "retire only open specialist task")
+        # PARKED is not DONE; dependent tasks cannot be released by retirement.
+        s["tasks"][key]["status"] = "PARKED"
+    t["checkpoint"] = copy.deepcopy(progress)
+    t["run"] = None
+    t["status"] = "OPEN"
+    run["status"] = "CLOSED"
+    run["outcome"] = "OPEN"
+    run["receipt"] = copy.deepcopy(progress)
+    s["oversight"]["reviewed_epoch"] = s["oversight"]["epoch"]
+    s["oversight"]["reviewed_at"] = now
+    return commit(state, s)
+
