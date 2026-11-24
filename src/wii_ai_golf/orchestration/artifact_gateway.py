@@ -9,6 +9,10 @@ from __future__ import annotations
 import copy
 import hashlib
 import re
+import os
+import sqlite3
+from contextlib import closing, contextmanager
+from pathlib import Path
 from dataclasses import dataclass
 
 from . import state as model
@@ -295,3 +299,182 @@ def exact_push_arguments(command):
             "--recurse-submodules=no", "--force-with-lease=" + ref + ":" + command.base,
             "--", "https://github.com/" + command.repository + ".git",
             command.head + ":" + ref]
+
+
+class DurablePublicationJournal:
+    """Single trusted host, explicitly provisioned SQLite dispatch tombstones.
+
+    Not a distributed lock or protection from a compromised host, filesystem,
+    backup rollback or alternate credential. The host must protect the path
+    and never replace a missing journal. No worker receives this capability.
+    """
+    def __init__(self, path, repository, queue_branch):
+        self._path = Path(path).absolute()
+        self._identity = self._validate_identity(repository, queue_branch)
+        with self._transaction():
+            pass
+
+    @staticmethod
+    def _validate_identity(repository, queue_branch):
+        require(type(repository) is str and storage._REPO.fullmatch(repository)
+                and all(p not in (".", "..") for p in repository.split("/"))
+                and type(queue_branch) is str and storage._TEST_REF.fullmatch(queue_branch),
+                "invalid journal project")
+        return (1, repository, queue_branch)
+
+    @classmethod
+    def create(cls, path, repository, queue_branch):
+        """Explicit first provisioning; never overwrite or repair an existing file."""
+        identity = cls._validate_identity(repository, queue_branch)
+        path = Path(path).absolute()
+        try:
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            os.close(fd)
+            with closing(sqlite3.connect(path.as_uri() + "?mode=rw", uri=True,
+                                         isolation_level=None, timeout=5)) as conn:
+                conn.execute("PRAGMA synchronous=FULL")
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute("CREATE TABLE identity (version INTEGER, repository TEXT, queue TEXT)")
+                conn.execute("INSERT INTO identity VALUES (?,?,?)", identity)
+                conn.execute("""CREATE TABLE dispatch (
+                    key TEXT PRIMARY KEY, binding TEXT NOT NULL,
+                    phase TEXT NOT NULL CHECK(phase IN
+                    ('RESERVED','SENDING','ACKNOWLEDGED','CANCELLED')))""")
+                conn.commit()
+        except (OSError, sqlite3.Error):
+            raise ArtifactError("publication journal provisioning failed") from None
+        return cls(path, repository, queue_branch)
+
+    @contextmanager
+    def _transaction(self):
+        conn = None
+        try:
+            require(self._path.is_file() and not self._path.is_symlink(),
+                    "publication journal unavailable")
+            conn = sqlite3.connect(self._path.as_uri() + "?mode=rw", uri=True,
+                                   isolation_level=None, timeout=5)
+            conn.execute("PRAGMA synchronous=FULL")
+            conn.execute("BEGIN IMMEDIATE")
+            require(conn.execute("SELECT * FROM identity").fetchall() == [self._identity],
+                    "publication journal identity mismatch")
+            yield conn
+            conn.commit()
+        except (sqlite3.Error, OSError):
+            raise ArtifactError("publication journal unavailable") from None
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def _check_command(self, command):
+        require(isinstance(command, PublicationCommand) and
+                (command.repository, command.queue_branch) == self._identity[1:],
+                "publication journal project mismatch")
+
+    @staticmethod
+    def _row(conn, key, binding):
+        row = conn.execute("SELECT binding,phase FROM dispatch WHERE key=?", (key,)).fetchone()
+        require(row is None or (row[0] == binding and row[1] in
+                ("RESERVED", "SENDING", "ACKNOWLEDGED", "CANCELLED")),
+                "publication marker binding or phase mismatch")
+        return None if row is None else row[1]
+
+    def reserve_once(self, key, binding):
+        require(type(key) is str and storage._DIGEST.fullmatch(key)
+                and type(binding) is str and storage._DIGEST.fullmatch(binding),
+                "invalid publication marker")
+        with self._transaction() as conn:
+            if self._row(conn, key, binding) is not None:
+                return False
+            conn.execute("INSERT INTO dispatch VALUES (?,?,'RESERVED')", (key, binding))
+            return True
+
+    def _advance(self, command, old, new):
+        self._check_command(command)
+        with self._transaction() as conn:
+            require(self._row(conn, command.key, command.binding) == old,
+                    "publication marker phase conflict")
+            conn.execute("UPDATE dispatch SET phase=? WHERE key=?", (new, command.key))
+
+    def begin(self, command):
+        self._advance(command, "RESERVED", "SENDING")
+
+    def acknowledge(self, command):
+        self._advance(command, "SENDING", "ACKNOWLEDGED")
+
+    def cancel_before_send(self, command):
+        """Irrevocably deny dispatch, including when no marker yet exists."""
+        self._check_command(command)
+        with self._transaction() as conn:
+            phase = self._row(conn, command.key, command.binding)
+            require(phase in (None, "RESERVED", "CANCELLED"),
+                    "possible publication send; cannot cancel")
+            if phase is None:
+                conn.execute("INSERT INTO dispatch VALUES (?,?,'CANCELLED')",
+                             (command.key, command.binding))
+            elif phase == "RESERVED":
+                conn.execute("UPDATE dispatch SET phase='CANCELLED' WHERE key=?", (command.key,))
+
+    def phase(self, command):
+        self._check_command(command)
+        with self._transaction() as conn:
+            return self._row(conn, command.key, command.binding)
+
+
+class DurablePublicationExecutor(PublicationExecutor):
+    """One-shot dispatch and separate exact-ref observation on a trusted host.
+
+    The configured send must return literal True only after the synchronous
+    transport has completed successfully and cannot still be in flight.
+    All other outcomes leave SENDING permanently uncertain. Observation
+    never advances the journal or interprets an unresolved send as settled.
+    """
+    def __init__(self, repository, queue_branch, journal, send_exact, read_ref):
+        require(isinstance(journal, DurablePublicationJournal)
+                and journal._identity[1:] == (repository, queue_branch)
+                and callable(send_exact) and callable(read_ref), "invalid durable executor")
+        self._journal = journal
+        self._transport = send_exact
+        self._read_ref = read_ref
+        super().__init__(repository, queue_branch, journal.reserve_once, self._dispatch)
+
+    def _dispatch(self, command):
+        self._journal.begin(command)
+        require(self._transport(command) is True, "publication completion unconfirmed")
+        self._journal.acknowledge(command)
+
+    def cancel_before_send(self, command):
+        self._journal.cancel_before_send(command)
+
+    def observe(self, command):
+        phase = self._journal.phase(command)
+        if phase not in ("ACKNOWLEDGED", "CANCELLED"):
+            return None
+        # Terminal phases are irreversible: no compliant process can send again.
+        expected = command.head if phase == "ACKNOWLEDGED" else command.base
+        try:
+            observed = self._read_ref(command)
+            return expected if observed == expected else None
+        except Exception:
+            return None
+
+
+class GitHubPublicationRefReader:
+    """Independent read-only observer for the exact configured disposable ref."""
+    def __init__(self, transport, repository):
+        require(callable(transport) and type(repository) is str
+                and storage._REPO.fullmatch(repository)
+                and all(p not in (".", "..") for p in repository.split("/")),
+                "invalid publication ref reader")
+        self._transport = transport
+        self._repository = repository
+
+    def __call__(self, command):
+        require(isinstance(command, PublicationCommand)
+                and command.repository == self._repository, "observer repository mismatch")
+        ref = "refs/heads/" + command.target
+        obj = self._transport("GET", "/repos/" + self._repository + "/git/ref/heads/" +
+                              command.target, None)
+        require(type(obj) is dict and obj.get("ref") == ref
+                and type(obj.get("object")) is dict and obj["object"].get("type") == "commit",
+                "publication ref identity mismatch")
+        return storage.sha(obj["object"].get("sha"))
