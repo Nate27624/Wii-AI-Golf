@@ -531,7 +531,13 @@ class GitHubStore:
         check(type(entry) is dict and entry.get("path") == LEDGER
               and entry.get("mode") == "100644" and entry.get("type") == "blob",
               "invalid ledger tree")
-        blob_sha = sha(entry.get("sha"))
+        raw = self._blob_at(entry.get("sha"))
+        value = decode(raw)
+        check(raw == canonical(value), "noncanonical ledger")
+        return Snapshot(head, validate_envelope(value))
+
+    def _blob_at(self, blob_sha):
+        blob_sha = sha(blob_sha)
         blob = self._api("GET", "blobs/" + blob_sha)
         check(blob.get("sha") == blob_sha and blob.get("encoding") == "base64",
               "blob identity/encoding")
@@ -547,9 +553,85 @@ class GitHubStore:
         check(len(raw) == size and len(raw) <= MAX_LEDGER, "blob size mismatch")
         git_blob = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
         check(git_blob == blob_sha, "blob hash mismatch")
-        value = decode(raw)
-        check(raw == canonical(value), "noncanonical ledger")
-        return Snapshot(head, validate_envelope(value))
+        return raw
+
+    def _put_archive_blob(self, raw):
+        check(type(raw) is bytes and len(raw) <= MAX_LEDGER, "archive blob size")
+        blob = sha(self._api("POST", "blobs", {
+            "content": base64.b64encode(raw).decode("ascii"), "encoding": "base64"
+        }).get("sha"))
+        expected = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+        check(blob == expected, "created archive blob hash mismatch")
+        return blob
+
+    def _archive_parts(self, candidate, *, expected_digest, expected_head):
+        commit = self._api("GET", "commits/" + sha(candidate))
+        parents = commit.get("parents")
+        check(commit.get("sha") == candidate and isinstance(parents, list)
+              and len(parents) == 1 and isinstance(parents[0], dict)
+              and parents[0].get("sha") == sha(expected_head), "archive parent mismatch")
+        tree_sha = sha(commit["tree"]["sha"])
+        tree = self._api("GET", "trees/" + tree_sha)
+        check(tree.get("sha") == tree_sha and tree.get("truncated") is False
+              and type(tree.get("tree")) is list, "archive tree identity")
+        entries = {}
+        for entry in tree["tree"]:
+            check(type(entry) is dict and entry.get("type") == "blob"
+                  and entry.get("mode") == "100644", "archive tree entry")
+            name = entry.get("path")
+            check(isinstance(name, str) and name not in entries, "archive tree path")
+            entries[name] = sha(entry.get("sha"))
+        check("archive.json" in entries, "archive manifest missing")
+        raw = self._blob_at(entries.pop("archive.json"))
+        manifest = decode(raw)
+        check(raw == canonical(manifest) and archive_digest(raw) == expected_digest,
+              "archive manifest digest mismatch")
+        def read_page(digest):
+            check(digest + ".json" in entries, "archive page missing from tree")
+            return self._blob_at(entries[digest + ".json"])
+        index = ArchiveIndex(manifest, read_page, expected_digest=expected_digest,
+                             expected_head=expected_head)
+        check(set(entries) == {row["digest"] + ".json" for row in manifest["pages"]},
+              "archive tree membership")
+        return manifest, read_page, index
+
+    def stage_archive(self, snapshot, *, recent_receipts=64):
+        """Build and verify immutable objects; NEVER advance a ref.
+
+        The returned candidate is not an authoritative ledger or a durable
+        root. It can be garbage collected until a future reviewed scheme
+        anchors it. Only disposable test contexts may create these objects.
+        """
+        self._writable()
+        check(isinstance(snapshot, Snapshot), "snapshot required")
+        current = self.read()
+        if current != snapshot:
+            raise Conflict("archive source moved or mismatched")
+        manifest, pages = archive_snapshot(current, recent_receipts=recent_receipts)
+        raw = canonical(manifest)
+        digest = archive_digest(raw)
+        entries = [{"path": "archive.json", "mode": "100644", "type": "blob",
+                    "sha": self._put_archive_blob(raw)}]
+        for key, body in sorted(pages.items()):
+            entries.append({"path": key + ".json", "mode": "100644", "type": "blob",
+                            "sha": self._put_archive_blob(body)})
+        tree = sha(self._api("POST", "trees", {"tree": entries}).get("sha"))
+        obj = self._api("POST", "commits", {"message": "V3 offline archive candidate",
+                                            "tree": tree, "parents": [current.head]})
+        candidate = sha(obj.get("sha"))
+        observed, read_page, _ = self._archive_parts(
+            candidate, expected_digest=digest, expected_head=current.head)
+        restored = restore_archive(observed, {k: read_page(k) for k in pages},
+                                   expected_digest=digest, expected_head=current.head)
+        check(restored == current, "archive candidate source mismatch")
+        if self._ref() != current.head:
+            raise Conflict("archive source moved during staging")
+        return {"candidate": candidate, "manifest_digest": digest, "source_head": current.head}
+
+    def open_archive_index(self, candidate, *, expected_digest, expected_head):
+        """Read a pinned, previously verified candidate; never grant authority."""
+        return self._archive_parts(candidate, expected_digest=expected_digest,
+                                   expected_head=expected_head)[2]
 
     def read(self):
         return self._at(self._ref())
