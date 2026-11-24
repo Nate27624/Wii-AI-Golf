@@ -155,6 +155,11 @@ class Broker:
                 "manager_authorized": principal.manager,
                 "accepted_artifacts": copy.deepcopy(snap.envelope["artifacts"])}
 
+    def capacity(self, token):
+        """Authenticated read-only capacity view; separate from status schema."""
+        self._credentials.authenticate(token)
+        return storage.capacity_report(self._store.read())
+
     def task_history(self, token, task, *, limit=20, cursor=None):
         """Authenticated read-only view for the single LocalOps interface."""
         self._credentials.authenticate(token)
