@@ -196,6 +196,115 @@ def validate_envelope(value):
     return value
 
 
+# Offline archive conversion oracle. This is not an accepted ledger schema;
+# GitHubStore deliberately continues to read/write schema 3 only.
+ARCHIVE_PAGE_RECORDS = 64
+
+
+def archive_digest(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def archive_snapshot(snapshot, *, recent_receipts=64):
+    """Partition a validated snapshot without changing its history or authority.
+
+    The returned manifest must be pinned by a trusted future state commit.
+    Pages contain immutable canonical JSON, not references to mutable files.
+    """
+    check(isinstance(snapshot, Snapshot), "snapshot required")
+    sha(snapshot.head)
+    validate_envelope(snapshot.envelope)
+    check(type(recent_receipts) is int and 1 <= recent_receipts <= 1024,
+          "recent receipt count")
+    check(pending_publication(snapshot.envelope) is None,
+          "cannot archive unresolved publication")
+    hot = copy.deepcopy(snapshot.envelope)
+    cutoff = max(0, hot["state"]["revision"] + 1 - recent_receipts)
+    old_receipts = {k: v for k, v in hot["receipts"].items()
+                    if v["revision"] < cutoff}
+    old_runs = {k: v for k, v in hot["state"]["runs"].items()
+                if v["status"] == "CLOSED"}
+    for key in old_receipts:
+        del hot["receipts"][key]
+    for key in old_runs:
+        del hot["state"]["runs"][key]
+    pages, blobs = [], {}
+    for kind, records in (("receipts", old_receipts), ("runs", old_runs)):
+        keys = sorted(records)
+        for offset in range(0, len(keys), ARCHIVE_PAGE_RECORDS):
+            chunk = {k: records[k] for k in keys[offset:offset + ARCHIVE_PAGE_RECORDS]}
+            raw = canonical({"kind": kind, "records": chunk})
+            check(len(raw) <= MAX_LEDGER, "archive page too large")
+            digest = archive_digest(raw)
+            check(digest not in blobs, "duplicate archive page")
+            blobs[digest] = raw
+            pages.append({"kind": kind, "digest": digest, "count": len(chunk),
+                          "first": next(iter(chunk)), "last": next(reversed(chunk))})
+    manifest = {"format": "v3-archive-prototype-1", "source_head": snapshot.head,
+                "source_digest": archive_digest(canonical(snapshot.envelope)),
+                "recent_receipts": recent_receipts, "hot": hot, "pages": pages}
+    return manifest, blobs
+
+
+def restore_archive(manifest, blobs, *, expected_digest, expected_head):
+    """Verify and rehydrate the original schema-3 envelope, or fail closed.
+
+    expected_digest and expected_head must come from independent trusted
+    metadata, not the supplied manifest. No partial state is returned.
+    """
+    check(type(manifest) is dict and set(manifest) == {
+        "format", "source_head", "source_digest", "recent_receipts", "hot", "pages"},
+          "archive manifest fields")
+    check(isinstance(expected_digest, str) and _DIGEST.fullmatch(expected_digest)
+          and archive_digest(canonical(manifest)) == expected_digest,
+          "archive manifest digest mismatch")
+    check(manifest["format"] == "v3-archive-prototype-1" and
+          manifest["source_head"] == sha(expected_head), "archive source mismatch")
+    check(type(blobs) is dict and type(manifest["pages"]) is list,
+          "archive pages")
+    envelope = copy.deepcopy(manifest["hot"])
+    check(type(envelope) is dict and type(envelope.get("state")) is dict
+          and type(envelope.get("receipts")) is dict
+          and type(envelope["state"].get("runs")) is dict, "archive hot state")
+    seen = set()
+    for row in manifest["pages"]:
+        check(type(row) is dict and set(row) == {"kind", "digest", "count", "first", "last"},
+              "archive page descriptor")
+        kind, digest = row["kind"], row["digest"]
+        check(kind in ("receipts", "runs") and isinstance(digest, str)
+              and _DIGEST.fullmatch(digest) and digest not in seen,
+              "archive page identity")
+        seen.add(digest)
+        raw = blobs.get(digest)
+        check(type(raw) is bytes and len(raw) <= MAX_LEDGER
+              and archive_digest(raw) == digest, "missing or corrupt archive page")
+        page = decode(raw)
+        check(type(page) is dict and set(page) == {"kind", "records"}
+              and page["kind"] == kind and raw == canonical(page),
+              "invalid archive page")
+        records = page["records"]
+        check(type(records) is dict and type(row["count"]) is int
+              and 1 <= len(records) == row["count"] <= ARCHIVE_PAGE_RECORDS,
+              "archive page count")
+        keys = sorted(records)
+        check(keys[0] == row["first"] and keys[-1] == row["last"],
+              "archive page bounds")
+        dest = envelope["receipts"] if kind == "receipts" else envelope["state"]["runs"]
+        check(not (set(dest) & set(records)), "duplicate archive record")
+        dest.update(records)
+    check(set(blobs) == seen, "unexpected archive pages")
+    validate_envelope(envelope)
+    check(archive_digest(canonical(envelope)) == manifest["source_digest"],
+          "archive source digest mismatch")
+    snapshot = Snapshot(expected_head, envelope)
+    # Enforce canonical partition, including correct hot/cold boundaries.
+    rebuilt, rebuilt_blobs = archive_snapshot(
+        snapshot, recent_receipts=manifest["recent_receipts"])
+    check(rebuilt == manifest and rebuilt_blobs == blobs,
+          "noncanonical archive partition")
+    return snapshot
+
+
 _PUBLICATION_REF = re.compile(r"orchestration/v3-publication-test-[a-z0-9][a-z0-9-]{0,63}")
 
 
