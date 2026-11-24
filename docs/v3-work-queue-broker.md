@@ -466,3 +466,39 @@ integration requires independently reviewed remote disposable CAS,
 network and credential isolation, and uncertainty recovery. The
 adapter is not wired to any HTTP worker/operator route or installed
 host; V2 remains authoritative.
+
+
+## Integrated dormant release and first operator acceptance
+
+The five staged source PRs #486–#490 are one dependency chain. The integrated
+candidate #490 targets main directly and adds only the V3 library, tests,
+workflows and technical documentation. Its predecessor branches and receipts
+are retained. Merging the candidate does not transfer V2 authority, provision
+a state ref, run an agent, dispatch a publication, install LocalOps, or
+authorize a gameplay/private effect. Existing root AGENTS.md and merging.md
+remain binding until an explicitly reviewed cutover.
+
+The first operator milestone is a separately approved read-only release.
+LocalOps source PRs #140, #138 and #136 are integrated in the private
+repository (last merge 1d42eba03f40196e55c3e477ceee4e765d00e7ac).
+The public staged broker and private client have passed 14 synthetic
+cross-repository acceptance scenarios. Before a local test, pin the complete
+source releases and provide a reviewed host with a fixed project-bound TLS
+read endpoint, separate operator-read principal, persistent cursor key and
+immutable shadow snapshot. No worker, maintenance, source publication or
+state-write capability is required for this milestone. Never pass secrets
+through GitHub comments. Operator installation remains explicitly opt-in;
+the first local acceptance is status, manager-first order, capacity,
+task history and next-page, then exit. Failure leaves V2 running.
+
+The independent shadow review on #489 (6047547361) identifies cutover gates:
+IN_PROGRESS must be preserved without importing a live lease; historical
+PARKED rows without owned paths need an explicit non-owning representation
+or quarantine; the old proposed golf.py human CLI must not be revived
+(LocalOps is the sole human console). Reconcile the current live roster,
+claim and PR/CI evidence and operator-authorized goals before activation.
+These limitations do not grant authority or make a dormant library a
+complete migration. No automatic fallback to execution, publication or
+dual dispatch is permitted. Source merge and operator acceptance are
+separate from activation; production cutover must have explicit freeze,
+drain, reconciliation and rollback evidence.
