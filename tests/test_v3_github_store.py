@@ -396,6 +396,86 @@ class StoreTests(unittest.TestCase):
             self.store.open_archive_index(pin["candidate"],
                         expected_digest=pin["manifest_digest"], expected_head=tip.head)
 
+    def test_archive_checkpoint_preserves_state_history_and_replay(self):
+        proposal = self.advance()
+        first = self.store.publish(self.snap, proposal, "first")
+        source = self.store.read()
+        self.api.lose_response = True
+        count = self.api.patch_count
+        receipt = self.store.archive_checkpoint(source, "archive-one", recent_receipts=1)
+        self.assertTrue(receipt.replayed)
+        self.assertEqual(self.api.patch_count, count + 1)
+        reopened = store.GitHubStore(self.api, "owner/repo", BRANCH)
+        tip = reopened.read()
+        expected_state = source.state
+        expected_state["revision"] += 1
+        self.assertEqual(tip.state, expected_state)
+        self.assertEqual(tip.envelope["receipts"]["first"]["digest"], first.digest)
+        self.assertEqual(tip.envelope["receipts"]["archive-one"]["revision"], receipt.revision)
+        self.assertTrue(reopened.archive_checkpoint(source, "archive-one",
+                                                     recent_receipts=1).replayed)
+        self.assertTrue(reopened.publish(self.snap, proposal, "first").replayed)
+        with self.assertRaises(store.StoreError):
+            reopened.archive_checkpoint(source, "archive-one", recent_receipts=2)
+        with self.assertRaisesRegex(store.StoreError, "already initialized"):
+            reopened.bootstrap_test(tip.head, initial(), "reset")
+        self.assertEqual(self.api.patch_count, count + 1)
+        history = reopened.task_history("a")
+        self.assertIn("claimed", [event["kind"] for event in history["events"]])
+        renewed = model.renew(tip.state, "a", "run1", 1, 2)
+        reopened.publish(tip, renewed, "renew")
+        self.assertEqual(reopened.read().state, renewed)
+        self.assertTrue(reopened.archive_checkpoint(source, "archive-one",
+                                                     recent_receipts=1).replayed)
+        self.assertTrue(reopened.publish(self.snap, proposal, "first").replayed)
+        self.assertIn("renewed", [e["kind"] for e in reopened.task_history("a")["events"]])
+        self.assertEqual(self.api.patch_count, count + 2)
+        with self.assertRaises(model.LeaseError):
+            model.renew(reopened.read().state, "a", "run1", 0, 3)
+
+    def test_archive_checkpoint_competes_with_ordinary_write(self):
+        self.store.publish(self.snap, self.advance(), "first")
+        tip = self.store.read()
+        renewed = model.renew(tip.state, "a", "run1", 1, 2)
+        self.api.barrier = threading.Barrier(2)
+        def run(which):
+            try:
+                if which == "archive":
+                    return self.store.archive_checkpoint(tip, "archive-race", recent_receipts=1)
+                return self.store.publish(tip, renewed, "renew-race")
+            except store.Conflict:
+                return "conflict"
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(run, ("archive", "renew")))
+        self.api.barrier = None
+        self.assertEqual(sum(isinstance(r, store.Receipt) for r in results), 1)
+        self.assertEqual(results.count("conflict"), 1)
+        after = self.store.read()
+        self.assertEqual(after.state["revision"], tip.state["revision"] + 1)
+        self.assertEqual(after.state["tasks"]["a"]["fence"], 1)
+        self.assertIn("first", after.envelope["receipts"])
+        self.assertEqual(sum(k in after.envelope["receipts"]
+                             for k in ("archive-race", "renew-race")), 1)
+
+    def test_archive_checkpoint_rejects_production_and_corrupt_root(self):
+        live = store.GitHubStore(self.api, "owner/repo", store.STATE_REF)
+        with self.assertRaises(store.StoreError):
+            live.archive_checkpoint(self.snap, "archive-no")
+        self.store.publish(self.snap, self.advance(), "first")
+        tip = self.store.read()
+        with self.assertRaises(store.Conflict):
+            self.store.archive_checkpoint(self.snap, "archive-stale")
+        self.store.archive_checkpoint(tip, "archive-one", recent_receipts=1)
+        with self.assertRaisesRegex(store.StoreError, "test-only"):
+            live._at(self.api.head)
+        root_tree = self.api.commits[self.api.head]["tree"]["sha"]
+        for entry in self.api.trees[root_tree]["tree"]:
+            if entry["path"] != "archive-root.json":
+                self.api.blobs[entry["sha"]]["content"] = base64.b64encode(b"{}").decode()
+                break
+        with self.assertRaises(store.StoreError):
+            self.store.read()
+
 
 if __name__ == "__main__":
     unittest.main()
