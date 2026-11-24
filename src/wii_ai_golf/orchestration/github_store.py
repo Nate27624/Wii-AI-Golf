@@ -1079,9 +1079,9 @@ class GitHubStore:
                          ("/" if e["type"] == "tree" else ""))
         raw = b"".join(
             (("40000" if e["type"] == "tree" else "100644") + " " +
-             e["path"]).encode("ascii") + b"\\0" + bytes.fromhex(e["sha"])
+             e["path"]).encode("ascii") + b"\0" + bytes.fromhex(e["sha"])
             for e in ordered)
-        return hashlib.sha1(b"tree " + str(len(raw)).encode("ascii") + b"\\0" + raw).hexdigest()
+        return hashlib.sha1(b"tree " + str(len(raw)).encode("ascii") + b"\0" + raw).hexdigest()
 
     def _put_hot_tree(self, entries):
         expected = self._hot_tree_sha(entries)
