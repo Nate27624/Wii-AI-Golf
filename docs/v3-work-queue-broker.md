@@ -22,6 +22,11 @@ cannot import this host capability in an untrusted worker process.
 Manager and specialists may see the full sanitized queue. Manager
 authority is separate from the S000 specialist role. A maintenance
 principal may reconcile expiry but cannot create a task by sweeping.
+A distinct LocalOps operator-read principal has `read_only=True`, an empty
+role set, and neither manager nor maintenance authority. It can read
+status and task history, receives no eligible dispatch candidates, and
+is denied every request mutation before any state IO or receipt lookup.
+Operator goal/approval authority is separate and not yet implemented.
 
 ## Admission and receipts
 
@@ -56,6 +61,13 @@ persist a receipt revision. An idle acquisition is not a committed
 operation and can be attempted again when work is available.
 An authenticated status call computes effective expiry but does
 not persist it; an authorized sweep or subsequent mutation does.
+Status and history each read a pinned immutable snapshot outside the
+mutation lock; a concurrent append cannot change that snapshot's ancestors.
+Views may be stale and are not lease grants. Read transport concurrency,
+rate limits, bounded deadlines and project binding remain deployment
+requirements; removing the lock does not remove API quota contention.
+History still has a bounded revision lookback; safe archival/indexing
+and receipt retention are prerequisites for indefinite operation.
 
 ## Immutable artifact acceptance
 
