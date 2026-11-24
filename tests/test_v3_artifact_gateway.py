@@ -468,6 +468,89 @@ class HotGatewayTests(unittest.TestCase):
         self.assertEqual(self.api.patch_count, count)
         self.assertFalse(self.req("a", "prepare", "prepare_publication", payload)["source_promoted"])
 
+    def test_settled_full_journal_migrates_with_exact_history_and_replay(self):
+        api = FakeGit()
+        full_store = storage.GitHubStore(api, "owner/repo", BRANCH)
+        full_store.bootstrap_test(BASE, initial(), "seed")
+        self.store = full_store
+        self.broker = b.Broker(full_store, self.credentials, clock=lambda: self.now,
+                               reviewer=lambda *args: True, inspector=self.inspector,
+                               publication_observer=lambda *args: BASE_CODE)
+        proposal, accepted, payload = self.accept()
+        intent = self.req("a", "prepare", "prepare_publication", payload)
+        pending = full_store.read()
+        patches = api.patch_count
+        with self.assertRaisesRegex(storage.StoreError, "unresolved publication"):
+            full_store.initialize_hot(pending, "hot-convert")
+        self.assertEqual(api.patch_count, patches)
+        settled = self.req("s", "settle", "resolve_publication",
+                           {"intent": intent["operation"]})
+        self.now = 121
+        self.req("s", "expire", "sweep")
+        source = full_store.read()
+        expected_events = full_store.task_history("a", limit=50)["events"]
+        full_store.initialize_hot(source, "hot-convert")
+        self.api = api
+        self.reopen()
+        snap = self.store.read_hot()
+        self.assertEqual(self.store.hot_lookup("artifact", accepted["operation"]),
+                         accepted["artifact"])
+        self.assertEqual(self.store.hot_publication_at(snap, intent["operation"]),
+                         source.envelope["publications"][intent["operation"]])
+        self.assertEqual(self.store.hot_lookup("receipt", settled["operation"]),
+                         source.envelope["receipts"][settled["operation"]])
+        events = self.store.hot_task_history(snap, "a", limit=50)["events"]
+        self.assertEqual(sorted((x["revision"], x["kind"], x["commit"]) for x in expected_events),
+                         sorted((x["revision"], x["kind"], x["source_commit"]) for x in events))
+        count = api.patch_count
+        self.assertEqual(self.req("a", "artifact", "accept_artifact", proposal)["artifact"],
+                         accepted["artifact"])
+        self.assertTrue(self.req("a", "prepare", "prepare_publication", payload)["replayed"])
+        self.assertTrue(self.req("s", "settle", "resolve_publication",
+                                 {"intent": intent["operation"]})["replayed"])
+        self.assertEqual(api.patch_count, count)
+
+    def test_read_v3_shows_freeze_and_actual_root_capacity_without_mutation(self):
+        import json
+        _, _, payload = self.accept()
+        key = self.req("a", "prepare", "prepare_publication", payload)["operation"]
+        endpoint = b.OperatorReadEndpoint("wii-golf", self.broker)
+        prefix = "/v3/projects/wii-golf/read-v3"
+        auth = "Bearer " + "r" * 40
+        patches = self.api.patch_count
+        snap = self.store.read_hot()
+        self.now = 121
+        code, _, body = endpoint.handle("GET", prefix + "/status", auth)
+        self.assertEqual(code, 200)
+        view = json.loads(body)
+        self.assertEqual(view["wire_version"], 3)
+        self.assertTrue(view["publication_supported"])
+        self.assertTrue(view["queue_frozen"])
+        self.assertEqual(view["publication_pending"], key)
+        self.assertEqual(view["publications"], {key: {"resolution": None}})
+        self.assertEqual(view["eligible"], [])
+        code, _, body = endpoint.handle("GET", prefix + "/capacity", auth)
+        self.assertEqual(code, 200)
+        capacity = json.loads(body)
+        self.assertEqual(capacity["head"], snap.head)
+        self.assertEqual(capacity["used_bytes"], snap.root_bytes)
+        self.assertEqual(capacity["remaining_bytes"], storage.MAX_LEDGER - snap.root_bytes)
+        self.assertEqual(capacity["capacity_scope"], "hot_root_only")
+        self.assertTrue(capacity["publication_pending"])
+        self.assertEqual(capacity["receipt_count"], snap.state["revision"] + 1)
+        self.assertEqual(capacity["active_run_count"], len(snap.state["runs"]))
+        self.assertEqual(capacity["archived_run_count"], sum(snap.state["archived_fences"].values()))
+        code, _, body = endpoint.handle("GET", prefix + "/tasks/a/history", auth)
+        self.assertEqual(code, 200)
+        self.assertEqual(json.loads(body)["wire_version"], 3)
+        self.assertEqual(self.api.patch_count, patches)
+        self.observed = BASE_CODE
+        self.req("s", "settle", "resolve_publication", {"intent": key})
+        code, _, body = endpoint.handle("GET", prefix + "/status", auth)
+        self.assertEqual(code, 200)
+        self.assertFalse(json.loads(body)["queue_frozen"])
+        self.assertIsNone(json.loads(body)["publication_pending"])
+
     def test_hot_manifest_reserves_settlement_headroom(self):
         _, _, payload = self.accept()
         snap = self.store.read_hot()
