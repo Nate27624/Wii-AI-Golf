@@ -3,6 +3,8 @@ import copy
 import sys
 import subprocess
 import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -104,6 +106,107 @@ class ExactPushTests(unittest.TestCase):
                 with self.assertRaises(g.ArtifactError):
                     g.PublicationCommand("owner/repo", BRANCH, BASE, "test-intent",
                                          target, base, head, "a" * 64)
+
+
+class DurableJournalTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.path = Path(directory.name) / "dispatch.sqlite"
+        self.journal = g.DurablePublicationJournal.create(self.path, "owner/repo", BRANCH)
+        self.command = g.PublicationCommand("owner/repo", BRANCH, BASE, "intent",
+            "orchestration/v3-publication-test-unit", BASE_CODE, HEAD_CODE, "a" * 64)
+
+    def reopen(self):
+        return g.DurablePublicationJournal(self.path, "owner/repo", BRANCH)
+
+    def test_explicit_provision_identity_and_conflicting_binding(self):
+        c = self.command
+        self.assertTrue(self.journal.reserve_once(c.key, c.binding))
+        self.assertFalse(self.reopen().reserve_once(c.key, c.binding))
+        with self.assertRaises(g.ArtifactError):
+            self.reopen().reserve_once(c.key, "b" * 64)
+        with self.assertRaises(g.ArtifactError):
+            g.DurablePublicationJournal.create(self.path, "owner/repo", BRANCH)
+        with self.assertRaises(g.ArtifactError):
+            g.DurablePublicationJournal(self.path, "other/repo", BRANCH)
+        missing = self.path.with_name("missing.sqlite")
+        with self.assertRaises(g.ArtifactError):
+            g.DurablePublicationJournal(missing, "owner/repo", BRANCH)
+        self.assertFalse(missing.exists())
+
+    def test_cross_connection_reservation_and_cancellation_race(self):
+        c = self.command
+        barrier = threading.Barrier(2)
+        def reserve():
+            j = self.reopen()
+            barrier.wait(timeout=10)
+            return j.reserve_once(c.key, c.binding)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = [pool.submit(reserve) for _ in range(2)]
+            self.assertCountEqual([x.result(timeout=20) for x in results], [True, False])
+        barrier = threading.Barrier(2)
+        def advance(method):
+            j = self.reopen()
+            barrier.wait(timeout=10)
+            try:
+                getattr(j, method)(c)
+                return method
+            except g.ArtifactError:
+                return "denied"
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = [pool.submit(advance, m) for m in ("begin", "cancel_before_send")]
+            observed = [x.result(timeout=20) for x in results]
+        self.assertEqual(observed.count("denied"), 1)
+        self.assertIn(self.reopen().phase(c), ("SENDING", "CANCELLED"))
+        self.assertFalse(self.reopen().reserve_once(c.key, c.binding))
+
+    def test_abrupt_process_death_after_begin_is_never_retried_or_settled(self):
+        c = self.command
+        self.journal.reserve_once(c.key, c.binding)
+        root = Path(__file__).resolve().parents[1]
+        script = """
+import os
+import sys
+sys.path.insert(0, sys.argv[1])
+from wii_ai_golf.orchestration import artifact_gateway as g
+c = g.PublicationCommand(*sys.argv[3:])
+j = g.DurablePublicationJournal(sys.argv[2], c.repository, c.queue_branch)
+j.begin(c)
+os._exit(73)
+"""
+        result = subprocess.run([sys.executable, "-I", "-c", script, str(root / "src"),
+            str(self.path), c.repository, c.queue_branch, c.queue_head, c.intent,
+            c.target, c.base, c.head, c.manifest_digest], capture_output=True, timeout=20)
+        self.assertEqual(result.returncode, 73, result.stderr)
+        j = self.reopen()
+        self.assertEqual(j.phase(c), "SENDING")
+        sends, reads = [], []
+        executor = g.DurablePublicationExecutor(c.repository, c.queue_branch, j,
+            sends.append, reads.append)
+        with self.assertRaises(g.ArtifactError):
+            executor.reserve(c)
+        with self.assertRaises(g.ArtifactError):
+            executor.cancel_before_send(c)
+        self.assertIsNone(executor.observe(c))
+        self.assertEqual((sends, reads), ([], []))
+
+    def test_independent_ref_reader_checks_identity_and_repository(self):
+        c = self.command
+        calls = []
+        response = {"ref": "refs/heads/" + c.target,
+                    "object": {"type": "commit", "sha": c.head}}
+        def transport(method, endpoint, payload):
+            calls.append((method, endpoint, payload))
+            return response
+        reader = g.GitHubPublicationRefReader(transport, c.repository)
+        self.assertEqual(reader(c), c.head)
+        self.assertEqual(calls, [("GET", "/repos/owner/repo/git/ref/heads/" + c.target, None)])
+        response["ref"] = "refs/heads/main"
+        with self.assertRaises(g.ArtifactError):
+            reader(c)
+        with self.assertRaises(g.ArtifactError):
+            g.GitHubPublicationRefReader(transport, "other/repo")(c)
 
 
 class InspectorTests(unittest.TestCase):
@@ -547,6 +650,89 @@ class HotGatewayTests(unittest.TestCase):
             self.broker.dispatch_publication("s" * 40, intent, executor)
         self.assertEqual(markers, {})
         self.assertEqual(sends, [])
+
+    def durable_executor(self, path, send, read, create=False):
+        journal_type = g.DurablePublicationJournal
+        journal = (journal_type.create if create else journal_type)(path, "owner/repo", BRANCH)
+        executor = g.DurablePublicationExecutor("owner/repo", BRANCH, journal, send, read)
+        self.broker = b.Broker(self.store, self.credentials, hot=True, clock=lambda: self.now,
+            reviewer=lambda *args: self.allow, inspector=self.inspector,
+            publication_observer=executor, history_cursor_key=b"k" * 32)
+        return executor
+
+    def test_durable_broker_acknowledgment_requires_independent_exact_ref(self):
+        intent = self.pending()
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "dispatch.sqlite"
+            sends = []
+            observed = [BASE_CODE]
+            def send(command):
+                sends.append(command)
+                return True
+            executor = self.durable_executor(path, send, lambda c: observed[0], create=True)
+            with self.assertRaises(b.AdmissionError):
+                self.req("s", "early", "resolve_publication", {"intent": intent})
+            self.broker.dispatch_publication("s" * 40, intent, executor)
+            self.assertEqual(len(sends), 1)
+            self.assertEqual(executor._journal.phase(sends[0]), "ACKNOWLEDGED")
+            self.reopen()
+            executor = self.durable_executor(path, send, lambda c: observed[0])
+            with self.assertRaises(g.ArtifactError):
+                self.broker.dispatch_publication("s" * 40, intent, executor)
+            with self.assertRaises(g.ArtifactError):
+                self.broker.cancel_publication_dispatch("s" * 40, intent)
+            with self.assertRaises(b.AdmissionError):
+                self.req("s", "wrong-ref", "resolve_publication", {"intent": intent})
+            observed[0] = HEAD_CODE
+            self.now = 121
+            self.req("s", "settle", "resolve_publication", {"intent": intent})
+            self.assertIsNone(self.store.read_hot().manifest["pending_intent"])
+            self.assertEqual(len(sends), 1)
+
+    def test_durable_broker_cancel_before_send_or_after_expiry(self):
+        intent = self.pending()
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "dispatch.sqlite"
+            sends = []
+            executor = self.durable_executor(path, sends.append, lambda c: BASE_CODE, create=True)
+            for who in ("a", "r"):
+                with self.assertRaises(b.AdmissionError):
+                    self.broker.cancel_publication_dispatch(who * 40, intent)
+            result = self.broker.cancel_publication_dispatch("s" * 40, intent)
+            self.assertFalse(result["settled"])
+            self.assertEqual(self.store.read_hot().manifest["pending_intent"], intent)
+            with self.assertRaises(g.ArtifactError):
+                self.broker.dispatch_publication("s" * 40, intent, executor)
+            self.reopen()
+            self.durable_executor(path, sends.append, lambda c: BASE_CODE)
+            self.now = 121
+            self.req("s", "settle", "resolve_publication", {"intent": intent})
+            self.assertEqual(sends, [])
+            self.assertIsNone(self.store.read_hot().manifest["pending_intent"])
+            self.assertEqual(self.store.read_hot().state["tasks"]["a"]["status"], "OPEN")
+
+    def test_durable_broker_uncertain_even_if_ref_appears_to_match(self):
+        intent = self.pending()
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "dispatch.sqlite"
+            sends, reads = [], []
+            def send(command):
+                sends.append(command)
+                raise TimeoutError("private diagnostic")
+            def read(command):
+                reads.append(command)
+                return HEAD_CODE
+            executor = self.durable_executor(path, send, read, create=True)
+            with self.assertRaises(g.DispatchUncertain):
+                self.broker.dispatch_publication("s" * 40, intent, executor)
+            self.reopen()
+            executor = self.durable_executor(path, send, read)
+            with self.assertRaises(g.ArtifactError):
+                self.broker.cancel_publication_dispatch("s" * 40, intent)
+            with self.assertRaises(b.AdmissionError):
+                self.req("s", "not-settled", "resolve_publication", {"intent": intent})
+            self.assertEqual((len(sends), len(reads)), (1, 0))
+            self.assertEqual(self.store.read_hot().manifest["pending_intent"], intent)
 
     def test_hot_publication_freeze_reopen_expire_settle_and_history(self):
         proposal, accepted, payload = self.accept()
