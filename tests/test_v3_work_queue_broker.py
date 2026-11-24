@@ -446,7 +446,7 @@ class HotBrokerTests(unittest.TestCase):
                      "outcome": "CLOSED", "progress": progress()})["replayed"])
         self.assertEqual(self.store.read_hot().state["tasks"][a["task"]]["status"], "CLOSED")
 
-    def test_unsupported_paths_and_read_only_fail_before_mutation(self):
+    def test_malformed_journal_requests_and_read_only_fail_before_mutation(self):
         patches = self.api.patch_count
         for action in ("accept_artifact", "prepare_publication", "resolve_publication"):
             with self.assertRaises(b.AdmissionError):
@@ -464,6 +464,28 @@ class HotBrokerTests(unittest.TestCase):
             self.assertEqual(code, 503)
             self.assertEqual(json.loads(body), {"error": "response unavailable"})
         self.assertEqual(self.api.patch_count, patches)
+
+    def test_full_ledger_broker_receipt_replay_after_hot_conversion(self):
+        api = FakeGit()
+        full_store = storage.GitHubStore(api, "owner/repo", BRANCH)
+        full_store.bootstrap_test(BASE, initial(), "seed")
+        full = b.Broker(full_store, self.credentials, clock=lambda: self.now,
+                        reviewer=lambda *args: True)
+        claimed = full.request(self.tokens["a"], "legacy", "acquire", {})
+        lease = {k: claimed["lease"][k] for k in ("task", "run_id", "fence")}
+        full.request(self.tokens["a"], "release", "finish",
+                     {**lease, "outcome": "OPEN", "progress": progress()})
+        full_store.initialize_hot(full_store.read(), "hot-convert")
+        hot = b.Broker(full_store, self.credentials, hot=True,
+                       clock=lambda: self.now, reviewer=lambda *args: True)
+        count = api.patch_count
+        replay = hot.request(self.tokens["a"], "legacy", "acquire", {})
+        self.assertTrue(replay["replayed"])
+        self.assertFalse(replay["lease"]["active"])
+        self.assertEqual(replay["revision"], claimed["revision"])
+        self.assertEqual(api.patch_count, count)
+        with self.assertRaises(b.AdmissionError):
+            hot.request(self.tokens["a"], "legacy", "sweep", {})
 
     def test_read_v2_pinned_history_across_append_restart_and_tamper(self):
         key = b"k" * 32
