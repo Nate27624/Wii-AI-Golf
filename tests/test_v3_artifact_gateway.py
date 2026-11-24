@@ -257,6 +257,8 @@ class GatewayBrokerTests(unittest.TestCase):
             storage.archive_snapshot(self.store.read())
         with self.assertRaisesRegex(storage.StoreError, "unresolved publication"):
             self.store.stage_archive(self.store.read())
+        with self.assertRaisesRegex(storage.StoreError, "unresolved publication"):
+            self.store.archive_checkpoint(self.store.read(), "archive-pending")
         self.assertEqual(self.api.patch_count, count)
         self.assertTrue(self.req("a", "prepare", "prepare_publication", payload)["replayed"])
         for action, body in (("acquire", {}), ("renew", {k: payload[k] for k in
