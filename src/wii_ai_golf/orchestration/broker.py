@@ -6,6 +6,8 @@ background execution, source publication or operator approval is implied.
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import copy
 import hashlib
 import hmac
@@ -20,6 +22,10 @@ from . import artifact_gateway as gateway
 
 
 class AdmissionError(ValueError):
+    pass
+
+
+class CursorError(AdmissionError):
     pass
 
 
@@ -117,8 +123,11 @@ class Broker:
     The host must serialize this broker with any future external effects.
     """
     def __init__(self, store, credentials, *, clock=None, reviewer=None, inspector=None,
-                 publication_observer=None, hot=False):
+                 publication_observer=None, hot=False, history_cursor_key=None):
         require(type(hot) is bool, "invalid store mode")
+        require(history_cursor_key is None or (type(history_cursor_key) is bytes
+                and 32 <= len(history_cursor_key) <= 128), "invalid cursor key")
+        self._history_cursor_key = history_cursor_key
         self._hot = hot
         self._store = store
         self._credentials = credentials
@@ -178,6 +187,51 @@ class Broker:
         # History pins its own tip; concurrent appends cannot change its ancestors.
         require(not self._hot, "permanent hot history unavailable")
         return self._store.task_history(task, limit=limit, cursor=cursor)
+
+    def hot_history(self, token, project, task, *, limit=20, cursor=None):
+        """Read permanent task history using an authenticated immutable pin.
+
+        Only a trusted project-bound endpoint supplies project. A host-owned
+        key is distinct from worker credentials and must persist across restarts
+        if outstanding cursors are to survive them.
+        """
+        principal = self._credentials.authenticate(token)
+        require(principal.read_only and self._hot, "hot operator history unavailable")
+        require(self._history_cursor_key is not None, "history cursor key unavailable")
+        require(type(project) is str and _READ_PROJECT.fullmatch(project),
+                "invalid history project")
+        model.ident(task)
+        require(type(limit) is int and 1 <= limit <= 50, "history page limit")
+        binding = {"project": project, "repository": self._store.prefix,
+                   "branch": self._store.branch, "task": task}
+        now = model.integer(self._clock(), "trusted broker clock")
+        if cursor is None:
+            snap = self._store.read_hot()
+            now = self._now(snap)
+            position = None
+            expires = now + 3600
+            model.integer(expires, "cursor expiry")
+        else:
+            row = decode_cursor(cursor, self._history_cursor_key)
+            if (set(row) != set(binding) | {"head", "position", "expires", "count"}
+                    or any(row.get(k) != v for k, v in binding.items())
+                    or type(row["expires"]) is not int or not now < row["expires"]
+                    or type(row["position"]) is not int or type(row["count"]) is not int
+                    or not 1 <= row["position"] <= row["count"]):
+                raise CursorError("invalid or expired history cursor")
+            # No arbitrary user SHA traversal: signature and binding verified
+            # before reading the exact snapshot originally issued by this host.
+            snap = self._store._hot_at(storage.sha(row["head"]))
+            self._now(snap)
+            if snap.manifest["event_counts"].get(task) != row["count"]:
+                raise CursorError("invalid history snapshot")
+            position, expires = row["position"], row["expires"]
+        page = self._store.hot_task_history(snap, task, limit=limit, position=position)
+        next_position = page.pop("next_position")
+        page["next_cursor"] = None if next_position is None else encode_cursor(
+            {**binding, "head": snap.head, "count": page["event_count"],
+             "position": next_position, "expires": expires}, self._history_cursor_key)
+        return page
 
     def _owned(self, current, principal, payload):
         task, run_id, fence = (payload[k] for k in ("task", "run_id", "fence"))
@@ -419,14 +473,47 @@ _READ_INTEGER = re.compile(r"0|[1-9][0-9]{0,15}")
 _READ_LIMIT = 8 * 1024 * 1024
 
 
+_CURSOR = re.compile(r"[A-Za-z0-9_-]{1,1536}\.[0-9a-f]{64}")
+
+
+def encode_cursor(row, key):
+    raw = storage.canonical(row)
+    encoded = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+    signature = hmac.new(key, b"v3-task-history-2\x00" + encoded.encode("ascii"),
+                         hashlib.sha256).hexdigest()
+    cursor = encoded + "." + signature
+    require(_CURSOR.fullmatch(cursor), "history cursor too large")
+    return cursor
+
+
+def decode_cursor(cursor, key):
+    if type(cursor) is not str or not _CURSOR.fullmatch(cursor):
+        raise CursorError("invalid history cursor")
+    encoded, signature = cursor.split(".")
+    expected = hmac.new(key, b"v3-task-history-2\x00" + encoded.encode("ascii"),
+                        hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, signature):
+        raise CursorError("invalid history cursor")
+    try:
+        raw = base64.b64decode(encoded + "=" * (-len(encoded) % 4),
+                               altchars=b"-_", validate=True)
+        row = storage.decode(raw)
+        if (type(row) is not dict or storage.canonical(row) != raw
+                or encode_cursor(row, key) != cursor):
+            raise CursorError("invalid history cursor")
+        return row
+    except (ValueError, binascii.Error, storage.StoreError):
+        raise CursorError("invalid history cursor") from None
+
+
 def _read_subset(row, keys):
     return {key: row[key] for key in keys}
 
 
-def _operator_status(view):
-    """Explicit allowlist matching the existing dormant LocalOps client."""
+def _operator_status(view, *, hot=False):
+    """Explicit allowlist matching the corresponding LocalOps wire."""
     state = view["state"]
-    require(state["version"] == 2, "unsupported read wire source version")
+    require(state["version"] == (3 if hot else 2), "unsupported read wire source version")
     require(view["manager_authorized"] is False and view["eligible"] == [],
             "operator-only projection required")
     tasks = {}
@@ -448,15 +535,21 @@ def _operator_status(view):
     pending = view["publication_pending"]
     result["publications"] = {} if pending is None else {
         pending: {"resolution": view["publications"][pending]["resolution"]}}
+    if hot:
+        result["wire_version"] = 2
+        result["publication_supported"] = False
+        # No false healthy empty publication status on an incomplete backend.
+        del result["publications"]
+        del result["publication_pending"]
     return result
 
 
-def _operator_history(page):
+def _operator_history(page, *, hot=False):
     """Preserve the committed event identity, omit unrelated record contents."""
     rows = []
     for event in page["events"]:
-        row = _read_subset(event, ("task", "kind", "revision", "operation",
-                                   "commit", "clock"))
+        keys = ("task", "kind", "revision", "operation", "clock")
+        row = _read_subset(event, keys + (("sequence", "source_commit") if hot else ("commit",)))
         data = event["data"]
         kind = row["kind"]
         if kind == "created":
@@ -480,7 +573,11 @@ def _operator_history(page):
             raise AdmissionError("unsupported read history event")
         row["data"] = safe
         rows.append(row)
-    return {**_read_subset(page, ("task", "head", "next_cursor")), "events": rows}
+    result = {**_read_subset(page, ("task", "head", "next_cursor")), "events": rows}
+    if hot:
+        result["wire_version"] = 2
+        result["event_count"] = page["event_count"]
+    return result
 
 
 class OperatorReadEndpoint:
@@ -497,6 +594,7 @@ class OperatorReadEndpoint:
         require(type(project) is str and _READ_PROJECT.fullmatch(project),
                 "invalid read endpoint project")
         require(isinstance(broker, Broker), "trusted broker required")
+        self._project = project
         self._prefix = "/v3/projects/" + project
         self._broker = broker
 
@@ -528,13 +626,17 @@ class OperatorReadEndpoint:
             return error(401, "authentication required")
         if not principal.read_only:
             return error(403, "read-only principal required")
-        if (type(target) is not str or len(target) > 512
+        if (type(target) is not str or len(target) > 2048
                 or not target.isascii() or any(ord(c) <= 32 or ord(c) >= 127 for c in target)):
             return error(400, "invalid request")
         if not target.startswith(self._prefix + "/"):
             return error(404, "not found")
         route = target[len(self._prefix):]
         try:
+            if route.startswith("/read-v2/"):
+                return self._hot_route(route[len("/read-v2"):], token)
+            if len(target) > 512:
+                return error(400, "invalid request")
             if route == "/status":
                 return self._reply(200, _operator_status(self._broker.status(token)))
             if route == "/capacity":
@@ -557,6 +659,8 @@ class OperatorReadEndpoint:
                 return error(400, "invalid query")
             page = self._broker.task_history(token, parts[2], limit=limit, cursor=cursor)
             return self._reply(200, _operator_history(page))
+        except CursorError:
+            return error(409, "refresh history")
         except storage.StoreError as exc:
             # No store diagnostics, paths, raw body or credential in the response.
             if str(exc) == "unknown task":
@@ -566,3 +670,32 @@ class OperatorReadEndpoint:
             return error(503, "response unavailable")
         except Exception:
             return error(503, "response unavailable")
+
+    def _hot_route(self, route, token):
+        error = lambda status, message: self._reply(status, {"error": message})
+        if not self._broker._hot:
+            return error(503, "response unavailable")
+        if route == "/status":
+            return self._reply(200, _operator_status(self._broker.status(token), hot=True))
+        if route == "/capacity":
+            return error(503, "capacity unavailable")
+        path, mark, query = route.partition("?")
+        parts = path.split("/")
+        if (len(parts) != 4 or parts[:2] != ["", "tasks"]
+                or parts[3] != "history" or not _READ_TASK.fullmatch(parts[2])):
+            return error(404, "not found")
+        values = {}
+        if mark:
+            for item in query.split("&"):
+                name, equal, value = item.partition("=")
+                if (not equal or name not in {"limit", "cursor"} or name in values
+                        or (name == "limit" and not _READ_INTEGER.fullmatch(value))
+                        or (name == "cursor" and not _CURSOR.fullmatch(value))):
+                    return error(400, "invalid query")
+                values[name] = value
+        limit = int(values.get("limit", "20"))
+        if not 1 <= limit <= 50:
+            return error(400, "invalid query")
+        page = self._broker.hot_history(token, self._project, parts[2],
+                                        limit=limit, cursor=values.get("cursor"))
+        return self._reply(200, _operator_history(page, hot=True))
