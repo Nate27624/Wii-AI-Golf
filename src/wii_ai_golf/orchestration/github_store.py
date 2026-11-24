@@ -487,6 +487,12 @@ def fingerprint(base, next_state, artifact=None, publication=None):
                                       "artifact": artifact, "publication": publication})).hexdigest()
 
 
+def archive_checkpoint_digest(parent, next_state, recent_receipts):
+    return archive_digest(canonical({"archive_parent": sha(parent),
+                                     "state": next_state,
+                                     "recent_receipts": recent_receipts}))
+
+
 class GitHubStore:
     """Read a pinned ref and propose a single-parent, non-forced transition.
 
@@ -526,7 +532,34 @@ class GitHubStore:
         check(tree.get("sha") == tree_sha and tree.get("truncated") is False,
               "tree identity/truncation")
         entries = tree.get("tree")
-        check(type(entries) is list and len(entries) == 1, "not an initialized ledger tree")
+        check(type(entries) is list, "ledger tree entries")
+        if any(isinstance(e, dict) and e.get("path") == "archive-root.json"
+               for e in entries):
+            # Physical archive encoding is test-only. Logical envelope remains
+            # schema 3, including every receipt and fence.
+            check(_TEST_REF.fullmatch(self.branch), "archive root reads are test-only")
+            parents = commit.get("parents")
+            check(type(parents) is list and len(parents) == 1 and type(parents[0]) is dict,
+                  "archive root parent")
+            parent = sha(parents[0].get("sha"))
+            root = [e for e in entries if isinstance(e, dict)
+                    and e.get("path") == "archive-root.json"]
+            check(len(root) == 1, "archive root identity")
+            raw = self._blob_at(root[0].get("sha"))
+            digest = archive_digest(raw)
+            manifest, read_page, _ = self._archive_parts(
+                head, expected_digest=digest, expected_head=parent, root=True)
+            restored = restore_archive(
+                manifest, {row["digest"]: read_page(row["digest"]) for row in manifest["pages"]},
+                expected_digest=digest, expected_head=parent)
+            envelope = restored.envelope
+            operation, receipt = next((k, v) for k, v in envelope["receipts"].items()
+                                      if v["revision"] == envelope["state"]["revision"])
+            check(operation.startswith("archive-") and receipt["digest"] ==
+                  archive_checkpoint_digest(parent, envelope["state"], manifest["recent_receipts"]),
+                  "archive root receipt mismatch")
+            return Snapshot(head, envelope)
+        check(len(entries) == 1, "not an initialized ledger tree")
         entry = entries[0]
         check(type(entry) is dict and entry.get("path") == LEDGER
               and entry.get("mode") == "100644" and entry.get("type") == "blob",
@@ -564,7 +597,7 @@ class GitHubStore:
         check(blob == expected, "created archive blob hash mismatch")
         return blob
 
-    def _archive_parts(self, candidate, *, expected_digest, expected_head):
+    def _archive_parts(self, candidate, *, expected_digest, expected_head, root=False):
         commit = self._api("GET", "commits/" + sha(candidate))
         parents = commit.get("parents")
         check(commit.get("sha") == candidate and isinstance(parents, list)
@@ -581,8 +614,9 @@ class GitHubStore:
             name = entry.get("path")
             check(isinstance(name, str) and name not in entries, "archive tree path")
             entries[name] = sha(entry.get("sha"))
-        check("archive.json" in entries, "archive manifest missing")
-        raw = self._blob_at(entries.pop("archive.json"))
+        name = "archive-root.json" if root else "archive.json"
+        check(name in entries, "archive manifest missing")
+        raw = self._blob_at(entries.pop(name))
         manifest = decode(raw)
         check(raw == canonical(manifest) and archive_digest(raw) == expected_digest,
               "archive manifest digest mismatch")
@@ -607,26 +641,66 @@ class GitHubStore:
         current = self.read()
         if current != snapshot:
             raise Conflict("archive source moved or mismatched")
-        manifest, pages = archive_snapshot(current, recent_receipts=recent_receipts)
+        candidate, digest = self._build_archive(current, recent_receipts=recent_receipts)
+        if self._ref() != current.head:
+            raise Conflict("archive source moved during staging")
+        return {"candidate": candidate, "manifest_digest": digest, "source_head": current.head}
+
+    def _build_archive(self, snapshot, *, recent_receipts, root=False):
+        manifest, pages = archive_snapshot(snapshot, recent_receipts=recent_receipts)
         raw = canonical(manifest)
         digest = archive_digest(raw)
-        entries = [{"path": "archive.json", "mode": "100644", "type": "blob",
+        name = "archive-root.json" if root else "archive.json"
+        entries = [{"path": name, "mode": "100644", "type": "blob",
                     "sha": self._put_archive_blob(raw)}]
         for key, body in sorted(pages.items()):
             entries.append({"path": key + ".json", "mode": "100644", "type": "blob",
                             "sha": self._put_archive_blob(body)})
         tree = sha(self._api("POST", "trees", {"tree": entries}).get("sha"))
-        obj = self._api("POST", "commits", {"message": "V3 offline archive candidate",
-                                            "tree": tree, "parents": [current.head]})
+        obj = self._api("POST", "commits", {
+            "message": "V3 test archive checkpoint" if root else "V3 offline archive candidate",
+            "tree": tree, "parents": [snapshot.head]})
         candidate = sha(obj.get("sha"))
         observed, read_page, _ = self._archive_parts(
-            candidate, expected_digest=digest, expected_head=current.head)
+            candidate, expected_digest=digest, expected_head=snapshot.head, root=root)
         restored = restore_archive(observed, {k: read_page(k) for k in pages},
-                                   expected_digest=digest, expected_head=current.head)
-        check(restored == current, "archive candidate source mismatch")
-        if self._ref() != current.head:
-            raise Conflict("archive source moved during staging")
-        return {"candidate": candidate, "manifest_digest": digest, "source_head": current.head}
+                                   expected_digest=digest, expected_head=snapshot.head)
+        check(restored == snapshot, "archive candidate source mismatch")
+        return candidate, digest
+
+    def archive_checkpoint(self, expected, operation, *, recent_receipts=64):
+        """Host-only disposable checkpoint; no active lease or time change.
+
+        One new revision and receipt identify the physical encoding change.
+        The existing schema-3 logical state is retained in full on hydration.
+        No unresolved publication may be archived. This is a persistence
+        prototype, not a bounded hot-state transition backend.
+        """
+        self._writable()
+        check(isinstance(expected, Snapshot), "snapshot required")
+        sha(expected.head)
+        validate_envelope(expected.envelope)
+        model.ident(operation)
+        check(operation.startswith("archive-"), "archive operation prefix required")
+        check(type(recent_receipts) is int and 1 <= recent_receipts <= 1024,
+              "recent receipt count")
+        check(pending_publication(expected.envelope) is None,
+              "cannot archive unresolved publication")
+        envelope = copy.deepcopy(expected.envelope)
+        envelope["state"]["revision"] += 1
+        revision = envelope["state"]["revision"]
+        digest = archive_checkpoint_digest(expected.head, envelope["state"], recent_receipts)
+        current = self.read()
+        prior = self._record(current, operation, digest, True)
+        if prior is not None:
+            return prior
+        if current != expected:
+            raise Conflict("archive source moved or mismatched")
+        envelope["receipts"][operation] = {"digest": digest, "revision": revision}
+        candidate, _ = self._build_archive(Snapshot(current.head, envelope),
+                                            recent_receipts=recent_receipts, root=True)
+        check(self._at(candidate).envelope == envelope, "archive checkpoint readback mismatch")
+        return self._advance(current.head, candidate, operation, digest)
 
     def open_archive_index(self, candidate, *, expected_digest, expected_head):
         """Read a pinned, previously verified candidate; never grant authority."""
