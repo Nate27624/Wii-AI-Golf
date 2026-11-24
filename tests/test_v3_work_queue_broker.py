@@ -207,6 +207,12 @@ class BrokerTests(unittest.TestCase):
         self.assertFalse(view["manager_authorized"])
         self.assertIn(a["task"], view["state"]["tasks"])
         self.assertTrue(self.broker.task_history(self.tokens["r"], a["task"])["events"])
+        capacity = self.broker.capacity(self.tokens["r"])
+        self.assertEqual(capacity["head"], view["head"])
+        self.assertEqual(capacity["used_bytes"] + capacity["remaining_bytes"],
+                         capacity["limit_bytes"])
+        with self.assertRaises(b.AdmissionError):
+            self.broker.capacity("x" * 40)
         for action in ("acquire", "renew", "finish", "manager_pass", "sweep",
                        "accept_artifact", "prepare_publication", "resolve_publication"):
             with self.subTest(action=action):
