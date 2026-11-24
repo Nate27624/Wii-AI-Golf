@@ -422,3 +422,47 @@ write authority; verify real remote CAS and crash/rollback procedure.
 A SENDING marker requires separately reviewed manual reconciliation
 with evidence of no in-flight requests. No automatic manual override,
 network source push, host installation or production cutover is supplied.
+
+
+## Isolated exact-ref GitHub transport (staged, not installed)
+
+`IsolatedGitHubPublicationTransport` supplies a concrete synchronous send
+adapter for the durable executor. It is bound at host construction to
+one repository, disposable queue and exact disposable target. The trusted
+host supplies an absolute Git executable, a protected scratch directory,
+a reviewed complete SHA-1 pack (maximum 64 MiB) and a separately scoped
+installation-token provider. Worker requests cannot supply these values.
+The adapter creates a new temporary bare repository with an empty
+template, strictly indexes the pack, checks that the proposed commit is
+an exact direct child of the admitted base, and runs strict fsck before
+requesting the credential. No pre-existing repo configuration or checkout,
+credential helper, hooks, inherited Git/proxy/trace configuration, URL
+redirect or arbitrary remote is accepted.
+
+The final subprocess uses exact_push_arguments with the fixed HTTPS
+GitHub URL, TLS verification and explicit expected-old ref lease.
+A GitHub installation token is introduced only in that subprocess
+environment as a Basic Authorization header, never in argv, a URL or
+a credential file. No subprocess output or raw exception is returned.
+A timeout or nonzero return is ambiguous; no application retry or
+settlement occurs and the durable executor leaves SENDING unresolved.
+A successful terminal response is only an acknowledgement; the
+separate ref observer still must match the proposed head. A successful
+up-to-date response is not proof of who changed the ref.
+
+This is a host library, not a sandbox or credential provisioning service.
+Trusted Git binaries, OS/process isolation, protected scratch storage,
+bounded pack generation and semantic review, token scope and exclusive
+writer controls remain host requirements. Environment credentials are
+visible to sufficiently privileged host processes; do not share this
+host with untrusted workers. The subprocess timeout does not prove
+remote quiescence or prevent every transport-internal retry. No actual
+remote push or real token is exercised by these tests. The offline
+regressions use actual Git pack creation/import/parent/fsck and intercept
+only the final HTTPS push, plus malformed pack, wrong scope/parent/token,
+inherited environment and timeout controls. Existing local bare
+receive-pack tests cover actual ref CAS separately. Production
+integration requires independently reviewed remote disposable CAS,
+network and credential isolation, and uncertainty recovery. The
+adapter is not wired to any HTTP worker/operator route or installed
+host; V2 remains authoritative.
