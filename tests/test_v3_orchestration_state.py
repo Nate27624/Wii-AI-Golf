@@ -236,5 +236,80 @@ class LeaseTests(unittest.TestCase):
             v3.acquire(s, "y", "run2", "S000", 2)
 
 
+class HotStateTests(unittest.TestCase):
+    def test_hot_model_matches_full_history_over_many_cycles(self):
+        full = queue({"a": task(["a"]), "b": task(["b"])})
+        hot, cold = v3.hot_projection(full)
+
+        def compare():
+            nonlocal hot
+            hot, delta = v3.compact_hot(hot)
+            self.assertFalse(set(cold) & set(delta))
+            cold.update(delta)
+            self.assertEqual(v3.restore_hot(hot, cold), full)
+            self.assertLessEqual(len(hot["runs"]), 2)
+            self.assertEqual(v3.dispatch_candidates(hot, ["S000"], hot["clock"]),
+                             v3.dispatch_candidates(full, ["S000"], full["clock"]))
+
+        for i in range(100):
+            now = 1 + 200 * i
+            run = "worker-" + str(i)
+            full, f = v3.acquire(full, "a", run, "S000", now)
+            hot, g = v3.acquire(hot, "a", run, "S000", now,
+                                cold_run_exists=lambda key: key in cold)
+            self.assertEqual(f, g)
+            compare()
+            full = v3.renew(full, "a", run, f, now + 10, progress("checkpoint"))
+            hot = v3.renew(hot, "a", run, g, now + 10, progress("checkpoint"))
+            compare()
+            if i % 2:
+                full = v3.sweep(full, now + 130)
+                hot = v3.sweep(hot, now + 130)
+            else:
+                full = v3.finish(full, "a", run, f, now + 11, "OPEN", progress())
+                hot = v3.finish(hot, "a", run, g, now + 11, "OPEN", progress())
+            compare()
+        self.assertEqual(len(cold), 100)
+        self.assertEqual(hot["archived_fences"]["a"], 100)
+        self.assertEqual(hot["runs"], {})
+        with self.assertRaises(v3.LeaseError):
+            v3.acquire(hot, "a", "worker-0", "S000", 20001,
+                       cold_run_exists=lambda key: key in cold)
+        with self.assertRaises(v3.LeaseError):
+            v3.renew(hot, "a", "worker-0", 1, 20001)
+
+    def test_hot_manager_review_and_fail_closed_membership(self):
+        full = queue({"a": task(["a"])})
+        hot, cold = v3.hot_projection(full)
+        for lookup in (None, lambda key: None, lambda key: True):
+            with self.assertRaises(v3.LeaseError):
+                v3.acquire(hot, v3.MANAGER, "mgr", "S000", 1,
+                           cold_run_exists=lookup)
+        full, f = v3.acquire(full, v3.MANAGER, "mgr", "S000", 1)
+        hot, g = v3.acquire(hot, v3.MANAGER, "mgr", "S000", 1,
+                            cold_run_exists=lambda key: key in cold)
+        self.assertEqual(f, g)
+        for mode in ("full", "hot"):
+            state = full if mode == "full" else hot
+            result = v3.manager_pass(state, "mgr", f, 2, state["revision"], progress(),
+                                     additions={"new": task(["new"])})
+            if mode == "full":
+                full = result
+            else:
+                hot = result
+        hot, delta = v3.compact_hot(hot)
+        cold.update(delta)
+        self.assertEqual(hot["archived_fences"]["new"], 0)
+        self.assertEqual(v3.restore_hot(hot, cold), full)
+        with self.assertRaises(v3.LeaseError):
+            v3.restore_hot(hot, {})
+        forged = copy.deepcopy(hot)
+        forged["archived_fences"][v3.MANAGER] += 1
+        with self.assertRaises(v3.LeaseError):
+            v3.validate(forged)
+        with self.assertRaises(v3.LeaseError):
+            v3.hot_projection(hot)
+
+
 if __name__ == "__main__":
     unittest.main()
