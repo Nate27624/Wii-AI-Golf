@@ -138,9 +138,9 @@ class Receipt:
 
 
 def validate_envelope(value):
-    check(type(value) is dict and set(value) == {"schema", "state", "receipts"},
+    check(type(value) is dict and set(value) == {"schema", "state", "receipts", "artifacts"},
           "invalid ledger envelope")
-    check(type(value["schema"]) is int and value["schema"] == 1, "ledger schema")
+    check(type(value["schema"]) is int and value["schema"] == 2, "ledger schema")
     model.validate(value["state"])
     receipts = value["receipts"]
     check(type(receipts) is dict, "receipt map")
@@ -155,12 +155,26 @@ def validate_envelope(value):
               "receipt history")
         revisions.add(rev)
     check(len(revisions) == value["state"]["revision"] + 1, "missing receipt history")
+    # Lazy import avoids a dependency cycle; artifact records are part of
+    # the same immutable ledger, not mutable worker checkpoint text.
+    from . import artifact_gateway as gateway
+    artifacts = value["artifacts"]
+    check(type(artifacts) is dict, "artifact journal")
+    for operation, record in artifacts.items():
+        check(operation in receipts, "artifact receipt missing")
+        try:
+            gateway.validate_record(record, value["state"])
+        except (ValueError, StoreError) as exc:
+            raise StoreError("invalid artifact journal record") from exc
+        check(record["revision"] == receipts[operation]["revision"],
+              "artifact receipt revision")
     check(len(canonical(value)) <= MAX_LEDGER, "ledger capacity; stop for reviewed compaction")
     return value
 
 
-def fingerprint(base, next_state):
-    return hashlib.sha256(canonical({"parent": sha(base), "state": next_state})).hexdigest()
+def fingerprint(base, next_state, artifact=None):
+    return hashlib.sha256(canonical({"parent": sha(base), "state": next_state,
+                                      "artifact": artifact})).hexdigest()
 
 
 class GitHubStore:
@@ -324,11 +338,12 @@ class GitHubStore:
               and type(tree.get("tree")) is list, "bootstrap tree")
         check(not any(isinstance(e, dict) and e.get("path") == LEDGER
                       for e in tree["tree"]), "already initialized")
-        envelope = {"schema": 1, "state": copy.deepcopy(initial_state),
-                    "receipts": {operation: {"digest": digest, "revision": 0}}}
+        envelope = {"schema": 2, "state": copy.deepcopy(initial_state),
+                    "receipts": {operation: {"digest": digest, "revision": 0}},
+                    "artifacts": {}}
         return self._advance(current, self._candidate(current, envelope), operation, digest)
 
-    def publish(self, expected, next_state, operation):
+    def publish(self, expected, next_state, operation, *, artifact=None):
         """Persist one authorized model transition; the broker must validate it.
 
         Repeating the exact operation against its original snapshot returns
@@ -343,7 +358,17 @@ class GitHubStore:
         model.validate(next_state)
         check(next_state["revision"] == expected.envelope["state"]["revision"] + 1,
               "expected one revision increment")
-        digest = fingerprint(expected.head, next_state)
+        if artifact is not None:
+            from . import artifact_gateway as gateway
+            gateway.validate_record(artifact, next_state)
+            task, run_id, fence = (artifact[k] for k in ("task", "run_id", "fence"))
+            model.active(next_state, task, run_id, fence)
+            check(artifact["revision"] == next_state["revision"]
+                  and artifact["admitted_at"] == next_state["clock"]
+                  and artifact["goal_sha"] == next_state["oversight"]["goal_sha"]
+                  and next_state["tasks"][task]["checkpoint"]["head"] == artifact["head"],
+                  "artifact not bound to proposed checkpoint")
+        digest = fingerprint(expected.head, next_state, artifact)
         current = self.read()
         prior = self._record(current, operation, digest, True)
         if prior is not None:
@@ -355,5 +380,7 @@ class GitHubStore:
         envelope["state"] = copy.deepcopy(next_state)
         envelope["receipts"][operation] = {"digest": digest,
                                              "revision": next_state["revision"]}
+        if artifact is not None:
+            envelope["artifacts"][operation] = copy.deepcopy(artifact)
         candidate = self._candidate(current.head, envelope)
         return self._advance(current.head, candidate, operation, digest)
