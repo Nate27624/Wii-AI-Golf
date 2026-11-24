@@ -521,7 +521,7 @@ class IncrementalIndex:
 # The count map is bounded by the permanent task population, not transitions.
 # Old prototype roots have no history and are deliberately not upgraded in place.
 HOT_HISTORY_FORMAT = "indexed-hot-history-2"
-MAX_HISTORY_BACKFILL = 5000
+MAX_HISTORY_BACKFILL = 500
 
 
 def event_key(task, sequence):
@@ -1239,13 +1239,14 @@ class GitHubStore:
         check(type(start) is int and 1 <= start <= count, "invalid event position")
         index = GitTreeIndex(self, snap.manifest["root"], snap.root_tree)
         rows = []
+        revision = snap.state["revision"]
         for sequence in range(start, max(0, start - limit), -1):
             row = index.get(snap.manifest["root"], "event", event_key(task, sequence))
             check(type(row) is dict and set(row) ==
                   {"task", "sequence", "kind", "revision", "operation", "clock",
                    "source_commit", "data"} and row["task"] == task
                   and row["sequence"] == sequence
-                  and model.integer(row["revision"], "event revision") <= snap.state["revision"],
+                  and model.integer(row["revision"], "event revision") <= revision,
                   "missing or corrupt task event")
             rows.append(row)
         return {"task": task, "head": snap.head, "event_count": count,
@@ -1255,9 +1256,10 @@ class GitHubStore:
         # One-time bounded import; all prior events or no conversion.
         check(expected.state["revision"] <= MAX_HISTORY_BACKFILL,
               "history backfill exceeds reviewed limit")
-        chain = [expected]
-        while chain[-1].state["revision"]:
-            current = chain[-1]
+        # Retain only immutable commit locators, not every growing full snapshot.
+        chain = [expected.head]
+        current = expected
+        while current.state["revision"]:
             commit = self._api("GET", "commits/" + current.head)
             parents = commit.get("parents")
             check(commit.get("sha") == current.head and type(parents) is list
@@ -1265,14 +1267,20 @@ class GitHubStore:
                   "history commit is not single-parent")
             older = self._at(sha(parents[0].get("sha")))
             check(older.state["revision"] + 1 == current.state["revision"]
+                  and older.state["clock"] <= current.state["clock"]
+                  and all(current.state["runs"].get(k) == v
+                          for k, v in older.state["runs"].items() if v["status"] == "CLOSED")
+                  and set(older.state["runs"]) <= set(current.state["runs"])
                   and all(current.envelope["receipts"].get(k) == v
                           for k, v in older.envelope["receipts"].items())
                   and not older.envelope["artifacts"] and not older.envelope["publications"],
                   "history backfill discontinuity")
-            chain.append(older)
+            chain.append(older.head)
+            current = older
         root, counts = manifest["root"], {}
         before = {"tasks": {}, "runs": {}, "oversight": {}}
-        for snap in reversed(chain):
+        for head in reversed(chain):
+            snap = expected if head == expected.head else self._at(head)
             after = snap.state
             operation = next(k for k, row in snap.envelope["receipts"].items()
                              if row["revision"] == after["revision"])
