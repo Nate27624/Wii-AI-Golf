@@ -304,6 +304,32 @@ class Broker:
             result["source_promoted"] = False
         return result
 
+    def _publication_command(self, snap, intent, row, record):
+        return gateway.PublicationCommand(
+            self._store.prefix[len("/repos/"):-len("/git/")], self._store.branch,
+            snap.head, intent, row["target"], record["base"], record["head"],
+            record["manifest_digest"])
+
+    def cancel_publication_dispatch(self, token, intent):
+        """Host-only irreversible pre-send cancellation; not queue settlement."""
+        principal = self._credentials.authenticate(token)
+        require(principal.maintenance and not principal.read_only,
+                "publication cancellation not authorized")
+        model.ident(intent)
+        executor = self._publication_observer
+        require(self._hot and isinstance(executor, gateway.DurablePublicationExecutor),
+                "durable hot executor required")
+        with self._lock:
+            snap = self._read()
+            require(self._pending(snap) == intent, "exact pending intent required")
+            row = self._publication(snap, intent)
+            require(row is not None and row["resolution"] is None, "unresolved intent missing")
+            record = self._artifact(snap, row["artifact"])
+            require(record is not None, "accepted artifact missing")
+            command = self._publication_command(snap, intent, row, record)
+            executor.cancel_before_send(command)
+            return {"cancelled": True, "settled": False, "intent": intent}
+
     def dispatch_publication(self, token, intent, executor):
         """Explicit host-only disposable effect, never a worker/HTTP operation.
 
@@ -317,6 +343,11 @@ class Broker:
         model.ident(intent)
         require(self._hot and isinstance(executor, gateway.PublicationExecutor),
                 "disposable hot executor required")
+        if isinstance(self._publication_observer, gateway.DurablePublicationExecutor):
+            require(executor is self._publication_observer, "configured durable executor required")
+        else:
+            require(not isinstance(executor, gateway.DurablePublicationExecutor),
+                    "durable executor must also be the configured observer")
         with self._lock:
             snap = self._read()
             require(self._pending(snap) == intent, "exact pending intent required")
@@ -345,10 +376,7 @@ class Broker:
                          {"intent": intent, "target": row["target"],
                           "record": copy.deepcopy(record)}, snap)
             revalidate()
-            command = gateway.PublicationCommand(
-                self._store.prefix[len("/repos/"):-len("/git/")], self._store.branch,
-                snap.head, intent, row["target"], record["base"], record["head"],
-                record["manifest_digest"])
+            command = self._publication_command(snap, intent, row, record)
             executor.reserve(command)
             # A slow or uncertain durable reservation never grants an
             # expired lease. On failure the marker remains consumed.
@@ -427,8 +455,13 @@ class Broker:
                 require(record is not None, "accepted artifact missing")
                 # The trusted host, not the worker, must establish that no
                 # request remains in flight and observe the exact target ref.
-                observed = self._publication_observer(copy.deepcopy(row),
-                                                       copy.deepcopy(record))
+                if isinstance(self._publication_observer, gateway.DurablePublicationExecutor):
+                    require(self._hot, "durable hot observer required")
+                    command = self._publication_command(snap, pending, row, record)
+                    observed = self._publication_observer.observe(command)
+                else:
+                    observed = self._publication_observer(copy.deepcopy(row),
+                                                           copy.deepcopy(record))
                 require(isinstance(observed, str) and
                         observed in (record["base"], record["head"]),
                         "ambiguous publication outcome")
