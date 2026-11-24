@@ -33,7 +33,8 @@ def scope_path(path, owned):
     model.path(path)
     # Exact spelling is required for ownership; the queue's collision
     # detection is more conservative (case-insensitive).
-    return any(path == root or path.startswith(root + "/") for root in owned)
+    # Phase 3 grants concrete files only; a path is not an implicit directory grant.
+    return path in owned
 
 
 def entry(value):
@@ -153,7 +154,7 @@ class GitHubTreeInspector:
                 parent = path.rsplit("/", 1)[0]
                 require(parent in all_entries and all_entries[parent]["mode"] == "040000",
                         "missing parent tree")
-        return {p: v for p, v in all_entries.items() if v["mode"] != "040000"}
+        return all_entries
 
     def inspect(self, base, head):
         require(storage.sha(base) != storage.sha(head), "identical base/head")
@@ -163,16 +164,29 @@ class GitHubTreeInspector:
         require(type(parents) is list and len(parents) == 1
                 and type(parents[0]) is dict and parents[0].get("sha") == base,
                 "proposal must be a single direct child of its base")
-        before, after = self._tree(before_tree), self._tree(after_tree)
-        # Reject case-only renames and aliases across the two snapshots.
+        before_all, after_all = self._tree(before_tree), self._tree(after_tree)
+        # Include directory names in alias detection; reject file/tree replacement.
         aliases = {}
-        for path in list(before) + list(after):
+        for path in list(before_all) + list(after_all):
             key = model.path(path)
             require(key not in aliases or aliases[key] == path, "case-only path change")
             aliases[key] = path
+        for p in set(before_all) & set(after_all):
+            require((before_all[p]["mode"] == "040000") ==
+                    (after_all[p]["mode"] == "040000"), "file/tree replacement")
+        before = {p: v for p, v in before_all.items() if v["mode"] != "040000"}
+        after = {p: v for p, v in after_all.items() if v["mode"] != "040000"}
         result = [{"path": p, "before": before.get(p), "after": after.get(p)}
                   for p in sorted(set(before) | set(after), key=model.path)
                   if before.get(p) != after.get(p)]
+        changed_paths = {c["path"] for c in result}
+        changed_ancestors = set()
+        for p in changed_paths:
+            parts = p.split("/")
+            changed_ancestors.update("/".join(parts[:i]) for i in range(1, len(parts)))
+        for p in set(before_all) | set(after_all):
+            if before_all.get(p) != after_all.get(p) and p not in changed_paths:
+                require(p in changed_ancestors, "unrepresented directory change")
         require(0 < len(result) <= MAX_CHANGES, "empty or oversized artifact")
         for change in result:
             entry(change["before"])
