@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import hmac
+import re
 import threading
 import time
 from dataclasses import dataclass
@@ -366,3 +367,160 @@ class Broker:
                                       receipt.replayed, self._now(observed))
             except (storage.StoreError, model.LeaseError, AdmissionError):
                 raise storage.UncertainWrite("published response unavailable; reconcile receipt") from None
+
+
+# Staged LocalOps read wire v1. Storage versions are not wire versions.
+# This adapter is a synchronous request/response seam, NOT an HTTP listener.
+_READ_PROJECT = re.compile(r"[a-z][a-z0-9_-]{0,49}")
+_READ_TASK = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
+_READ_INTEGER = re.compile(r"0|[1-9][0-9]{0,15}")
+_READ_LIMIT = 8 * 1024 * 1024
+
+
+def _read_subset(row, keys):
+    return {key: row[key] for key in keys}
+
+
+def _operator_status(view):
+    """Explicit allowlist matching the existing dormant LocalOps client."""
+    state = view["state"]
+    require(state["version"] == 2, "unsupported read wire source version")
+    require(view["manager_authorized"] is False and view["eligible"] == [],
+            "operator-only projection required")
+    tasks = {}
+    runs = {}
+    for key, task in state["tasks"].items():
+        row = _read_subset(task, ("role", "status", "priority", "thread",
+                                  "dependencies", "run", "fence"))
+        row["checkpoint"] = _read_subset(task["checkpoint"], ("head", "evidence"))
+        tasks[key] = row
+        if task["run"] is not None:
+            run = state["runs"][task["run"]]
+            runs[task["run"]] = _read_subset(
+                run, ("task", "status", "fence", "heartbeat", "expires"))
+    result = _read_subset(view, ("head", "durable_revision", "effective_at",
+                                "eligible", "task_order", "publication_pending",
+                                "manager_authorized"))
+    result["state"] = {**_read_subset(state, ("version", "revision", "clock", "oversight")),
+                       "tasks": tasks, "runs": runs}
+    pending = view["publication_pending"]
+    result["publications"] = {} if pending is None else {
+        pending: {"resolution": view["publications"][pending]["resolution"]}}
+    return result
+
+
+def _operator_history(page):
+    """Preserve the committed event identity, omit unrelated record contents."""
+    rows = []
+    for event in page["events"]:
+        row = _read_subset(event, ("task", "kind", "revision", "operation",
+                                   "commit", "clock"))
+        data = event["data"]
+        kind = row["kind"]
+        if kind == "created":
+            safe = _read_subset(data, ("status",))
+        elif kind == "task_changed":
+            safe = {key: _read_subset(data[key], ("status",))
+                    for key in ("before", "after")}
+        elif kind in ("claimed", "renewed", "expired", "released"):
+            safe = {"run_id": data["run_id"], "run": _read_subset(
+                data["run"], ("task", "fence", "status", "outcome", "expires"))}
+        elif kind == "artifact_accepted":
+            safe = _read_subset(data, ("task", "head"))
+        elif kind == "publication_intent":
+            safe = {"resolution": None}
+            require(data["resolution"] is None, "unexpected publication resolution")
+        elif kind == "publication_resolved":
+            safe = {"resolution": _read_subset(data["resolution"], ("observed_head",))}
+        elif kind == "oversight_changed":
+            safe = _read_subset(data, ("epoch",))
+        else:
+            raise AdmissionError("unsupported read history event")
+        row["data"] = safe
+        rows.append(row)
+    return {**_read_subset(page, ("task", "head", "next_cursor")), "events": rows}
+
+
+class OperatorReadEndpoint:
+    """One configured project and its own trusted broker/credential registry.
+
+    Host must bind the broker to that project's repository/ref, provision a
+    distinct read-only credential registry per project, terminate verified TLS,
+    enforce header/body limits and reject duplicate Authorization headers.
+    No URL supplied by the caller selects a repository, store or credentials.
+    This adapter cannot deploy a server or grant mutation authority.
+    """
+
+    def __init__(self, project, broker):
+        require(type(project) is str and _READ_PROJECT.fullmatch(project),
+                "invalid read endpoint project")
+        require(isinstance(broker, Broker), "trusted broker required")
+        self._prefix = "/v3/projects/" + project
+        self._broker = broker
+
+    @staticmethod
+    def _reply(status, payload):
+        raw = storage.canonical(payload)
+        if len(raw) > _READ_LIMIT:
+            status, raw = 503, b'{"error":"response unavailable"}'
+        return status, {"Content-Type": "application/json",
+                        "Cache-Control": "no-store",
+                        "Content-Length": str(len(raw))}, raw
+
+    def handle(self, method, target, authorization):
+        """Return (status, headers, JSON bytes); no request body or mutation route.
+
+        The staging cursor counts revisions; persistent pinned task-event
+        cursors require a coordinated replacement wire contract.
+        """
+        error = lambda status, message: self._reply(status, {"error": message})
+        if method != "GET":
+            return error(405, "method not allowed")
+        if (type(authorization) is not str or len(authorization) > 519
+                or not authorization.startswith("Bearer ")):
+            return error(401, "authentication required")
+        token = authorization[7:]
+        try:
+            principal = self._broker._credentials.authenticate(token)
+        except AdmissionError:
+            return error(401, "authentication required")
+        if not principal.read_only:
+            return error(403, "read-only principal required")
+        if (type(target) is not str or len(target) > 512
+                or not target.isascii() or any(ord(c) <= 32 or ord(c) >= 127 for c in target)):
+            return error(400, "invalid request")
+        if not target.startswith(self._prefix + "/"):
+            return error(404, "not found")
+        route = target[len(self._prefix):]
+        try:
+            if route == "/status":
+                return self._reply(200, _operator_status(self._broker.status(token)))
+            if route == "/capacity":
+                return self._reply(200, self._broker.capacity(token))
+            path, mark, query = route.partition("?")
+            parts = path.split("/")
+            if (len(parts) != 4 or parts[:2] != ["", "tasks"]
+                    or parts[3] != "history" or not _READ_TASK.fullmatch(parts[2])):
+                return error(404, "not found")
+            values = {}
+            if mark:
+                for item in query.split("&"):
+                    key, equal, value = item.partition("=")
+                    if (not equal or key not in {"limit", "cursor"} or key in values
+                            or not _READ_INTEGER.fullmatch(value)):
+                        return error(400, "invalid query")
+                    values[key] = int(value)
+            limit, cursor = values.get("limit", 20), values.get("cursor")
+            if not 1 <= limit <= 50 or (cursor is not None and cursor > 2**53 - 1):
+                return error(400, "invalid query")
+            page = self._broker.task_history(token, parts[2], limit=limit, cursor=cursor)
+            return self._reply(200, _operator_history(page))
+        except storage.StoreError as exc:
+            # No store diagnostics, paths, raw body or credential in the response.
+            if str(exc) == "unknown task":
+                return error(404, "not found")
+            if str(exc) == "history cursor outside window":
+                return error(409, "refresh history")
+            return error(503, "response unavailable")
+        except Exception:
+            return error(503, "response unavailable")
