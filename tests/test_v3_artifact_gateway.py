@@ -396,6 +396,105 @@ class HotGatewayTests(unittest.TestCase):
                        target="orchestration/v3-publication-test-unit")
         return proposal, accepted, payload
 
+    def pending(self):
+        _, _, payload = self.accept()
+        return self.req("a", "prepare", "prepare_publication", payload)["operation"]
+
+    def executor(self, markers, sends, send=None, reserve=None, repository="owner/repo"):
+        def claim(key, binding):
+            if key in markers:
+                return False
+            markers[key] = binding
+            return True
+        return g.PublicationExecutor(repository, BRANCH, reserve or claim,
+                                     send or sends.append)
+
+    def test_dispatch_is_host_only_fenced_single_send_and_not_settlement(self):
+        intent = self.pending()
+        markers, sends = {}, []
+        executor = self.executor(markers, sends)
+        pinned = self.store.read_hot()
+        for who in ("a", "b", "r"):
+            with self.assertRaises(b.AdmissionError):
+                self.broker.dispatch_publication(who * 40, intent, executor)
+        with self.assertRaises(b.AdmissionError):
+            self.req("s", "dispatch", "dispatch_publication", {"intent": intent})
+        with self.assertRaises(b.AdmissionError):
+            self.broker.dispatch_publication("s" * 40, "wrong", executor)
+        with self.assertRaises(g.ArtifactError):
+            self.broker.dispatch_publication("s" * 40, intent,
+                self.executor(markers, sends, repository="other/repo"))
+        self.assertEqual(markers, {})
+        result = self.broker.dispatch_publication("s" * 40, intent, executor)
+        self.assertEqual(result, {"attempted": True, "settled": False, "intent": intent})
+        self.assertEqual(len(sends), 1)
+        command = sends[0]
+        self.assertEqual((command.base, command.head, command.queue_head),
+                         (BASE_CODE, HEAD_CODE, pinned.head))
+        self.assertEqual(markers, {command.key: command.binding})
+        self.assertEqual(self.store.read_hot().head, pinned.head)
+        self.reopen()
+        with self.assertRaises(g.ArtifactError):
+            self.broker.dispatch_publication("s" * 40, intent, self.executor(markers, sends))
+        self.assertEqual(len(sends), 1)
+        self.assertEqual(self.store.read_hot().manifest["pending_intent"], intent)
+        self.observed = HEAD_CODE
+        self.req("s", "settle", "resolve_publication", {"intent": intent})
+        with self.assertRaises(b.AdmissionError):
+            self.broker.dispatch_publication("s" * 40, intent, executor)
+
+    def test_dispatch_expiry_after_marker_and_uncertain_send_never_retries(self):
+        intent = self.pending()
+        sends, markers = [], {}
+        def slow_claim(key, binding):
+            markers[key] = binding
+            self.now = 121
+            return True
+        with self.assertRaises(model.LeaseError):
+            self.broker.dispatch_publication("s" * 40, intent,
+                self.executor(markers, sends, reserve=slow_claim))
+        self.assertEqual(len(markers), 1)
+        self.assertEqual(sends, [])
+        self.assertEqual(self.store.read_hot().manifest["pending_intent"], intent)
+        self.now = 2
+        with self.assertRaises(g.ArtifactError):
+            self.broker.dispatch_publication("s" * 40, intent, self.executor(markers, sends))
+        # A separate fixture models a fresh intent after an ambiguous send.
+        self.setUp()
+        intent = self.pending()
+        markers, sends = {}, []
+        def lost(command):
+            sends.append(command)
+            raise TimeoutError("private output must never be surfaced")
+        with self.assertRaisesRegex(g.DispatchUncertain, "^dispatch outcome uncertain; do not retry$"):
+            self.broker.dispatch_publication("s" * 40, intent,
+                self.executor(markers, sends, send=lost))
+        self.reopen()
+        with self.assertRaises(g.ArtifactError):
+            self.broker.dispatch_publication("s" * 40, intent, self.executor(markers, sends))
+        self.assertEqual(len(sends), 1)
+        self.assertEqual(self.store.read_hot().manifest["pending_intent"], intent)
+        with self.assertRaises(b.AdmissionError):
+            self.req("s", "ambiguous", "resolve_publication", {"intent": intent})
+
+    def test_dispatch_rechecks_complete_manifest_and_semantic_review(self):
+        intent = self.pending()
+        markers, sends = {}, []
+        executor = self.executor(markers, sends)
+        self.allow = False
+        with self.assertRaises(b.AdmissionError):
+            self.broker.dispatch_publication("s" * 40, intent, executor)
+        self.allow = True
+        self.git.after["tree"][2] = row("src/b", sha="9")
+        with self.assertRaises(b.AdmissionError):
+            self.broker.dispatch_publication("s" * 40, intent, executor)
+        self.git.after["tree"][2] = row("src/b")
+        self.now = 121
+        with self.assertRaises(model.LeaseError):
+            self.broker.dispatch_publication("s" * 40, intent, executor)
+        self.assertEqual(markers, {})
+        self.assertEqual(sends, [])
+
     def test_hot_publication_freeze_reopen_expire_settle_and_history(self):
         proposal, accepted, payload = self.accept()
         intent = self.req("a", "prepare", "prepare_publication", payload)
