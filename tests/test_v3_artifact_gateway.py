@@ -901,5 +901,126 @@ class HotGatewayTests(unittest.TestCase):
         self.assertEqual(self.api.patch_count, count)
 
 
+
+class IsolatedPublicationTransportTests(unittest.TestCase):
+    def setUp(self):
+        import shutil
+        self.git = shutil.which("git")
+        self.assertIsNotNone(self.git, "Git required for isolated publication regression")
+        self.git = str(Path(self.git).absolute())
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name).absolute()
+        work = self.root / "fixture"
+        self.scratch = self.root / "scratch"
+        self.scratch.mkdir()
+        self.real_run = subprocess.run
+
+        def git(*args, data=None):
+            return self.real_run([self.git, *map(str, args)], cwd=self.root,
+                input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                check=True).stdout
+        git("init", "-q", work)
+        def commit(message):
+            git("-C", work, "-c", "user.name=Fixture", "-c",
+                "user.email=fixture@example.invalid", "commit", "-q",
+                "--allow-empty", "-m", message)
+            return git("-C", work, "rev-parse", "HEAD").decode().strip()
+        self.base = commit("base")
+        self.head = commit("child")
+        self.grandchild = commit("grandchild")
+        self.pack = git("-C", work, "pack-objects", "--stdout", "--revs",
+                        data=(self.grandchild + "\n").encode("ascii"))
+        self.target = "orchestration/v3-publication-test-unit"
+        self.command = g.PublicationCommand("owner/repo", BRANCH, BASE,
+            "dispatch-test", self.target, self.base, self.head, "a" * 64)
+        self.token = "synthetic_token_not_a_real_credential"
+        self.calls = []
+        self.token_reads = 0
+
+    def credential(self):
+        self.token_reads += 1
+        return self.token
+
+    def transport(self, pack=None):
+        return g.IsolatedGitHubPublicationTransport(
+            "owner/repo", BRANCH, self.target, self.git, self.scratch,
+            lambda command: self.pack if pack is None else pack, self.credential)
+
+    def intercept(self, *args, **kwargs):
+        argv = args[0]
+        env = dict(kwargs["env"])
+        self.calls.append((list(argv), env))
+        if "push" in argv:
+            return subprocess.CompletedProcess(argv, 0)
+        return self.real_run(*args, **kwargs)
+
+    def test_actual_pack_isolation_and_fixed_https_argv(self):
+        import base64
+        import os
+        injected = {"GIT_CONFIG_COUNT": "99", "GIT_TRACE": "1",
+                    "HTTPS_PROXY": "https://untrusted.invalid",
+                    "GIT_OBJECT_DIRECTORY": "untrusted",
+                    "GIT_ASKPASS": "untrusted", "HOST_SECRET": "untrusted"}
+        with patch.dict(os.environ, injected), patch.object(
+                g.subprocess, "run", side_effect=self.intercept):
+            self.assertIs(self.transport()(self.command), True)
+        self.assertEqual(self.token_reads, 1)
+        self.assertEqual(len(self.calls), 5)
+        for argv, env in self.calls:
+            self.assertNotIn(self.token, " ".join(argv))
+            for key in injected:
+                if key != "GIT_CONFIG_COUNT":
+                    self.assertNotIn(key, env)
+            self.assertEqual(env["GIT_CONFIG_NOSYSTEM"], "1")
+            self.assertEqual(env["GIT_ALLOW_PROTOCOL"], "https")
+        for _, env in self.calls[:-1]:
+            self.assertNotIn("GIT_CONFIG_COUNT", env)
+            self.assertNotIn("GIT_CONFIG_VALUE_0", env)
+        argv, env = self.calls[-1]
+        self.assertEqual(argv[-len(g.exact_push_arguments(self.command)):],
+                         g.exact_push_arguments(self.command))
+        self.assertIn("http.followRedirects=false", argv)
+        self.assertIn("http.sslVerify=true", argv)
+        self.assertIn("credential.helper=", argv)
+        self.assertEqual(env["GIT_CONFIG_COUNT"], "1")
+        self.assertEqual(base64.b64decode(
+            env["GIT_CONFIG_VALUE_0"].split()[-1]).decode(),
+            "x-access-token:" + self.token)
+        self.assertEqual(list(self.scratch.iterdir()), [])
+
+    def test_invalid_pack_parent_scope_and_token_never_push(self):
+        from dataclasses import replace
+        with patch.object(g.subprocess, "run", side_effect=self.intercept):
+            for command, pack in (
+                (replace(self.command, target="orchestration/v3-publication-test-other"), self.pack),
+                (self.command, b"not a pack"),
+                (self.command, b"PACK" + b"x" * 32),
+                (replace(self.command, head=self.grandchild), self.pack),
+            ):
+                with self.assertRaises(g.ArtifactError):
+                    self.transport(pack)(command)
+            self.assertEqual(self.token_reads, 0)
+            self.token = "invalid token\n"
+            with self.assertRaises(g.ArtifactError):
+                self.transport()(self.command)
+        self.assertEqual(self.token_reads, 1)
+        self.assertFalse(any("push" in argv for argv, _ in self.calls))
+        self.assertEqual(list(self.scratch.iterdir()), [])
+
+    def test_push_timeout_is_not_retried_or_exposed(self):
+        def timeout(*args, **kwargs):
+            if "push" in args[0]:
+                self.calls.append((args[0], {}))
+                raise subprocess.TimeoutExpired(self.token, 1)
+            return self.intercept(*args, **kwargs)
+        with patch.object(g.subprocess, "run", side_effect=timeout):
+            with self.assertRaisesRegex(g.ArtifactError,
+                    "^isolated publication outcome unconfirmed$"):
+                self.transport()(self.command)
+        self.assertEqual(sum("push" in argv for argv, _ in self.calls), 1)
+        self.assertEqual(list(self.scratch.iterdir()), [])
+
+
 if __name__ == "__main__":
     unittest.main()
