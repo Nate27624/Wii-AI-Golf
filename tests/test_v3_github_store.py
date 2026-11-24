@@ -327,6 +327,75 @@ class StoreTests(unittest.TestCase):
             with self.assertRaises(store.StoreError):
                 store.archive_snapshot(self.snap, recent_receipts=bad)
 
+    def test_archive_index_matches_full_snapshot_with_bounded_reads(self):
+        self.store.publish(self.snap, self.advance(), "first")
+        for now in range(2, 132):
+            tip = self.store.read()
+            renewed = model.renew(tip.state, "a", "run1", 1, now)
+            self.store.publish(tip, renewed, "heartbeat-" + str(now).zfill(3))
+        tip = self.store.read()
+        manifest, pages = store.archive_snapshot(tip, recent_receipts=2)
+        reads = []
+        def fetch(key):
+            reads.append(key)
+            return pages.get(key)
+        index = store.ArchiveIndex(manifest, fetch,
+                                  expected_digest=store.archive_digest(store.canonical(manifest)),
+                                  expected_head=tip.head)
+        self.assertEqual(index.lookup("receipts", "first"), tip.envelope["receipts"]["first"])
+        self.assertEqual(len(reads), 1)
+        self.assertEqual(index.lookup("runs", "run1"), tip.state["runs"]["run1"])
+        self.assertEqual(len(reads), 1)
+        self.assertIsNone(index.lookup("receipts", "zzzzz"))
+        self.assertEqual(len(reads), 1)
+        expected = {k: v for k, v in tip.envelope["receipts"].items()
+                    if k.startswith("heartbeat-")}
+        self.assertEqual(index.receipt_prefix("heartbeat-"), expected)
+        count = len(reads)
+        with self.assertRaisesRegex(store.StoreError, "budget"):
+            index.receipt_prefix("heartbeat-", max_pages=1)
+        self.assertEqual(len(reads), count)
+        missing = store.ArchiveIndex(manifest, lambda key: None,
+                                    expected_digest=store.archive_digest(store.canonical(manifest)),
+                                    expected_head=tip.head)
+        with self.assertRaisesRegex(store.StoreError, "missing or corrupt"):
+            missing.receipt_prefix("heartbeat-")
+
+    def test_stage_archive_objects_without_ref_promotion(self):
+        self.store.publish(self.snap, self.advance(), "first")
+        tip = self.store.read()
+        count = self.api.patch_count
+        pin = self.store.stage_archive(tip, recent_receipts=1)
+        self.assertEqual(pin["source_head"], tip.head)
+        self.assertNotEqual(pin["candidate"], tip.head)
+        self.assertEqual(self.api.patch_count, count)
+        self.assertEqual(self.store.read(), tip)
+        index = self.store.open_archive_index(pin["candidate"],
+                    expected_digest=pin["manifest_digest"], expected_head=pin["source_head"])
+        self.assertEqual(index.lookup("receipts", "seed"), tip.envelope["receipts"]["seed"])
+        self.assertEqual(index.lookup("receipts", "first"), tip.envelope["receipts"]["first"])
+        with self.assertRaises(store.StoreError):
+            self.store.open_archive_index(pin["candidate"],
+                        expected_digest="0" * 64, expected_head=tip.head)
+        with self.assertRaises(store.StoreError):
+            self.store.open_archive_index(pin["candidate"],
+                        expected_digest=pin["manifest_digest"], expected_head=BASE)
+        with self.assertRaises(store.StoreError):
+            self.store._at(pin["candidate"])
+        live = store.GitHubStore(self.api, "owner/repo", store.STATE_REF)
+        with self.assertRaises(store.StoreError):
+            live.stage_archive(tip)
+        with self.assertRaises(store.Conflict):
+            self.store.stage_archive(self.snap)
+        self.assertEqual(self.api.patch_count, count)
+        candidate_tree = self.api.commits[pin["candidate"]]["tree"]["sha"]
+        self.api.trees[candidate_tree]["tree"] = [
+            row for row in self.api.trees[candidate_tree]["tree"]
+            if row["path"] == "archive.json"]
+        with self.assertRaises(store.StoreError):
+            self.store.open_archive_index(pin["candidate"],
+                        expected_digest=pin["manifest_digest"], expected_head=tip.head)
+
 
 if __name__ == "__main__":
     unittest.main()
