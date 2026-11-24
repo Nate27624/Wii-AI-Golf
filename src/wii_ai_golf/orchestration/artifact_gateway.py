@@ -6,11 +6,14 @@ Queue ledger. An accepted proposal is NOT a source-branch promotion.
 """
 from __future__ import annotations
 
+import base64
 import copy
 import hashlib
 import re
 import os
 import sqlite3
+import subprocess
+import tempfile
 from contextlib import closing, contextmanager
 from pathlib import Path
 from dataclasses import dataclass
@@ -478,3 +481,113 @@ class GitHubPublicationRefReader:
                 and type(obj.get("object")) is dict and obj["object"].get("type") == "commit",
                 "publication ref identity mismatch")
         return storage.sha(obj["object"].get("sha"))
+
+
+
+class IsolatedGitHubPublicationTransport:
+    """Dormant host-only exact-ref HTTPS transport for one disposable target.
+
+    A trusted host supplies a self-contained, reviewed SHA-1 Git pack and a
+    separately scoped installation token. Neither provider is a worker
+    callback. No worktree, existing repository config, remotes, hooks,
+    inherited Git environment, credential helper or arbitrary URL is used.
+    This is not an OS sandbox; executable, host ACL, network and token
+    provisioning are separate deployment gates.
+    """
+    MAX_PACK_BYTES = 64 * 1024 * 1024
+
+    def __init__(self, repository, queue_branch, target, git_executable,
+                 scratch_directory, pack_provider, token_provider, *, timeout=30):
+        require(type(repository) is str and storage._REPO.fullmatch(repository)
+                and all(p not in (".", "..") for p in repository.split("/"))
+                and type(queue_branch) is str and storage._TEST_REF.fullmatch(queue_branch)
+                and type(target) is str and storage._PUBLICATION_REF.fullmatch(target)
+                and callable(pack_provider) and callable(token_provider)
+                and type(timeout) is int and 1 <= timeout <= 120,
+                "invalid isolated publication configuration")
+        git = Path(git_executable)
+        scratch = Path(scratch_directory)
+        require(git.is_absolute() and git.is_file() and scratch.is_absolute()
+                and scratch.is_dir() and not scratch.is_symlink(),
+                "trusted Git executable and scratch directory required")
+        self._identity = (repository, queue_branch, target)
+        self._git = str(git)
+        self._scratch = scratch
+        self._pack = pack_provider
+        self._token = token_provider
+        self._timeout = timeout
+
+    def _environment(self, root):
+        # Build from scratch: no inherited Git config, proxy, trace, token,
+        # alternate object directory, askpass, SSH or certificate override.
+        env = {"PATH": str(Path(self._git).parent) + os.pathsep + os.defpath,
+               "HOME": str(root), "XDG_CONFIG_HOME": str(root),
+               "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
+               "GIT_CONFIG_SYSTEM": os.devnull, "GIT_TERMINAL_PROMPT": "0",
+               "GIT_NO_REPLACE_OBJECTS": "1", "GIT_ALLOW_PROTOCOL": "https",
+               "TMP": str(root), "TEMP": str(root), "TMPDIR": str(root)}
+        if os.name == "nt":
+            for key in ("SystemRoot", "WINDIR"):
+                if key in os.environ:
+                    env[key] = os.environ[key]
+        return env
+
+    def _run(self, root, env, args, *, data=None, capture=False):
+        options = {"cwd": root, "env": env, "timeout": self._timeout,
+                   "check": False, "stderr": subprocess.DEVNULL,
+                   "stdout": subprocess.PIPE if capture else subprocess.DEVNULL}
+        if data is None:
+            options["stdin"] = subprocess.DEVNULL
+        else:
+            options["input"] = data
+        result = subprocess.run([self._git, *args], **options)
+        require(result.returncode == 0, "isolated Git operation unsuccessful")
+        return result.stdout if capture else None
+
+    def __call__(self, command):
+        require(isinstance(command, PublicationCommand) and
+                (command.repository, command.queue_branch, command.target) == self._identity,
+                "isolated transport scope mismatch")
+        try:
+            pack = self._pack(command)
+            require(type(pack) is bytes and 12 <= len(pack) <= self.MAX_PACK_BYTES
+                    and pack.startswith(b"PACK"), "invalid bounded Git pack")
+            with tempfile.TemporaryDirectory(prefix="v3-publication-", dir=self._scratch) as d:
+                root = Path(d)
+                repo = root / "source.git"
+                env = self._environment(root)
+                self._run(root, env, ["init", "--bare", "--object-format=sha1",
+                                      "--template=", str(repo)])
+                prefix = ["--git-dir=" + str(repo), "-c", "core.hooksPath=" + str(root / "no-hooks")]
+                self._run(root, env, prefix + ["index-pack", "--stdin", "--strict"], data=pack)
+                parents = self._run(root, env, prefix + ["rev-list", "--parents",
+                    "--max-count=1", command.head], capture=True)
+                require(parents.split() == [command.head.encode("ascii"),
+                                            command.base.encode("ascii")],
+                        "isolated pack does not contain exact direct child")
+                self._run(root, env, prefix + ["fsck", "--strict", "--no-reflogs",
+                                               "--no-dangling", command.head])
+                # Secret enters only the final trusted Git process environment;
+                # never argv, URL, config file, pack provider or diagnostics.
+                token = self._token()
+                require(type(token) is str and re.fullmatch(r"[A-Za-z0-9_]{20,512}", token),
+                        "invalid scoped installation credential")
+                auth_env = dict(env)
+                auth_env.update({"GIT_CONFIG_COUNT": "1",
+                    "GIT_CONFIG_KEY_0": "http.extraHeader",
+                    "GIT_CONFIG_VALUE_0": "Authorization: Basic " +
+                    base64.b64encode(("x-access-token:" + token).encode("ascii")).decode("ascii")})
+                flags = ["-c", "credential.helper=", "-c", "http.followRedirects=false",
+                         "-c", "http.sslVerify=true", "-c", "http.proxy=",
+                         "-c", "push.gpgSign=false"]
+                try:
+                    self._run(root, auth_env, prefix + flags + exact_push_arguments(command))
+                finally:
+                    auth_env.clear()
+                # A successful process is only a terminal acknowledgement;
+                # the durable observer must independently confirm exact ref.
+                return True
+        except Exception:
+            # No command, stderr, token, pack or host paths escape the boundary.
+            # DurablePublicationExecutor leaves SENDING unresolved on failure.
+            raise ArtifactError("isolated publication outcome unconfirmed") from None
