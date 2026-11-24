@@ -700,6 +700,36 @@ class PersistentHotTests(unittest.TestCase):
         with self.assertRaisesRegex(store.StoreError, "tree hash mismatch"):
             self.store.read_hot()
 
+    def test_hot_lost_response_after_later_commit_and_request_conflict(self):
+        snap = self.initialize()
+        operation = "op-" + "a" * 32 + "-" + "b" * 64
+        first_patch = True
+        def transport(method, path, data=None):
+            nonlocal first_patch
+            result = self.api(method, path, data)
+            if method == "PATCH" and first_patch:
+                first_patch = False
+                other = store.GitHubStore(self.api, "owner/repo", BRANCH)
+                active = other.read_hot()
+                other.publish_hot(active, "later", "c" * 64,
+                    lambda state, exists: model.renew(state, "a", "run-1", 1, 2))
+                raise store.StoreError("synthetic lost response after later commit")
+            return result
+        host = store.GitHubStore(transport, "owner/repo", BRANCH)
+        count = self.api.patch_count
+        receipt = host.publish_hot(snap, operation, "a" * 64,
+            lambda state, exists: model.acquire(state, "a", "run-1", "S000", 1,
+                                                cold_run_exists=exists)[0])
+        self.assertTrue(receipt.replayed)
+        self.assertEqual(receipt.revision, snap.manifest["state"]["revision"] + 1)
+        self.assertEqual(host.read_hot().manifest["state"]["revision"], receipt.revision + 1)
+        self.assertEqual(self.api.patch_count, count + 2)
+        fresh = store.GitHubStore(self.api, "owner/repo", BRANCH)
+        self.assertTrue(fresh.publish_hot(snap, operation, "a" * 64, None).replayed)
+        with self.assertRaisesRegex(store.StoreError, "request ID reused"):
+            fresh.publish_hot(fresh.read_hot(), operation[:-64] + "d" * 64, "a" * 64, None)
+        self.assertEqual(self.api.patch_count, count + 2)
+
     def test_hot_failed_staging_does_not_publish(self):
         snap = self.initialize()
         count = self.api.patch_count
