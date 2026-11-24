@@ -730,6 +730,61 @@ class PersistentHotTests(unittest.TestCase):
             fresh.publish_hot(fresh.read_hot(), operation[:-64] + "d" * 64, "a" * 64, None)
         self.assertEqual(self.api.patch_count, count + 2)
 
+    def test_permanent_history_backfills_full_ledger_and_pins_old_root(self):
+        before = self.source
+        proposed, _ = model.acquire(before.state, "a", "legacy-run", "S000", 1)
+        self.store.publish(before, proposed, "legacy-acquire")
+        active = self.store.read()
+        self.store.publish(active, model.finish(active.state, "a", "legacy-run", 1, 2,
+                           "OPEN", progress()), "legacy-finish")
+        full = self.store.read()
+        expected = self.store.task_history("a", limit=50)["events"]
+        self.store.initialize_hot(full, "hot-import")
+        pinned = self.store.read_hot()
+        imported = self.store.hot_task_history(pinned, "a", limit=50)
+        self.assertEqual(imported["event_count"], len(expected))
+        # Old full reader sorts revisions newest first but events within each
+        # revision forward; new reader orders by permanent sequence descending.
+        self.assertEqual(sorted((x["revision"], x["kind"], x["commit"]) for x in expected),
+                         sorted((x["revision"], x["kind"], x["source_commit"])
+                                for x in imported["events"]))
+        self.store.publish_hot(pinned, "new-claim", "a" * 64,
+            lambda state, exists: model.acquire(state, "a", "new-run", "S000", 3,
+                                                cold_run_exists=exists)[0])
+        newer = self.store.read_hot()
+        self.store.publish_hot(newer, "new-expiry", "b" * 64,
+            lambda state, exists: model.sweep(state, 123))
+        fresh = store.GitHubStore(self.api, "owner/repo", BRANCH)
+        latest = fresh.read_hot()
+        page = fresh.hot_task_history(latest, "a", limit=2)
+        collected = list(page["events"])
+        while page["next_position"] is not None:
+            page = fresh.hot_task_history(latest, "a", limit=2,
+                                          position=page["next_position"])
+            collected.extend(page["events"])
+        self.assertEqual([e["sequence"] for e in collected],
+                         list(range(latest.manifest["event_counts"]["a"], 0, -1)))
+        self.assertEqual(collected[0]["kind"], "expired")
+        self.assertIsNone(collected[0]["source_commit"])
+        self.assertEqual(fresh.hot_task_history(pinned, "a", limit=50), imported)
+        self.assertEqual(fresh.hot_task_history(latest, "b")["event_count"], 1)
+        with self.assertRaises(store.StoreError):
+            fresh.hot_task_history(latest, "missing")
+        with self.assertRaises(store.StoreError):
+            fresh.hot_task_history(latest, "a", position=0)
+
+    def test_history_backfill_limit_fails_without_ref_change(self):
+        before = self.source
+        proposed, _ = model.acquire(before.state, "a", "legacy-run", "S000", 1)
+        self.store.publish(before, proposed, "legacy-acquire")
+        source = self.store.read()
+        patches = self.api.patch_count
+        with patch.object(store, "MAX_HISTORY_BACKFILL", 0):
+            with self.assertRaisesRegex(store.StoreError, "backfill exceeds"):
+                self.store.initialize_hot(source, "hot-import")
+        self.assertEqual(self.store.read(), source)
+        self.assertEqual(self.api.patch_count, patches)
+
     def test_hot_failed_staging_does_not_publish(self):
         snap = self.initialize()
         count = self.api.patch_count
