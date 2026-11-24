@@ -95,14 +95,33 @@ verified pinned candidate with lazy page access. Both are offline-tested
 transport prototypes; no real archive objects have been staged by this
 implementation pass.
 
-This is not a storage migration: GitHubStore still accepts schema 3 only.
-Full conversion/restoration is bounded by the original 2 MiB schema-3
-cap, the manifest's page list grows, and validation at staging hydrates
-all pages. No authoritative archive root, task event indexing, or
-ongoing hot-state transitions against archived history are implemented.
-Exact replay remains handled by the existing schema-3 store. The future
-persisted schema must preserve the same oracle semantics without requiring
-full hydration for each transition.
+The host-only archive_checkpoint prototype adds a physical archive-root
+encoding on explicitly disposable test refs. It preserves the logical
+schema-3 envelope, increments the revision once, records an archive-
+prefixed operation receipt whose digest binds the source parent, next
+state and receipt-retention setting, builds the immutable tree and
+verifies complete readback before one non-forced ref PATCH. Existing
+receipt reconciliation handles lost responses and conflicting siblings.
+The root marker is distinct from an unpromoted archive candidate.
+A reopened test store recognizes the root, verifies parent and tree
+membership, restores the envelope and checks the checkpoint receipt.
+Ordinary transitions can resume and task history traverses the checkpoint
+as a single revision; prior archives remain reachable through ancestry.
+Bootstrap cannot reset a ref containing an archive root or candidate.
+Production archive-root reads/writes and checkpointing with an unresolved
+publication are denied. Tests simulate CAS races, lost responses, reopen,
+replay, subsequent renewal, history traversal and corrupt pages.
+No real archive checkpoint ref has been advanced by this code change.
+
+This is a persistence prototype, not a production storage migration.
+Logical state remains schema 3 and full restoration is bounded by the
+original 2 MiB cap. Ordinary transitions after a checkpoint write the
+full envelope again. The manifest page list grows and root reads hydrate
+all pages. No bounded ongoing hot-state transition engine, permanent
+task-event index or integrated cold replay admission exists yet.
+The checkpoint demonstrates reachable archival without losing records,
+not increased capacity. A future schema must preserve the same oracle
+semantics without full hydration for each transition.
 
 **Proposed persisted next schema; not authorized for production.**
 A permanently growing full snapshot cannot support indefinite operation.
