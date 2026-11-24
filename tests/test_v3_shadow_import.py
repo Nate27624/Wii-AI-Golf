@@ -187,6 +187,21 @@ class ShadowTests(unittest.TestCase):
         with self.assertRaises(shadow.ShadowError):
             parse(data)
 
+class ParsedSourceIntegrityTests(unittest.TestCase):
+    def test_mutated_source_after_parse_fails_closed(self):
+        for mutate in (
+            lambda r: r["value"]["assignments"][1]["owned_paths"].append(
+                "scripts/unreviewed.py"),
+            lambda r: r.update({"comment_url": "https://wrong.invalid/source"}),
+            lambda r: r.update({"reservation_count": 5}),
+            lambda r: r.update({"sha256": "0" * 64}),
+        ):
+            parsed = parse()
+            mutate(parsed)
+            with self.assertRaises(shadow.ShadowError):
+                shadow.preview(parsed, goal_sha=GOAL)
+
+
 class FrozenLiveRosterRevision68Tests(unittest.TestCase):
     """Read-only real public roster data frozen at #320 comment 7143524743."""
 
