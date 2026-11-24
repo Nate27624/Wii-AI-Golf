@@ -484,5 +484,104 @@ class StoreTests(unittest.TestCase):
             self.store.read()
 
 
+class IncrementalIndexTests(unittest.TestCase):
+    def setUp(self):
+        self.nodes = {}
+        self.reads = 0
+        self.writes = 0
+        def read(key):
+            self.reads += 1
+            return self.nodes.get(key)
+        def write(key, raw):
+            self.writes += 1
+            self.assertTrue(key not in self.nodes or self.nodes[key] == raw)
+            self.nodes[key] = raw
+        self.index = store.IncrementalIndex(read, write)
+
+    def test_immutable_roots_and_bounded_key_io(self):
+        root = None
+        for i in range(300):
+            key = "run-" + str(i)
+            before = self.reads, self.writes
+            root = self.index.put(root, "run", key, {"n": i})
+            self.assertLessEqual(self.reads - before[0], 65)
+            self.assertLessEqual(self.writes - before[1], 65)
+            if i == 0:
+                old = root
+        self.assertEqual(self.index.get(old, "run", "run-0"), {"n": 0})
+        self.assertIsNone(self.index.get(old, "run", "run-299"))
+        for i in range(300):
+            before = self.reads
+            self.assertEqual(self.index.get(root, "run", "run-" + str(i)), {"n": i})
+            self.assertLessEqual(self.reads - before, 65)
+        before = self.writes
+        self.assertEqual(self.index.put(root, "run", "run-0", {"n": 0}), root)
+        self.assertEqual(self.writes, before)
+        with self.assertRaises(store.StoreError):
+            self.index.put(root, "run", "run-0", {"n": 1})
+        raw = self.nodes.pop(root)
+        with self.assertRaisesRegex(store.StoreError, "missing or corrupt"):
+            self.index.get(root, "run", "run-0")
+        self.nodes[root] = raw + b" "
+        with self.assertRaisesRegex(store.StoreError, "missing or corrupt"):
+            self.index.get(root, "run", "run-0")
+
+    def test_hot_proposals_match_full_model_and_preserve_request_identity(self):
+        full = initial()
+        envelope = {"schema": 3, "state": full,
+                    "receipts": {"seed": {"revision": 0, "digest": "a" * 64}},
+                    "artifacts": {}, "publications": {}}
+        manifest = store.indexed_hot_projection(store.Snapshot(BASE, envelope), self.index)
+        first = manifest
+        cold = {}
+        receipts = {}
+        def advance(action, fn, expected):
+            nonlocal manifest
+            operation = "op-" + hashlib.sha256(action.encode()).hexdigest()[:32] + "-" + "b" * 64
+            digest = hashlib.sha256(("digest-" + action).encode()).hexdigest()
+            prior = manifest
+            manifest, receipt, replayed = store.indexed_hot_transition(
+                manifest, self.index, operation, digest, fn)
+            self.assertFalse(replayed)
+            receipts[operation] = receipt
+            self.assertEqual(receipt["revision"], expected["revision"])
+            for key, row in expected["runs"].items():
+                if row["status"] == "CLOSED":
+                    cold[key] = row
+                    self.assertEqual(self.index.get(manifest["root"], "run", key), row)
+            self.assertEqual(model.restore_hot(manifest["state"], cold), expected)
+            self.assertIsNone(self.index.get(prior["root"], "receipt", operation))
+            before = self.writes
+            same, historical, replayed = store.indexed_hot_transition(
+                manifest, self.index, operation, digest, None)
+            self.assertEqual(same, manifest)
+            self.assertEqual(historical, receipt)
+            self.assertTrue(replayed)
+            self.assertEqual(self.writes, before)
+            with self.assertRaisesRegex(store.StoreError, "request ID reused"):
+                store.indexed_hot_transition(manifest, self.index,
+                                             operation[:-64] + "c" * 64, digest, None)
+        for i in range(30):
+            now = 200 * i + 1
+            run = "run-" + str(i)
+            full, fence = model.acquire(full, "a", run, "S000", now)
+            advance("acquire-" + run, lambda state, exists:
+                    model.acquire(state, "a", run, "S000", now,
+                                  cold_run_exists=exists)[0], full)
+            full = model.finish(full, "a", run, fence, now + 1, "OPEN", progress())
+            advance("finish-" + run, lambda state, exists:
+                    model.finish(state, "a", run, fence, now + 1, "OPEN", progress()), full)
+            self.assertEqual(manifest["state"]["runs"], {})
+        self.assertEqual(len(cold), 30)
+        self.assertEqual(len(receipts), 60)
+        self.assertEqual(first["state"]["revision"], 0)
+        for key, receipt in receipts.items():
+            self.assertEqual(self.index.get(manifest["root"], "receipt", key), receipt)
+        with self.assertRaises(model.LeaseError):
+            store.indexed_hot_transition(manifest, self.index, "new-attempt", "d" * 64,
+                lambda state, exists: model.acquire(state, "a", "run-0", "S000",
+                                                    6001, cold_run_exists=exists)[0])
+
+
 if __name__ == "__main__":
     unittest.main()
