@@ -309,3 +309,35 @@ The new schema remains test-only: actual GitHub disposable-ref behavior,
 complete artifact/publication indexing, hot capacity, larger-history
 conversion and migration/rollback validation remain open. No production
 state, deployment or credentials.
+
+
+## Indexed artifact and publication journal (disposable history format 3)
+
+Format indexed-hot-history-3 adds a single pending_intent pointer and
+immutable index namespaces artifact, intent, artifact-intent and resolution.
+The latter two bind one accepted artifact to at most one publication intent
+and each intent to at most one settlement. Receipt and event updates share
+the same state-ref CAS. No unbounded journal is hydrated in the hot manifest.
+A pinned old root remains unchanged after settlement; a fresh root joins
+the intent and resolution and validates the linked receipt revisions.
+
+The store independently checks artifact admission against the exact proposed
+active lease, goal pin, checkpoint and revision. Intent and settlement may
+only sweep state; pending intent freezes all other new mutations, including
+maintenance sweep. Settlement requires the exact pending intent and observed
+base or head; broker requires a trusted observer before calling the store.
+An intent cannot be reused even when settled at its base. The hot root
+reserves 2048 + 64 bytes per task of additional manifest headroom before
+reservation (conservative numeric/count growth allowance, not a guarantee
+against transport failure or all future schema changes). Indexed nodes have
+their own existing per-blob bound. No external effect is executed.
+
+Artifact, intent and settlement events are part of the same permanent task
+history. The old history-format-2 root is not silently upgraded. Conversion
+from full-ledger state containing any artifact or publication record remains
+blocked: use a fresh disposable state with no such records, or implement and
+review a complete historical journal migration before conversion. No real
+state ref has been changed. A broker receipt imported from the earlier full
+ledger keeps its original transition fingerprint; exact request replay is
+identified by the indexed operation ID (it binds principal, request and
+action/payload), not a recomputed new-format fingerprint.
