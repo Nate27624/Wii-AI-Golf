@@ -374,3 +374,51 @@ fences, restart with a consumed marker, ambiguous effects and an actual
 offline disposable bare Git repository (successful exact-old update,
 competing sibling and deleted-target refusal). No live GitHub source push,
 production ref, automatic executor or merge endpoint is introduced.
+
+
+## Durable single-host dispatch guard and conservative settlement
+
+The previously injected marker contract now has a SQLite implementation
+`DurablePublicationJournal` for disposable queue refs. Explicit first
+provisioning binds the database to one repository and queue branch.
+Opening a missing, incompatible, foreign or corrupt journal fails closed.
+Never recreate a lost database or restore an old backup as if it were
+authoritative. Use a trusted operator-owned directory and ACL, including
+on Windows. SQLite BEGIN IMMEDIATE and synchronous=FULL serialize
+independent connections on one host, not separate hosts or adversarial
+filesystems. The journal retains immutable key/binding tombstones.
+
+The irreversible phases are RESERVED -> SENDING -> ACKNOWLEDGED,
+or absent/RESERVED -> CANCELLED. Before calling the transport the
+executor commits SENDING. A process exit, timeout, negative result or
+uncertain acknowledgement leaves SENDING unresolved; no automatic
+retry, cancellation or settlement is allowed. The transport must return
+literal True only for a successful synchronous terminal response; this
+does not itself establish the external ref. A cancellation is an
+explicit maintenance-only call to cancel_publication_dispatch, commits
+CANCELLED even if no reservation exists, and cannot race a later send
+successfully. Cancellation alone never releases the Work Queue freeze.
+
+Configure the same DurablePublicationExecutor as the broker's
+publication_observer and dispatch executor. The broker constructs the
+command from the exact committed pending intent for dispatch,
+cancellation and resolution, never from worker-supplied ref/SHAs.
+With this configuration a different executor cannot send. Only
+ACKNOWLEDGED plus independently observed exact proposed head, or
+CANCELLED plus independently observed exact base, can settle. Even
+a matching ref is insufficient in SENDING. Missing or different
+ref or transport uncertainty fails closed. GitHubPublicationRefReader
+provides the fixed repository/ref GET adapter with exact commit identity.
+Existing callback-only fixtures remain staging compatibility, not
+an alternative approved production effect path.
+
+Tests exercise cross-connection contention, cancellation versus begin,
+abrupt child-process exit after committed SENDING, missing/foreign
+journal, conflicting binding, exact ref identity, frozen queue after
+dispatch/uncertainty, and independent resolution after restart/expiry.
+The host must still provision an isolated Git object store, executable
+transport with no hidden retry, credentials and exclusive source/state
+write authority; verify real remote CAS and crash/rollback procedure.
+A SENDING marker requires separately reviewed manual reconciliation
+with evidence of no in-flight requests. No automatic manual override,
+network source push, host installation or production cutover is supplied.
