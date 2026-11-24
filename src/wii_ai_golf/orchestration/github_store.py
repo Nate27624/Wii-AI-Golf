@@ -88,6 +88,31 @@ def capacity_report(snapshot):
             "publication_pending": pending_publication(snapshot.envelope) is not None}
 
 
+def hot_settlement_reserve(manifest):
+    return 2048 + 64 * len(manifest["state"]["tasks"])
+
+
+def hot_capacity_report(snapshot):
+    """Pinned actual root blob size; not total historical Git storage."""
+    check(isinstance(snapshot, HotSnapshot), "hot snapshot required")
+    used = snapshot.root_bytes
+    check(type(used) is int and 0 < used <= MAX_LEDGER, "invalid hot root size")
+    state = snapshot.state
+    reserve = hot_settlement_reserve(snapshot.manifest)
+    remaining = MAX_LEDGER - used
+    level = ("critical" if used * 100 >= MAX_LEDGER * 90 or remaining < reserve
+             else "warning" if used * 100 >= MAX_LEDGER * 75 else "normal")
+    return {"wire_version": 3, "head": snapshot.head, "revision": state["revision"],
+            "used_bytes": used, "limit_bytes": MAX_LEDGER, "remaining_bytes": remaining,
+            "level": level, "receipt_count": state["revision"] + 1,
+            "active_run_count": len(state["runs"]),
+            "archived_run_count": sum(state["archived_fences"].values()),
+            "event_count": sum(snapshot.manifest["event_counts"].values()),
+            "settlement_reserve_bytes": reserve,
+            "publication_pending": snapshot.manifest["pending_intent"] is not None,
+            "capacity_scope": "hot_root_only"}
+
+
 def unique_object(pairs):
     result = {}
     for key, value in pairs:
@@ -588,7 +613,7 @@ def append_task_events(index, root, counts, before, after, operation, source_com
     return root, counts
 
 
-def indexed_hot_projection(snapshot, index):
+def indexed_hot_projection(snapshot, index, *, import_journal=False):
     """Create a pure hot manifest from a validated full-history snapshot.
 
     Artifact/publication handling is intentionally outside this prototype.
@@ -598,8 +623,11 @@ def indexed_hot_projection(snapshot, index):
     check(isinstance(snapshot, Snapshot), "snapshot required")
     sha(snapshot.head)
     validate_envelope(snapshot.envelope)
-    check(not snapshot.envelope["artifacts"] and not snapshot.envelope["publications"],
+    check(import_journal or (not snapshot.envelope["artifacts"] and
+          not snapshot.envelope["publications"]),
           "indexed hot prototype does not support artifact/publication records")
+    check(pending_publication(snapshot.envelope) is None,
+          "unresolved publication; conversion forbidden")
     hot, cold = model.hot_projection(snapshot.state)
     root = None
     for key, row in sorted(snapshot.envelope["receipts"].items()):
@@ -758,6 +786,57 @@ def publication_transition(current, next_state, operation, publication):
     return rows
 
 
+def import_journal_delta(index, root, before, after, operation):
+    """Verify append-only full-ledger history and import exact journal events."""
+    artifacts, publications = after["artifacts"], after["publications"]
+    old_artifacts, old_publications = before["artifacts"], before["publications"]
+    check(all(artifacts.get(k) == v for k, v in old_artifacts.items())
+          and set(old_publications) <= set(publications), "legacy journal history changed")
+    changes = []
+    events = []
+    for key in sorted(set(artifacts) - set(old_artifacts)):
+        check(key == operation, "legacy artifact operation mismatch")
+        record = artifacts[key]
+        # The acceptance revision must contain the original active fence and
+        # checkpoint, not merely a later structurally valid archived record.
+        state = after["state"]
+        model.active(state, record["task"], record["run_id"], record["fence"])
+        check(record["revision"] == state["revision"]
+              and record["admitted_at"] == state["clock"]
+              and record["goal_sha"] == state["oversight"]["goal_sha"]
+              and state["tasks"][record["task"]]["checkpoint"]["head"] == record["head"],
+              "legacy artifact acceptance not bound to state")
+        root = index.put(root, "artifact", key, record)
+        events.append((record["task"], "artifact_accepted", record))
+        changes.append(key)
+    for key, row in sorted(publications.items()):
+        old = old_publications.get(key)
+        record = artifacts[row["artifact"]]
+        if old is None:
+            check(key == operation and row["resolution"] is None
+                  and row["artifact"] in old_artifacts, "legacy intent operation mismatch")
+            state = after["state"]
+            model.active(state, record["task"], record["run_id"], record["fence"])
+            check(record["goal_sha"] == state["oversight"]["goal_sha"]
+                  and state["tasks"][record["task"]]["checkpoint"]["head"] == record["head"],
+                  "legacy intent artifact no longer current")
+            root = index.put(root, "intent", key, {"artifact": row["artifact"],
+                                                   "target": row["target"]})
+            root = index.put(root, "artifact-intent", row["artifact"], {"intent": key})
+            events.append((record["task"], "publication_intent", {"intent": key, **row}))
+            changes.append(key)
+        elif old != row:
+            check(old["resolution"] is None and row["resolution"] is not None
+                  and row["resolution"]["operation"] == operation
+                  and {**old, "resolution": row["resolution"]} == row,
+                  "legacy settlement history changed")
+            root = index.put(root, "resolution", key, row["resolution"])
+            events.append((record["task"], "publication_resolved", {"intent": key, **row}))
+            changes.append(key)
+    check(len(changes) <= 1, "multiple legacy journal mutations")
+    return root, events
+
+
 def hot_publication(index, root, intent):
     """Join immutable intent and separate settlement without rewriting either."""
     row = index.get(root, "intent", intent)
@@ -868,6 +947,7 @@ class HotSnapshot:
     manifest: dict
     root_tree: str
     operation: str
+    root_bytes: int
 
     @property
     def state(self):
@@ -1315,7 +1395,7 @@ class GitHubStore:
             intent = hot_publication(index, manifest["root"], pending)
             check(pending == operation and intent is not None and intent["resolution"] is None,
                   "invalid unresolved hot intent")
-        return HotSnapshot(head, manifest, root_tree, operation)
+        return HotSnapshot(head, manifest, root_tree, operation, len(raw))
 
     def read_hot(self):
         """Read the authoritative disposable hot root, not an arbitrary SHA."""
@@ -1387,20 +1467,23 @@ class GitHubStore:
                   and set(older.state["runs"]) <= set(current.state["runs"])
                   and all(current.envelope["receipts"].get(k) == v
                           for k, v in older.envelope["receipts"].items())
-                  and not older.envelope["artifacts"] and not older.envelope["publications"],
-                  "history backfill discontinuity")
+                  , "history backfill discontinuity")
             chain.append(older.head)
             current = older
         root, counts = manifest["root"], {}
         before = {"tasks": {}, "runs": {}, "oversight": {}}
+        previous = {"artifacts": {}, "publications": {}}
         for head in reversed(chain):
             snap = expected if head == expected.head else self._at(head)
             after = snap.state
             operation = next(k for k, row in snap.envelope["receipts"].items()
                              if row["revision"] == after["revision"])
+            root, journal_events = import_journal_delta(index, root, previous,
+                                                        snap.envelope, operation)
             root, counts = append_task_events(index, root, counts, before, after,
-                                              operation, snap.head)
+                                              operation, snap.head, journal_events)
             before = after
+            previous = snap.envelope
         result = {**manifest, "format": HOT_HISTORY_FORMAT, "root": root,
                   "event_counts": counts, "pending_intent": None}
         return history_manifest(result)
@@ -1418,7 +1501,7 @@ class GitHubStore:
         if manifest["pending_intent"] is not None:
             # Conservative headroom for worst-case expiry/settlement count and
             # clock growth. The index nodes are individually bounded.
-            reserve = 2048 + 64 * len(manifest["state"]["tasks"])
+            reserve = hot_settlement_reserve(manifest)
             check(len(raw) + reserve <= MAX_LEDGER, "hot settlement reserve")
         tree = self._put_hot_tree([
             {"path": "hot.json", "mode": "100644", "type": "blob",
@@ -1478,7 +1561,7 @@ class GitHubStore:
         """Convert one full ledger to a hot root on a disposable ref only.
 
         Conversion is irreversible through this test API; full-state readers
-        fail closed. No artifacts/publications are supported yet.
+        fail closed. Only completely settled journal history may be imported.
         """
         self._writable()
         check(isinstance(expected, Snapshot), "full snapshot required")
@@ -1501,7 +1584,7 @@ class GitHubStore:
             raise Conflict("hot source moved")
         check(self._at(current) == expected, "hot source mismatch")
         index = GitTreeIndex(self)
-        manifest = indexed_hot_projection(expected, index)
+        manifest = indexed_hot_projection(expected, index, import_journal=True)
         manifest = self._backfill_hot_history(expected, manifest, index)
         state = copy.deepcopy(manifest["state"])
         state["revision"] += 1
