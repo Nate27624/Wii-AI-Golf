@@ -330,6 +330,89 @@ class GitHubStore:
     def read(self):
         return self._at(self._ref())
 
+    def task_history(self, task, *, limit=20, cursor=None):
+        """Read-only, bounded task projection from the authoritative commit chain.
+
+        Pages count ledger revisions, not task events. Empty pages can have a
+        continuation. Cursor is the next older ledger revision, not a Git object SHA.
+        No uncommitted effective sweep is included.
+        """
+        model.ident(task)
+        check(type(limit) is int and 1 <= limit <= 50, "history page limit")
+        tip = self.read()
+        check(task in tip.state["tasks"], "unknown task")
+        # A cursor is a revision offset, not an arbitrary Git object locator.
+        # Pin a page to the original tip; only accept a verified ancestor by
+        # walking from the live tip. Limit traversal to a bounded window.
+        start = tip.state["revision"] if cursor is None else cursor
+        check(type(start) is int and 0 <= start <= tip.state["revision"]
+              and tip.state["revision"] - start <= 500, "history cursor outside window")
+        def parent(snap):
+            commit = self._api("GET", "commits/" + snap.head)
+            parents = commit.get("parents")
+            check(commit.get("sha") == snap.head and type(parents) is list
+                  and len(parents) == 1 and type(parents[0]) is dict,
+                  "history commit is not single-parent")
+            older = self._at(sha(parents[0].get("sha")))
+            check(older.state["revision"] + 1 == snap.state["revision"],
+                  "history revision discontinuity")
+            old_receipts, new_receipts = older.envelope["receipts"], snap.envelope["receipts"]
+            check(all(new_receipts.get(k) == v for k, v in old_receipts.items()),
+                  "history receipt changed")
+            check(all(snap.envelope["artifacts"].get(k) == v
+                      for k, v in older.envelope["artifacts"].items()),
+                  "history artifact changed")
+            return older
+        current = tip
+        while current.state["revision"] > start:
+            current = parent(current)
+        events = []
+        next_cursor = None
+        for _ in range(limit):
+            rev = current.state["revision"]
+            prior = parent(current) if rev else None
+            now = current.state
+            before = prior.state if prior else {"tasks": {}, "runs": {}, "oversight": {}}
+            op = next(k for k, v in current.envelope["receipts"].items()
+                      if v["revision"] == rev)
+            old, new = before["tasks"].get(task), now["tasks"].get(task)
+            def emit(kind, data):
+                events.append({"task": task, "kind": kind, "revision": rev,
+                               "operation": op, "commit": current.head,
+                               "clock": now["clock"], "data": data})
+            if old is None and new is not None:
+                emit("created", new)
+            elif old != new:
+                check(new is not None, "task history removed")
+                emit("task_changed", {"before": old, "after": new})
+            for run_id, run in sorted(now["runs"].items()):
+                if run["task"] == task and before["runs"].get(run_id) != run:
+                    old_run = before["runs"].get(run_id)
+                    kind = ("claimed" if old_run is None else
+                            ("expired" if run["outcome"] == "EXPIRED" else "released")
+                            if run["status"] == "CLOSED" else "renewed")
+                    emit(kind, {"run_id": run_id, "run": run})
+            artifact = current.envelope["artifacts"].get(op)
+            if artifact is not None and artifact["task"] == task:
+                emit("artifact_accepted", artifact)
+            for key, row in current.envelope["publications"].items():
+                if current.envelope["artifacts"][row["artifact"]]["task"] != task:
+                    continue
+                if key == op:
+                    emit("publication_intent", {"intent": key, **row})
+                if row["resolution"] is not None and row["resolution"]["operation"] == op:
+                    emit("publication_resolved", {"intent": key, **row})
+            if task == model.MANAGER and before["oversight"] != now["oversight"]:
+                emit("oversight_changed", now["oversight"])
+            if prior is None:
+                break
+            next_cursor = prior.state["revision"]
+            current = prior
+        else:
+            return {"task": task, "head": tip.head, "events": events,
+                    "next_cursor": next_cursor}
+        return {"task": task, "head": tip.head, "events": events, "next_cursor": None}
+
     def _writable(self):
         check(_TEST_REF.fullmatch(self.branch), "production writes disabled")
 
