@@ -305,6 +305,98 @@ def restore_archive(manifest, blobs, *, expected_digest, expected_head):
     return snapshot
 
 
+class ArchiveIndex:
+    """Read-only lookup against an independently trusted archive manifest.
+
+    The pin must identify a manifest previously verified against the complete
+    source snapshot. A hash of an arbitrary caller-supplied manifest is not
+    sufficient authority. This index does not authorize state transitions.
+    """
+    def __init__(self, manifest, read_page, *, expected_digest, expected_head):
+        check(type(manifest) is dict and set(manifest) == {
+            "format", "source_head", "source_digest", "recent_receipts", "hot", "pages"},
+              "archive manifest fields")
+        check(isinstance(expected_digest, str) and _DIGEST.fullmatch(expected_digest)
+              and archive_digest(canonical(manifest)) == expected_digest,
+              "archive manifest digest mismatch")
+        check(manifest["format"] == "v3-archive-prototype-1"
+              and manifest["source_head"] == sha(expected_head), "archive source mismatch")
+        check(callable(read_page) and type(manifest["pages"]) is list, "archive index")
+        self._hot = copy.deepcopy(manifest["hot"])
+        self._read_page = read_page
+        self._pages = {"receipts": [], "runs": []}
+        seen = set()
+        for row in manifest["pages"]:
+            check(type(row) is dict and set(row) == {"kind", "digest", "count", "first", "last"},
+                  "archive page descriptor")
+            kind, digest = row["kind"], row["digest"]
+            check(kind in self._pages and isinstance(digest, str)
+                  and _DIGEST.fullmatch(digest) and digest not in seen, "archive page identity")
+            seen.add(digest)
+            check(type(row["count"]) is int and 1 <= row["count"] <= ARCHIVE_PAGE_RECORDS,
+                  "archive page count")
+            model.ident(row["first"])
+            model.ident(row["last"])
+            check(row["first"] <= row["last"], "archive page range")
+            prior = self._pages[kind]
+            check(not prior or prior[-1]["last"] < row["first"], "archive ranges overlap")
+            prior.append(copy.deepcopy(row))
+
+    def _hot_records(self, kind):
+        return self._hot["receipts"] if kind == "receipts" else self._hot["state"]["runs"]
+
+    def _load(self, row):
+        raw = self._read_page(row["digest"])
+        check(type(raw) is bytes and len(raw) <= MAX_LEDGER
+              and archive_digest(raw) == row["digest"], "missing or corrupt archive page")
+        page = decode(raw)
+        check(type(page) is dict and set(page) == {"kind", "records"}
+              and page["kind"] == row["kind"] and raw == canonical(page), "invalid archive page")
+        records = page["records"]
+        check(type(records) is dict and len(records) == row["count"], "archive page count")
+        keys = sorted(records)
+        check(keys[0] == row["first"] and keys[-1] == row["last"], "archive page bounds")
+        check(not set(keys) & set(self._hot_records(row["kind"])), "duplicate archive record")
+        return records
+
+    def lookup(self, kind, key):
+        check(kind in self._pages, "archive lookup kind")
+        model.ident(key)
+        hot = self._hot_records(kind)
+        if key in hot:
+            return copy.deepcopy(hot[key])
+        # Binary search the disjoint sorted page ranges. At most one cold
+        # page read is needed, including a negative lookup inside a range.
+        pages = self._pages[kind]
+        lo, hi = 0, len(pages)
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if pages[mid]["last"] < key:
+                lo = mid + 1
+            else:
+                hi = mid
+        if lo == len(pages) or key < pages[lo]["first"]:
+            return None
+        return copy.deepcopy(self._load(pages[lo]).get(key))
+
+    def receipt_prefix(self, prefix, *, max_pages=4):
+        """Find all operation IDs with this prefix, or fail closed on budget.
+
+        IDs use the model's ASCII alphabet; '~' sorts beyond every legal
+        suffix. A missing candidate page is never interpreted as absence.
+        """
+        model.ident(prefix)
+        check(type(max_pages) is int and 1 <= max_pages <= 64, "archive lookup budget")
+        candidates = [row for row in self._pages["receipts"]
+                      if row["last"] >= prefix and row["first"] <= prefix + "~"]
+        check(len(candidates) <= max_pages, "archive prefix lookup budget exceeded")
+        matches = {k: v for k, v in self._hot_records("receipts").items()
+                   if k.startswith(prefix)}
+        for row in candidates:
+            matches.update({k: v for k, v in self._load(row).items() if k.startswith(prefix)})
+        return copy.deepcopy(matches)
+
+
 _PUBLICATION_REF = re.compile(r"orchestration/v3-publication-test-[a-z0-9][a-z0-9-]{0,63}")
 
 
