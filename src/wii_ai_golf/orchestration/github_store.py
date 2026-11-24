@@ -20,6 +20,11 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from . import state as model
 
 MAX_LEDGER = 2 * 1024 * 1024
+# A settlement adds one receipt and one resolution to the intent. With
+# 128-character IDs, 64-character digests, 40-character SHAs and bounded
+# 16-digit counters, 1024 bytes conservatively covers this expansion.
+# Expiring an active run cannot enlarge its task/run strings in schema 3.
+SETTLEMENT_RESERVE = 1024
 MAX_RESPONSE = 8 * 1024 * 1024
 LEDGER = "ledger.json"
 STATE_REF = "orchestration/v3-state"
@@ -63,6 +68,24 @@ def canonical(value):
                           ensure_ascii=True, allow_nan=False).encode("ascii")
     except (TypeError, ValueError, OverflowError, RecursionError) as exc:
         raise StoreError("not canonical JSON") from exc
+
+
+def capacity_report(snapshot):
+    """Size of a validated, pinned schema-3 snapshot; never writes."""
+    check(isinstance(snapshot, Snapshot), "snapshot required")
+    validate_envelope(snapshot.envelope)
+    used = len(canonical(snapshot.envelope))
+    remaining = MAX_LEDGER - used
+    level = ("critical" if used * 100 >= MAX_LEDGER * 90 or
+             remaining < SETTLEMENT_RESERVE else
+             "warning" if used * 100 >= MAX_LEDGER * 75 else "normal")
+    return {"head": snapshot.head, "revision": snapshot.state["revision"],
+            "used_bytes": used, "limit_bytes": MAX_LEDGER,
+            "remaining_bytes": remaining, "level": level,
+            "receipt_count": len(snapshot.envelope["receipts"]),
+            "run_count": len(snapshot.state["runs"]),
+            "settlement_reserve_bytes": SETTLEMENT_RESERVE,
+            "publication_pending": pending_publication(snapshot.envelope) is not None}
 
 
 def unique_object(pairs):
@@ -554,5 +577,10 @@ class GitHubStore:
                                              "revision": next_state["revision"]}
         if artifact is not None:
             envelope["artifacts"][operation] = copy.deepcopy(artifact)
+        if publication is not None and "target" in publication:
+            # The queue is frozen until settlement; never admit an intent
+            # whose own growth leaves insufficient room for its resolution.
+            check(len(canonical(envelope)) + SETTLEMENT_RESERVE <= MAX_LEDGER,
+                  "ledger capacity; insufficient publication settlement reserve")
         candidate = self._candidate(current.head, envelope)
         return self._advance(current.head, candidate, operation, digest)
