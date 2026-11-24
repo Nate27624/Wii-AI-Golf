@@ -1,51 +1,145 @@
-# V3 orchestration: offline lease core (phase 1)
+# V3 Work Queue — architecture and implementation contract
 
-Canonical migration: issue #485. This module is not an active dispatcher. V2
-AGENTS.md and merging.md remain binding until reviewed cutover.
+Canonical migration: [#485](https://github.com/Nate27624/Wii-AI-Golf/issues/485).
+V2 AGENTS.md, merging.md, live/private consent and evidence gates remain
+binding until reviewed cutover. The offline core is not a live dispatcher.
 
-## Task and run lifetimes
+## 1. Permanent context, disposable workers
 
-Permanent task IDs and ephemeral unique run IDs are separate. The trusted
-broker provides integer UTC seconds. Acquire grants a 120-second lease;
-renewal (recommended heartbeat every 30 seconds) does not require a code
-commit. It can optionally carry a durable checkpoint. The interval is
-half-open: at heartbeat + 120 seconds the run is expired. Sweep and all
-successful transitions reconcile expiry. A closed EXPIRED run retains its
-history; the unfinished task reopens with its last checkpoint. A new run
-increments the fence; stale renewals and results are rejected. A successful
-finish atomically stores the terminal receipt and releases scope. An exact
-terminal retry is a no-op, even after a later acquisition; it does not grant
-a new lease. Blocked and parked tasks do not reopen merely because time passes.
+GitHub is authoritative for operator-approved goals and constraints, permanent
+task IDs, role, priority, canonical issue, objective, acceptance, owned paths,
+named resources, dependencies, lifecycle, latest checkpoint, evidence and
+execution history. A worker is a temporary execution run, not a durable
+identity. It must acquire before work, recover context from the Work Queue,
+checkpoint regularly, and release atomically with its report. No previous
+chat transcript is required. Record exact code SHA, PR, actual tests and CI,
+remaining uncertainties and next bounded action; never raw private inputs.
 
-The model is pure: initial, validate, candidates, acquire, renew, sweep and
-finish return a snapshot or reject without modifying input. The ledger
-includes version, revision, last trusted time, tasks, runs and legacy holds.
-Candidate selection is deterministic by priority then task ID, constrained
-by role, dependencies and overlapping resources. Paths are conservatively
-ASCII repo-relative and case-insensitive; shared named resources are explicit.
-The broker must preserve the same resource naming convention. Every run ID
-and fence is retained; production compaction must preserve tombstones and
-idempotency. Initial import and task management are not worker transitions.
-There is no automatic reopening of declined operator requests.
+The sole permanent manager task is S000-MANAGER. It can see the entire
+sanitized Work Queue, including all specialist leases and history. It is
+responsible for project alignment, task creation, prioritization, dependency
+and scope reconciliation, research gaps, blocker review and escalation.
+It never becomes CLOSED or PARKED in normal operation. Its management
+lease reserves only queue metadata, not all source paths. Specialists may
+continue while the manager is active or temporarily absent; they cannot
+mutate queue policy or operator goals. No discretionary management approval
+is required for an otherwise merge-ready PR. Existing merge/evidence rules
+continue to apply.
 
-## What remains unproven
+## 2. Work Queue state and dispatch
 
-The state machine has no network, wall clock, background timer, permissions,
-publication or external side effects. A broker must serialize transitions,
-use trusted time, authenticate workers, restrict state/code/merge writes,
-enforce scope and review sanitized text (schema bounds are not privacy
-classification). No worker-supplied time or raw evidence. A GitHub store
-must prove non-forced sibling-ref contention and recover uncertain responses.
-A worker with direct write access can bypass the model. Do not enable
-production V3 before gateway, shadow migration, CLI and cutover acceptance.
+Task states: OPEN, IN_PROGRESS, BLOCKED, PARKED, CLOSED. Run states:
+IN_PROGRESS or CLOSED, with terminal outcome EXPIRED, OPEN, BLOCKED,
+PARKED or CLOSED. Run IDs are unique; task fences increase on acquisition.
+The trusted broker supplies integer UTC seconds. A 120-second lease is
+half-open: exactly at heartbeat + 120 the run is expired. Recommended
+heartbeat every 30 seconds; it does not require code changes. A heartbeat
+can save a durable checkpoint. On expiration the run closes EXPIRED and
+the unfinished task reopens with the last committed checkpoint. Expired
+tokens cannot renew or finish. Successful specialist finish stores the
+receipt and releases scope atomically; exact terminal retries are no-ops.
+Blocked, parked or completed tasks do not reopen merely with time.
 
-A capped chat stops heartbeats. Expiry is effective at the deadline, but
-the durable state is reconciled on the next broker invocation/sweep; no
-promise of a timer running while ChatGPT is inactive. A long-running test
-needs a separate authorized supervised heartbeat facility or a checkpoint
-and release. No live Dolphin, private captures, or training permission is
-inferred from a task lease.
+The manager receives first dispatch priority when its review is due,
+including after its own expiration while other workers remain active.
+A successful management pass releases it OPEN but does not immediately
+requeue an identical review. The offline policy uses review epochs for
+expiry/completion and a five-minute review cadence (proposed default).
+Role-specific invocations may still select specialists; a generic worker
+uses the global manager-first candidate order. A dedicated manager slot is
+recommended for an eventual concurrent executor. The queue distinguishes
+active oversight from the last recorded review. If no eligible work exists,
+report idle or blocked rather than spin. A blocked manager must await
+authorized resolution; expiry never implies approval.
 
-The eventual unified CLI should show OPEN, IN_PROGRESS, CLOSED, BLOCKED
-and PARKED task state, run outcome and expiry, last checkpoint and next
-action; it must distinguish committed artifacts from proposed results.
+The offline schema version 2 requires exactly one reserved manager task,
+a goal commit SHA, review epoch, reviewed epoch and review timestamp.
+No production ledger exists yet; this is an internal pre-cutover schema.
+All successful transitions are pure snapshots, never in-place writes.
+Role/dependency and case-insensitive path/named resource conflicts fail
+closed; legacy V2 holds block acquisition. The manager cannot reserve all
+files, retire itself, or silently alter active specialist tasks.
+manager_pass validates the active manager token and exact observed state
+revision, atomically applies priorities/new OPEN tasks/parks OPEN tasks,
+records review/checkpoint and releases the lease. Retired tasks are PARKED,
+not completed. Stale snapshots and stale manager runs fail closed. Manager
+mutation retries require broker reconciliation of the committed state/receipt;
+no blind replay. Operator goal updates and approval resolution require
+separate authorized broker operations, not manager inference.
+
+## 3. GitHub store and broker (next implementation phases)
+
+Use one dedicated state ref, proposed orchestration/v3-state, separate from
+main. Each transition reads state head H, validates against it and proposes
+a commit C with sole parent H. Advance the ref non-forced; siblings race
+and only one can become authoritative. On conflict reread and recompute.
+On unknown response reconcile operation/run receipt and actual commit,
+never blindly repeat. Validate actual GitHub concurrency in a disposable
+ref before production use; local Git feasibility is not GitHub proof.
+Retain history and run ID tombstones; any future bounded compaction must
+retain fencing and idempotency semantics.
+
+A restricted broker is the sole authority for state writes and authoritative
+artifact acceptance. Workers submit proposals; they must not have direct
+state-ref/protected branch/merge credentials. Authenticate worker roles,
+validate token/fence, trusted clock, scope, exact artifact hash, operator
+approval and current policy. A Git fast-forward alone does not validate
+authorization. Serialize external effects with intent/receipt reconciliation;
+uncertain effects block, not retry. Revalidate lease for external publication
+and define admission-time expiry; do not promise strict commit-time expiry
+without proving enforcement. Schema validation alone is not privacy review.
+Public records contain only sanitized evidence references, not raw RAM, ROM,
+savestates, private paths, tokens or captures. LocalOps remains the approved
+private transport; explicit operator Y/N and live-game permissions survive.
+
+## 4. CLI and execution
+
+Extend existing scripts/golf.py and src/wii_ai_golf/cli.py, not a parallel
+launcher. Proposed command group: queue status|tasks|continue|results|
+blockers|goals|history. Display permanent task status first; active worker,
+heartbeat/expiry, latest checkpoint, PR/head/CI, blockers and manager review
+are secondary. Status must distinguish expired effective state, durable
+reconciliation, proposed changes, tested artifacts and merged results.
+
+One universal onboarding instruction: connect to Work Queue, acquire highest
+priority eligible task, load context, act within scope, checkpoint and release.
+The CLI/broker must enforce that sequence. No actual AI executor is implied
+by a CLI or GitHub comment. Continuous active oversight and periodic expiry
+sweeps require an authorized execution backend, separate manager slot,
+trusted time and supervised heartbeat. Without it, expiry is effective at
+the deadline but persisted on the next invocation/sweep. Never claim that
+ChatGPT runs while inactive.
+
+## 5. Migration and cutover gates
+
+1. Offline lease/manager core: focused negative controls and full exact-head
+   Windows/Ubuntu CI, review, objective merge checklist.
+2. GitHub store: real isolated sibling contention, failed permission and
+   uncertain-response tests, never force; restricted broker and fence
+   enforcement including external effects.
+3. V2 shadow import: verified current roster, claims, owner threads and PR
+   heads; preserve all live/reserved paths as legacy holds, parked/completed
+   states and evidence. No V3 acquisition in shadow mode.
+4. Canonical CLI and universal onboarding: end-to-end dry-run, fresh-worker
+   recovery and status visibility; explicit operator approval for private
+   or live work.
+5. Reviewed cutover: drain/freeze V2 new claims, reconcile ownership and
+   pending approvals, pin source snapshot, verify no overlaps and no dual
+   dispatch authorities. Operator approves activation and rollback plan.
+6. Optional executor: continuous manager coverage, bounded worker slots,
+   budgets and scheduling; separate authorization.
+
+Rollback: disable V3 acquisition, fence/drain active runs and reconcile
+external effects, restore a verified V2 snapshot without deleting history.
+Do not automatically resurrect old claims, retry declined requests, or
+allow a V2 and V3 manager to issue competing ownership.
+
+## 6. Current scope and limitations
+
+Phase 1 code implements pure initial/validate/candidates/dispatch_candidates/
+acquire/renew/sweep/finish/manager_pass. It has no network, IO, background
+clock, credentials, production state, goal updates, operator unblock,
+or actual dispatcher. The broker must supply authentic identity and time.
+The manager review epoch/cadence is an offline policy, not live scheduling.
+Tests are synthetic; no native game parity, real training, private data or
+Dolphin authorization is implied. Verify exact-head CI before merging.
