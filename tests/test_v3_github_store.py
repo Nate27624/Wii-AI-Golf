@@ -91,6 +91,8 @@ class FakeGit:
             key = hashlib.sha1(store.canonical(data)).hexdigest()
             if endpoint == "trees":
                 assert set(data) == {"tree"}
+                # Use actual Git tree identity for the new hot store.
+                key = store.GitHubStore._hot_tree_sha(data["tree"])
                 obj = {"sha": key, "tree": data["tree"], "truncated": False}
                 self.trees[key] = obj
             else:
@@ -581,6 +583,121 @@ class IncrementalIndexTests(unittest.TestCase):
             store.indexed_hot_transition(manifest, self.index, "new-attempt", "d" * 64,
                 lambda state, exists: model.acquire(state, "a", "run-0", "S000",
                                                     6001, cold_run_exists=exists)[0])
+
+
+
+class PersistentHotTests(unittest.TestCase):
+    def setUp(self):
+        self.api = FakeGit()
+        self.store = store.GitHubStore(self.api, "owner/repo", BRANCH)
+        self.store.bootstrap_test(BASE, initial(), "seed")
+        self.source = self.store.read()
+
+    def initialize(self):
+        self.store.initialize_hot(self.source, "hot-seed")
+        return self.store.read_hot()
+
+    def acquire(self, snap, task="a", run="run-1", operation="claim-1"):
+        return self.store.publish_hot(snap, operation, "a" * 64,
+            lambda state, exists: model.acquire(state, task, run, "S000", 1,
+                                                cold_run_exists=exists)[0])
+
+    def test_hot_commit_reachable_reopen_and_terminal_receipt(self):
+        root = self.initialize()
+        self.assertEqual(root.manifest["state"]["revision"], 1)
+        claim = self.acquire(root)
+        active = self.store.read_hot()
+        self.store.publish_hot(active, "finish-1", "b" * 64,
+            lambda state, exists: model.finish(state, "a", "run-1", 1, 2, "OPEN", progress()))
+        fresh = store.GitHubStore(self.api, "owner/repo", BRANCH)
+        latest = fresh.read_hot()
+        self.assertEqual(latest.manifest["state"]["runs"], {})
+        self.assertEqual(fresh.hot_lookup("run", "run-1")["outcome"], "OPEN")
+        self.assertEqual(fresh.hot_lookup("receipt", "claim-1")["revision"], claim.revision)
+        count = self.api.patch_count
+        self.assertTrue(fresh.publish_hot(root, "claim-1", "a" * 64, None).replayed)
+        self.assertTrue(fresh.initialize_hot(self.source, "hot-seed").replayed)
+        self.assertEqual(self.api.patch_count, count)
+        with self.assertRaises(store.StoreError):
+            fresh.publish_hot(latest, "claim-1", "c" * 64, None)
+        with self.assertRaises(model.LeaseError):
+            fresh.publish_hot(latest, "claim-reuse", "d" * 64,
+                lambda state, exists: model.acquire(state, "a", "run-1", "S000", 3,
+                                                    cold_run_exists=exists)[0])
+        # Every radix edge is a real Git tree edge; fresh traversal requires
+        # no process-local map or unanchored object names.
+        seen = set()
+        def walk(tree):
+            if tree in seen:
+                return
+            seen.add(tree)
+            for entry in self.api.trees[tree]["tree"]:
+                if entry["type"] == "tree":
+                    walk(entry["sha"])
+                else:
+                    self.assertIn(entry["sha"], self.api.blobs)
+        walk(latest.root_tree)
+        self.assertGreater(len(seen), 3)
+        old_index = store.GitTreeIndex(fresh, root.manifest["root"], root.root_tree)
+        self.assertIsNone(old_index.get(root.manifest["root"], "receipt", "claim-1"))
+        self.assertEqual(old_index.get(root.manifest["root"], "receipt", "seed")["revision"], 0)
+        with self.assertRaises(store.StoreError):
+            fresh.read()
+        with self.assertRaisesRegex(store.StoreError, "already initialized"):
+            fresh.bootstrap_test(latest.head, initial(), "reset")
+
+    def test_hot_sibling_race_and_lost_response(self):
+        snap = self.initialize()
+        self.api.barrier = threading.Barrier(2)
+        def race(task):
+            try:
+                return self.acquire(snap, task, "run-" + task, "claim-" + task)
+            except store.Conflict:
+                return "conflict"
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            result = list(pool.map(race, ("a", "b")))
+        self.api.barrier = None
+        self.assertEqual(result.count("conflict"), 1)
+        self.assertEqual(sum(isinstance(r, store.Receipt) for r in result), 1)
+        current = self.store.read_hot()
+        task = next(iter(current.manifest["state"]["runs"].values()))["task"]
+        run = "run-" + task
+        self.api.lose_response = True
+        count = self.api.patch_count
+        receipt = self.store.publish_hot(current, "renew", "c" * 64,
+            lambda state, exists: model.renew(state, task, run, 1, 2))
+        self.assertTrue(receipt.replayed)
+        self.assertEqual(self.api.patch_count, count + 1)
+        fresh = store.GitHubStore(self.api, "owner/repo", BRANCH)
+        self.assertEqual(fresh.hot_lookup("receipt", "renew")["revision"], receipt.revision)
+
+    def test_hot_corrupt_tree_and_production_fail_closed(self):
+        snap = self.initialize()
+        live = store.GitHubStore(self.api, "owner/repo", store.STATE_REF)
+        with self.assertRaises(store.StoreError):
+            live.read_hot()
+        with self.assertRaises(store.StoreError):
+            live.initialize_hot(self.source, "hot-no")
+        with self.assertRaises(store.StoreError):
+            live.publish_hot(snap, "bad", "a" * 64, None)
+        self.api.trees[snap.root_tree]["tree"][0]["sha"] = "f" * 40
+        with self.assertRaisesRegex(store.StoreError, "tree hash mismatch"):
+            self.store.read_hot()
+
+    def test_hot_failed_staging_does_not_publish(self):
+        snap = self.initialize()
+        count = self.api.patch_count
+        original = self.store._put_hot_tree
+        def fail(entries):
+            raise store.StoreError("synthetic upload failure")
+        self.store._put_hot_tree = fail
+        try:
+            with self.assertRaises(store.StoreError):
+                self.acquire(snap)
+        finally:
+            self.store._put_hot_tree = original
+        self.assertEqual(self.store.read_hot(), snap)
+        self.assertEqual(self.api.patch_count, count)
 
 
 if __name__ == "__main__":
