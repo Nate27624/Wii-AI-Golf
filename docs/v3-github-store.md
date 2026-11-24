@@ -341,3 +341,26 @@ state ref has been changed. A broker receipt imported from the earlier full
 ledger keeps its original transition fingerprint; exact request replay is
 identified by the indexed operation ID (it binds principal, request and
 action/payload), not a recomputed new-format fingerprint.
+
+
+## Settled journal migration and actual hot-root capacity
+
+The format-3 full-history conversion now supports existing artifact and
+settled publication records. This supersedes the earlier refusal of all
+journal-bearing sources. An unresolved final intent still blocks conversion
+before any ref change. The bounded chronological backfill verifies unchanged
+artifact rows and intent fields, at most one journal mutation per revision,
+original acceptance/intent fence and goal/checkpoint pins, sweep-only
+reservation/settlement and no intervening mutation while frozen.
+It imports the immutable intent, single-use binding, resolution, receipt and
+legacy event source SHA. Exact historical broker requests remain replayable
+without an active lease or a new source effect. Old persisted hot prototypes
+are still not silently upgraded.
+
+The read-v3 capacity view measures actual canonical hot.json blob bytes
+(including the enclosing repository/ref/parent/operation metadata), not
+an estimate of all Git objects or network limits. Warning/critical thresholds
+are 75%/90%, with critical also triggered by insufficient settlement reserve.
+Indexed event and archived run counts are aggregate values from the pinned
+manifest. No full journal scan is needed. Historical migration remains
+limited to 500 prior full-ledger revisions, with no production activation.
