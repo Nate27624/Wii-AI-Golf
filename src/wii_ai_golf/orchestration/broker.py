@@ -116,8 +116,9 @@ def fields(payload, required, optional=()):
 class Broker:
     """Host-side, synchronous metadata broker with a private store capability.
 
-    Explicit hot mode supports only disposable metadata transitions; artifact,
-    publication and the legacy read wire remain disabled in that mode.
+    Explicit hot mode supports only disposable metadata transitions including
+    artifact admission and publication reservation/settlement, not source IO.
+    The legacy read wire remains disabled in that mode.
     A request does at most one store publication. Conflicts require the
     caller to reread/retry; uncertain writes require receipt reconciliation.
     The host must serialize this broker with any future external effects.
@@ -143,6 +144,18 @@ class Broker:
     def _lookup(self, snapshot, kind, key):
         return self._store.hot_lookup_at(snapshot, kind, key)
 
+    def _artifact(self, snapshot, operation):
+        return (self._lookup(snapshot, "artifact", operation) if self._hot
+                else snapshot.envelope["artifacts"].get(operation))
+
+    def _publication(self, snapshot, operation):
+        return (self._store.hot_publication_at(snapshot, operation) if self._hot
+                else snapshot.envelope["publications"].get(operation))
+
+    def _pending(self, snapshot):
+        return (snapshot.manifest["pending_intent"] if self._hot
+                else storage.pending_publication(snapshot.envelope))
+
     def _now(self, snapshot):
         now = model.integer(self._clock(), "trusted broker clock")
         require(now >= snapshot.state["clock"], "broker clock rollback")
@@ -164,14 +177,15 @@ class Broker:
         snap = self._read()
         now = self._now(snap)
         effective = model.sweep(snap.state, now)
-        pending = None if self._hot else storage.pending_publication(snap.envelope)
+        pending = self._pending(snap)
         return {"head": snap.head, "durable_revision": snap.state["revision"],
                 "effective_at": now, "state": effective,
                 "eligible": [] if pending else self._candidates(effective, principal, now),
                 "task_order": sorted(effective["tasks"], key=lambda k: (
                     k != model.MANAGER, effective["tasks"][k]["priority"], k)),
                 "publication_pending": pending,
-                "publications": {} if self._hot else copy.deepcopy(snap.envelope["publications"]),
+                "publications": ({pending: self._publication(snap, pending)} if pending else {})
+                                if self._hot else copy.deepcopy(snap.envelope["publications"]),
                 "manager_authorized": principal.manager,
                 "accepted_artifacts": {} if self._hot else copy.deepcopy(snap.envelope["artifacts"])}
 
@@ -274,11 +288,14 @@ class Broker:
                                "fence": run["fence"], "expires": run["expires"],
                                "active": run["status"] == "IN_PROGRESS" and role_allowed and manager_allowed}
         if action == "accept_artifact":
-            require(op in snapshot.envelope["artifacts"], "artifact acceptance missing")
-            result["artifact"] = copy.deepcopy(snapshot.envelope["artifacts"][op])
+            record = self._artifact(snapshot, op)
+            require(record is not None, "artifact acceptance missing")
+            result["artifact"] = copy.deepcopy(record)
             result["source_promoted"] = False
         if action == "prepare_publication":
-            result["publication"] = copy.deepcopy(snapshot.envelope["publications"][op])
+            record = self._publication(snapshot, op)
+            require(record is not None, "publication intent missing")
+            result["publication"] = copy.deepcopy(record)
             result["source_promoted"] = False
         return result
 
@@ -290,9 +307,6 @@ class Broker:
         require(action in ("acquire", "renew", "finish", "manager_pass", "sweep", "accept_artifact",
                            "prepare_publication", "resolve_publication"),
                 "unknown operation")
-        require(not self._hot or action not in ("accept_artifact", "prepare_publication",
-                                                 "resolve_publication"),
-                "hot artifact/publication integration unavailable")
         require(type(payload) is dict, "invalid request")
         # Snapshot input prevents callback or caller mutation during admission.
         payload = copy.deepcopy(payload)
@@ -306,9 +320,10 @@ class Broker:
                 matches = [] if prior is None else [prior["operation"]]
                 if matches == [op]:
                     row = self._lookup(snap, "receipt", op)
-                    require(row is not None and row["digest"] ==
-                            digest([principal.identity, request_id, action, payload]),
-                            "hot request receipt mismatch")
+                    # The indexed operation ID already binds principal, request
+                    # and action/payload. Imported full-ledger receipts retain
+                    # their original transition fingerprint, not a new digest.
+                    require(row is not None, "hot request receipt missing")
             else:
                 matches = [key for key in snap.envelope["receipts"] if key.startswith(prefix)]
             if matches:
@@ -316,7 +331,7 @@ class Broker:
                 # A receipt is historical, not a fresh grant. Authentication
                 # still applies; replay does not renew an expired lease.
                 return self._response(snap, principal, request_id, action, op, True, now)
-            pending = None if self._hot else storage.pending_publication(snap.envelope)
+            pending = self._pending(snap)
             require(pending is None or action == "resolve_publication",
                     "unresolved publication; queue frozen")
             artifact = None
@@ -327,9 +342,10 @@ class Broker:
                 task, run_id, fence = self._owned(current, principal, payload)
                 model.active(model.sweep(current, now), task, run_id, fence)
                 key = payload["artifact"]
-                require(isinstance(key, str) and key in snap.envelope["artifacts"],
-                        "accepted artifact required")
-                record = snap.envelope["artifacts"][key]
+                require(isinstance(key, str), "accepted artifact required")
+                model.ident(key)
+                record = self._artifact(snap, key)
+                require(record is not None, "accepted artifact required")
                 require((record["task"], record["run_id"], record["fence"]) ==
                         (task, run_id, fence), "artifact belongs to another lease")
                 require(isinstance(payload["target"], str) and
@@ -348,8 +364,10 @@ class Broker:
                 require(principal.maintenance and pending is not None and
                         payload["intent"] == pending, "publication reconciliation not authorized")
                 require(self._publication_observer is not None, "settled observation unavailable")
-                row = snap.envelope["publications"][pending]
-                record = snap.envelope["artifacts"][row["artifact"]]
+                row = self._publication(snap, pending)
+                require(row is not None and row["resolution"] is None, "unresolved intent missing")
+                record = self._artifact(snap, row["artifact"])
+                require(record is not None, "accepted artifact missing")
                 # The trusted host, not the worker, must establish that no
                 # request remains in flight and observe the exact target ref.
                 observed = self._publication_observer(copy.deepcopy(row),
@@ -449,7 +467,8 @@ class Broker:
                 # equality of that root and uses a non-forced ref CAS.
                 receipt = self._store.publish_hot(
                     snap, op, digest([principal.identity, request_id, action, payload]),
-                    lambda state, cold_exists: proposed)
+                    lambda state, cold_exists: proposed,
+                    artifact=artifact, publication=publication)
             else:
                 receipt = self._store.publish(snap, proposed, op, artifact=artifact,
                                               publication=publication)
@@ -536,6 +555,9 @@ def _operator_status(view, *, hot=False):
     result["publications"] = {} if pending is None else {
         pending: {"resolution": view["publications"][pending]["resolution"]}}
     if hot:
+        # Existing read-v2 clients do not understand a pending intent.
+        # Fail closed instead of presenting an unfrozen queue.
+        require(pending is None, "publication freeze; compatible read wire required")
         result["wire_version"] = 2
         result["publication_supported"] = False
         # No false healthy empty publication status on an incomplete backend.
