@@ -165,6 +165,7 @@ def validate_envelope(value):
           "invalid ledger envelope")
     check(type(value["schema"]) is int and value["schema"] == 3, "ledger schema")
     model.validate(value["state"])
+    check(value["state"]["version"] == 2, "schema 3 requires full-history model")
     receipts = value["receipts"]
     check(type(receipts) is dict, "receipt map")
     revisions = set()
