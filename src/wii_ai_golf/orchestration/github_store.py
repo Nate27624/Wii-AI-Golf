@@ -690,6 +690,10 @@ class HotSnapshot:
     root_tree: str
     operation: str
 
+    @property
+    def state(self):
+        return copy.deepcopy(self.manifest["state"])
+
 
 class GitTreeIndex(IncrementalIndex):
     """Content-addressed radix nodes stored as real Git trees.
@@ -1134,10 +1138,19 @@ class GitHubStore:
         self._writable()
         return self._hot_at(self._ref())
 
-    def hot_lookup(self, kind, key):
-        snap = self.read_hot()
+    def hot_lookup_at(self, snap, kind, key):
+        """Lookup against one host-pinned root, never a moving ref.
+
+        The trusted caller obtains snap via read_hot. No worker-supplied
+        snapshot is accepted by the broker.
+        """
+        self._writable()
+        check(isinstance(snap, HotSnapshot), "hot snapshot required")
         index = GitTreeIndex(self, snap.manifest["root"], snap.root_tree)
         return index.get(snap.manifest["root"], kind, key)
+
+    def hot_lookup(self, kind, key):
+        return self.hot_lookup_at(self.read_hot(), kind, key)
 
     def _hot_candidate(self, parent, manifest, index, operation):
         root = index.tree_for(manifest["root"])
