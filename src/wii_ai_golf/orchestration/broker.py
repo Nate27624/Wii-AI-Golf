@@ -304,6 +304,58 @@ class Broker:
             result["source_promoted"] = False
         return result
 
+    def dispatch_publication(self, token, intent, executor):
+        """Explicit host-only disposable effect, never a worker/HTTP operation.
+
+        The same trusted host must serialize admission, dispatch and observation.
+        Durable marker consumption precedes the one permitted transport call.
+        A transport return does not settle the intent or thaw the queue.
+        """
+        principal = self._credentials.authenticate(token)
+        require(principal.maintenance and not principal.read_only,
+                "publication dispatch not authorized")
+        model.ident(intent)
+        require(self._hot and isinstance(executor, gateway.PublicationExecutor),
+                "disposable hot executor required")
+        with self._lock:
+            snap = self._read()
+            require(self._pending(snap) == intent, "exact pending intent required")
+            row = self._publication(snap, intent)
+            require(row is not None and row["resolution"] is None, "unresolved intent missing")
+            record = self._artifact(snap, row["artifact"])
+            require(record is not None and self._inspector is not None,
+                    "accepted artifact and immutable inspector required")
+            task, run_id, fence = (record[k] for k in ("task", "run_id", "fence"))
+            def revalidate():
+                require(self._read().head == snap.head, "pending queue snapshot changed")
+                current = model.sweep(snap.state, self._now(snap))
+                model.active(current, task, run_id, fence)
+                require(record["goal_sha"] == current["oversight"]["goal_sha"]
+                        and record["head"] == current["tasks"][task]["checkpoint"]["head"],
+                        "artifact no longer current")
+                gateway.validate_manifest(record["changes"], current["tasks"][task]["paths"])
+            revalidate()
+            changes = self._inspector.inspect(record["base"], record["head"])
+            require(changes == record["changes"] and gateway.manifest_digest(
+                record["base"], record["head"], changes) == record["manifest_digest"],
+                "accepted manifest changed")
+            # Fresh semantic authorization, including exact-head CI and
+            # source privacy, is distinct from earlier artifact admission.
+            self._review(principal, "dispatch_publication",
+                         {"intent": intent, "target": row["target"],
+                          "record": copy.deepcopy(record)}, snap)
+            revalidate()
+            command = gateway.PublicationCommand(
+                self._store.prefix[len("/repos/"):-len("/git/")], self._store.branch,
+                snap.head, intent, row["target"], record["base"], record["head"],
+                record["manifest_digest"])
+            executor.reserve(command)
+            # A slow or uncertain durable reservation never grants an
+            # expired lease. On failure the marker remains consumed.
+            revalidate()
+            executor.send(command)
+            return {"attempted": True, "settled": False, "intent": intent}
+
     def request(self, token, request_id, action, payload):
         """Authenticate, validate, transition and persist metadata; never source IO."""
         principal = self._credentials.authenticate(token)
