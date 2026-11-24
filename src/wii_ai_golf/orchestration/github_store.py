@@ -283,7 +283,7 @@ class GitHubStore:
             if exc is error:
                 raise
             raise UncertainWrite("cannot reconcile ref update") from None
-        except StoreError:
+        except (StoreError, model.LeaseError):
             raise UncertainWrite("cannot reconcile ref update") from None
         receipt = self._record(observed, operation, digest, error is not None)
         if receipt is not None:
