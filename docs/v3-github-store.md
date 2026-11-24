@@ -273,3 +273,39 @@ publication or operator execution is authorized. A hot root is not
 readable by the existing full-state broker; do not initialize one on a
 ref used by that broker. Keep the legacy full ledger and all historical
 objects until an independently reviewed cutover and rollback procedure.
+
+
+## Permanent task-event index (disposable history format 2)
+
+The persisted hot manifest now uses indexed-hot-history-2 with event_counts
+(one positive monotonic count per permanent task). The pure projection oracle
+still accepts the earlier prototype format, but persisted history readers
+reject old hot roots: no automatic upgrade or invented earlier events.
+Initialize a fresh disposable ref from a complete full-ledger history.
+
+Conversion walks the single-parent full-ledger chain, checks consecutive
+revisions, receipt retention, nondecreasing clock and immutable terminal runs,
+then imports every task/run/oversight delta in chronological order. The
+initial creation records are retained. Legacy events pin their original
+commit. The one-time backfill is limited to 500 prior revisions and keeps
+commit locators rather than all full snapshots in memory; beyond the reviewed
+limit, conversion fails without changing the ref. Artifact/publication
+records remain unsupported and block conversion. No partial history is
+published.
+
+Each subsequent transition writes per-task event records before terminal-run
+compaction, together with the receipt, archived run records and new hot
+state, in a single non-forced Git ref CAS. A failed candidate does not
+advance counts; exact replay adds no events. Records are addressed by
+SHA-256(task,sequence) in the same immutable Git-tree radix index. Counts
+grow in value, not in number of entries per task. Reads pin one committed
+root and fetch up to 50 exact event keys; no scan of intervening revisions
+or hydration of unrelated terminal history. Event sequences are contiguous
+per task, newest first. New hot events use revision and operation as
+identity; they cannot contain the SHA of their own enclosing commit.
+See broker docs for the project/ref-bound signed cursor contract.
+
+The new schema remains test-only: actual GitHub disposable-ref behavior,
+complete artifact/publication indexing, hot capacity, larger-history
+conversion and migration/rollback validation remain open. No production
+state, deployment or credentials.
