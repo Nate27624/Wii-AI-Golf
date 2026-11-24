@@ -76,7 +76,12 @@ cutover, stale inputs MUST be rejected rather than silently upgraded.
 Synthetic offline controls cover no-dispatch and hold fidelity, malformed
 and duplicate JSON, stale source pins, missing manager, ID/path aliasing,
 unknown lifecycle state, invalid issue/PR thread, over-limit roster and
-unverified goal pin. Dedicated workflow runs focused and full
+unverified goal pin.
+A separate frozen **public GitHub #320 roster rev68** regression includes the
+actual complete comment body and asserts 20 V2 rows, 79 held paths, exactly
+one blocked permanent V3 manager and no runnable task. It proves this frozen
+source shape can be parsed by the Python importer; it does **not** prove the
+roster is still latest, nor authorize a goal pin, live ownership or cutover. Dedicated workflow runs focused and full
 `python -m unittest discover -s tests -v` suites on Ubuntu and Windows,
 using no GitHub write token, game files, or private inputs.
 
