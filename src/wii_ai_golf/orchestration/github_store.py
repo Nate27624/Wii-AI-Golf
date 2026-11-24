@@ -681,6 +681,78 @@ def archive_checkpoint_digest(parent, next_state, recent_receipts):
                                      "recent_receipts": recent_receipts}))
 
 
+
+@dataclass(frozen=True)
+class HotSnapshot:
+    """Pinned disposable hot ledger; never a worker-supplied capability."""
+    head: str
+    manifest: dict
+    root_tree: str
+    operation: str
+
+
+class GitTreeIndex(IncrementalIndex):
+    """Content-addressed radix nodes stored as real Git trees.
+
+    A branch tree contains node.json and one child tree per radix label.
+    The JSON digest is checked separately from Git object identity. Only
+    references learned from the anchored root or newly written nodes may
+    be loaded; a caller cannot supply an arbitrary Git object locator.
+    Cache is disposable and scoped to this one traversal/proposal.
+    """
+    def __init__(self, store, root=None, root_tree=None):
+        self._store = store
+        self._trees = {}
+        if root is not None:
+            self._bind(root, root_tree)
+        else:
+            check(root_tree is None, "unexpected index tree")
+        super().__init__(self._read_git, self._write_git)
+
+    def _bind(self, digest, tree):
+        self._digest(digest)
+        sha(tree)
+        check(digest not in self._trees or self._trees[digest] == tree,
+              "conflicting index tree identity")
+        self._trees[digest] = tree
+
+    def tree_for(self, digest):
+        self._digest(digest)
+        check(digest in self._trees, "unanchored index node")
+        return self._trees[digest]
+
+    def _read_git(self, digest):
+        entries = self._store._hot_tree(self.tree_for(digest))
+        check("node.json" in entries and entries["node.json"]["type"] == "blob",
+              "index node blob missing")
+        raw = self._store._blob_at(entries.pop("node.json")["sha"])
+        check(archive_digest(raw) == digest, "index node digest mismatch")
+        node = decode(raw)
+        check(type(node) is dict and raw == canonical(node), "invalid index node")
+        children = node.get("children", {})
+        check(type(children) is dict and set(entries) == set(children),
+              "index child tree membership")
+        for label, child in children.items():
+            check(len(label) == 1 and label in "0123456789abcdef"
+                  and entries[label]["type"] == "tree", "invalid index child")
+            self._bind(child, entries[label]["sha"])
+        return raw
+
+    def _write_git(self, digest, raw):
+        check(archive_digest(raw) == digest, "index write digest mismatch")
+        if digest in self._trees:
+            check(self._read_git(digest) == raw, "index node conflict")
+            return
+        node = decode(raw)
+        entries = [{"path": "node.json", "mode": "100644", "type": "blob",
+                    "sha": self._store._put_archive_blob(raw)}]
+        for label, child in sorted(node.get("children", {}).items()):
+            entries.append({"path": label, "mode": "040000", "type": "tree",
+                            "sha": self.tree_for(child)})
+        tree = self._store._put_hot_tree(entries)
+        self._bind(digest, tree)
+
+
 class GitHubStore:
     """Read a pinned ref and propose a single-parent, non-forced transition.
 
@@ -981,6 +1053,208 @@ class GitHubStore:
                     "next_cursor": next_cursor}
         return {"task": task, "head": tip.head, "events": events, "next_cursor": None}
 
+
+    def _hot_tree(self, tree_sha):
+        obj = self._api("GET", "trees/" + sha(tree_sha))
+        check(obj.get("sha") == tree_sha and obj.get("truncated") is False
+              and type(obj.get("tree")) is list and len(obj["tree"]) <= 17,
+              "hot tree identity or size")
+        result = {}
+        for row in obj["tree"]:
+            check(type(row) is dict and type(row.get("path")) is str
+                  and row["path"] not in result, "duplicate hot tree entry")
+            check((row.get("mode"), row.get("type")) in
+                  (("100644", "blob"), ("040000", "tree")), "invalid hot tree mode")
+            result[row["path"]] = {"path": row["path"], "mode": row["mode"],
+                                   "type": row["type"], "sha": sha(row.get("sha"))}
+        # Verify the real Git tree hash, including the type-specific sort
+        # order and binary object IDs, not just the API's stated SHA.
+        check(self._hot_tree_sha(list(result.values())) == tree_sha,
+              "hot tree hash mismatch")
+        return result
+
+    @staticmethod
+    def _hot_tree_sha(entries):
+        ordered = sorted(entries, key=lambda e: e["path"] +
+                         ("/" if e["type"] == "tree" else ""))
+        raw = b"".join(
+            (("40000" if e["type"] == "tree" else "100644") + " " +
+             e["path"]).encode("ascii") + b"\\0" + bytes.fromhex(e["sha"])
+            for e in ordered)
+        return hashlib.sha1(b"tree " + str(len(raw)).encode("ascii") + b"\\0" + raw).hexdigest()
+
+    def _put_hot_tree(self, entries):
+        expected = self._hot_tree_sha(entries)
+        tree = sha(self._api("POST", "trees", {"tree": entries}).get("sha"))
+        check(tree == expected, "created hot tree hash mismatch")
+        return tree
+
+    def _hot_at(self, head):
+        self._writable()
+        commit = self._api("GET", "commits/" + sha(head))
+        check(commit.get("sha") == head and type(commit.get("tree")) is dict,
+              "hot commit identity")
+        parents = commit.get("parents")
+        check(type(parents) is list and len(parents) == 1
+              and type(parents[0]) is dict, "hot commit parent")
+        parent = sha(parents[0].get("sha"))
+        entries = self._hot_tree(commit["tree"]["sha"])
+        check(set(entries) == {"hot.json", "index"}
+              and entries["hot.json"]["type"] == "blob"
+              and entries["index"]["type"] == "tree", "hot root membership")
+        raw = self._blob_at(entries["hot.json"]["sha"])
+        value = decode(raw)
+        check(type(value) is dict and raw == canonical(value)
+              and set(value) == {"manifest", "parent", "operation", "repository", "branch"}
+              and value["parent"] == parent and value["repository"] == self.prefix
+              and value["branch"] == self.branch, "hot root binding")
+        manifest = value["manifest"]
+        check(type(manifest) is dict and set(manifest) ==
+              {"format", "source_head", "state", "root"}
+              and manifest["format"] == "indexed-hot-prototype-1", "hot manifest")
+        sha(manifest["source_head"])
+        model.validate(manifest["state"])
+        check(manifest["state"]["version"] == 3
+              and all(run["status"] == "IN_PROGRESS" for run in manifest["state"]["runs"].values()),
+              "noncompact hot state")
+        operation = model.ident(value["operation"])
+        root_tree = entries["index"]["sha"]
+        index = GitTreeIndex(self, manifest["root"], root_tree)
+        row = index.get(manifest["root"], "receipt", operation)
+        check(type(row) is dict and set(row) == {"revision", "digest"}
+              and row["revision"] == manifest["state"]["revision"], "hot root receipt")
+        index._digest(row["digest"])
+        return HotSnapshot(head, manifest, root_tree, operation)
+
+    def read_hot(self):
+        """Read the authoritative disposable hot root, not an arbitrary SHA."""
+        self._writable()
+        return self._hot_at(self._ref())
+
+    def hot_lookup(self, kind, key):
+        snap = self.read_hot()
+        index = GitTreeIndex(self, snap.manifest["root"], snap.root_tree)
+        return index.get(snap.manifest["root"], kind, key)
+
+    def _hot_candidate(self, parent, manifest, index, operation):
+        root = index.tree_for(manifest["root"])
+        raw = canonical({"manifest": manifest, "parent": parent, "operation": operation,
+                         "repository": self.prefix, "branch": self.branch})
+        tree = self._put_hot_tree([
+            {"path": "hot.json", "mode": "100644", "type": "blob",
+             "sha": self._put_archive_blob(raw)},
+            {"path": "index", "mode": "040000", "type": "tree", "sha": root}])
+        obj = self._api("POST", "commits", {"message": "V3 disposable hot transition",
+                                            "tree": tree, "parents": [parent]})
+        candidate = sha(obj.get("sha"))
+        observed = self._hot_at(candidate)
+        check(observed.manifest == manifest and observed.root_tree == root
+              and observed.operation == operation, "hot candidate readback mismatch")
+        return candidate
+
+    def _hot_receipt(self, snap, operation, digest, replayed):
+        index = GitTreeIndex(self, snap.manifest["root"], snap.root_tree)
+        row = index.get(snap.manifest["root"], "receipt", operation)
+        if row is None:
+            return None
+        check(row["digest"] == digest, "operation ID reused with different payload")
+        return Receipt(operation, row["revision"], digest, snap.head, replayed)
+
+    def _advance_hot(self, parent, candidate, operation, digest):
+        error = None
+        try:
+            obj = self._api("PATCH", "refs/heads/" + quote(self.branch, safe="/"),
+                            {"sha": candidate, "force": False})
+            check(obj.get("ref") == "refs/heads/" + self.branch
+                  and isinstance(obj.get("object"), dict)
+                  and obj["object"].get("sha") == candidate, "unexpected update response")
+        except StoreError as exc:
+            error = exc
+        try:
+            observed_head = self._ref()
+            if observed_head == parent:
+                if isinstance(error, HttpFailure) and error.status in (401, 403, 404, 409, 422):
+                    raise error
+                raise UncertainWrite("hot ref update not observed")
+            observed = self._hot_at(observed_head)
+            receipt = self._hot_receipt(observed, operation, digest, error is not None)
+        except HttpFailure as exc:
+            if exc is error:
+                raise
+            raise UncertainWrite("cannot reconcile hot ref update") from None
+        except (StoreError, model.LeaseError, KeyError):
+            raise UncertainWrite("cannot reconcile hot ref update") from None
+        if receipt is not None:
+            return receipt
+        if isinstance(error, HttpFailure) and error.status in (409, 422):
+            raise Conflict("non-fast-forward; reread and recompute")
+        raise UncertainWrite("hot receipt not observed; do not replay")
+
+    def initialize_hot(self, expected, operation):
+        """Convert one full ledger to a hot root on a disposable ref only.
+
+        Conversion is irreversible through this test API; full-state readers
+        fail closed. No artifacts/publications are supported yet.
+        """
+        self._writable()
+        check(isinstance(expected, Snapshot), "full snapshot required")
+        validate_envelope(expected.envelope)
+        model.ident(operation)
+        check(operation.startswith("hot-"), "hot initialization operation prefix")
+        check(operation not in expected.envelope["receipts"], "hot operation already used")
+        digest = archive_digest(canonical(["initialize-hot", expected.head]))
+        current = self._ref()
+        if current != expected.head:
+            # Do not stage objects against a stale source. Reconcile only
+            # an exact initialization receipt on an already hot root.
+            try:
+                observed = self._hot_at(current)
+            except (StoreError, model.LeaseError, KeyError):
+                raise Conflict("hot source moved") from None
+            receipt = self._hot_receipt(observed, operation, digest, True)
+            if receipt is not None:
+                return receipt
+            raise Conflict("hot source moved")
+        check(self._at(current) == expected, "hot source mismatch")
+        index = GitTreeIndex(self)
+        manifest = indexed_hot_projection(expected, index)
+        state = copy.deepcopy(manifest["state"])
+        state["revision"] += 1
+        model.validate(state)
+        manifest["state"] = state
+        manifest["root"] = index.record_receipt(manifest["root"], operation,
+                                                {"revision": state["revision"], "digest": digest})
+        candidate = self._hot_candidate(current, manifest, index, operation)
+        return self._advance_hot(current, candidate, operation, digest)
+
+    def publish_hot(self, expected, operation, digest, transition):
+        """Persist an authorized pure hot transition or return exact receipt.
+
+        Host-only disposable integration; the ordinary broker still uses
+        the full ledger. The caller must authorize the callback separately.
+        """
+        self._writable()
+        check(isinstance(expected, HotSnapshot), "hot snapshot required")
+        model.ident(operation)
+        IncrementalIndex._digest(digest)
+        current = self.read_hot()
+        index = GitTreeIndex(self, current.manifest["root"], current.root_tree)
+        match = _REQUEST_OP.fullmatch(operation)
+        if match:
+            prior = index.get(current.manifest["root"], "request", match.group(1))
+            check(prior is None or prior == {"operation": operation},
+                  "request ID reused with different payload")
+        prior = self._hot_receipt(current, operation, digest, True)
+        if prior is not None:
+            return prior
+        if current != expected:
+            raise Conflict("stale hot snapshot; reread and recompute")
+        manifest, _, replayed = indexed_hot_transition(
+            current.manifest, index, operation, digest, transition)
+        check(not replayed, "unexpected hot replay")
+        candidate = self._hot_candidate(current.head, manifest, index, operation)
+        return self._advance_hot(current.head, candidate, operation, digest)
+
     def _writable(self):
         check(_TEST_REF.fullmatch(self.branch), "production writes disabled")
 
@@ -1074,7 +1348,7 @@ class GitHubStore:
         check(tree.get("sha") == tree_sha and tree.get("truncated") is False
               and type(tree.get("tree")) is list, "bootstrap tree")
         check(not any(isinstance(e, dict) and e.get("path") in
-                      (LEDGER, "archive-root.json", "archive.json")
+                      (LEDGER, "archive-root.json", "archive.json", "hot.json")
                       for e in tree["tree"]), "already initialized")
         envelope = {"schema": 3, "state": copy.deepcopy(initial_state),
                     "receipts": {operation: {"digest": digest, "revision": 0}},
