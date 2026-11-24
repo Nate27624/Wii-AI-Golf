@@ -185,3 +185,37 @@ or actual dispatcher. The broker must supply authentic identity and time.
 The manager review epoch/cadence is an offline policy, not live scheduling.
 Tests are synthetic; no native game parity, real training, private data or
 Dolphin authorization is implied. Verify exact-head CI before merging.
+
+
+## Bounded hot-run model prototype
+
+The pure model now has an explicit version 3 representation with an
+archived_fences map, one contiguous closed-run prefix per permanent task.
+The existing version 2 representation still requires complete run history.
+hot_projection converts a validated version-2 state; compact_hot returns
+a new hot state plus the exact terminal-run delta, without changing the
+logical revision. Active runs and each task's current monotonic fence
+remain hot. No completed task, hold, checkpoint or goal pin is removed.
+An acquire of a fresh run ID in model version 3 must receive an exact
+cold membership check; only the literal result False permits admission.
+A missing lookup, uncertain result or already-consumed run ID rejects.
+Archived terminal retries must be reconciled through the trusted receipt
+index, not accepted as new worker transitions.
+
+restore_hot is a full-history offline oracle, not an operational read.
+It checks complete historical fence coverage and rejects overlapping or
+nonterminal cold records. Synthetic tests compare 100 acquire/renew/
+release-or-expiry cycles, and a manager review/addition, against the
+original full-history model. Hot run count stays bounded by active runs
+after each compaction. These tests do not establish archive durability.
+
+The existing persisted envelope schema 3 explicitly requires model
+version 2. Model version 3 alone has no authenticated archive root:
+an asserted floor is not proof of historical membership or completeness.
+The next persistence layer must bind every terminal-run delta, receipt,
+prior root and new hot state in the same non-forced ref transition,
+perform exact cold receipt and run-ID membership checks before admission,
+and preserve original replay responses and artifact provenance. It must
+also bound retained task/artifact/publication data and implement stable
+history access. No production activation or automatic compaction follows
+from this pure model prototype.
