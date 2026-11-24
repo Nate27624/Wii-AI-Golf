@@ -105,12 +105,19 @@ def new_task(role, priority, paths, resources, dependencies, thread, objective,
 
 
 def validate(state):
-    fields(state, ("version", "revision", "clock", "tasks", "runs", "holds", "oversight"))
-    require(type(state["version"]) is int and state["version"] == 2, "version")
+    require(type(state) is dict and type(state.get("version")) is int
+            and state["version"] in (2, 3), "version")
+    hot = state["version"] == 3
+    base_fields = ("version", "revision", "clock", "tasks", "runs", "holds", "oversight")
+    fields(state, base_fields + (("archived_fences",) if hot else ()))
     integer(state["revision"], "revision")
     integer(state["clock"], "clock")
     tasks, runs, holds = state["tasks"], state["runs"], state["holds"]
     require(all(type(x) is dict for x in (tasks, runs, holds)), "invalid maps")
+    floors = state["archived_fences"] if hot else {key: 0 for key in tasks}
+    require(type(floors) is dict and set(floors) == set(tasks), "archive fence coverage")
+    for floor in floors.values():
+        integer(floor, "archived fence floor")
     o = state["oversight"]
     fields(o, ("goal_sha", "epoch", "reviewed_epoch", "reviewed_at"))
     require(isinstance(o["goal_sha"], str) and _SHA.fullmatch(o["goal_sha"]),
@@ -173,7 +180,8 @@ def validate(state):
         require(run["task"] in tasks, "unknown run task")
         t = tasks[run["task"]]
         f = integer(run["fence"], "run fence")
-        require(0 < f <= t["fence"] and f not in fences[run["task"]], "run fence")
+        require(floors[run["task"]] < f <= t["fence"]
+                and f not in fences[run["task"]], "run fence")
         fences[run["task"]].add(f)
         for name in ("acquired", "heartbeat", "expires"):
             integer(run[name], name)
@@ -198,7 +206,8 @@ def validate(state):
             else:
                 checkpoint(run["receipt"])
     for k, t in tasks.items():
-        require(len(fences[k]) == t["fence"], "missing run history")
+        require(floors[k] <= t["fence"]
+                and len(fences[k]) == t["fence"] - floors[k], "missing run history")
         if t["status"] == "IN_PROGRESS":
             require(runs[t["run"]]["status"] == "IN_PROGRESS", "closed active run")
             require(all(tasks[d]["status"] == "CLOSED" for d in t["dependencies"]),
@@ -213,6 +222,66 @@ def validate(state):
         require(not any(resources_conflict(t, h) for h in holds.values()), "legacy hold")
         require(not any(resources_conflict(t, u) for _, u in active[:i]), "active overlap")
     return state
+
+
+def hot_projection(state):
+    """Separate model-v3 projection of a fully validated model-v2 state.
+
+    The returned cold records MUST be durably archived atomically with the
+    hot state before use. A bare floor is not evidence of archive integrity.
+    This function performs no persistence or authorization.
+    """
+    validate(state)
+    require(state["version"] == 2, "full history required for initial projection")
+    projected = copy.deepcopy(state)
+    projected["version"] = 3
+    projected["archived_fences"] = {key: 0 for key in projected["tasks"]}
+    return compact_hot(projected)
+
+
+def compact_hot(state):
+    """Return hot state and exact newly closed-run delta, without a new revision.
+
+    Only a contiguous terminal prefix of each task's run history can move.
+    The active run and monotonic task fence are never removed. The storage
+    layer must bind the delta, prior archive root and new floors atomically.
+    """
+    validate(state)
+    require(state["version"] == 3, "hot model required")
+    hot = copy.deepcopy(state)
+    delta = {}
+    for key, run in sorted(hot["runs"].items(), key=lambda item:
+                           (item[1]["task"], item[1]["fence"])):
+        if run["status"] != "CLOSED":
+            continue
+        task = run["task"]
+        require(run["fence"] == hot["archived_fences"][task] + 1,
+                "noncontiguous archive delta")
+        delta[key] = copy.deepcopy(run)
+        hot["archived_fences"][task] = run["fence"]
+        del hot["runs"][key]
+    return validate(hot), delta
+
+
+def restore_hot(state, cold_runs):
+    """Offline equivalence oracle; verify complete historical fences/records.
+
+    The caller must separately authenticate the cold records against their
+    immutable root. This is not a scalable operational read path.
+    """
+    validate(state)
+    require(state["version"] == 3 and type(cold_runs) is dict, "hot restore input")
+    full = copy.deepcopy(state)
+    floors = full.pop("archived_fences")
+    full["version"] = 2
+    require(not set(full["runs"]) & set(cold_runs), "duplicate cold run")
+    for run in cold_runs.values():
+        require(type(run) is dict and run.get("task") in floors
+                and run.get("status") == "CLOSED", "invalid cold run")
+        require(integer(run.get("fence"), "cold fence") <= floors[run["task"]],
+                "cold fence above archive floor")
+    full["runs"].update(copy.deepcopy(cold_runs))
+    return validate(full)
 
 
 def initial(tasks, holds=None, now=0, *, goal_sha):
@@ -284,7 +353,7 @@ def candidates(state, role, now):
     return dispatch_candidates(state, [role], now)
 
 
-def acquire(state, task, run_id, role, now):
+def acquire(state, task, run_id, role, now, *, cold_run_exists=None):
     ident(task)
     ident(run_id)
     require(isinstance(role, str) and role in ROLES, "role")
@@ -297,6 +366,11 @@ def acquire(state, task, run_id, role, now):
                 and t["run"] == run_id and old["status"] == "IN_PROGRESS",
                 "run ID already consumed")
         return commit(state, s), old["fence"]
+    if s["version"] == 3:
+        # The caller must consult the exact, trusted archive index. A
+        # missing or ambiguous lookup is never proof of nonmembership.
+        require(callable(cold_run_exists), "cold run lookup required")
+        require(cold_run_exists(run_id) is False, "archived run ID or uncertain lookup")
     require(eligible(s, task, role), "task unavailable")
     if task == MANAGER:
         require(manager_due(s), "manager review not due")
@@ -402,6 +476,8 @@ def manager_pass(state, run_id, fence, now, observed_revision, progress,
                 and value.get("run") is None and type(value.get("fence")) is int
                 and value["fence"] == 0, "new task must be open and unused")
         s["tasks"][key] = copy.deepcopy(value)
+        if s["version"] == 3:
+            s["archived_fences"][key] = 0
     for key in retire:
         require(key != MANAGER and key in s["tasks"] and
                 s["tasks"][key]["status"] == "OPEN", "retire only open specialist task")
