@@ -14,7 +14,12 @@ using a new commit whose sole parent is the observed ref. It refuses
 reinitialization. No private data or credentials in the ledger.
 
 The envelope contains schema version, validated Work Queue state and
-operation receipts (ID, revision, SHA-256 of parent and proposed state).
+operation receipts (ID, revision, SHA-256 of parent and proposed state),
+and, in the schema-2 envelope integrated by the broker PR, an immutable
+artifact journal. Artifact admission is atomically bound to the same
+receipt and state revision; its manifest is included in the digest.
+Historical artifacts survive checkpoint overwrite and lease expiry.
+Schema 1 is not auto-upgraded; production state does not yet exist.
 The ledger is canonical ASCII JSON, with duplicate keys rejected, and
 a verified Git SHA-1 blob. A pinned read fetches ref, immutable commit,
 tree and blob, and checks the exact identity and structure. Receipts
