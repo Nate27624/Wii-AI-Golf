@@ -110,12 +110,16 @@ def fields(payload, required, optional=()):
 class Broker:
     """Host-side, synchronous metadata broker with a private store capability.
 
+    Explicit hot mode supports only disposable metadata transitions; artifact,
+    publication and the legacy read wire remain disabled in that mode.
     A request does at most one store publication. Conflicts require the
     caller to reread/retry; uncertain writes require receipt reconciliation.
     The host must serialize this broker with any future external effects.
     """
     def __init__(self, store, credentials, *, clock=None, reviewer=None, inspector=None,
-                 publication_observer=None):
+                 publication_observer=None, hot=False):
+        require(type(hot) is bool, "invalid store mode")
+        self._hot = hot
         self._store = store
         self._credentials = credentials
         self._clock = clock if clock is not None else lambda: int(time.time())
@@ -123,6 +127,12 @@ class Broker:
         self._inspector = inspector
         self._publication_observer = publication_observer
         self._lock = threading.RLock()
+
+    def _read(self):
+        return self._store.read_hot() if self._hot else self._store.read()
+
+    def _lookup(self, snapshot, kind, key):
+        return self._store.hot_lookup_at(snapshot, kind, key)
 
     def _now(self, snapshot):
         now = model.integer(self._clock(), "trusted broker clock")
@@ -142,29 +152,31 @@ class Broker:
         principal = self._credentials.authenticate(token)
         # A read pins an immutable commit and never grants a lease.
         # Do not serialize potentially slow GitHub reads with worker heartbeats.
-        snap = self._store.read()
+        snap = self._read()
         now = self._now(snap)
         effective = model.sweep(snap.state, now)
-        pending = storage.pending_publication(snap.envelope)
+        pending = None if self._hot else storage.pending_publication(snap.envelope)
         return {"head": snap.head, "durable_revision": snap.state["revision"],
                 "effective_at": now, "state": effective,
                 "eligible": [] if pending else self._candidates(effective, principal, now),
                 "task_order": sorted(effective["tasks"], key=lambda k: (
                     k != model.MANAGER, effective["tasks"][k]["priority"], k)),
                 "publication_pending": pending,
-                "publications": copy.deepcopy(snap.envelope["publications"]),
+                "publications": {} if self._hot else copy.deepcopy(snap.envelope["publications"]),
                 "manager_authorized": principal.manager,
-                "accepted_artifacts": copy.deepcopy(snap.envelope["artifacts"])}
+                "accepted_artifacts": {} if self._hot else copy.deepcopy(snap.envelope["artifacts"])}
 
     def capacity(self, token):
         """Authenticated read-only capacity view; separate from status schema."""
         self._credentials.authenticate(token)
+        require(not self._hot, "hot capacity wire unavailable")
         return storage.capacity_report(self._store.read())
 
     def task_history(self, token, task, *, limit=20, cursor=None):
         """Authenticated read-only view for the single LocalOps interface."""
         self._credentials.authenticate(token)
         # History pins its own tip; concurrent appends cannot change its ancestors.
+        require(not self._hot, "permanent hot history unavailable")
         return self._store.task_history(task, limit=limit, cursor=cursor)
 
     def _owned(self, current, principal, payload):
@@ -188,13 +200,19 @@ class Broker:
                                snapshot.state) is True, "checkpoint review denied")
 
     def _response(self, snapshot, principal, request_id, action, op, replayed, now):
-        row = snapshot.envelope["receipts"][op]
+        row = (self._lookup(snapshot, "receipt", op) if self._hot
+               else snapshot.envelope["receipts"][op])
+        require(row is not None, "receipt unavailable")
         result = {"operation": op, "revision": row["revision"], "head": snapshot.head,
                   "replayed": replayed}
         if action == "acquire":
             run_id = run_for(principal, request_id)
             effective = model.sweep(snapshot.state, now)
             run = effective["runs"].get(run_id)
+            if run is None and self._hot:
+                run = self._lookup(snapshot, "run", run_id)
+                require(run is not None and run["status"] == "CLOSED",
+                        "archived acquisition missing terminal run")
             require(run is not None, "acquisition receipt missing run")
             role_allowed = effective["tasks"][run["task"]]["role"] in principal.roles
             manager_allowed = run["task"] != model.MANAGER or principal.manager
@@ -218,21 +236,33 @@ class Broker:
         require(action in ("acquire", "renew", "finish", "manager_pass", "sweep", "accept_artifact",
                            "prepare_publication", "resolve_publication"),
                 "unknown operation")
+        require(not self._hot or action not in ("accept_artifact", "prepare_publication",
+                                                 "resolve_publication"),
+                "hot artifact/publication integration unavailable")
         require(type(payload) is dict, "invalid request")
         # Snapshot input prevents callback or caller mutation during admission.
         payload = copy.deepcopy(payload)
         prefix, op = operation_for(principal, request_id, action, payload)
         with self._lock:
-            snap = self._store.read()
+            snap = self._read()
             current = snap.state
             now = self._now(snap)
-            matches = [key for key in snap.envelope["receipts"] if key.startswith(prefix)]
+            if self._hot:
+                prior = self._lookup(snap, "request", prefix)
+                matches = [] if prior is None else [prior["operation"]]
+                if matches == [op]:
+                    row = self._lookup(snap, "receipt", op)
+                    require(row is not None and row["digest"] ==
+                            digest([principal.identity, request_id, action, payload]),
+                            "hot request receipt mismatch")
+            else:
+                matches = [key for key in snap.envelope["receipts"] if key.startswith(prefix)]
             if matches:
                 require(matches == [op], "request ID reused with different payload")
                 # A receipt is historical, not a fresh grant. Authentication
                 # still applies; replay does not renew an expired lease.
                 return self._response(snap, principal, request_id, action, op, True, now)
-            pending = storage.pending_publication(snap.envelope)
+            pending = None if self._hot else storage.pending_publication(snap.envelope)
             require(pending is None or action == "resolve_publication",
                     "unresolved publication; queue frozen")
             artifact = None
@@ -291,7 +321,10 @@ class Broker:
                             "durable_revision": current["revision"]}
                 task = candidates[0]
                 proposed, _ = model.acquire(current, task, run_for(principal, request_id),
-                                             current["tasks"][task]["role"], now)
+                                             current["tasks"][task]["role"], now,
+                                             cold_run_exists=(lambda key:
+                                                 self._lookup(snap, "run", key) is not None)
+                                             if self._hot else None)
             elif action == "sweep":
                 fields(payload, ())
                 require(principal.maintenance, "maintenance not authorized")
@@ -357,11 +390,20 @@ class Broker:
             if action == "accept_artifact":
                 artifact = gateway.make_record(proposed, task, run_id, fence, now,
                                                payload["base"], payload["head"], changes)
-            receipt = self._store.publish(snap, proposed, op, artifact=artifact,
-                                          publication=publication)
+            if self._hot:
+                # The authorized proposal is pinned to snap; publish_hot checks
+                # equality of that root and uses a non-forced ref CAS.
+                receipt = self._store.publish_hot(
+                    snap, op, digest([principal.identity, request_id, action, payload]),
+                    lambda state, cold_exists: proposed)
+            else:
+                receipt = self._store.publish(snap, proposed, op, artifact=artifact,
+                                              publication=publication)
             try:
-                observed = self._store.read()
-                require(observed.envelope["receipts"].get(op, {}).get("digest") == receipt.digest,
+                observed = self._read()
+                row = (self._lookup(observed, "receipt", op) if self._hot
+                       else observed.envelope["receipts"].get(op))
+                require(row is not None and row.get("digest") == receipt.digest,
                         "published receipt missing; reconcile before retry")
                 return self._response(observed, principal, request_id, action, op,
                                       receipt.replayed, self._now(observed))
