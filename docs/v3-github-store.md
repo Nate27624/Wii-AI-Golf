@@ -75,14 +75,33 @@ and validates schema 3, then checks the original envelope digest. Tests
 exercise multiple pages, expired-run fencing, replay retention, corruption,
 missing pages, mismatched identity and no authoritative ref mutation.
 
-This is a lossless conversion and integrity oracle, not a storage
-migration: GitHubStore still accepts schema 3 only. Full restoration is
-bounded by the original 2 MiB schema-3 cap, the manifest's page list grows,
-and all pages are hydrated for validation. No indexed cold lookup,
-persistent archive manifest commit, task event indexing, or ongoing
-hot-state transitions against archived history are implemented.
-Exact replay remains handled by the existing schema-3 store. A future
-implementation must preserve the same oracle semantics without requiring
+The read-only ArchiveIndex prototype uses independently trusted manifest
+and source pins, nonoverlapping sorted key ranges and SHA-256 page checks.
+An exact cold receipt/run lookup reads at most one page. Request-prefix
+lookup includes both hot and archived receipts and fails closed when the
+page-read budget is exceeded or any candidate page cannot be verified.
+The manifest must first be validated against the complete original source;
+a self-supplied hash is not evidence of completeness. Index lookups never
+authorize a replay or a lease by themselves.
+
+The disposable-test-only stage_archive method creates an immutable Git
+commit with archive.json and its content-addressed pages, checks the
+single parent and exact tree membership, reads the objects back, verifies
+the full restoration against the original snapshot, and checks that the
+source ref has not changed. It returns a candidate commit and manifest
+and source pins. No ref is advanced; unreachable objects may be garbage
+collected and are NOT durable roots. open_archive_index reads a previously
+verified pinned candidate with lazy page access. Both are offline-tested
+transport prototypes; no real archive objects have been staged by this
+implementation pass.
+
+This is not a storage migration: GitHubStore still accepts schema 3 only.
+Full conversion/restoration is bounded by the original 2 MiB schema-3
+cap, the manifest's page list grows, and validation at staging hydrates
+all pages. No authoritative archive root, task event indexing, or
+ongoing hot-state transitions against archived history are implemented.
+Exact replay remains handled by the existing schema-3 store. The future
+persisted schema must preserve the same oracle semantics without requiring
 full hydration for each transition.
 
 **Proposed persisted next schema; not authorized for production.**
