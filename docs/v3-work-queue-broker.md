@@ -290,3 +290,42 @@ The next compatible wire revision must represent pending intent and
 settlement explicitly, and coordinate with the private LocalOps owner.
 Hot capacity also remains unavailable over the current wire. No production
 credential, endpoint or executor has been provisioned.
+
+
+## Staged LocalOps read-v3 contract — explicit publication freeze and capacity
+
+The read-v2 routes remain unchanged. New clients must select read-v3
+explicitly, never silently fall back. GET /v3/projects/{project}/read-v3/status,
+GET /v3/projects/{project}/read-v3/capacity and
+GET /v3/projects/{project}/read-v3/tasks/{task}/history use the same project
+binding, read-only credentials, response bounds and history cursor as read-v2.
+
+Status has the same fields as read-v2, except wire_version=3 and
+publication_supported=true. It additionally includes queue_frozen (boolean),
+publication_pending (operation ID or null) and publications (empty if not
+pending, otherwise exactly {operation_id: {"resolution": null}}).
+The three fields must agree. Eligible remains [] for the operator.
+The effective lease view can show an expired task as OPEN while the durable
+queue remains frozen: never interpret the preview as permission to dispatch.
+Publication support means journal admission and reconciliation, not an
+installed source publication executor.
+
+Capacity keys: wire_version=3, head, revision, used_bytes, limit_bytes,
+remaining_bytes, level (normal/warning/critical), receipt_count,
+active_run_count, archived_run_count, event_count,
+settlement_reserve_bytes, publication_pending (boolean), capacity_scope
+("hot_root_only"). used_bytes measures the exact committed hot.json blob,
+including repository/ref/parent metadata; remaining_bytes=limit_bytes-used_bytes.
+Counts are from the same pinned root, with receipt_count=revision+1,
+active_run_count the durable (not preview) run count and archived_run_count
+the sum of per-task archive floors. Event count sums per-task counts.
+Warning begins at 75%; critical at 90% or remaining below reserve.
+Reserve is 2048+64*task_count bytes. This is not total Git storage, index
+size, network capacity, or an assurance of successful settlement.
+
+History has identical shape and cursor semantics to read-v2 except
+wire_version=3. It includes the sanitized journal event kinds. Status,
+capacity and history each pin their own snapshot; never assume different
+requests refer to the same head. Read-v2 status still fails closed during
+a pending intent and its capacity route remains unavailable. Production
+deployment and compatible private LocalOps client acceptance are still gates.
