@@ -616,8 +616,9 @@ def append_task_events(index, root, counts, before, after, operation, source_com
 def indexed_hot_projection(snapshot, index, *, import_journal=False):
     """Create a pure hot manifest from a validated full-history snapshot.
 
-    Artifact/publication handling is intentionally outside this prototype.
     All receipts and terminal runs are indexed before the root is returned.
+    import_journal is reserved for initialize_hot, which separately verifies
+    and imports the full journal chain before publishing a current root.
     No state publication or durable object reachability is implied.
     """
     check(isinstance(snapshot, Snapshot), "snapshot required")
@@ -794,6 +795,11 @@ def import_journal_delta(index, root, before, after, operation):
           and set(old_publications) <= set(publications), "legacy journal history changed")
     changes = []
     events = []
+    if old_publications != publications:
+        check("state" in before, "legacy publication missing predecessor")
+        swept = model.sweep(before["state"], after["state"]["clock"])
+        swept["revision"] = before["state"]["revision"] + 1
+        check(swept == after["state"], "legacy publication must only sweep")
     for key in sorted(set(artifacts) - set(old_artifacts)):
         check(key == operation, "legacy artifact operation mismatch")
         record = artifacts[key]
@@ -834,6 +840,9 @@ def import_journal_delta(index, root, before, after, operation):
             events.append((record["task"], "publication_resolved", {"intent": key, **row}))
             changes.append(key)
     check(len(changes) <= 1, "multiple legacy journal mutations")
+    if any(row["resolution"] is None for row in old_publications.values()):
+        check(len(events) == 1 and events[0][1] == "publication_resolved",
+              "legacy mutation while publication frozen")
     return root, events
 
 
@@ -1466,8 +1475,8 @@ class GitHubStore:
                           for k, v in older.state["runs"].items() if v["status"] == "CLOSED")
                   and set(older.state["runs"]) <= set(current.state["runs"])
                   and all(current.envelope["receipts"].get(k) == v
-                          for k, v in older.envelope["receipts"].items())
-                  , "history backfill discontinuity")
+                          for k, v in older.envelope["receipts"].items()),
+                  "history backfill discontinuity")
             chain.append(older.head)
             current = older
         root, counts = manifest["root"], {}
