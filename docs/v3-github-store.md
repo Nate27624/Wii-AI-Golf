@@ -224,3 +224,52 @@ protect prior roots. Repeated Git API calls along a path also need
 measured latency/quota and a bounded read/write strategy before
 deployment; the node-count bound alone is not a timing guarantee.
 Existing schema-3 production writes remain disabled.
+
+
+## Disposable persistent hot root
+
+`initialize_hot(expected, operation)` converts an exact full-history
+snapshot with no artifact or publication records into a compact hot
+manifest. One new revision and initialization receipt are committed.
+`read_hot()`, `hot_lookup(kind, key)`, and
+`publish_hot(expected, operation, digest, authorized_transition)` read
+and advance only explicitly disposable test refs. The ordinary full
+ledger reader does not silently hydrate or overwrite a hot root; the
+bootstrap path also refuses to reset it.
+
+Each radix node is a real Git tree containing a canonical node.json blob
+and child tree links named by the hexadecimal radix digit. The commit
+root has exactly hot.json and index (tree). The manifest binds the
+repository, branch, parent commit, current operation, original source
+head, compact state and logical index root digest. The linked radix root
+is not a flat list of every archived key. Tree hashes use actual Git
+binary SHA-1 object encoding; node bytes independently retain their
+SHA-256 digest. Readers validate blob/tree identities, non-truncation,
+entry modes and exact child membership, and load child nodes only from
+references discovered along the anchored tree. Old roots remain reachable
+through commit ancestry. A fresh client reconstructs only the relevant
+paths, with no required process-local index.
+
+Every transition stages a new single-parent commit containing the hot
+state, root and receipt, verifies the candidate and attempts exactly one
+non-forced ref update. Reconciliation reads the current committed root
+and searches its receipt index; replay cannot invoke the transition
+callback or write a second ref update. Different request payload under
+the same operation prefix fails closed. Archived terminal runs remain
+queryable and cannot be reused by the pure acquisition callback.
+
+Tests cover real Git tree hashing, synthetic reachability and old-root
+lookup, fresh-client reopening, terminal history/receipt replay,
+concurrent sibling proposals, uncertain update response, staging
+failure, corruption, bootstrap rejection and production write rejection.
+The fake transport is not evidence of GitHub REST CAS behavior; actual
+disposable remote integration and latency/IO measurement remain gates.
+
+**Not a deployed broker backend:** the callback is a host-only trusted
+capability. Existing broker authorization, artifact/publication records,
+task-event indexing, stable pinned pagination and compact read wire
+still require integration. No production migration, deletion, source
+publication or operator execution is authorized. A hot root is not
+readable by the existing full-state broker; do not initialize one on a
+ref used by that broker. Keep the legacy full ledger and all historical
+objects until an independently reviewed cutover and rollback procedure.
