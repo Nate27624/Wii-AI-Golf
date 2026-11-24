@@ -270,3 +270,23 @@ No production host or credentials have been provisioned.
 The earlier staging-only read wire remains available on full-ledger mode.
 The new read-v2 route is explicitly separate and must be integrated and
 tested with the private LocalOps client before activation.
+
+
+## Hot journal admission (supersedes earlier unsupported-action note)
+
+Hot mode now supports metadata-only accept_artifact, prepare_publication
+and resolve_publication through the same authenticated broker admission
+checks as full mode. Actual upload, source ref promotion and dispatch are
+not implemented. Only a trusted host observation of a settled exact base or
+head can release the queue freeze. The broker does not itself dispatch any
+external IO. Old receipts remain replayable without a fresh lease or effect.
+
+Read-v2 history can now contain artifact_accepted, publication_intent and
+publication_resolved with the existing sanitized per-kind projections.
+Read-v2 status continues to advertise publication_supported=false; while
+an intent is pending it returns 503 response unavailable rather than
+showing an unfrozen queue to a client that cannot represent the freeze.
+The next compatible wire revision must represent pending intent and
+settlement explicitly, and coordinate with the private LocalOps owner.
+Hot capacity also remains unavailable over the current wire. No production
+credential, endpoint or executor has been provisioned.
