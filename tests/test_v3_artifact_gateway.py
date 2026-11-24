@@ -355,5 +355,130 @@ class GatewayBrokerTests(unittest.TestCase):
             self.assertEqual(self.store.read().state["tasks"]["a"]["status"], "OPEN")
 
 
+
+class HotGatewayTests(unittest.TestCase):
+    def setUp(self):
+        self.api = FakeGit()
+        self.store = storage.GitHubStore(self.api, "owner/repo", BRANCH)
+        self.store.bootstrap_test(BASE, initial(), "seed")
+        self.store.initialize_hot(self.store.read(), "hot-seed")
+        self.git = TreeFixture()
+        self.inspector = g.GitHubTreeInspector(self.git, "owner/repo")
+        self.now = 1
+        self.allow = True
+        self.observed = None
+        self.credentials = b.Credentials([
+            (b.token_digest("a" * 40), b.Principal("alpha", frozenset({"S000"}))),
+            (b.token_digest("b" * 40), b.Principal("beta", frozenset({"S000"}))),
+            (b.token_digest("s" * 40), b.Principal("maintenance", frozenset(), False, True)),
+            (b.token_digest("r" * 40), b.Principal("operator", frozenset(), read_only=True)),
+        ])
+        self.reopen()
+
+    def reopen(self):
+        self.store = storage.GitHubStore(self.api, "owner/repo", BRANCH)
+        self.broker = b.Broker(self.store, self.credentials, hot=True, clock=lambda: self.now,
+                               reviewer=lambda *args: self.allow, inspector=self.inspector,
+                               publication_observer=lambda *args: self.observed,
+                               history_cursor_key=b"k" * 32)
+
+    def req(self, who, request, action, payload=None):
+        return self.broker.request(who * 40, request, action, payload or {})
+
+    def accept(self):
+        lease = self.req("a", "claim", "acquire")["lease"]
+        proposal = {**{k: lease[k] for k in ("task", "run_id", "fence")},
+                    "base": BASE_CODE, "head": HEAD_CODE,
+                    "progress": {**progress(), "head": HEAD_CODE}}
+        accepted = self.req("a", "artifact", "accept_artifact", proposal)
+        payload = {k: proposal[k] for k in ("task", "run_id", "fence")}
+        payload.update(artifact=accepted["operation"],
+                       target="orchestration/v3-publication-test-unit")
+        return proposal, accepted, payload
+
+    def test_hot_publication_freeze_reopen_expire_settle_and_history(self):
+        proposal, accepted, payload = self.accept()
+        intent = self.req("a", "prepare", "prepare_publication", payload)
+        key = intent["operation"]
+        pinned = self.store.read_hot()
+        self.assertEqual(pinned.manifest["pending_intent"], key)
+        self.reopen()
+        self.assertEqual(self.store.hot_lookup("artifact", accepted["operation"]),
+                         accepted["artifact"])
+        self.assertEqual(self.store.hot_publication_at(self.store.read_hot(), key),
+                         intent["publication"])
+        self.assertEqual(self.broker.status("b" * 40)["eligible"], [])
+        count = self.api.patch_count
+        with self.assertRaises(b.AdmissionError):
+            self.req("b", "new", "acquire")
+        with self.assertRaises(b.AdmissionError):
+            self.req("s", "sweep", "sweep")
+        with self.assertRaises(storage.StoreError):
+            self.store.publish_hot(pinned, "bypass", "a" * 64,
+                                   lambda state, exists: model.sweep(state, 2))
+        endpoint = b.OperatorReadEndpoint("wii-golf", self.broker)
+        self.assertEqual(endpoint.handle("GET", "/v3/projects/wii-golf/read-v2/status",
+                                         "Bearer " + "r" * 40)[0], 503)
+        self.assertEqual(self.api.patch_count, count)
+        self.now = 121
+        with self.assertRaises(b.AdmissionError):
+            self.req("s", "settle", "resolve_publication", {"intent": key})
+        self.observed = HEAD_CODE
+        self.api.lose_response = True
+        result = self.req("s", "settle", "resolve_publication", {"intent": key})
+        self.assertTrue(result["replayed"])
+        self.reopen()
+        latest = self.store.read_hot()
+        self.assertIsNone(latest.manifest["pending_intent"])
+        self.assertEqual(latest.state["tasks"]["a"]["status"], "OPEN")
+        self.assertEqual(self.store.hot_publication_at(latest, key)["resolution"],
+                         {"operation": result["operation"], "observed_head": HEAD_CODE})
+        self.assertIsNone(self.store.hot_publication_at(pinned, key)["resolution"])
+        replay = self.req("a", "artifact", "accept_artifact", proposal)
+        self.assertTrue(replay["replayed"])
+        self.assertFalse(replay["source_promoted"])
+        self.assertEqual(replay["artifact"], accepted["artifact"])
+        self.assertFalse(self.req("a", "claim", "acquire")["lease"]["active"])
+        page = self.store.hot_task_history(latest, "a", limit=50)
+        kinds = [row["kind"] for row in page["events"]]
+        for kind in ("artifact_accepted", "publication_intent", "publication_resolved", "expired"):
+            self.assertEqual(kinds.count(kind), 1)
+        self.assertEqual(endpoint.handle("GET", "/v3/projects/wii-golf/read-v2/tasks/a/history",
+                                         "Bearer " + "r" * 40)[0], 200)
+
+    def test_hot_publication_single_use_and_trusted_review(self):
+        proposal, accepted, payload = self.accept()
+        count = self.api.patch_count
+        with self.assertRaises(b.AdmissionError):
+            self.req("b", "stolen", "prepare_publication", payload)
+        with self.assertRaises(b.AdmissionError):
+            self.req("a", "main", "prepare_publication", {**payload, "target": "main"})
+        self.allow = False
+        with self.assertRaises(b.AdmissionError):
+            self.req("a", "denied", "prepare_publication", payload)
+        self.assertEqual(self.api.patch_count, count)
+        self.allow = True
+        intent = self.req("a", "prepare", "prepare_publication", payload)
+        self.observed = BASE_CODE
+        self.req("s", "resolve", "resolve_publication", {"intent": intent["operation"]})
+        self.reopen()
+        count = self.api.patch_count
+        with self.assertRaises(storage.StoreError):
+            self.req("a", "retry", "prepare_publication", payload)
+        self.assertEqual(self.api.patch_count, count)
+        self.assertFalse(self.req("a", "prepare", "prepare_publication", payload)["source_promoted"])
+
+    def test_hot_manifest_reserves_settlement_headroom(self):
+        _, _, payload = self.accept()
+        snap = self.store.read_hot()
+        used = len(storage.canonical(snap.manifest))
+        count = self.api.patch_count
+        with patch.object(storage, "MAX_LEDGER", used + 1024):
+            with self.assertRaisesRegex(storage.StoreError, "hot settlement reserve"):
+                self.req("a", "prepare", "prepare_publication", payload)
+        self.assertEqual(self.store.read_hot(), snap)
+        self.assertEqual(self.api.patch_count, count)
+
+
 if __name__ == "__main__":
     unittest.main()
