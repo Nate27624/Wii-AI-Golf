@@ -398,6 +398,193 @@ class ArchiveIndex:
         return copy.deepcopy(matches)
 
 
+# Immutable path-copy radix index prototype. Root digest must be independently
+# trusted; an arbitrary self-authenticated root cannot prove nonmembership.
+_INDEX_KINDS = ("receipt", "request", "run")
+_REQUEST_OP = re.compile(r"(op-[0-9a-f]{32}-)[0-9a-f]{64}")
+
+
+class IncrementalIndex:
+    """Append-only content-addressed index, with bounded per-key object IO.
+
+    The host supplies immutable blob read/write capabilities. put returns a
+    new root; it never mutates the old root or publishes a state ref. Missing
+    referenced objects are errors, not evidence that a key is absent.
+    """
+    def __init__(self, read_node, write_node):
+        check(callable(read_node) and callable(write_node), "index transport")
+        self._read = read_node
+        self._write = write_node
+
+    @staticmethod
+    def _key(kind, key):
+        check(kind in _INDEX_KINDS, "index kind")
+        model.ident(key)
+        return archive_digest(canonical([kind, key]))
+
+    @staticmethod
+    def _digest(value):
+        check(isinstance(value, str) and _DIGEST.fullmatch(value), "index node digest")
+        return value
+
+    def _load(self, digest, prefix):
+        raw = self._read(self._digest(digest))
+        check(type(raw) is bytes and len(raw) <= MAX_LEDGER
+              and archive_digest(raw) == digest, "missing or corrupt index node")
+        node = decode(raw)
+        check(type(node) is dict and raw == canonical(node), "invalid index node")
+        if set(node) == {"kind", "key", "value"}:
+            route = self._key(node["kind"], node["key"])
+            check(route.startswith(prefix) and type(node["value"]) is dict,
+                  "misplaced index leaf")
+        else:
+            check(set(node) == {"children"} and len(prefix) < 64
+                  and type(node["children"]) is dict
+                  and 1 <= len(node["children"]) <= 16, "invalid index branch")
+            for label, child in node["children"].items():
+                check(isinstance(label, str) and len(label) == 1
+                      and label in "0123456789abcdef", "index branch label")
+                self._digest(child)
+        return node
+
+    def _save(self, node):
+        raw = canonical(node)
+        check(len(raw) <= MAX_LEDGER, "index node size")
+        digest = archive_digest(raw)
+        self._write(digest, raw)
+        return digest
+
+    def get(self, root, kind, key):
+        route = self._key(kind, key)
+        prefix = ""
+        while root is not None:
+            node = self._load(root, prefix)
+            if "children" not in node:
+                if (node["kind"], node["key"]) == (kind, key):
+                    return copy.deepcopy(node["value"])
+                check(self._key(node["kind"], node["key"]) != route, "index hash collision")
+                return None
+            label = route[len(prefix)]
+            root = node["children"].get(label)
+            prefix += label
+        return None
+
+    def put(self, root, kind, key, value):
+        route = self._key(kind, key)
+        check(type(value) is dict, "index record")
+        leaf = {"kind": kind, "key": key, "value": copy.deepcopy(value)}
+
+        def insert(node_id, prefix):
+            if node_id is None:
+                return self._save(leaf)
+            node = self._load(node_id, prefix)
+            if "children" not in node:
+                if (node["kind"], node["key"]) == (kind, key):
+                    check(node["value"] == value, "immutable index record conflict")
+                    return node_id
+                old_route = self._key(node["kind"], node["key"])
+                check(old_route != route, "index hash collision")
+                depth = len(prefix)
+                # Only the divergent path is created; the old leaf remains
+                # shared. Maximum depth is the 64-character hash width.
+                split = depth
+                while old_route[split] == route[split]:
+                    split += 1
+                new_id = self._save(leaf)
+                branch = self._save({"children": {old_route[split]: node_id,
+                                                  route[split]: new_id}})
+                for i in range(split - 1, depth - 1, -1):
+                    branch = self._save({"children": {route[i]: branch}})
+                return branch
+            label = route[len(prefix)]
+            children = dict(node["children"])
+            children[label] = insert(children.get(label), prefix + label)
+            if children == node["children"]:
+                return node_id
+            return self._save({"children": children})
+
+        return insert(root, "")
+
+    def record_receipt(self, root, operation, row):
+        model.ident(operation)
+        check(type(row) is dict and set(row) == {"revision", "digest"}, "index receipt")
+        model.integer(row["revision"], "receipt revision")
+        self._digest(row["digest"])
+        match = _REQUEST_OP.fullmatch(operation)
+        if match:
+            prefix = match.group(1)
+            # A separate exact key replaces unbounded prefix scans.
+            root = self.put(root, "request", prefix, {"operation": operation})
+        return self.put(root, "receipt", operation, row)
+
+
+def indexed_hot_projection(snapshot, index):
+    """Create a pure hot manifest from a validated full-history snapshot.
+
+    Artifact/publication handling is intentionally outside this prototype.
+    All receipts and terminal runs are indexed before the root is returned.
+    No state publication or durable object reachability is implied.
+    """
+    check(isinstance(snapshot, Snapshot), "snapshot required")
+    sha(snapshot.head)
+    validate_envelope(snapshot.envelope)
+    check(not snapshot.envelope["artifacts"] and not snapshot.envelope["publications"],
+          "indexed hot prototype does not support artifact/publication records")
+    hot, cold = model.hot_projection(snapshot.state)
+    root = None
+    for key, row in sorted(snapshot.envelope["receipts"].items()):
+        root = index.record_receipt(root, key, row)
+    for key, row in sorted(cold.items()):
+        root = index.put(root, "run", key, row)
+    return {"format": "indexed-hot-prototype-1", "source_head": snapshot.head,
+            "state": hot, "root": root}
+
+
+def indexed_hot_transition(manifest, index, operation, digest, transition):
+    """Pure host-only proposal; callback must implement an authorized action.
+
+    The trusted caller supplies a previously verified manifest and commits
+    the returned state and root together. No external effects are allowed
+    in transition. This is not a broker or durable CAS implementation.
+    """
+    check(type(manifest) is dict and set(manifest) ==
+          {"format", "source_head", "state", "root"}
+          and manifest["format"] == "indexed-hot-prototype-1", "hot manifest")
+    sha(manifest["source_head"])
+    state = model.validate(manifest["state"])
+    check(state["version"] == 3, "hot model required")
+    root = manifest["root"]
+    index._digest(root)
+    model.ident(operation)
+    index._digest(digest)
+    match = _REQUEST_OP.fullmatch(operation)
+    if match:
+        prior = index.get(root, "request", match.group(1))
+        check(prior is None or prior == {"operation": operation},
+              "request ID reused with different payload")
+    receipt = index.get(root, "receipt", operation)
+    if receipt is not None:
+        check(receipt["digest"] == digest, "operation ID reused with different payload")
+        return copy.deepcopy(manifest), copy.deepcopy(receipt), True
+    check(callable(transition), "hot transition callback required")
+    proposed = transition(copy.deepcopy(state),
+                          lambda key: index.get(root, "run", key) is not None)
+    model.validate(proposed)
+    check(proposed["version"] == 3 and proposed["revision"] == state["revision"] + 1
+          and all(proposed["archived_fences"].get(k) == v
+                  for k, v in state["archived_fences"].items())
+          and all(v == 0 for k, v in proposed["archived_fences"].items()
+                  if k not in state["archived_fences"]),
+          "invalid hot transition revision or archive floors")
+    hot, cold = model.compact_hot(proposed)
+    for key, row in sorted(cold.items()):
+        check(index.get(root, "run", key) is None, "archived run already exists")
+        root = index.put(root, "run", key, row)
+    receipt = {"revision": hot["revision"], "digest": digest}
+    root = index.record_receipt(root, operation, receipt)
+    return {**manifest, "state": hot, "root": root}, receipt, False
+
+
 _PUBLICATION_REF = re.compile(r"orchestration/v3-publication-test-[a-z0-9][a-z0-9-]{0,63}")
 
 
