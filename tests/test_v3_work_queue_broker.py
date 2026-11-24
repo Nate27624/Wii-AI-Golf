@@ -367,5 +367,116 @@ class BrokerTests(unittest.TestCase):
         self.assertEqual(self.api.patch_count, 1)
 
 
+
+class HotBrokerTests(unittest.TestCase):
+    """Exercise real broker admission against disposable persistent roots."""
+    def setUp(self):
+        self.api = FakeGit()
+        self.store = storage.GitHubStore(self.api, "owner/repo", BRANCH)
+        self.store.bootstrap_test(BASE, initial(), "seed")
+        self.store.initialize_hot(self.store.read(), "hot-init")
+        self.now = 1
+        self.allow_review = True
+        self.tokens = {k: k * 40 for k in ("m", "a", "b", "s", "r")}
+        self.credentials = b.Credentials([
+            (b.token_digest(self.tokens["m"]), b.Principal("manager", frozenset({"S000"}), True)),
+            (b.token_digest(self.tokens["a"]), b.Principal("alpha", frozenset({"S000"}))),
+            (b.token_digest(self.tokens["b"]), b.Principal("beta", frozenset({"S000"}))),
+            (b.token_digest(self.tokens["s"]), b.Principal("sweeper", frozenset(), False, True)),
+            (b.token_digest(self.tokens["r"]), b.Principal("operator-read", frozenset(), read_only=True)),
+        ])
+        self.reopen()
+
+    def reopen(self):
+        self.store = storage.GitHubStore(self.api, "owner/repo", BRANCH)
+        self.broker = b.Broker(self.store, self.credentials, hot=True,
+                               clock=lambda: self.now,
+                               reviewer=lambda *args: self.allow_review)
+
+    def req(self, who, request_id, action, payload=None):
+        return self.broker.request(self.tokens[who], request_id, action,
+                                   {} if payload is None else payload)
+
+    def claim(self, who, request_id):
+        lease = self.req(who, request_id, "acquire")["lease"]
+        return {k: lease[k] for k in ("task", "run_id", "fence")}
+
+    def test_reopen_terminal_replay_and_conflicting_request(self):
+        a = self.claim("a", "claim")
+        self.now = 121
+        self.req("s", "expire", "sweep")
+        self.reopen()
+        self.assertNotIn(a["run_id"], self.store.read_hot().state["runs"])
+        patches = self.api.patch_count
+        replay = self.req("a", "claim", "acquire")
+        self.assertTrue(replay["replayed"])
+        self.assertFalse(replay["lease"]["active"])
+        self.assertEqual(replay["lease"]["fence"], a["fence"])
+        self.assertEqual(self.api.patch_count, patches)
+        with self.assertRaises(b.AdmissionError):
+            self.req("a", "claim", "sweep")
+        with self.assertRaises(model.LeaseError):
+            self.req("a", "late", "renew", a)
+        next_lease = self.claim("b", "next")
+        self.assertEqual(next_lease["task"], a["task"])
+        self.assertEqual(next_lease["fence"], a["fence"] + 1)
+
+    def test_fenced_review_and_manager_pass_share_admission(self):
+        manager = self.claim("m", "manager")
+        self.assertEqual(manager["task"], model.MANAGER)
+        a = self.claim("a", "alpha")
+        with self.assertRaises(b.AdmissionError):
+            self.req("b", "steal", "renew", a)
+        self.now = 2
+        self.req("a", "heartbeat", "renew", a)
+        self.allow_review = False
+        patches = self.api.patch_count
+        with self.assertRaises(b.AdmissionError):
+            self.req("a", "finish", "finish", {**a, "outcome": "CLOSED",
+                                                "progress": progress()})
+        self.assertEqual(self.api.patch_count, patches)
+        self.allow_review = True
+        revision = self.store.read_hot().state["revision"]
+        self.req("m", "review", "manager_pass", {**manager,
+                 "observed_revision": revision, "progress": progress()})
+        self.req("a", "finish", "finish", {**a, "outcome": "CLOSED",
+                                            "progress": progress()})
+        self.reopen()
+        self.assertTrue(self.req("a", "finish", "finish", {**a,
+                     "outcome": "CLOSED", "progress": progress()})["replayed"])
+        self.assertEqual(self.store.read_hot().state["tasks"][a["task"]]["status"], "CLOSED")
+
+    def test_unsupported_paths_and_read_only_fail_before_mutation(self):
+        patches = self.api.patch_count
+        for action in ("accept_artifact", "prepare_publication", "resolve_publication"):
+            with self.assertRaises(b.AdmissionError):
+                self.req("a", "unsupported", action)
+        with self.assertRaises(b.AdmissionError):
+            self.req("r", "denied", "acquire")
+        view = self.broker.status(self.tokens["r"])
+        self.assertEqual(view["state"]["version"], 3)
+        self.assertEqual(view["eligible"], [])
+        self.assertEqual(view["task_order"][0], model.MANAGER)
+        endpoint = b.OperatorReadEndpoint("wii-golf", self.broker)
+        for route in ("status", "capacity", "tasks/a/history"):
+            code, _, body = endpoint.handle("GET", "/v3/projects/wii-golf/" + route,
+                                            "Bearer " + self.tokens["r"])
+            self.assertEqual(code, 503)
+            self.assertEqual(json.loads(body), {"error": "response unavailable"})
+        self.assertEqual(self.api.patch_count, patches)
+
+    def test_lost_response_replay_is_pinned_and_does_not_regrant(self):
+        self.api.lose_response = True
+        first = self.req("a", "claim", "acquire")
+        self.assertTrue(first["lease"]["active"])
+        self.reopen()
+        self.now = first["lease"]["expires"]
+        patches = self.api.patch_count
+        second = self.req("a", "claim", "acquire")
+        self.assertTrue(second["replayed"])
+        self.assertFalse(second["lease"]["active"])
+        self.assertEqual(self.api.patch_count, patches)
+
+
 if __name__ == "__main__":
     unittest.main()
