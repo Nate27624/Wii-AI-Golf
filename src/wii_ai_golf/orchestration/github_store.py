@@ -400,7 +400,7 @@ class ArchiveIndex:
 
 # Immutable path-copy radix index prototype. Root digest must be independently
 # trusted; an arbitrary self-authenticated root cannot prove nonmembership.
-_INDEX_KINDS = ("receipt", "request", "run")
+_INDEX_KINDS = ("receipt", "request", "run", "event")
 _REQUEST_OP = re.compile(r"(op-[0-9a-f]{32}-)[0-9a-f]{64}")
 
 
@@ -518,6 +518,71 @@ class IncrementalIndex:
         return self.put(root, "receipt", operation, row)
 
 
+# The count map is bounded by the permanent task population, not transitions.
+# Old prototype roots have no history and are deliberately not upgraded in place.
+HOT_HISTORY_FORMAT = "indexed-hot-history-2"
+MAX_HISTORY_BACKFILL = 5000
+
+
+def event_key(task, sequence):
+    model.ident(task)
+    model.integer(sequence, "event sequence")
+    return archive_digest(canonical([task, sequence]))
+
+
+def history_manifest(manifest):
+    check(type(manifest) is dict, "hot manifest")
+    if manifest.get("format") == HOT_HISTORY_FORMAT:
+        check(set(manifest) == {"format", "source_head", "state", "root", "event_counts"},
+              "hot history manifest")
+        counts = manifest["event_counts"]
+        check(type(counts) is dict and set(counts) == set(manifest["state"]["tasks"]),
+              "task event count coverage")
+        for count in counts.values():
+            check(model.integer(count, "event count") > 0, "empty task history")
+    else:
+        check(set(manifest) == {"format", "source_head", "state", "root"}
+              and manifest.get("format") == "indexed-hot-prototype-1", "hot manifest")
+    return manifest
+
+
+def append_task_events(index, root, counts, before, after, operation, source_commit=None):
+    """Index a transition before run compaction. No circular commit-SHA claim."""
+    counts = dict(counts)
+    model.ident(operation)
+    if source_commit is not None:
+        sha(source_commit)
+    check(set(before["tasks"]) <= set(after["tasks"]), "task history removed")
+
+    def emit(task, kind, data):
+        nonlocal root
+        sequence = counts.get(task, 0) + 1
+        model.integer(sequence, "event sequence")
+        row = {"task": task, "sequence": sequence, "kind": kind,
+               "revision": after["revision"], "operation": operation,
+               "clock": after["clock"], "source_commit": source_commit,
+               "data": copy.deepcopy(data)}
+        root = index.put(root, "event", event_key(task, sequence), row)
+        counts[task] = sequence
+
+    for task, new in sorted(after["tasks"].items()):
+        old = before["tasks"].get(task)
+        if old is None:
+            emit(task, "created", new)
+        elif old != new:
+            emit(task, "task_changed", {"before": old, "after": new})
+    for run_id, run in sorted(after["runs"].items()):
+        old = before["runs"].get(run_id)
+        if old != run:
+            kind = ("claimed" if old is None else
+                    ("expired" if run["outcome"] == "EXPIRED" else "released")
+                    if run["status"] == "CLOSED" else "renewed")
+            emit(run["task"], kind, {"run_id": run_id, "run": run})
+    if before["oversight"] != after["oversight"]:
+        emit(model.MANAGER, "oversight_changed", after["oversight"])
+    return root, counts
+
+
 def indexed_hot_projection(snapshot, index):
     """Create a pure hot manifest from a validated full-history snapshot.
 
@@ -547,9 +612,7 @@ def indexed_hot_transition(manifest, index, operation, digest, transition):
     the returned state and root together. No external effects are allowed
     in transition. This is not a broker or durable CAS implementation.
     """
-    check(type(manifest) is dict and set(manifest) ==
-          {"format", "source_head", "state", "root"}
-          and manifest["format"] == "indexed-hot-prototype-1", "hot manifest")
+    history_manifest(manifest)
     sha(manifest["source_head"])
     state = model.validate(manifest["state"])
     check(state["version"] == 3, "hot model required")
@@ -580,9 +643,16 @@ def indexed_hot_transition(manifest, index, operation, digest, transition):
     for key, row in sorted(cold.items()):
         check(index.get(root, "run", key) is None, "archived run already exists")
         root = index.put(root, "run", key, row)
+    result = {**manifest, "state": hot}
+    if manifest["format"] == HOT_HISTORY_FORMAT:
+        root, counts = append_task_events(index, root, manifest["event_counts"],
+                                          state, proposed, operation)
+        result["event_counts"] = counts
     receipt = {"revision": hot["revision"], "digest": digest}
     root = index.record_receipt(root, operation, receipt)
-    return {**manifest, "state": hot, "root": root}, receipt, False
+    result["root"] = root
+    history_manifest(result)
+    return result, receipt, False
 
 
 _PUBLICATION_REF = re.compile(r"orchestration/v3-publication-test-[a-z0-9][a-z0-9-]{0,63}")
@@ -1116,9 +1186,9 @@ class GitHubStore:
               and value["parent"] == parent and value["repository"] == self.prefix
               and value["branch"] == self.branch, "hot root binding")
         manifest = value["manifest"]
-        check(type(manifest) is dict and set(manifest) ==
-              {"format", "source_head", "state", "root"}
-              and manifest["format"] == "indexed-hot-prototype-1", "hot manifest")
+        history_manifest(manifest)
+        check(manifest["format"] == HOT_HISTORY_FORMAT,
+              "old hot root requires reviewed history migration")
         sha(manifest["source_head"])
         model.validate(manifest["state"])
         check(manifest["state"]["version"] == 3
@@ -1151,6 +1221,67 @@ class GitHubStore:
 
     def hot_lookup(self, kind, key):
         return self.hot_lookup_at(self.read_hot(), kind, key)
+
+    def hot_task_history(self, snap, task, *, limit=20, position=None):
+        """Host-pinned event page, newest first; no revision scan or ref write.
+
+        Position is a trusted host offset. Never expose this method directly
+        to a worker or use a caller-supplied snapshot.
+        """
+        self._writable()
+        check(isinstance(snap, HotSnapshot), "hot snapshot required")
+        model.ident(task)
+        check(type(limit) is int and 1 <= limit <= 50, "history page limit")
+        counts = snap.manifest["event_counts"]
+        check(task in counts, "unknown task")
+        count = counts[task]
+        start = count if position is None else position
+        check(type(start) is int and 1 <= start <= count, "invalid event position")
+        index = GitTreeIndex(self, snap.manifest["root"], snap.root_tree)
+        rows = []
+        for sequence in range(start, max(0, start - limit), -1):
+            row = index.get(snap.manifest["root"], "event", event_key(task, sequence))
+            check(type(row) is dict and set(row) ==
+                  {"task", "sequence", "kind", "revision", "operation", "clock",
+                   "source_commit", "data"} and row["task"] == task
+                  and row["sequence"] == sequence
+                  and model.integer(row["revision"], "event revision") <= snap.state["revision"],
+                  "missing or corrupt task event")
+            rows.append(row)
+        return {"task": task, "head": snap.head, "event_count": count,
+                "events": rows, "next_position": start - len(rows) or None}
+
+    def _backfill_hot_history(self, expected, manifest, index):
+        # One-time bounded import; all prior events or no conversion.
+        check(expected.state["revision"] <= MAX_HISTORY_BACKFILL,
+              "history backfill exceeds reviewed limit")
+        chain = [expected]
+        while chain[-1].state["revision"]:
+            current = chain[-1]
+            commit = self._api("GET", "commits/" + current.head)
+            parents = commit.get("parents")
+            check(commit.get("sha") == current.head and type(parents) is list
+                  and len(parents) == 1 and type(parents[0]) is dict,
+                  "history commit is not single-parent")
+            older = self._at(sha(parents[0].get("sha")))
+            check(older.state["revision"] + 1 == current.state["revision"]
+                  and all(current.envelope["receipts"].get(k) == v
+                          for k, v in older.envelope["receipts"].items())
+                  and not older.envelope["artifacts"] and not older.envelope["publications"],
+                  "history backfill discontinuity")
+            chain.append(older)
+        root, counts = manifest["root"], {}
+        before = {"tasks": {}, "runs": {}, "oversight": {}}
+        for snap in reversed(chain):
+            after = snap.state
+            operation = next(k for k, row in snap.envelope["receipts"].items()
+                             if row["revision"] == after["revision"])
+            root, counts = append_task_events(index, root, counts, before, after,
+                                              operation, snap.head)
+            before = after
+        result = {**manifest, "format": HOT_HISTORY_FORMAT, "root": root,
+                  "event_counts": counts}
+        return history_manifest(result)
 
     def _hot_candidate(self, parent, manifest, index, operation):
         root = index.tree_for(manifest["root"])
@@ -1238,6 +1369,7 @@ class GitHubStore:
         check(self._at(current) == expected, "hot source mismatch")
         index = GitTreeIndex(self)
         manifest = indexed_hot_projection(expected, index)
+        manifest = self._backfill_hot_history(expected, manifest, index)
         state = copy.deepcopy(manifest["state"])
         state["revision"] += 1
         model.validate(state)
@@ -1250,8 +1382,8 @@ class GitHubStore:
     def publish_hot(self, expected, operation, digest, transition):
         """Persist an authorized pure hot transition or return exact receipt.
 
-        Host-only disposable integration; the ordinary broker still uses
-        the full ledger. The caller must authorize the callback separately.
+        Host-only disposable integration; the caller must authorize the
+        callback separately. Indexed events commit in the same root.
         """
         self._writable()
         check(isinstance(expected, HotSnapshot), "hot snapshot required")
