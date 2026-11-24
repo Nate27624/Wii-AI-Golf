@@ -15,7 +15,8 @@ checkpoint regularly, and release atomically with its report. No previous
 chat transcript is required. Record exact code SHA, PR, actual tests and CI,
 remaining uncertainties and next bounded action; never raw private inputs.
 
-The sole permanent manager task is S000-MANAGER. It can see the entire
+The sole permanent manager task is S000-MANAGER. It is always display
+position zero, including when blocked, leased or not due. It can see the entire
 sanitized Work Queue, including all specialist leases and history. It is
 responsible for project alignment, task creation, prioritization, dependency
 and scope reconciliation, research gaps, blocker review and escalation.
@@ -92,23 +93,63 @@ Public records contain only sanitized evidence references, not raw RAM, ROM,
 savestates, private paths, tokens or captures. LocalOps remains the approved
 private transport; explicit operator Y/N and live-game permissions survive.
 
-## 4. CLI and execution
+## 4. LocalOps, project knowledge and task history
 
-Extend existing scripts/golf.py and src/wii_ai_golf/cli.py, not a parallel
-launcher. Proposed command group: queue status|tasks|continue|results|
-blockers|goals|history. Display permanent task status first; active worker,
-heartbeat/expiry, latest checkpoint, PR/head/CI, blockers and manager review
-are secondary. Status must distinguish expired effective state, durable
-reconciliation, proposed changes, tested artifacts and merged results.
+The [operator-approved amendment](https://github.com/Nate27624/Wii-AI-Golf/issues/485#issuecomment-7143914532)
+supersedes the original golf.py queue CLI proposal. The sole human-facing
+console is the existing private **LocalOps** repository (Nate27624/LocalOps).
+Keep scripts/golf.py and the research CLI for existing project commands.
+LocalOps is a client and controlled Windows execution subsystem, not a
+second queue authority. Expose status, tasks, blockers, goals, roadmap,
+findings, history/results, approvals and feedback through authenticated
+broker operations; separate read-only and operator mutation permissions.
+Status lists the permanent manager first even when not eligible. Distinguish
+effective expiry, durable reconciliation, accepted artifacts and actual
+merged results.
 
-One universal onboarding instruction: connect to Work Queue, acquire highest
-priority eligible task, load context, act within scope, checkpoint and release.
-The CLI/broker must enforce that sequence. No actual AI executor is implied
-by a CLI or GitHub comment. Continuous active oversight and periodic expiry
-sweeps require an authorized execution backend, separate manager slot,
+The planned root knowledge contracts are ONBOARDING.md (universal entry),
+GOALS.md (operator-approved objectives and constraints), ROADMAP.md
+(goal-linked measurable milestones, evidence and task IDs), FINDINGS.md
+(curated research knowledge) and the existing merging.md (sole merge
+contract). No duplicate merge policy. The manager curates onboarding,
+roadmap and findings via authorized fenced publication, while goals remain
+operator-controlled. Reference existing research registries and immutable
+evidence rather than copying logs or private data. Workers propose findings
+with stable ID, goal/milestone, concise claim, validation status (candidate,
+verified, refuted, superseded), provenance, immutable evidence, limitations
+and applicability; manager reviews and links contradictions/supersessions.
+Never promote a candidate into established fact without validation.
+Completed tasks retain findings.
+
+Per-task history is an append-only projection of the authoritative
+state-ref commit/receipt chain, not another mutable log. The initial
+read-only broker view traverses validated ledger revisions, emits
+creation, task/checkpoint change, run claim/renew/release/expiry,
+artifact acceptance, publication intent/resolution and manager oversight
+changes. Operation IDs and commit SHAs correlate events; an exact retry
+does not add a revision. Pages are newest-first by revision, limited to
+1–50 revisions and a 500-revision cursor lookback; empty pages may have
+a continuation. Same-revision ordering is deterministic, not a separate
+timeline. No inferred events for effective-only expiry. Dedicated finding,
+operator approval/unblock, milestone/decision and actual merge events
+require future authorized transitions. Retain operation journals and
+run tombstones; future archival/indexing must preserve all history.
+
+One universal onboarding instruction: read ONBOARDING and relevant
+knowledge, authenticate, atomically acquire highest priority eligible task,
+load its context, act within scope, checkpoint and release. LocalOps
+requests carry task/run/fence, stable request ID, pinned digest and
+authorization scope; private receipts link to tasks by sanitized references.
+A pending approval may block a task and release its worker, with a separately
+supervised hold for unresolved external operations. Declined operations
+must not be retried; approval alone does not authorize execution without
+fresh fencing/policy admission or supervised durable intent. Existing
+Y/N review, private boundaries and allowlists remain intact.
+
+No actual AI executor is implied by a CLI or GitHub comment. Continuous
+oversight and periodic sweeps require an authorized execution backend,
 trusted time and supervised heartbeat. Without it, expiry is effective at
-the deadline but persisted on the next invocation/sweep. Never claim that
-ChatGPT runs while inactive.
+the deadline but persisted on the next invocation/sweep.
 
 ## 5. Migration and cutover gates
 
@@ -120,9 +161,10 @@ ChatGPT runs while inactive.
 3. V2 shadow import: verified current roster, claims, owner threads and PR
    heads; preserve all live/reserved paths as legacy holds, parked/completed
    states and evidence. No V3 acquisition in shadow mode.
-4. Canonical CLI and universal onboarding: end-to-end dry-run, fresh-worker
-   recovery and status visibility; explicit operator approval for private
-   or live work.
+4. Knowledge contracts, task history and private LocalOps unified CLI:
+   end-to-end dry-run, fresh-worker recovery, verified cross-task findings,
+   task-correlated approvals and manager-first visibility; separate operator
+   authorization for private or live work.
 5. Reviewed cutover: drain/freeze V2 new claims, reconcile ownership and
    pending approvals, pin source snapshot, verify no overlaps and no dual
    dispatch authorities. Operator approves activation and rollback plan.
