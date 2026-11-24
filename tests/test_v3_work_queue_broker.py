@@ -1,5 +1,6 @@
 """Offline Work Queue broker admission tests; no real credentials or source writes."""
 import copy
+import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import sys
@@ -260,6 +261,110 @@ class BrokerTests(unittest.TestCase):
         self.assertNotIn("renewed", [event["kind"] for event in result["events"]])
         latest = self.broker.task_history(self.tokens["r"], a["task"])
         self.assertIn("renewed", [event["kind"] for event in latest["events"]])
+
+
+
+    def test_operator_endpoint_fixed_project_and_no_io_on_invalid_requests(self):
+        endpoint = b.OperatorReadEndpoint("wii-golf", self.broker)
+        root = "/v3/projects/wii-golf"
+        read_auth = "Bearer " + self.tokens["r"]
+        original = self.store.read
+        calls = []
+        def forbidden_read():
+            calls.append(True)
+            raise AssertionError("invalid request reached store")
+        self.store.read = forbidden_read
+        try:
+            for method, path, auth, expected in (
+                ("POST", root + "/status", read_auth, 405),
+                ("GET", root + "/status", None, 401),
+                ("GET", root + "/status", "Bearer " + "x" * 40, 401),
+                ("GET", root + "/status", "Bearer " + self.tokens["m"], 403),
+                ("GET", root + "/status", "Bearer " + self.tokens["a"], 403),
+                ("GET", "/v3/projects/other/status", read_auth, 404),
+                ("GET", root + "/status?x=1", read_auth, 404),
+                ("GET", root + "/tasks/%2e%2e/history", read_auth, 404),
+                ("GET", root + "/tasks/A/history?limit=0", read_auth, 400),
+                ("GET", root + "/tasks/A/history?limit=51", read_auth, 400),
+                ("GET", root + "/tasks/A/history?limit=1&limit=2", read_auth, 400),
+                ("GET", root + "/tasks/A/history?cursor=-1", read_auth, 400),
+                ("GET", root + "/tasks/A/history?cursor=9007199254740992", read_auth, 400),
+                ("GET", root + "/tasks/A/history?repo=foreign", read_auth, 400),
+                ("GET", root + "/tasks/A/history?limit=%31", read_auth, 400),
+                ("GET", root + "/tasks/A/history?", read_auth, 400),
+                ("GET", root + "/status\n", read_auth, 400),
+                ("GET", root + "/" + "a" * 513, read_auth, 400),
+            ):
+                with self.subTest(method=method, path=path, expected=expected):
+                    status, headers, body = endpoint.handle(method, path, auth)
+                    self.assertEqual(status, expected)
+                    self.assertEqual(headers["Cache-Control"], "no-store")
+                    self.assertEqual(int(headers["Content-Length"]), len(body))
+                    self.assertEqual(set(json.loads(body)), {"error"})
+                    self.assertNotIn(self.tokens["r"].encode(), body)
+            self.assertEqual(calls, [])
+        finally:
+            self.store.read = original
+        self.assertEqual(self.api.patch_count, 1)
+
+    def test_operator_endpoint_status_history_capacity_no_mutation(self):
+        lease = self.lease("a", "alpha")
+        endpoint = b.OperatorReadEndpoint("wii-golf", self.broker)
+        root = "/v3/projects/wii-golf"
+        auth = "Bearer " + self.tokens["r"]
+        head = self.store.read().head
+        patches = self.api.patch_count
+        def get(route, expected=200):
+            status, headers, body = endpoint.handle("GET", root + route, auth)
+            self.assertEqual(status, expected)
+            self.assertEqual(headers["Content-Type"], "application/json")
+            return json.loads(body)
+        view = get("/status")
+        self.assertEqual(view["head"], head)
+        self.assertEqual(view["task_order"][0], model.MANAGER)
+        self.assertEqual(view["eligible"], [])
+        self.assertFalse(view["manager_authorized"])
+        self.assertEqual(view["state"]["version"], 2)
+        task = view["state"]["tasks"][lease["task"]]
+        self.assertEqual(task["run"], lease["run_id"])
+        self.assertNotIn("objective", task)
+        self.assertNotIn("paths", task)
+        self.assertEqual(set(task["checkpoint"]), {"head", "evidence"})
+        self.assertNotIn("accepted_artifacts", view)
+        capacity = get("/capacity")
+        self.assertEqual(capacity["head"], head)
+        page = get("/tasks/" + lease["task"] + "/history?limit=1")
+        self.assertEqual(page["head"], head)
+        self.assertEqual(page["next_cursor"], 0)
+        for event in page["events"]:
+            self.assertEqual(event["task"], lease["task"])
+            if event["kind"] == "task_changed":
+                self.assertEqual(set(event["data"]["after"]), {"status"})
+        page2 = get("/tasks/" + lease["task"] + "/history?cursor=0&limit=1")
+        self.assertIsNone(page2["next_cursor"])
+        self.assertEqual(page2["events"][0]["data"], {"status": "OPEN"})
+        get("/tasks/nonexistent/history", 404)
+        get("/tasks/" + lease["task"] + "/history?cursor=999", 409)
+        self.now = 121
+        preview = get("/status")
+        self.assertEqual(preview["state"]["tasks"][lease["task"]]["status"], "OPEN")
+        self.assertEqual(preview["state"]["runs"], {})
+        self.assertEqual(self.store.read().head, head)
+        self.assertEqual(self.api.patch_count, patches)
+
+    def test_operator_endpoint_unavailable_and_oversized_are_sanitized(self):
+        endpoint = b.OperatorReadEndpoint("wii-golf", self.broker)
+        auth = "Bearer " + self.tokens["r"]
+        def fail(token):
+            raise RuntimeError("PRIVATE SYNTHETIC DIAGNOSTIC")
+        self.broker.capacity = fail
+        status, _, body = endpoint.handle("GET", "/v3/projects/wii-golf/capacity", auth)
+        self.assertEqual(status, 503)
+        self.assertNotIn(b"PRIVATE", body)
+        status, _, body = endpoint._reply(200, {"data": "x" * b._READ_LIMIT})
+        self.assertEqual(status, 503)
+        self.assertEqual(json.loads(body), {"error": "response unavailable"})
+        self.assertEqual(self.api.patch_count, 1)
 
 
 if __name__ == "__main__":
